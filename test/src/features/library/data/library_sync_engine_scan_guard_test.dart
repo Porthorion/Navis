@@ -800,6 +800,28 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    for (final code in <int>[503, 429]) {
+      test(
+        'D6: HTTP $code on the status read with no stored token stays unreadable',
+        () async {
+          final serverId = await commitRunOne(reads: <Object?>[null]);
+          listAlbums(9);
+          scanScript(<Object?>[
+            SubsonicGenericException(message: 'busy', code: code),
+          ]);
+
+          await runPlan();
+
+          await expectCommittedCatalogKept(serverId);
+          expect(
+            await ledgerReasons(serverId),
+            contains('scanStatusUnreadable'),
+          );
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
     test('D5: unreadable at collection, idle at promotion defers', () async {
       final serverId = await commitRunOne();
       listAlbums(9);

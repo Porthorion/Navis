@@ -3284,11 +3284,14 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       );
       return (token: token, read: _ScanRead.idle);
     } on SubsonicApiException catch (error) {
-      // The server answered with an error (forbidden, generic, HTTP 501):
-      // with no token ever stored that is a permanent answer, not a flaky
-      // read, so it reads as an unsupported endpoint.
+      // A permanent answer (Subsonic code 0/40/50/70, HTTP 404/501) with no
+      // token ever stored reads as an unsupported endpoint; anything else,
+      // notably HTTP 429 and other 5xx, is a flaky read and stays unreadable.
       AppLogger.warning('Scan status unavailable: $error');
-      return await _missingScanEndpoint(serverId);
+      if (const {0, 40, 50, 70, 404, 501}.contains(error.code)) {
+        return await _missingScanEndpoint(serverId);
+      }
+      return (token: null, read: _ScanRead.unreadable);
     } on SubsonicException catch (error) {
       AppLogger.warning('Scan status unavailable: $error');
       return (token: null, read: _ScanRead.unreadable);

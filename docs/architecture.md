@@ -7116,8 +7116,9 @@ contract.
   transport failure, or any failure once a token was stored, or the endpoint
   vanishing after it once worked) or that is supported at only one of the two
   observations. While no token has ever been stored, an API error answer
-  (forbidden, a generic error, HTTP 501) reads as an unsupported endpoint like a
-  missing one, so such a server promotes on every run; an
+  (Subsonic code 0, 40 or 50, HTTP 404 or 501) reads as an unsupported endpoint like a
+  missing one, so such a server promotes on every run (HTTP 429 and other 5xx
+  stay unreadable, token or not, since a busy server mid-scan answers them); an
   unsupported endpoint at both never blocks. Unreadable deferrals record
   `scanStatusUnreadable` and count in their own streak
   (`libraryScanUnreadableStreak`), which leaves the scan-churn streak and the
