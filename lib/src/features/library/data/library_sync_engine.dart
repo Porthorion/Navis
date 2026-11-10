@@ -688,6 +688,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
 
   Future<LibrarySyncState>? _inFlight;
   bool _cancelled = false;
+
+  /// Plans and targeted runs in progress. The cancel flags reset only when a
+  /// run starts on an idle engine and when the last run ends, so a new or
+  /// observing caller never un-cancels a run that is still unwinding.
+  int _activeRuns = 0;
   SyncExecutionPlan? _activeExecutionPlan;
 
   /// Cancel any in-progress sync. Durable orchestration retains the work.
@@ -695,6 +700,16 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   void cancelSync() {
     _cancelled = true;
     _api.cancelActiveRequests();
+  }
+
+  void _enterRun() {
+    if (_activeRuns++ > 0) return;
+    _cancelled = false;
+    _api.beginRun();
+  }
+
+  void _exitRun() {
+    if (--_activeRuns == 0) _cancelled = false;
   }
 
   /// Throws [SyncCancelledException] if [cancelSync] has been called.
@@ -1292,38 +1307,51 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     bool pendingOnIncomplete = false,
   }) async {
     if (beginRun) {
-      _cancelled = false;
-      _api.beginRun();
+      // A target started while a cancelled plan unwinds must not inherit the
+      // cancel: wait for the plan, then start as a fresh run.
+      final running = _inFlight;
+      if (_cancelled && running != null) {
+        try {
+          await running;
+        } on Object {
+          // The plan's own result is not this target's concern.
+        }
+      }
+      _enterRun();
     }
-    final metrics = _SyncRunMetrics();
-    var state = initial.copyWith(startedAt: DateTime.now());
-    onProgress?.call(state);
-    Object? failure;
     try {
-      state = await operation(state, metrics);
-    } on Object catch (error) {
-      failure = error;
-      if (pendingOnIncomplete &&
-          (error is SubsonicIncompleteResponseException ||
-              error is SubsonicResponseBudgetExceededException)) {
-        state = state.copyWith(pendingHydrationCount: 1);
+      final metrics = _SyncRunMetrics();
+      var state = initial.copyWith(startedAt: DateTime.now());
+      onProgress?.call(state);
+      Object? failure;
+      try {
+        state = await operation(state, metrics);
+      } on Object catch (error) {
+        failure = error;
+        if (pendingOnIncomplete &&
+            (error is SubsonicIncompleteResponseException ||
+                error is SubsonicResponseBudgetExceededException)) {
+          state = state.copyWith(pendingHydrationCount: 1);
+        }
+        if (error is! SyncCancelledException &&
+            error is! SyncNetworkDeferredException &&
+            error is! SubsonicResponseBudgetExceededException &&
+            error is! SubsonicIncompleteResponseException) {
+          await onFailure?.call(state, metrics, error);
+        }
       }
-      if (error is! SyncCancelledException &&
-          error is! SyncNetworkDeferredException &&
-          error is! SubsonicResponseBudgetExceededException &&
-          error is! SubsonicIncompleteResponseException) {
-        await onFailure?.call(state, metrics, error);
-      }
+      state = _terminal(
+        state,
+        metrics,
+        failure,
+        deferrable: deferrable,
+        partialOnIncomplete: partialOnIncomplete,
+      );
+      onProgress?.call(state);
+      return state;
+    } finally {
+      if (beginRun) _exitRun();
     }
-    state = _terminal(
-      state,
-      metrics,
-      failure,
-      deferrable: deferrable,
-      partialOnIncomplete: partialOnIncomplete,
-    );
-    onProgress?.call(state);
-    return state;
   }
 
   LibrarySyncState _terminal(
@@ -1575,8 +1603,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       return running;
     }
 
-    _cancelled = false;
-    _api.beginRun();
+    _enterRun();
     _activeExecutionPlan = executionPlan;
     final future = _runSync(
       plan: executionPlan,
@@ -1586,7 +1613,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     _inFlight = future;
     return future.whenComplete(() {
       _inFlight = null;
-      _cancelled = false;
+      _exitRun();
       if (identical(_activeExecutionPlan, executionPlan)) {
         _activeExecutionPlan = null;
       }
@@ -3316,7 +3343,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   Future<void> observeServerScan(int serverId) async {
     // A cancelled previous run leaves the API client refusing requests until
     // the next run begins; an idle engine can safely clear that flag.
-    if (_inFlight == null) _api.beginRun();
+    if (_activeRuns == 0) _api.beginRun();
     try {
       await _recordScanObservation(
         serverId: serverId,
