@@ -269,6 +269,24 @@ class AppearanceLook {
   }
 }
 
+/// Look fields Auto owns at the top level: theme mode, OLED for Auto and the
+/// Night schedule. A Look used by Auto presets never applies them.
+const autoOwnedLookFields = <String>{
+  'themeMode',
+  'oledForAuto',
+  'nightScheduleEnabled',
+  'nightScheduleStartMinutes',
+  'nightScheduleEndMinutes',
+};
+
+/// The part of a Look that Auto presets apply: everything but
+/// [autoOwnedLookFields]. Cleared nullable settings stay cleared.
+AppearanceSnapshot autoLookSnapshot(AppearanceSnapshot snapshot) =>
+    AppearanceSnapshot.fromJson(
+      snapshot.toJson()
+        ..removeWhere((key, _) => autoOwnedLookFields.contains(key)),
+    );
+
 /// The Look the current appearance is on.
 ///
 /// Several Looks can hold the same appearance, so the explicitly chosen one
@@ -276,9 +294,13 @@ class AppearanceLook {
 /// other matching Look comes next, and a changed appearance is Custom (null).
 String? matchingAppearanceLookId(AppSettingsModel settings, {String? prefer}) {
   final current = AppearanceSnapshot.capture(settings).toJson();
+  // With Auto presets on, Auto owns those fields, so a Look never counts them.
+  final ignored = settings.autoLooksEnabled
+      ? autoOwnedLookFields
+      : const <String>{};
   // Missing saved fields preserve current settings and do not make a Look Custom.
   bool matches(AppearanceLook look) => look.snapshot.toJson().entries.every(
-    (entry) => current[entry.key] == entry.value,
+    (entry) => ignored.contains(entry.key) || current[entry.key] == entry.value,
   );
   final chosen = prefer ?? settings.selectedAppearanceLookId;
   final looks = settings.appearanceLooks;

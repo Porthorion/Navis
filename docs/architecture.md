@@ -1060,6 +1060,18 @@ target-selection rules.
     `ThemeMode.dark` to `MaterialApp`; following the device keeps
     `ThemeMode.system`. OLED for Auto applies whenever Auto is dark. Night
     Schedule stays a colour-style overlay on top in both sources.
+  - Auto presets (#461): `AutoLooksCoordinator` (keep-alive, listened once
+    from `app.dart`) applies the Look chosen for Auto's current mode through
+    `AppearanceLooksController.apply(id, only: autoLookSnapshot)` when
+    `effectiveDarkProvider` reaches a mode other than `auto_looks_applied_mode`
+    (then records it), or when the switch turns on or the current mode's choice
+    changes. `autoLookSnapshot` drops `autoOwnedLookFields` (theme mode, OLED
+    for Auto, Night schedule), so a Look never changes the theme mode. A start
+    in the already-applied mode applies nothing, so tweaks last until the next
+    switch; None or a deleted Look applies nothing. While the switch is on,
+    `matchingAppearanceLookId` ignores those fields too, so an applied Look
+    reads as selected rather than Custom. Night Schedule still overrides the
+    colour style on top.
   - Schema 99 adds `flat_areas` (integer mask, default 7) and
     `album_art_colored_shade` (boolean, default false) in one guarded upgrade.
     `FlatAreas` is the immutable model value: bit 1 selects surfaces (panels,

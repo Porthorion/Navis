@@ -260,4 +260,61 @@ void main() {
     expect(json.keys, isNot(contains('showArtistsPage')));
     expect(json.keys, isNot(contains('desktopNavbarStyle')));
   });
+
+  group('Auto Looks', () {
+    test('the Auto filter drops theme mode, OLED and the night schedule', () {
+      const look = AppearanceSnapshot(
+        themeMode: 'oled',
+        oledForAuto: true,
+        colorStyle: 'pastel',
+        colorSchemeSeed: 0xFF123456,
+        nightScheduleEnabled: true,
+        nightScheduleStartMinutes: 1,
+        nightScheduleEndMinutes: 2,
+        cornerStyle: 'square',
+        albumGridDensity: 4,
+      );
+      final filtered = autoLookSnapshot(look);
+      expect(filtered.toJson().keys.toSet(), {
+        'colorStyle',
+        'colorSchemeSeed',
+        'cornerStyle',
+        'albumGridDensity',
+      });
+      expect(filtered.themeMode, isNull);
+      expect(filtered.oledForAuto, isNull);
+      expect(filtered.nightScheduleEnabled, isNull);
+      expect(filtered.colorStyle, 'pastel');
+      // Nullable settings the Look clears stay cleared.
+      const clears = AppearanceSnapshot(
+        themeMode: 'dark',
+        clearColorSchemeSeed: true,
+        clearAlbumGridDensity: true,
+      );
+      expect(autoLookSnapshot(clears).clearColorSchemeSeed, isTrue);
+      expect(autoLookSnapshot(clears).clearAlbumGridDensity, isTrue);
+      expect(autoLookSnapshot(clears).themeMode, isNull);
+    });
+
+    test('a Look matches despite Auto-owned fields only while Auto presets '
+        'are on', () {
+      final settings = const AppSettingsModel.defaults().copyWith(
+        themeMode: 'system',
+        colorStyle: 'pastel',
+      );
+      final look = AppearanceLook(
+        id: 'a',
+        name: 'A',
+        snapshot: AppearanceSnapshot.capture(
+          settings.copyWith(themeMode: 'oled'),
+        ),
+      );
+      final off = settings.copyWith(appearanceLooks: [look]);
+      expect(matchingAppearanceLookId(off), isNull);
+      final on = off.copyWith(autoLooksEnabled: true);
+      expect(matchingAppearanceLookId(on), 'a');
+      final tweaked = on.copyWith(colorStyle: 'neutral');
+      expect(matchingAppearanceLookId(tweaked), isNull);
+    });
+  });
 }
