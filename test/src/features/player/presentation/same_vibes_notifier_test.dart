@@ -28,6 +28,7 @@ ProviderContainer _parkContainer({
   required SubsonicApiClient api,
   required LastFmApiClient lastFm,
   required DateTime Function() now,
+  bool resolveQueueKeys = false,
 }) {
   final container = createRecommendationContainer(
     overrides: [
@@ -49,7 +50,16 @@ ProviderContainer _parkContainer({
         (albumIds) async => const <String, int?>{},
       ),
       sameVibesQueueSongKeyLookupProvider.overrideWithValue(
-        (songIds) async => const <String>{},
+        (songIds) async => {
+          if (resolveQueueKeys)
+            // Test ids `id-X` belong to `ArtistX` / `SongX`.
+            for (final id in songIds)
+              if (id.startsWith('id-'))
+                sameVibesCanonicalSongKey(
+                  'Artist${id.substring(3)}',
+                  'Song${id.substring(3)}',
+                )!,
+        },
       ),
     ],
   );
@@ -2420,6 +2430,40 @@ void main() {
       });
     });
 
+    test('a retry timer that fires before the backoff deadline is rearmed '
+        '(#377 side risk)', () async {
+      final container = _parkContainer(
+        api: api,
+        lastFm: lastFm,
+        now: () => fakeNow,
+      );
+      var tick = 0;
+      void emit(int length) => container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
+              currentSongId: 'q-${length - 1}',
+              currentIndex: length - 1,
+            ).copyWith(position: Duration(seconds: tick++)),
+          );
+      emit(1);
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      emit(6);
+      await pumpEventQueue();
+      while (container.read(sameVibesProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(similarCalls, 2, reason: 'the failed refill schedules a retry');
+
+      // The injected clock never moves, so it lags the real retry timer
+      // (3 s plus up to 0.6 s jitter): the timer fires while `now` is still
+      // before the backoff deadline, and the retry must still run.
+      await Future<void>.delayed(const Duration(milliseconds: 3800));
+      expect(similarCalls, greaterThan(2));
+    });
+
     test('five failed refills wait for the next song, then retry', () async {
       final container = _parkContainer(
         api: api,
@@ -3209,8 +3253,10 @@ void main() {
     ];
     const unplaceable = {'F', 'G', 'H', 'I', 'J'};
 
-    test('a refill reaches new songs ranked below already-queued ones '
-        'instead of parking every seed', () async {
+    // Plays the mix through four song changes and returns the number of
+    // `search3` calls made.
+    Future<int> playMix({bool resolveQueueKeys = false}) async {
+      var searchCalls = 0;
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       var fakeNow = DateTime(2026, 11, 10, 8);
@@ -3245,6 +3291,7 @@ void main() {
           songOffset: any(named: 'songOffset'),
         ),
       ).thenAnswer((invocation) async {
+        searchCalls++;
         final query = invocation.namedArguments[#query] as String;
         final match =
             RegExp(r'Artist(\w)').firstMatch(query) ??
@@ -3284,6 +3331,7 @@ void main() {
         api: api,
         lastFm: lastFm,
         now: () => fakeNow,
+        resolveQueueKeys: resolveQueueKeys,
       );
       final notifier = container.read(recommendationSnapshotProvider.notifier);
       notifier.emitSnapshot(
@@ -3329,6 +3377,18 @@ void main() {
             'Last.fm offered five new songs; the mix must not stop because '
             'its ten search attempts went to songs it had already queued',
       );
+      return searchCalls;
+    }
+
+    test('a refill reaches new songs ranked below already-queued ones '
+        'instead of parking every seed', () async {
+      await playMix();
+    });
+
+    test('known queued keys are dropped before searching', () async {
+      final withoutKeys = await playMix();
+      final withKeys = await playMix(resolveQueueKeys: true);
+      expect(withKeys, lessThan(withoutKeys));
     });
   });
 }
