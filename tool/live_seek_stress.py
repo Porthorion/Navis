@@ -483,9 +483,10 @@ ANDROID_PACKAGE = REAL_ANDROID_PACKAGE + SUFFIX
 def validate_android_identity(suffix: str = SUFFIX) -> None:
     """Refuse a suffix that would make adb drive the real app package."""
     package = REAL_ANDROID_PACKAGE + suffix
-    if not suffix.strip() or package == REAL_ANDROID_PACKAGE:
+    # '.dev' is the installed Navis Dev app (tool/dev_app.sh); never uninstall it.
+    if not suffix.strip() or suffix.strip() == '.dev' or package == REAL_ANDROID_PACKAGE:
         raise Failure(
-            'NAVIS_LIVE_SEEK_SUFFIX must be non-empty: refusing to run adb '
+            'NAVIS_LIVE_SEEK_SUFFIX must be non-empty and not .dev: refusing to run adb '
             f'against the real app package {REAL_ANDROID_PACKAGE!r} '
             f'(computed {package!r})')
 RELAY_PID = '/data/local/tmp/navis-relay.pid'

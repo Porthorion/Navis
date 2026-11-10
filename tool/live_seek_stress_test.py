@@ -21,7 +21,7 @@ SCRIPT = Path(__file__).resolve().with_name('live_seek_stress.py')
 
 class SuffixValidation(unittest.TestCase):
     def test_rejects_blank_suffixes(self):
-        for suffix in ('', ' ', '\t\n'):
+        for suffix in ('', ' ', '\t\n', '.dev'):
             with self.assertRaisesRegex(engine.Failure, 'NAVIS_LIVE_SEEK_SUFFIX'):
                 engine.validate_android_identity(suffix)
 
