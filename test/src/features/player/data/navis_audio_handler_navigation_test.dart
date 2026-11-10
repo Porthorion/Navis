@@ -2874,6 +2874,20 @@ void main() {
       },
     );
 
+    test(
+      'a metadata update during a stall still reconnects the station',
+      () async {
+        final (handler, player) = await playStation(timeouts: stall);
+        final loads = player.sourceLoads;
+        stallStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        handler.updateRadioMetadata(title: 'Next song');
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loads + 1);
+      },
+    );
+
     test('a station buffering with progress is left alone', () async {
       final (_, player) = await playStation(timeouts: stall);
       final loads = player.sourceLoads;

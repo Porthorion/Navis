@@ -1820,7 +1820,7 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackStallBufferedPosition = bufferedPosition;
     _remotePlaybackStallTimer = Timer(_remotePlaybackStallTimeout, () {
       _remotePlaybackStallTimer = null;
-      if (!identical(_radioStation, station)) return;
+      if (!_isSameStation(_radioStation, station)) return;
       // A ready station emits no events while it plays: look again.
       if (_player.position != position ||
           _player.bufferedPosition != bufferedPosition) {
