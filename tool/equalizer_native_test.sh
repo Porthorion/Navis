@@ -8,6 +8,7 @@ navis_studio_jdk="${HOME}/android-studio/jbr"
 navis_darwin_source="${navis_root}/third_party/just_audio/darwin"
 if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
   navis_c_out="$(mktemp -d)"
+  trap 'rm -rf "${navis_c_out}"' EXIT
   # Memory errors in the realtime code must fail CI: use ASan/UBSan when the compiler has them.
   navis_c_sanitize=()
   printf 'int main(void){return 0;}\n' > "${navis_c_out}/probe.c"
@@ -90,7 +91,7 @@ if [[ ! -x "${navis_javac}" || ! -x "${navis_java}" ]]; then
   exit 1
 fi
 navis_classes="$(mktemp -d)"
-trap 'rm -rf "${navis_classes}"' EXIT
+trap 'rm -rf "${navis_classes}" "${navis_c_out:-}"' EXIT
 navis_source="${navis_root}/third_party/just_audio/android/src"
 "${navis_javac}" -d "${navis_classes}" \
   "${navis_source}/main/java/com/ryanheise/just_audio/EqualizerDsp.java" \
