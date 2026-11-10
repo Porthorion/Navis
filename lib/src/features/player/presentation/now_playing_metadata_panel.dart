@@ -421,12 +421,11 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                       curve: Curves.easeOut,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxWidth: showInlineEditor ? 132 : 210,
+                          maxWidth: showInlineEditor ? 240 : 210,
                         ),
                         child: showInlineEditor
                             ? RatingWidget(
                                 rating: inlineRating,
-                                compact: true,
                                 onChanged: (next) {
                                   setState(
                                     () => _showInlineRatingEditor = false,
@@ -786,7 +785,6 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
               alignment: Alignment.centerLeft,
               child: RatingWidget(
                 rating: currentRating,
-                compact: true,
                 onChanged: (next) {
                   unawaited(
                     setSongRating(currentSongId, next, ref).catchError((_) {

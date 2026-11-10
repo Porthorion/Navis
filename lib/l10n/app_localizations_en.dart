@@ -2994,6 +2994,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String ratingStarLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count stars',
+      one: '1 star',
+    );
+    return 'Rate $_temp0';
+  }
+
+  @override
   String get ratingUpdateFailed => 'Could not update rating.';
 
   @override
