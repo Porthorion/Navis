@@ -215,5 +215,26 @@ void main() {
       redactServerHost('Connection reset by peer'),
       'Connection reset by peer',
     );
+    // Rows stored before redaction and redirect targets carry no known host.
+    expect(
+      redactServerHost(
+        "SocketException: Failed host lookup: 'cdn.example.net'",
+      ),
+      "SocketException: Failed host lookup: '<server>'",
+    );
+    expect(
+      redactServerHost('refused at [::1]:4533 now', host: '::1'),
+      'refused at <server> now',
+    );
+    expect(
+      redactServerHost('Connection closed by ion', host: 'ion'),
+      'Connection closed by <server>',
+    );
+  });
+
+  test('server host redaction stays fast on long letter runs', () {
+    final watch = Stopwatch()..start();
+    redactServerHost('${'a' * 60000}://');
+    expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
   });
 }

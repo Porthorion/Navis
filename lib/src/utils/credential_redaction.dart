@@ -63,12 +63,17 @@ String redactCredentialQueryParameters(String text) => text
 
 // The scheme and authority of a URI in free text; the path and query stay.
 final _uriAuthority = RegExp(
-  r'''[a-z][a-z0-9+.-]*://[^/\s?#"'<>]+''',
+  // The lookbehind keeps the scan linear on long letter runs.
+  r'''(?<![a-z0-9+.-])[a-z][a-z0-9+.-]*://[^/\s?#"'<>]+''',
   caseSensitive: false,
 );
 
 // A `SocketException`'s trailing ", address = host, port = 4533".
 final _socketAddressAndPort = RegExp(r',?\s*(?:address|port) = [^\s,]+');
+
+// `SocketException: Failed host lookup: 'nas.example.com'`, also in rows
+// stored before redaction and for a redirect target's host.
+final _failedHostLookup = RegExp("Failed host lookup: '[^']*'");
 
 /// Replaces the server's address in [text] with `<server>`: the scheme and
 /// authority of every URI, [host] (with a following `:port`) wherever it
@@ -80,10 +85,14 @@ final _socketAddressAndPort = RegExp(r',?\s*(?:address|port) = [^\s,]+');
 String redactServerHost(String text, {String? host}) {
   var result = text
       .replaceAll(_uriAuthority, '<server>')
-      .replaceAll(_socketAddressAndPort, '');
+      .replaceAll(_socketAddressAndPort, '')
+      .replaceAll(_failedHostLookup, "Failed host lookup: '<server>'");
   if (host != null && host.isNotEmpty) {
     result = result.replaceAll(
-      RegExp('${RegExp.escape(host)}(?::\\d+)?', caseSensitive: false),
+      RegExp(
+        '(?<![a-z0-9.-])\\[?${RegExp.escape(host)}\\]?(?::\\d+)?(?![a-z0-9-])',
+        caseSensitive: false,
+      ),
       '<server>',
     );
   }
