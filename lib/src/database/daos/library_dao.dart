@@ -696,7 +696,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       "WHERE cache_type = 'permanent')";
 
   /// Genres of the library, merged by `genreKey`, with song and album
-  /// counts. [query] matches the merge key, so "hip hop" finds "Hip-Hop".
+  /// counts. [query] matches the merge key accent- and case-insensitively
+  /// (`navis_fold`, the same fold as the local search), so "electronique"
+  /// finds "Électronique"; `%` and `_` stay literal text.
   /// [downloadedOnly] counts permanently downloaded songs only. Paged by
   /// [limit] and [offset]; a null limit returns every genre.
   Future<List<GenreSummary>> getGenres({
@@ -731,7 +733,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return _queryGenres(
       query: query,
       downloadedOnly: downloadedOnly,
-      order: 'instr(tot.k, ?1) = 1 DESC, tot.songs DESC, tot.k ASC',
+      order: 'instr(navis_fold(tot.k), ?1) = 1 DESC, tot.songs DESC, tot.k ASC',
       limit: limit,
     );
   }
@@ -784,7 +786,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           ORDER BY c DESC, n ASC LIMIT 1) AS name,
         tot.songs AS songs, tot.albums AS albums
       FROM tot
-      WHERE (?1 = '' OR instr(tot.k, ?1) > 0)
+      WHERE (?1 = '' OR instr(navis_fold(tot.k), ?1) > 0)
       ORDER BY $order
       LIMIT ?3 OFFSET ?4
       ''';
@@ -797,8 +799,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     int? limit,
     int offset = 0,
   }) async {
-    final key = genreKey(query);
-    // Punctuation-only input matches nothing, like the song search.
+    final key = foldSearchLetters(genreKey(query));
+    // Punctuation-only (or mark-only) input matches nothing, like the song
+    // search.
     if (query.trim().isNotEmpty && key.isEmpty) return const <GenreSummary>[];
     await _ensureSongGenreIndex();
     final rows = await customSelect(
