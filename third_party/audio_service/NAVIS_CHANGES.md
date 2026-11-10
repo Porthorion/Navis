@@ -1,8 +1,9 @@
 # Navis audio_service changes
 
 Based on audio_service 0.18.19 (MIT). The original license and sources are
-kept; `example/` and `test/` are dropped. Only the Darwin plugin is changed
-(`darwin/audio_service/Sources/audio_service/AudioServicePlugin.m`):
+kept; `example/` and `test/` are dropped. The Darwin plugin
+(`darwin/audio_service/Sources/audio_service/AudioServicePlugin.m`) and one
+line of the Android plugin are changed:
 
 - **Fewer Now Playing updates while playing.** Navis publishes a playback
   state on every libmpv position tick (about 35 a second). The system
@@ -27,6 +28,11 @@ kept; `example/` and `test/` are dropped. Only the Darwin plugin is changed
 - **Elapsed time before playback state (macOS).** `updateNowPlayingInfo`
   assigns `nowPlayingInfo` before `MPNowPlayingInfoCenter.playbackState`, so
   the system never sees the paused state with a stale elapsed time.
+- **Android: `AudioService.releaseWakeLock()` is package-private.** Navis keeps
+  the notification while paused (`androidStopForegroundOnPause` false), so
+  upstream never releases the wakelock on pause; the app's `NavisAudioService`
+  subclass calls this on every not-playing state instead of reaching the
+  private field by reflection.
 
 The pause fix was verified by the owner on a macOS release build (2026-11-05). The drift arithmetic was checked in a standalone simulation: steady playback publishes about once a minute, a stall stays within 100 ms, and a 120 ms seek is corrected at once. The rate stays at the playing speed while buffering (as upstream), so a stall is bounded rather than exact; a rate of 0 there would flicker the iOS lock-screen play button. The
 system Now Playing state cannot be read by script on macOS 27, so there is no

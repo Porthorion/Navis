@@ -2,7 +2,6 @@ package com.ryanheise.audioservice;
 
 import android.content.ComponentName;
 import android.content.Intent;
-import android.os.PowerManager;
 import android.util.Log;
 import java.lang.reflect.Field;
 import java.util.List;
@@ -46,28 +45,6 @@ public class NavisAudioService extends AudioService {
     }
 
     public static boolean shouldReleaseWakeLock(boolean playing) { return !playing; }
-
-    private static Field wakeLockField;
-    private static boolean wakeLockUnavailable;
-
-    private synchronized void releaseWakeLock() {
-        if (wakeLockUnavailable) return;
-        try {
-            if (wakeLockField == null) {
-                wakeLockField = AudioService.class.getDeclaredField("wakeLock");
-                wakeLockField.setAccessible(true);
-            }
-            PowerManager.WakeLock lock = (PowerManager.WakeLock) wakeLockField.get(this);
-            if (lock != null && lock.isHeld()) lock.release();
-        } catch (ReflectiveOperationException | ClassCastException error) {
-            // A dependency upgrade changed the field: stop trying, keep playing.
-            wakeLockUnavailable = true;
-            Log.w("NavisAudioService", "Wakelock release unavailable");
-        } catch (RuntimeException error) {
-            // A one-off release failure; the next paused state retries.
-            Log.w("NavisAudioService", "Wakelock release failed");
-        }
-    }
 
     public static Object serviceIdentityForDiagnostics() { return AudioService.instance; }
 
