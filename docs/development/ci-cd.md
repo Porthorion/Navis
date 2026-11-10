@@ -11,6 +11,8 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
   15-minute deadline and requires no emulator or secrets.
 - `ci`: waits for all three and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
+`tool/check.sh` and the CI `test` job set `NAVIS_REQUIRE_SQLITE=1`: a missing native SQLite then fails the database suites (`sqliteAvailable` in `test/helpers/test_database.dart` throws) instead of skipping them.
+
 The `static`, `test` and `native` jobs cache `.dart_tool/hooks_runner/shared/sqlite3/build`, (one entry per job, keyed on `pubspec.lock`). With a warm cache the `sqlite3` package's build hook reuses its prebuilt library after checking its hash, so a GitHub release-download outage does not fail the job; a cold cache (new key) still downloads.
 
 Windows media-session changes additionally require the Windows-only isolated
@@ -108,7 +110,10 @@ Checks performed (in order, fail-fast):
 3. Native equalizer response/PCM and progressive HTTP retry/repeat fixtures
    (`tool/equalizer_native_test.sh`), Android repeat runner contract
    (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
-   (`tool/android_repeat_native_test.sh`), and the Last.fm key masking / artifact secret scan shell tests
+   (`tool/android_repeat_native_test.sh`; it runs every app JVM unit suite, not
+   only the repeat ones), the sync scenario, sync action attribution and libmpv
+   download/bundle self-tests (the `static` CI job also runs these and the
+   release/secret-scan shell tests), and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
    fake key and synthetic artifacts, runnable on their own to debug a failure),
    the release-notes failure guard (`tool/release_notes_test.sh`; only a
