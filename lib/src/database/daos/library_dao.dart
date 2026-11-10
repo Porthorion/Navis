@@ -920,10 +920,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       GenreSongSort.title => 'lower(s.title) ASC',
       GenreSongSort.artist =>
         'lower(s.artist_name) ASC, lower(s.album_name) ASC, '
-            'COALESCE(s.disc_number, 1) ASC, s.track ASC, lower(s.title) ASC',
+            'COALESCE(s.disc_number, 1) ASC, s.track IS NULL ASC, s.track ASC, lower(s.title) ASC',
       GenreSongSort.album =>
         'lower(s.album_name) ASC, COALESCE(s.disc_number, 1) ASC, '
-            's.track ASC, lower(s.title) ASC',
+            's.track IS NULL ASC, s.track ASC, lower(s.title) ASC',
     };
     Selectable<QueryRow> genreRows(String columns, {required bool paged}) {
       return customSelect(
@@ -1386,8 +1386,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             table.serverDeletedAt.isNull(),
       )
       ..orderBy([
-        (table) => OrderingTerm.asc(table.discNumber),
+        // Same shape as watchSongsByArtist: NULL disc is disc 1, NULL track last.
+        (table) => OrderingTerm.asc(
+          coalesce<int>([table.discNumber, const Constant(1)]),
+        ),
+        (table) => OrderingTerm.asc(table.track.isNull()),
         (table) => OrderingTerm.asc(table.track),
+        (table) => OrderingTerm.asc(table.id),
       ]);
     return query.watch();
   }
@@ -2581,8 +2586,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         al.starred DESC NULLS LAST,
         LOWER(COALESCE(al.name, '')) ASC,
         al.id ASC,
-        s.disc_number IS NULL ASC,
-        s.disc_number ASC,
+        COALESCE(s.disc_number, 1) ASC,
         s.track IS NULL ASC,
         s.track ASC,
         LOWER(COALESCE(s.title, '')) ASC,

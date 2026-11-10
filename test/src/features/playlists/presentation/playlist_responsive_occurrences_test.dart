@@ -224,7 +224,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('occurrences-duplicate-2')),
+        find.byKey(const ValueKey('occurrences-duplicate-1')),
         findsOneWidget,
       );
       tester

@@ -228,6 +228,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     _globalKeyHandlerInstalled = false;
   }
 
+  void _setNowPlayingBackInterceptor(
+    bool Function()? handler, {
+    bool Function()? release,
+  }) {
+    if (release == null || _nowPlayingBackInterceptor == release) {
+      _nowPlayingBackInterceptor = handler;
+    }
+  }
+
   bool _dismissNowPlayingInternalOverlayIfExpanded() {
     if (!ref.read(playerSheetExpandedProvider)) {
       return false;
@@ -339,6 +348,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Block transport commands when the user is typing in a text field.
     if (isTextSensitiveDesktopCommand(action) &&
         desktopCommandBlockedByTextInput()) {
+      return false;
+    }
+
+    // Bare Space/arrows belong to a focused control or modal (button, slider,
+    // dialog); modifier combos stay global.
+    final keyboard = HardwareKeyboard.instance;
+    final bare =
+        !keyboard.isControlPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isShiftPressed;
+    if (bare &&
+        isTextSensitiveDesktopCommand(action) &&
+        desktopCommandBlockedByFocusedControl(
+          shellFocusNode: _shellFocusNode,
+        )) {
       return false;
     }
 
@@ -1621,10 +1646,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   if (showQueueOverlay) {
                                     _hideQueueWithAnimation();
                                   } else {
+                                    // Return focus to the toggle only when
+                                    // the keyboard opened the queue (#474):
+                                    // a focused toggle would take Space.
                                     _showQueueOverlay(
                                       queueOnly: useDesktopShell,
                                       invokerFocusNode:
-                                          _desktopQueueToggleFocusNode,
+                                          _desktopQueueToggleFocusNode
+                                              .hasPrimaryFocus
+                                          ? _desktopQueueToggleFocusNode
+                                          : null,
                                     );
                                   }
                                 },
@@ -1655,9 +1686,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 coverArtId: coverArtId,
                                 coverArtUrl: nowPlayingArtUrl,
                                 isExternalSource: isExternalSource,
-                                onBackInterceptorChanged: (handler) {
-                                  _nowPlayingBackInterceptor = handler;
-                                },
+                                onBackInterceptorChanged:
+                                    _setNowPlayingBackInterceptor,
                                 onCompactWideOverlayActiveChanged:
                                     _handleCompactWideOverlayActiveChanged,
                                 onCompactWideQueueRequestChanged:
@@ -1924,10 +1954,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                     )
                                                                     .collapse(),
                                                                 onBackInterceptorChanged:
-                                                                    (handler) {
-                                                                      _nowPlayingBackInterceptor =
-                                                                          handler;
-                                                                    },
+                                                                    _setNowPlayingBackInterceptor,
                                                                 onCompactWideOverlayActiveChanged:
                                                                     _handleCompactWideOverlayActiveChanged,
                                                                 onCompactWideQueueRequestChanged:
@@ -1988,10 +2015,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                         )
                                                                         .collapse(),
                                                                     onBackInterceptorChanged:
-                                                                        (handler) {
-                                                                          _nowPlayingBackInterceptor =
-                                                                              handler;
-                                                                        },
+                                                                        _setNowPlayingBackInterceptor,
                                                                   ),
                                                                 ),
                                                               ),
@@ -2172,10 +2196,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                     .notifier,
                                               )
                                               .collapse(),
-                                          onBackInterceptorChanged: (handler) {
-                                            _nowPlayingBackInterceptor =
-                                                handler;
-                                          },
+                                          onBackInterceptorChanged:
+                                              _setNowPlayingBackInterceptor,
                                         ),
                                       ),
                                 ),

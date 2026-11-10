@@ -3063,6 +3063,12 @@ handling. Commands are guarded before dispatch:
 
 - **Text input guard** — transport and history shortcuts are suppressed when focus is
   inside any `EditableText` descendant, so they do not interfere with text editing
+- **Focused-control guard** — bare Space and arrow shortcuts (no Ctrl/Cmd/Alt/Shift) are
+  skipped while a leaf control (button, switch, slider, list tile) has focus or focus is
+  inside a dialog, sheet or menu, so the control receives the key; the shell's own
+  focus node and focus scopes do not count as controls; Space activates a focused control (Flutter's default
+  `ActivateIntent`), and the desktop queue returns focus to its toggle only when the
+  keyboard opened it
 - **Mini Player guard** — page shortcuts are ignored while Mini Player is shown
 
 Defaults: Ctrl/Cmd+F quick search, Ctrl/Cmd+K go to Search and focus its field,
@@ -4065,6 +4071,9 @@ works like the weekly playlists. `homeTrendingProvider`
   `playlistDetailTrackRemoveFailed` or `playlistDetailReorderFailed` instead of
   swallowing the error. The playlist detail screen computes editability once per
   build and hides the drag handle and "Remove from playlist" when it is false.
+  The handle (tooltip `commonReorder`) shows on desktop too, beside the hover
+  actions; reorder row keys use the song id plus its occurrence number, not the
+  index.
   The add-to-playlist sheet lists only editable playlists. `addSongs` skips
   ids the playlist already holds (read from the server just before the add, or
   the stored rows for a device playlist) and ids repeated in the picked list,
