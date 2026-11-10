@@ -77,24 +77,31 @@ when the server returns small covers.
 
 ### Fix (one place, every caller)
 
-In `buildCurrentArt` (`now_playing_screen.dart:1742`), size the song cover to
-the largest square that fits both the given maximum and the slot:
+In `buildCurrentArt` (`now_playing_screen.dart:1742`), size the song cover as
+a square of the slot it is given:
 
 ```dart
-Widget squareArt(double maxSize, Widget child) => ConstrainedBox(
-  constraints: BoxConstraints.loose(Size.square(maxSize)),
-  child: AspectRatio(aspectRatio: 1, child: child),
+Widget squareArt(double maxSize, Widget child) => LayoutBuilder(
+  builder: (context, constraints) {
+    final side = math.min(constraints.maxWidth, constraints.maxHeight);
+    return SizedBox.square(
+      dimension: side.isFinite ? side : maxSize,
+      child: child,
+    );
+  },
 );
 ```
 
-Wrap both `_CoverArt` branches. `_RadioCoverArt` already sizes itself. Use
-`AspectRatio` with a loose cap, not `SizedBox.square(maxSize)`: in the
-standard path `artRegionHeight` can be smaller than `artMaxSize`
-(`:2304-2329`), and a fixed square would come out non-square. The phone path's
-outer `SizedBox.square` stays as it is; it is tight, so the inner wrapper does
-nothing there. In split, the cap is `splitCoverArtMaxSize` (170-340), which
-also fixes split ignoring its own cap. Do not change `CoverArtImage` or
-`_CoverArt`'s public shape; other callers rely on intrinsic/filled sizing.
+Wrap both `_CoverArt` branches. `_RadioCoverArt` already sizes itself. The
+slot, not the layout's art budget, is the size: a real 600 px cover used to
+fill the slot (the image painted at `min(600, slot)`), and capping at
+`artMaxSize` / `splitCoverArtMaxSize` shrank it (phone landscape 371 -> 265,
+Mini Player 440 -> 380, 13" split 412 -> 340). `maxSize` is only the fallback
+on a fully unbounded slot. The split cover sits in a scroll view with
+unbounded height, so it takes the pane width. The phone path's outer
+`SizedBox.square` stays as it is; it is tight, so the wrapper does nothing
+there. Do not change `CoverArtImage` or `_CoverArt`'s public shape; other
+callers rely on intrinsic/filled sizing.
 
 ## 2. "Could Not Load This Album" (wrong script id, not an app bug)
 
@@ -211,15 +218,13 @@ iPads have no side insets.
 ### Change
 
 `buildCurrentArt` in `now_playing_screen.dart` only (item 1 fix). Then
-re-measure the existing tests at `:360-398` (`embedded compact/standard/focus
-player cover`). If the expected heights move, update the numbers and say in
-the commit body that the cover is now square-capped. Keep the assertion that
-the tablet cover is not taller than the desktop one in those cases.
+the existing tests at `:360-398` (`embedded compact/standard/focus player
+cover`) keep their original heights (the placeholder already filled the slot).
 
 ### Edge cases
 
-- `artRegionHeight` < `artMaxSize` (short panes such as `Size(840, 400)`, the
-  focus player): the cover must stay square, within the region.
+- `artRegionHeight` < the pane width (short panes such as `Size(840, 400)`,
+  the focus player): the cover is the region height, still square.
 - Inline lyrics toggled: `PlaybackLyricsContent(maxSize:)` is unchanged.
 - Radio (`_RadioCoverArt`) and no-cover placeholder: the placeholder must be
   square too. The wrapper applies to the null-id `_CoverArt` branch as well.
