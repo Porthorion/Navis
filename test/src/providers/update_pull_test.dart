@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -155,6 +156,28 @@ void main() {
       },
     );
   }
+  test('iOS never runs an update check, even when forced', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final store = _Store(allowAutomatic: true);
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
+        updateCheckStoreProvider.overrideWithValue(store),
+        updateRepositoryProvider.overrideWithValue(
+          _Repository(store, Completer<UpdateInfo?>()..complete(_update)),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(updateProvider, (_, _) {});
+    container.read(updateForceCheckProvider.notifier).requestForceCheck();
+    expect(await container.read(updateProvider.future), isNull);
+    expect(store.forces, isEmpty);
+  });
+
   testWidgets('Library notice shows once and again for a newer dev build', (
     tester,
   ) async {

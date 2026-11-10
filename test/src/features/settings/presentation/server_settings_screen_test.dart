@@ -39,6 +39,9 @@ class _FakeServerConnectionService extends ServerConnectionService {
 }
 
 class _FakeSignOutService implements SignOutService {
+  @override
+  Future<void> get pendingSignOut async {}
+
   int callCount = 0;
   bool? lastWipeLocalData;
 
@@ -50,6 +53,9 @@ class _FakeSignOutService implements SignOutService {
 }
 
 class _GatedSignOutService implements SignOutService {
+  @override
+  Future<void> get pendingSignOut async {}
+
   final gate = Completer<void>();
 
   @override

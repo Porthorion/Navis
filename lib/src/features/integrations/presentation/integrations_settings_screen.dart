@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -130,8 +129,7 @@ class _IntegrationsSettingsScreenState
     final horizontal = desktopMode ? NavisSpace.xl : NavisSpace.md;
     // Matches About, which hides update controls where Navis cannot update
     // itself.
-    final updatesAvailable =
-        !kIsWeb && defaultTargetPlatform != TargetPlatform.iOS;
+    final updatesAvailable = selfUpdateSupported;
 
     return Align(
       alignment: Alignment.topCenter,

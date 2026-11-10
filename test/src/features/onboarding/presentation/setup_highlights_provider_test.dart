@@ -202,6 +202,39 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(container.read(pendingSetupHighlightsProvider), isEmpty);
     }, skip: !sqliteAvailable);
+
+    test('first-run completion clears standalone tags', () async {
+      final database = createTestDatabase();
+      await database.appSettingsDao.getSettings();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: <Override>[
+            packageInfoProvider.overrideWith((ref) async => _info('1.5.2')),
+          ],
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      container.listen(appSettingsProvider, (_, _) {});
+      container.listen(onboardingRequiredProvider, (_, _) {});
+      await container.read(onboardingVersionProvider.future);
+      await container.read(appSettingsProvider.future);
+      await container.read(packageInfoProvider.future);
+      await container
+          .read(setupHighlightsServiceProvider)
+          .markSeen(firstRun: true);
+      await database.appSettingsDao.completeOnboarding(
+        currentOnboardingVersion,
+      );
+      await container.read(onboardingVersionProvider.future);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(onboardingRequiredProvider), isFalse);
+      expect(container.read(pendingSetupHighlightsProvider), isEmpty);
+    }, skip: !sqliteAvailable);
   });
 
   test('settings and metadata loading or errors hide highlights', () async {

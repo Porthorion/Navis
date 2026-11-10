@@ -217,7 +217,11 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         if (handler != null) await handler.applyRuntimeSettings();
       }
       if (!discardDraft || (!widget.reviewMode && _onboardingRequiredAtEntry)) {
-        await ref.read(setupHighlightsServiceProvider).markSeen();
+        await ref
+            .read(setupHighlightsServiceProvider)
+            .markSeen(
+              firstRun: !widget.reviewMode && _onboardingRequiredAtEntry,
+            );
       }
       await ref.read(onboardingCompletionServiceProvider).complete();
       if (!mounted) return;
@@ -1291,9 +1295,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// update itself, as in About.
   List<IntegrationService> get _integrationStepServices => [
     for (final service in IntegrationService.values)
-      if (service != IntegrationService.updates ||
-          (!kIsWeb && defaultTargetPlatform != TargetPlatform.iOS))
-        service,
+      if (service != IntegrationService.updates || selfUpdateSupported) service,
   ];
 
   /// The draft's integration choices. A Last.fm key counts as verified when

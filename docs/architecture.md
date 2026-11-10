@@ -690,6 +690,9 @@ that engine and retry their startup pass when it arrives; only an explicit
 user-triggered retry exposes a persistent unavailable-engine failure.
 
 All logout callers use the injected, single-flight `SessionLifecycleService`.
+A concurrent call joins the running sign-out unless it asks for a wipe during a
+keep-data run: that wipe is chained to run after it (wipe wins), and a keep
+request during a wipe joins the wipe.
 Its ordering is API cancellation → awaited sync stop → sign-out fence of every
 sync lease → download stop → playback/radio session reset → transient
 UI/mix/timer reset → pending mutation/work cleanup → optional server-data/file
@@ -1913,7 +1916,8 @@ and plays only when Settings → Haptics allows it (phones and tablets; the page
 is hidden and its route redirects on desktop). Each category has a
 stored bit: Player Gestures (1), Playback Buttons (2), Sliders & Rulers (4),
 Switches & Steppers (8), Lists & Menus (16), Likes & Alerts (32), Notifications
-(64). Notifications plays no haptic: Android fixes a channel's vibration once
+(64; the switch is hidden off Android, which alone posts download
+notifications). Notifications plays no haptic: Android fixes a channel's vibration once
 it exists, so `NotificationBootstrap` creates a vibration-free `downloads_quiet`
 twin of `downloads`, and `DownloadNotifier.channelId` posts progress, complete
 and failed notifications on it whenever `NavisHaptics.allows(notifications)` is
@@ -3332,7 +3336,8 @@ and Subsonic delivery continues independently.
   the Integrations feature never imports Home. A saved Last.fm key is written
   with `updateLastFmApiKey`. A locked service switch's semantics label carries
   its lock reason. The Updates section is hidden where About hides
-  update controls (iOS, web). Playback and About hold no copies of these
+  update controls (iOS, web); `updateProvider` also returns null there
+  (`selfUpdateSupported`), so no iOS path contacts the update host. Playback and About hold no copies of these
   switches; About keeps "Check now", disabled while the master or `updates`
   service switch is off. Its service names, the line about what each service
   sends and the lock reasons come from `integration_copy.dart`, shared with
