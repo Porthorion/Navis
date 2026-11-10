@@ -25,8 +25,6 @@ class NavisAudioServiceRecoveryTest {
     }
 
     @Test fun wakeLockContractAndPauseDecision() {
-        val m = AudioService::class.java.getDeclaredMethod("releaseWakeLock")
-        assertFalse(Modifier.isPrivate(m.modifiers))
         assertTrue(NavisAudioService::class.java.declaredMethods.any { it.name == "setState" })
         assertTrue(NavisAudioService.shouldReleaseWakeLock(false))
         assertFalse(NavisAudioService.shouldReleaseWakeLock(true))

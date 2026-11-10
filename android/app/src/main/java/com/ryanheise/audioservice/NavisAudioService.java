@@ -41,7 +41,13 @@ public class NavisAudioService extends AudioService {
     @Override
     void setState(List<MediaControl> controls, long actionBits, int[] compactActionIndices, AudioProcessingState processingState, boolean playing, long position, long bufferedPosition, float speed, long updateTime, Integer errorCode, String errorMessage, int repeatMode, int shuffleMode, boolean captioningEnabled, Long queueIndex) {
         super.setState(controls, actionBits, compactActionIndices, processingState, playing, position, bufferedPosition, speed, updateTime, errorCode, errorMessage, repeatMode, shuffleMode, captioningEnabled, queueIndex);
-        if (shouldReleaseWakeLock(playing)) releaseWakeLock();
+        if (!shouldReleaseWakeLock(playing)) return;
+        try {
+            releaseWakeLock();
+        } catch (RuntimeException error) {
+            // A one-off release failure must not reach the channel; the next paused state retries.
+            Log.w("NavisAudioService", "Wakelock release failed");
+        }
     }
 
     public static boolean shouldReleaseWakeLock(boolean playing) { return !playing; }
