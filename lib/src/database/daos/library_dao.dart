@@ -7,6 +7,8 @@ import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/search_text.dart';
+import 'package:navis/src/features/search/domain/search_result_ranker.dart'
+    show SearchRelevanceTier, searchRelevanceTier;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/snapshot_write_guard.dart';
@@ -3700,40 +3702,100 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   // ── Local (offline) search ──────────────────────────────────────────────
 
-  /// Search artists by name using case-insensitive LIKE matching.
+  /// Search artists by name: accent- and case-insensitive literal substring
+  /// match, ranked exact > prefix > substring before the [limit] cut.
+  ///
+  /// There is no folded name column, so the (id, name) pairs of the library
+  /// are scanned and folded in Dart; only the winning rows are read in full.
   Future<List<ArtistsTableData>> searchArtistsLocal(
     String query, {
     int limit = 20,
-  }) {
-    final pattern = '%${query.toLowerCase()}%';
-    return (select(artistsTable)
-          ..where(
-            (t) => t.name.lower().like(pattern) & t.isProvisional.equals(false),
-          )
-          ..orderBy([(t) => OrderingTerm.asc(t.name)])
-          ..limit(limit))
-        .get();
+  }) async {
+    final ids = await _rankedLocalSearchIds(
+      selectOnly(artistsTable)
+        ..addColumns([artistsTable.id, artistsTable.name])
+        ..where(artistsTable.isProvisional.equals(false))
+        ..orderBy([OrderingTerm.asc(artistsTable.name)]),
+      idColumn: artistsTable.id,
+      nameColumns: [artistsTable.name],
+      query: query,
+      limit: limit,
+    );
+    if (ids.isEmpty) return const <ArtistsTableData>[];
+    final rows = {
+      for (final row in await (select(
+        artistsTable,
+      )..where((t) => t.id.isIn(ids))).get())
+        row.id: row,
+    };
+    return [for (final id in ids) rows[id]!];
   }
 
-  /// Search albums by name or artist name.
+  /// Search albums by name or artist name; same matching and ranking as
+  /// [searchArtistsLocal], with album-name matches ahead of artist-name ones.
   Future<List<AlbumsTableData>> searchAlbumsLocal(
     String query, {
     int limit = 20,
-  }) {
-    final pattern = '%${query.toLowerCase()}%';
-    return (select(albumsTable)
-          ..where(
-            (t) =>
-                (t.name.lower().like(pattern) |
-                    t.artistName.lower().like(pattern)) &
-                t.isProvisional.equals(false),
-          )
-          ..orderBy([
-            (t) => OrderingTerm.desc(t.year),
-            (t) => OrderingTerm.asc(t.name),
-          ])
-          ..limit(limit))
-        .get();
+  }) async {
+    final ids = await _rankedLocalSearchIds(
+      selectOnly(albumsTable)
+        ..addColumns([albumsTable.id, albumsTable.name, albumsTable.artistName])
+        ..where(albumsTable.isProvisional.equals(false))
+        ..orderBy([
+          OrderingTerm.desc(albumsTable.year),
+          OrderingTerm.asc(albumsTable.name),
+        ]),
+      idColumn: albumsTable.id,
+      nameColumns: [albumsTable.name, albumsTable.artistName],
+      query: query,
+      limit: limit,
+    );
+    if (ids.isEmpty) return const <AlbumsTableData>[];
+    final rows = {
+      for (final row in await (select(
+        albumsTable,
+      )..where((t) => t.id.isIn(ids))).get())
+        row.id: row,
+    };
+    return [for (final id in ids) rows[id]!];
+  }
+
+  /// Ids of the best [limit] rows of [rows] whose [nameColumns] contain
+  /// [query] after folding. The first column ranks highest; ties keep the
+  /// SQL order of [rows]. A blank query keeps that order unranked.
+  Future<List<String>> _rankedLocalSearchIds(
+    JoinedSelectStatement<HasResultSet, dynamic> rows, {
+    required GeneratedColumn<String> idColumn,
+    required List<GeneratedColumn<String>> nameColumns,
+    required String query,
+    required int limit,
+  }) async {
+    if (limit < 1) return const <String>[];
+    final folded = foldSearchLetters(query.trim().toLowerCase());
+    final ranked = <(int, int, String)>[];
+    var position = 0;
+    for (final row in await rows.get()) {
+      var best = -1;
+      for (var i = 0; i < nameColumns.length && best < 0; i++) {
+        final name = row.read(nameColumns[i]);
+        if (name == null) continue;
+        final tier = folded.isEmpty
+            ? SearchRelevanceTier.prefix
+            : searchRelevanceTier(name, folded);
+        if (tier == SearchRelevanceTier.other ||
+            tier == SearchRelevanceTier.tokens) {
+          continue;
+        }
+        best = i * SearchRelevanceTier.values.length + tier.index;
+      }
+      if (best >= 0) ranked.add((best, position, row.read(idColumn)!));
+      position++;
+    }
+    ranked.sort((a, b) {
+      final byTier = a.$1.compareTo(b.$1);
+      return byTier != 0 ? byTier : a.$2.compareTo(b.$2);
+    });
+    return [for (final r in ranked.take(limit)) r.$3];
   }
 
   /// Search songs by title, artist name, or album name using cached metadata.
