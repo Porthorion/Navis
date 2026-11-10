@@ -3193,4 +3193,142 @@ void main() {
       ]);
     });
   });
+
+  group('overlapping candidate lists (#377 recurrence)', () {
+    // The owner's queue: one Last.fm list shared by every seed (the
+    // artist-level fallback for one artist, or overlapping neighbours). Its
+    // ten best matches are the five songs the mix already queued plus five
+    // the catalogue cannot place; five new songs sit below them.
+    final ranked = <(String, double)>[
+      for (final (i, name) in ['A', 'B', 'C', 'D', 'E'].indexed)
+        (name, 1.0 - i * 0.02),
+      for (final (i, name) in ['F', 'G', 'H', 'I', 'J'].indexed)
+        (name, 0.85 - i * 0.02),
+      for (final (i, name) in ['K', 'L', 'M', 'N', 'O'].indexed)
+        (name, 0.5 - i * 0.02),
+    ];
+    const unplaceable = {'F', 'G', 'H', 'I', 'J'};
+
+    test('a refill reaches new songs ranked below already-queued ones '
+        'instead of parking every seed', () async {
+      final api = _MockSubsonicApiClient();
+      final lastFm = _MockLastFmApiClient();
+      var fakeNow = DateTime(2026, 11, 10, 8);
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.success,
+          tracks: [
+            for (final (name, match) in ranked)
+              LastFmTrackRecommendation(
+                artist: 'Artist$name',
+                title: 'Song$name',
+                match: match,
+              ),
+          ],
+          source: LastFmSimilarSource.artistSimilar,
+        ),
+      );
+      when(
+        () => api.search3(
+          query: any(named: 'query'),
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).thenAnswer((invocation) async {
+        final query = invocation.namedArguments[#query] as String;
+        final match =
+            RegExp(r'Artist(\w)').firstMatch(query) ??
+            RegExp(r'Song(\w)').firstMatch(query);
+        final name = match?.group(1);
+        if (name == null || unplaceable.contains(name)) {
+          return const SearchResult3();
+        }
+        return SearchResult3(
+          songs: [
+            Song(id: 'id-$name', title: 'Song$name', artist: 'Artist$name'),
+          ],
+        );
+      });
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer(
+            (invocation) async => Song(
+              id: invocation.positionalArguments.first as String,
+              title: 'Seed',
+              artist: 'Artist',
+            ),
+          );
+      // A small library: the server's similar songs are already queued.
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          Song(id: 'id-A', title: 'SongA', artist: 'ArtistA'),
+        ],
+      );
+
+      final container = _parkContainer(
+        api: api,
+        lastFm: lastFm,
+        now: () => fakeNow,
+      );
+      final notifier = container.read(recommendationSnapshotProvider.notifier);
+      notifier.emitSnapshot(
+        snapshot(
+          queueSongIds: const ['seed-a'],
+          currentSongId: 'seed-a',
+          currentIndex: 0,
+        ),
+      );
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      final queue = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
+      expect(queue.queuedSongs.map((s) => s.id), [
+        'id-A',
+        'id-B',
+        'id-C',
+        'id-D',
+        'id-E',
+      ], reason: 'the first batch is the five best matches');
+
+      // Play through the mix: every song is a new seed.
+      final mixQueue = ['seed-a', 'id-A', 'id-B', 'id-C', 'id-D', 'id-E'];
+      for (var index = 1; index < 5; index++) {
+        fakeNow = fakeNow.add(const Duration(minutes: 4));
+        notifier.emitSnapshot(
+          snapshot(
+            queueSongIds: mixQueue,
+            currentSongId: mixQueue[index],
+            currentIndex: index,
+          ),
+        );
+        await pumpEventQueue();
+        while (container.read(sameVibesProvider).refilling) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }
+
+      expect(
+        queue.queuedSongs.map((s) => s.id),
+        containsAll(<String>['id-K', 'id-L', 'id-M', 'id-N', 'id-O']),
+        reason:
+            'Last.fm offered five new songs; the mix must not stop because '
+            'its ten search attempts went to songs it had already queued',
+      );
+    });
+  });
 }
