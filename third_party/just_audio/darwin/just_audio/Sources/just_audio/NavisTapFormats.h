@@ -120,6 +120,21 @@ void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out);
 /// process: the state then no longer shows the previous format as processing.
 void navis_tap_formats_note_dry(NavisTapFormats *t, int frames);
 
+/// Layout checks of the tap glue, plain C so the host test reaches them (the
+/// MediaToolbox types stay in NavisEqualizer.m, which passes their fields).
+/// Prepare time. True when a source format can get a slot: linear PCM, float,
+/// non-interleaved, 32 bits per channel and 1..NAVIS_EQ_MAX_CHANNELS channels.
+/// Otherwise the format's blocks pass unchanged.
+bool navis_tap_format_is_planar_float(bool linearPcm, bool isFloat, bool nonInterleaved,
+                                      uint32_t bitsPerChannel, uint32_t channels);
+/// Realtime (no locks, allocation or logging). True when a buffer list of `count`
+/// buffers (one per channel) can be processed: 1..NAVIS_EQ_MAX_CHANNELS.
+bool navis_tap_buffer_count_ok(uint32_t count);
+/// Realtime. True when one buffer of the list holds `frames` float samples of a
+/// single channel (`numberChannels` 1, at least frames * 4 bytes). A block that
+/// fails either check passes unchanged; the glue then calls note_dry.
+bool navis_tap_buffer_ok(uint32_t numberChannels, uint32_t dataByteSize, int64_t frames);
+
 #ifdef __cplusplus
 }
 #endif

@@ -148,7 +148,8 @@ The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_te
 run from `tool/equalizer_native_test.sh` (it needs only a C compiler), as are
 `navis_pitch_stage_test.c`, `navis_boost_test.c` (the boost decision table and
 ramp) and `navis_tap_formats_test.c` (the format slots with a fake pitch unit,
-including concurrent pipelines and the boost; under ThreadSanitizer too on macOS).
+including concurrent pipelines, the boost and the layout checks the tap glue uses to
+pass an unsupported format or buffer list unchanged; under ThreadSanitizer too on macOS).
 
 The Android processor currently receives 16-bit PCM. Coefficients and filter
 history use doubles internally; this is not a bit-perfect high-resolution path.

@@ -68,11 +68,11 @@ static void tapFinalize(MTAudioProcessingTapRef tap) {
 static void tapPrepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames,
                        const AudioStreamBasicDescription *format) {
     NavisTapContext *c = MTAudioProcessingTapGetStorage(tap);
-    BOOL planarFloat = format->mFormatID == kAudioFormatLinearPCM
-        && (format->mFormatFlags & kAudioFormatFlagIsFloat)
-        && (format->mFormatFlags & kAudioFormatFlagIsNonInterleaved)
-        && format->mBitsPerChannel == 32
-        && format->mChannelsPerFrame >= 1 && format->mChannelsPerFrame <= NAVIS_EQ_MAX_CHANNELS;
+    BOOL planarFloat = navis_tap_format_is_planar_float(
+        format->mFormatID == kAudioFormatLinearPCM,
+        (format->mFormatFlags & kAudioFormatFlagIsFloat) != 0,
+        (format->mFormatFlags & kAudioFormatFlagIsNonInterleaved) != 0,
+        format->mBitsPerChannel, format->mChannelsPerFrame);
     // A format that cannot get a slot sets its reason in the state; its blocks pass unchanged.
     navis_tap_formats_prepare(c->formats, format->mSampleRate, (int)format->mChannelsPerFrame,
                               (int)maxFrames, planarFloat);
@@ -102,14 +102,14 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
     // A layout the tap cannot process plays unchanged; tell the state, so it does
     // not show the previous format as processing (an atomic store, no lock).
     UInt32 count = bufferList->mNumberBuffers;
-    if (count == 0 || count > NAVIS_EQ_MAX_CHANNELS) {
+    if (!navis_tap_buffer_count_ok(count)) {
         navis_tap_formats_note_dry(c->formats, (int)*numberFramesOut);
         return;
     }
     float *channels[NAVIS_EQ_MAX_CHANNELS];
     for (UInt32 i = 0; i < count; i++) {
-        if (bufferList->mBuffers[i].mNumberChannels != 1
-            || bufferList->mBuffers[i].mDataByteSize < *numberFramesOut * sizeof(float)) {
+        if (!navis_tap_buffer_ok(bufferList->mBuffers[i].mNumberChannels,
+                                 bufferList->mBuffers[i].mDataByteSize, *numberFramesOut)) {
             navis_tap_formats_note_dry(c->formats, (int)*numberFramesOut);
             return;
         }
