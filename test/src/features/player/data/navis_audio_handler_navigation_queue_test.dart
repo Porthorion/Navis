@@ -4924,8 +4924,10 @@ void main() {
         initialPlayer: initialPlayer,
         waitForReady: false,
         rebuiltPlayers: rebuilt,
-        // Shortened from the 12 s default: the gated native load is what
-        // times out, and the 250 ms load check runs inside this deadline.
+        // Shortened from the 12 s default. prepare() runs the in-lane restore,
+        // which never arms the queueRestore timer: the gated native load's
+        // deadline is the only timeout here, already spent before
+        // replaceQueue, so no later deadline is left to race the selection.
         timeouts: const NavisPlaybackTimeouts(load: loadDeadline),
       );
       addTearDown(() async {
@@ -4949,13 +4951,6 @@ void main() {
       final selectedPlayer =
           handler.debugActivePlayer as ControllableAudioPlayer;
       expect(selectedPlayer.isPlaying, isTrue);
-      // A two-phase restore also has a native load deadline. Its later
-      // timeout must not rebuild the player that now owns the selection.
-      if (count > 64) {
-        // At least 3x the load deadline and 150 ms beyond it plus the 250 ms
-        // load check, so a later deadline would have fired inside.
-        await Future<void>.delayed(loadDeadline * 4);
-      }
       gate.complete();
       await pumpEventQueue(times: 50);
 
