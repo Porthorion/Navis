@@ -21,6 +21,10 @@ class ReplayGainLevels {
   /// stays the fallback for a file the entry list does not name.
   final _byId = <String, double>{};
 
+  /// The [replayGainBoostKey] of the file each [_byId] entry was seeded for,
+  /// so a stale playlist index cannot lend one file another's level.
+  final _idKeys = <String, String>{};
+
   /// The key of the file the `on_load` hook last gave a level: the file mpv is
   /// decoding, which is not the player's current entry while the end of the
   /// previous file is still queued.
@@ -36,6 +40,7 @@ class ReplayGainLevels {
   void clear() {
     _byKey.clear();
     _byId.clear();
+    _idKeys.clear();
     _loadedKey = null;
     _loadedId = null;
   }
@@ -45,7 +50,10 @@ class ReplayGainLevels {
   // queue edits of one queue.
   void seed(String uri, double db, {String? id}) {
     _byKey[replayGainBoostKey(uri)] = _safe(db);
-    if (id != null) _byId[id] = _safe(db);
+    if (id != null) {
+      _byId[id] = _safe(db);
+      _idKeys[id] = replayGainBoostKey(uri);
+    }
   }
 
   /// Adds the levels of a push. Returns the playing file's new level when
@@ -79,7 +87,7 @@ class ReplayGainLevels {
   }
 
   double _lookup(String key, String? id) =>
-      (id == null ? null : _byId[id]) ?? _byKey[key] ?? 0;
+      (id != null && _idKeys[id] == key ? _byId[id] : null) ?? _byKey[key] ?? 0;
 
   static double _safe(double db) => db.isFinite ? db : 0;
 }

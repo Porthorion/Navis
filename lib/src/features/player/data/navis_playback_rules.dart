@@ -388,6 +388,9 @@ bool _equalsIgnoreCase(String value, String query) {
   return value.trim().toLowerCase() == query.trim().toLowerCase();
 }
 
+/// [name] as the local search matches it: trimmed, lowercased, accents folded.
+String _foldedName(String name) => foldSearchLetters(name.trim().toLowerCase());
+
 @visibleForTesting
 bool navisIsQueueReplacementMetadataAnchorConfirmed({
   required List<MediaItem> queueItems,

@@ -273,6 +273,43 @@ void main() {
       expect(level(mpv, 0), startsWith('$_rg-9.000dB'));
     });
 
+    test(
+      'an index that names another file falls back to the URI level',
+      () async {
+        final mpv = await newAdapter(equalizer: _eq());
+        await mpv.load(
+          LoadRequest(
+            audioSourceMessage: ConcatenatingAudioSourceMessage(
+              id: 'queue',
+              children: [
+                ProgressiveAudioSourceMessage(
+                  id: 'e0',
+                  uri: _a,
+                  headers: null,
+                  replayGainDb: -9,
+                ),
+                ProgressiveAudioSourceMessage(
+                  id: 'e1',
+                  uri: _b,
+                  headers: null,
+                  replayGainDb: 4,
+                ),
+              ],
+              useLazyPreparation: false,
+              shuffleOrder: const [0, 1],
+            ),
+            initialIndex: 0,
+            initialPosition: null,
+          ),
+        );
+        // The hook read a stale index 0 while file b loads.
+        expect(
+          mpv.replayGainFiltersForLoad(_b, index: 0),
+          startsWith('${_rg}4.000dB'),
+        );
+      },
+    );
+
     test('a push moves the entry it names, by id', () async {
       final mpv = await twice();
       level(mpv, 1);

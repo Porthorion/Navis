@@ -5324,7 +5324,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('navis-auto-g-');
       final (handler, _, database) = await createHandler(
         directory,
-        9,
+        11,
         seed: (database) async {
           Future<void> tag(int i, String title, List<String> genres) =>
               database.libraryDao.upsertSongs([
@@ -5416,6 +5416,50 @@ void main() {
       await handler.prepareFromSearch('queen');
       await settleQueue(handler);
       expect(handler.snapshot.queueSongIds, ['song-7']);
+    });
+
+    test('an exact artist without songs falls through to the genre', () async {
+      final (handler, database) = await genreHandler();
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-j', name: 'Jazz'),
+      ]);
+      await handler.prepareFromSearch('jazz');
+      await settleQueue(handler);
+      expect(
+        handler.snapshot.queueSongIds,
+        List<String>.of(jazz)..shuffle(Random(7)),
+      );
+    });
+
+    test('an exact artist name matches without accents', () async {
+      final (handler, database) = await genreHandler();
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-be', name: 'Beyoncé'),
+      ]);
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-be',
+          name: 'B Day',
+          artistId: const Value('artist-be'),
+        ),
+      ]);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-9',
+          title: 'Halo',
+          artistId: const Value('artist-be'),
+          albumId: const Value('album-be'),
+          genres: const Value<List<String>?>(['Beyonce']),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-10',
+          title: 'Other',
+          genres: const Value<List<String>?>(['Beyonce']),
+        ),
+      ]);
+      await handler.prepareFromSearch('beyonce');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-9']);
     });
 
     test('an exact album name wins over a genre of that name', () async {

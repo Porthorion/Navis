@@ -126,7 +126,8 @@ bool configureReplayGainFilter(
     // Synchronous libmpv calls only, as in [configureStartPosition].
     final path = _readString(native, 'path');
     if (path == null) return;
-    final index = int.tryParse(_readString(native, 'playlist-pos') ?? '');
+    final index =
+        int.tryParse(_readString(native, 'playlist-playing-pos') ?? '');
     if (!nativeSetPropertySync(player, 'af', filtersFor(path, index))) {
       // The file would play at the previous file's level; nothing else shows it.
       _logger.warning('on_load af write rejected by mpv for $path');
