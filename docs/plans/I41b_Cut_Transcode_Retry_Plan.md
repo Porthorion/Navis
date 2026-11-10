@@ -229,3 +229,17 @@ Spec and fixture patch: `build/i527b/probe/README.md`. Required lines:
   is retried on mobile too. The ceiling and budget are unchanged: one retry per song per
   transport generation.
 - **Review class:** a playback state machine, so Sonnet `high` review is required.
+
+## Fix round 2 notes
+
+Root cause: `build/i527b/ROOT_CAUSE.md` (Opus, runtime-proven). Three fixes:
+
+- **A (fork):** `just_audio.dart` treats a zero platform duration as unknown (null), so
+  `_getPositionFor` no longer clamps at the offset. Readers of the player duration were
+  audited: all accept null.
+- **B (app):** `recover()` evicts the song's rolling entry (`evictRollingTrack`, rolling rows
+  only) when the source kind is `lockCachedStream`, then re-checks the invalidation guards
+  before reopening. An eviction error is logged and the reopen still runs once.
+- **C (app):** the recovery pause runs in a microtask, outside the player's event dispatch.
+  The fake cannot model a synchronous controller; the runtime probe must show no
+  "Pause before transcode recovery failed" line.

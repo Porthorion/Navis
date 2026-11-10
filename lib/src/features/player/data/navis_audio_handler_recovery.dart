@@ -580,7 +580,8 @@ extension _NavisRecovery on NavisAudioHandler {
     // ponytail: metadata-only EOF detection; add native cut evidence if server
     // durations overstate real transcode ends by more than the 10-second margin.
     // A completed cache file does not exempt the end: the sidecar's re-download
-    // finishes before mpv drains the cut stream, and the reopen reads that file.
+    // finishes before mpv drains the cut stream, and a mobile lock-cache tee
+    // commits the cut stream itself; recover() evicts the latter before reopening.
     if ((kind != PlaybackSourceKind.directStream.name &&
             kind != PlaybackSourceKind.lockCachedStream.name) ||
         (item.extras?['transcodingApplied'] != true &&
@@ -604,13 +605,17 @@ extension _NavisRecovery on NavisAudioHandler {
     final player = _player;
     final seekRevision = _seekRevision;
     final loadGeneration = _activeLoadGeneration;
+    // A microtask later: this runs inside the player's synchronous event
+    // dispatch, where a pause re-enters the same subject and throws.
     final pausing =
-        _runTimedPlayerOperation(
-          generation: loadGeneration,
-          operation: 'pause premature transcode EOF',
-          action: player.pause,
-          songId: item.id,
-          timeout: _timeouts.control,
+        Future<void>.microtask(
+          () => _runTimedPlayerOperation(
+            generation: loadGeneration,
+            operation: 'pause premature transcode EOF',
+            action: player.pause,
+            songId: item.id,
+            timeout: _timeouts.control,
+          ),
         ).catchError((Object error) {
           AppLogger.debug('Pause before transcode recovery failed: $error');
         });
@@ -618,14 +623,35 @@ extension _NavisRecovery on NavisAudioHandler {
       if (backgroundQueueWork) {
         await _queueLane.enqueue((token) async => token.checkCancelled());
       }
-      final departedIndex = player.sequence.indexOf(occurrence.source);
-      if (_seekRevision != seekRevision ||
-          !_isActiveLoadGeneration(loadGeneration) ||
-          !identical(player, _player) ||
-          !identical(_prematureTranscodeDeparture?.source, occurrence.source) ||
-          departedIndex < 0 ||
-          _queueItems.elementAtOrNull(departedIndex)?.id != item.id) {
-        return;
+      int departedIndex = -1;
+      bool stale() {
+        departedIndex = player.sequence.indexOf(occurrence.source);
+        return _seekRevision != seekRevision ||
+            !_isActiveLoadGeneration(loadGeneration) ||
+            !identical(player, _player) ||
+            !identical(
+              _prematureTranscodeDeparture?.source,
+              occurrence.source,
+            ) ||
+            departedIndex < 0 ||
+            _queueItems.elementAtOrNull(departedIndex)?.id != item.id;
+      }
+
+      if (stale()) return;
+      if (kind == PlaybackSourceKind.lockCachedStream.name) {
+        // The lock-caching tee committed the cut connection as a complete
+        // rolling file, and the resolver prefers that file to any stream.
+        // Drop it (never a permanent download) so the reopen streams at the
+        // cut. A failure only logs: the reopen still runs, once.
+        try {
+          await _rollingCacheManager.evictRollingTrack(
+            _canonicalSongId(item.id),
+          );
+          _completedCacheSongIds.remove(item.id);
+        } catch (error) {
+          AppLogger.warning('Evicting the cut rolling cache failed: $error');
+        }
+        if (stale()) return;
       }
       await _retryRemotePlayback(
         currentIndex: departedIndex,
