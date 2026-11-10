@@ -807,12 +807,17 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return 0;
     }
 
-    final sortedRecs = [...recommendations]
-      ..sort((a, b) => (b.match ?? 0).compareTo(a.match ?? 0));
-
-    final attemptsLimit = sortedRecs
-        .take(maxSearchAttempts)
-        .toList(growable: false);
+    // Songs already queued need no search, and a search that resolves to one
+    // is "already have", not a miss: overlapping Last.fm lists (#377) would
+    // otherwise fill the whole budget with queued songs and park every seed.
+    // Walks the full requested list; only misses spend `maxSearchAttempts`.
+    final attemptsLimit = [
+      for (final rec in recommendations)
+        if (!blockedSongKeys.contains(
+          sameVibesCanonicalSongKey(rec.artist, rec.title),
+        ))
+          rec,
+    ]..sort((a, b) => (b.match ?? 0).compareTo(a.match ?? 0));
     var attempts = 0;
     var misses = 0;
     var mappedCount = 0;
@@ -823,7 +828,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       batchStart < attemptsLimit.length;
       batchStart += _kMappingParallelism
     ) {
-      if (!state.active || mappedCount >= targetCount) {
+      if (!state.active ||
+          mappedCount >= targetCount ||
+          misses >= maxSearchAttempts) {
         break;
       }
       final batchEnd = math.min(
@@ -851,13 +858,13 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           continue;
         }
         final id = best.id.trim();
-        if (id.isEmpty || blockedIds.contains(id)) {
+        if (id.isEmpty) {
           misses += 1;
           continue;
         }
         final key = sameVibesCanonicalSongKey(best.artist ?? '', best.title);
-        if (key != null && blockedSongKeys.contains(key)) {
-          misses += 1;
+        if (blockedIds.contains(id) ||
+            (key != null && blockedSongKeys.contains(key))) {
           continue;
         }
         pendingChunk.add(best);
@@ -995,6 +1002,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (!state.active || state.refilling) {
         return;
       }
+      // The timer firing is the backoff elapsing; the wall clock can read a
+      // hair early, which would make `_refill` skip and never retry.
+      _nextRefillAllowedAt = null;
       unawaited(_refill());
     });
     final session = _session;

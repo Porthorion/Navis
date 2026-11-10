@@ -63,17 +63,25 @@ class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
   /// Queues every song of the genre (the downloaded ones while that filter
   /// is on), like the album and Liked Play and Shuffle.
   Future<void> _play({required bool shuffle}) async {
-    final songs = await ref
-        .read(navisDatabaseProvider)
-        .libraryDao
-        .getSongsByGenre(
-          widget.genreKey,
-          downloadedOnly: ref.read(downloadedOnlyFilterProvider),
-        );
-    if (songs.isEmpty || !mounted) return;
-    final queued = List<SongsTableData>.of(songs);
-    if (shuffle) queued.shuffle(Random());
+    final downloadedOnly = ref.read(downloadedOnlyFilterProvider);
     try {
+      final songs = await ref
+          .read(navisDatabaseProvider)
+          .libraryDao
+          .getSongsByGenre(widget.genreKey, downloadedOnly: downloadedOnly);
+      if (!mounted) return;
+      if (songs.isEmpty) {
+        final l10n = AppLocalizations.of(context)!;
+        showAppNotice(
+          context,
+          message: downloadedOnly
+              ? l10n.libraryDownloadedOnlyEmpty
+              : l10n.genreNotFound,
+        );
+        return;
+      }
+      final queued = List<SongsTableData>.of(songs);
+      if (shuffle) queued.shuffle(Random());
       await ref
           .read(queueProvider.notifier)
           .replaceWithTableData(
@@ -107,9 +115,14 @@ class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
       ),
       data: (genre) {
         if (genre == null) {
+          // Before the first genre-reading sync a missing genre means "not
+          // yet", like the Genres list.
+          final syncing =
+              ref.watch(genresPendingSyncProvider).asData?.value ?? false;
           return EmptyState(
-            title: l10n.genreNotFound,
-            icon: Icons.sell_outlined,
+            title: syncing ? l10n.genresSyncingTitle : l10n.genreNotFound,
+            subtitle: syncing ? l10n.genresSyncingSubtitle : null,
+            icon: syncing ? Icons.sync : Icons.sell_outlined,
           );
         }
         return Column(
@@ -185,39 +198,6 @@ class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
   }
 }
 
-/// The typed search of a tab, applied to its list after a short pause like the
-/// other searches that query the database (each keystroke would re-read the
-/// whole genre).
-mixin _DebouncedSearch<T extends StatefulWidget> on State<T> {
-  final TextEditingController search = TextEditingController();
-  Timer? _debounce;
-
-  /// The search text the list currently follows.
-  String query = '';
-
-  void _onSearchChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () {
-      if (mounted) setState(() => query = search.text.trim());
-    });
-    // Shows the clear button at once.
-    setState(() {});
-  }
-
-  void _clearSearch() {
-    _debounce?.cancel();
-    search.clear();
-    setState(() => query = '');
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    search.dispose();
-    super.dispose();
-  }
-}
-
 /// Search field, sort and downloaded-only chip shared by both tabs.
 Widget _filters({
   required TextEditingController controller,
@@ -262,7 +242,7 @@ class _GenreAlbumsTab extends ConsumerStatefulWidget {
 }
 
 class _GenreAlbumsTabState extends ConsumerState<_GenreAlbumsTab>
-    with AutomaticKeepAliveClientMixin, _DebouncedSearch {
+    with AutomaticKeepAliveClientMixin, DebouncedSearch {
   final ScrollController _scroll = ScrollController();
   AlbumSortOrder _sort = AlbumSortOrder.name;
   int _pages = 1;
@@ -322,8 +302,8 @@ class _GenreAlbumsTabState extends ConsumerState<_GenreAlbumsTab>
           child: _filters(
             controller: search,
             hint: l10n.genreAlbumsSearchHint,
-            onChanged: _onSearchChanged,
-            onClear: _clearSearch,
+            onChanged: onSearchChanged,
+            onClear: clearSearch,
             sortRow: LibrarySortFilterRow<AlbumSortOrder>(
               sortKey: const ValueKey<String>('genreAlbumsSortControl'),
               sortLabel: l10n.libraryAlbumsSortLabel,
@@ -430,7 +410,7 @@ class _GenreSongsTab extends ConsumerStatefulWidget {
 }
 
 class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
-    with AutomaticKeepAliveClientMixin, _DebouncedSearch {
+    with AutomaticKeepAliveClientMixin, DebouncedSearch {
   final ScrollController _scroll = ScrollController();
   GenreSongSort _sort = GenreSongSort.title;
   int _pages = 1;
@@ -470,19 +450,23 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
     var start = index;
     if (ref.read(albumQueueEnabledProvider) &&
         songs.length >= _songPageSize * _pages) {
-      final all = await ref
-          .read(navisDatabaseProvider)
-          .libraryDao
-          .getSongsByGenre(
-            widget.genreKey,
-            sort: _sort,
-            downloadedOnly: ref.read(downloadedOnlyFilterProvider),
-            query: query,
-          );
-      final at = all.indexWhere((song) => song.id == songs[index].id);
-      if (at >= 0) {
-        queued = all;
-        start = at;
+      try {
+        final all = await ref
+            .read(navisDatabaseProvider)
+            .libraryDao
+            .getSongsByGenre(
+              widget.genreKey,
+              sort: _sort,
+              downloadedOnly: ref.read(downloadedOnlyFilterProvider),
+              query: query,
+            );
+        final at = all.indexWhere((song) => song.id == songs[index].id);
+        if (at >= 0) {
+          queued = all;
+          start = at;
+        }
+      } on Object {
+        // The whole genre could not be read: play the loaded page instead.
       }
     }
     if (mounted) playTableSongInCollection(ref, queued, start);
@@ -520,8 +504,8 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
           child: _filters(
             controller: search,
             hint: l10n.matchFlowSearchHint,
-            onChanged: _onSearchChanged,
-            onClear: _clearSearch,
+            onChanged: onSearchChanged,
+            onClear: clearSearch,
             alignWithGrid: false,
             sortRow: LibrarySortFilterRow<GenreSongSort>(
               alignWithGrid: false,

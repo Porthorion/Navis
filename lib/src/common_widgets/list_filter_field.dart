@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -74,5 +76,39 @@ class ListFilterField extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// The typed search of a list, applied after a short pause like the other
+/// searches that query the database (each keystroke would re-read the list).
+/// Pair with a [ListFilterField] using [search], [onSearchChanged] and
+/// [clearSearch]; the list follows [query].
+mixin DebouncedSearch<T extends StatefulWidget> on State<T> {
+  final TextEditingController search = TextEditingController();
+  Timer? _debounce;
+
+  /// The search text the list currently follows.
+  String query = '';
+
+  void onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => query = search.text.trim());
+    });
+    // Shows the clear button at once.
+    setState(() {});
+  }
+
+  void clearSearch() {
+    _debounce?.cancel();
+    search.clear();
+    setState(() => query = '');
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    search.dispose();
+    super.dispose();
   }
 }

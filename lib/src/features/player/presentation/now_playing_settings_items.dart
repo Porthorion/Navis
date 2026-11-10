@@ -38,7 +38,8 @@ List<Widget> _nowPlayingSettingsItems(
   final currentSongRating = song == null
       ? null
       : ref.watch(songRatingProvider(song.id)).asData?.value;
-  final isRemote = song != null && !isServerAddressableSongId(song.id);
+  final isRemote =
+      song != null && isRemoteSong(id: song.id, isExternal: song.isExternal);
   final songDownloadState = song == null
       ? SongDownloadState.none
       : ref.watch(songDownloadStateProvider(song.id));

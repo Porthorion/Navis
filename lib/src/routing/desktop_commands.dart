@@ -146,9 +146,10 @@ defaultDesktopShortcutBindings() {
         DesktopCommandAction.goSearch: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.digit3,
         ),
-        DesktopCommandAction.goSettings: const DesktopShortcutBinding(
-          key: LogicalKeyboardKey.digit4,
-        ),
+        // Cmd+, is the macOS Settings convention.
+        DesktopCommandAction.goSettings: _isApplePlatform
+            ? const DesktopShortcutBinding(key: LogicalKeyboardKey.comma)
+            : const DesktopShortcutBinding(key: LogicalKeyboardKey.digit4),
         // Browser conventions: Cmd+[ / Cmd+] on macOS, Alt+Left / Alt+Right
         // elsewhere.
         DesktopCommandAction.navigateBack: _isApplePlatform
@@ -177,9 +178,10 @@ defaultDesktopShortcutBindings() {
         DesktopCommandAction.speedUp: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.period,
         ),
-        DesktopCommandAction.speedDown: const DesktopShortcutBinding(
-          key: LogicalKeyboardKey.comma,
-        ),
+        // Cmd+, belongs to Settings on macOS, so speed-down is Cmd+- there.
+        DesktopCommandAction.speedDown: _isApplePlatform
+            ? const DesktopShortcutBinding(key: LogicalKeyboardKey.minus)
+            : const DesktopShortcutBinding(key: LogicalKeyboardKey.comma),
         DesktopCommandAction.speedReset: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.digit0,
         ),
@@ -373,6 +375,11 @@ class DesktopShortcutBindingsNotifier
     extends Notifier<Map<DesktopCommandAction, DesktopShortcutBinding?>> {
   bool _didScheduleHydration = false;
 
+  /// Actions the user changed before the saved bindings finished loading.
+  final Set<DesktopCommandAction> _changedBeforeHydration =
+      <DesktopCommandAction>{};
+  bool _hydrated = false;
+
   @override
   Map<DesktopCommandAction, DesktopShortcutBinding?> build() {
     if (!_didScheduleHydration) {
@@ -395,10 +402,12 @@ class DesktopShortcutBindingsNotifier
       for (final entry in updated.entries.toList()) {
         if (entry.key != action && entry.value == binding) {
           updated[entry.key] = null;
+          _noteChange(entry.key);
         }
       }
     }
     updated[action] = binding;
+    _noteChange(action);
     final nextState =
         Map<DesktopCommandAction, DesktopShortcutBinding?>.unmodifiable(
           updated,
@@ -411,6 +420,7 @@ class DesktopShortcutBindingsNotifier
   }
 
   void resetDefaults() {
+    configurableDesktopShortcutActions.forEach(_noteChange);
     final nextState = defaultDesktopShortcutBindings();
     state = nextState;
     AppLogger.debug('[ACP_INPUT] desktop shortcuts reset to defaults');
@@ -420,21 +430,56 @@ class DesktopShortcutBindingsNotifier
   void _persistBindings(
     Map<DesktopCommandAction, DesktopShortcutBinding?> bindings,
   ) {
+    // Before the saved map loads, a write would replace it with the user's
+    // change on top of defaults; hydration persists the merged result.
+    if (!_hydrated) return;
     final encoded = encodeDesktopShortcutBindings(bindings);
     unawaited(() async {
       await _writePersistedDesktopShortcutBindings(encoded);
     }());
   }
 
+  void _noteChange(DesktopCommandAction action) {
+    if (!_hydrated) _changedBeforeHydration.add(action);
+  }
+
   Future<void> _hydratePersistedBindings() async {
     final persisted = await _readPersistedDesktopShortcutBindings();
+    _hydrated = true;
     final decoded = decodeDesktopShortcutBindings(persisted);
     AppLogger.debug(
       '[ACP_INPUT] desktop shortcuts hydrated (persisted=${persisted != null && persisted.isNotEmpty})',
     );
-    if (!_shortcutMapsEqual(state, decoded)) {
-      state = decoded;
+    if (_changedBeforeHydration.isEmpty) {
+      if (!_shortcutMapsEqual(state, decoded)) {
+        state = decoded;
+      }
+      return;
     }
+    // The user rebound keys while the saved ones loaded: their changes win
+    // over the saved map, which fills in the rest.
+    final merged =
+        LinkedHashMap<DesktopCommandAction, DesktopShortcutBinding?>.from(
+          decoded,
+        );
+    for (final action in _changedBeforeHydration) {
+      merged[action] = state[action];
+    }
+    final taken = {
+      for (final action in _changedBeforeHydration)
+        if (state[action] != null) state[action],
+    };
+    for (final entry in merged.entries.toList()) {
+      if (!_changedBeforeHydration.contains(entry.key) &&
+          taken.contains(entry.value)) {
+        merged[entry.key] = null;
+      }
+    }
+    _changedBeforeHydration.clear();
+    final nextState =
+        Map<DesktopCommandAction, DesktopShortcutBinding?>.unmodifiable(merged);
+    state = nextState;
+    _persistBindings(nextState);
   }
 }
 

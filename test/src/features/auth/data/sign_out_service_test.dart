@@ -15,7 +15,10 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart'
+    show serverConfigRepositoryProvider;
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/dynamic_accent_provider.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -412,6 +415,37 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test('signing out starts a fresh album colour cache', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final sessionContainer = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          serverConfigRepositoryProvider.overrideWithValue(repository),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+          coverArtCacheManagerProvider.overrideWithValue(
+            _ArtworkCacheManager(() {}),
+          ),
+          systemArtworkCacheManagerProvider.overrideWithValue(
+            _ArtworkCacheManager(() {}),
+          ),
+        ],
+      );
+      addTearDown(sessionContainer.dispose);
+      final cache = sessionContainer.read(dynamicAccentColorCacheProvider);
+
+      await sessionContainer
+          .read(signOutServiceProvider)
+          .signOut(wipeLocalData: false);
+
+      // A new server's cover ids must not hit the old server's colours.
+      expect(
+        sessionContainer.read(dynamicAccentColorCacheProvider),
+        isNot(same(cache)),
+      );
+    }, skip: !sqliteAvailable);
 
     group('bounded teardown and write fence', () {
       late List<LogEvent> logs;
