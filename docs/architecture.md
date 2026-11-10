@@ -3007,16 +3007,21 @@ Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
 directory; Android and iOS use application documents. `database_location.dart`
 resolves both through path_provider, preserving clone diagnostics overrides.
 Before opening on desktop, a missing support database is migrated from documents
-along with any `-wal`, `-shm` and `-journal` files. The sidecars move first and
-the main file last, so the main file at the target marks a finished move; a kill
-midway leaves the main file in documents and the next launch resumes, counting a
-sidecar already at the target (its legacy source gone) as moved. A target main
-file with sidecars still in documents and no legacy main file (a kill under the
-earlier main-first order) has those sidecars moved on the next launch, never
-over an existing target sidecar. Cross-device copies are size
-verified before originals are deleted. Failure restores transferred files and
-falls back to documents; a rollback failure preserves the remaining copy and
-fails opening rather than choosing an incomplete database. An existing support
+along with any `-wal`, `-shm` and `-journal` files.
+The sidecars move first and the main file last, so the main file at the target
+marks a finished move; a kill midway leaves the main file in documents and the
+next launch resumes, counting a sidecar already at the target (its legacy
+source gone, or an identical byte copy whose original was not yet deleted) as
+moved. A cross-device move copies to `<name>.navis-part`, checks the size and
+renames the part file into place, so a final name never holds a partial copy;
+stale `*.navis-part` files in both directories are deleted at every launch.
+Rollback renames files back and copies (via a part file) only across volumes.
+A target main file with sidecars still in documents and no legacy main file
+(a kill under the earlier main-first order) never attaches them, since the
+WAL may predate later changes to the target: they are renamed `*.orphaned`.
+Failure restores transferred files and falls back to documents; a rollback
+failure preserves the remaining copy and fails opening rather than choosing an
+incomplete database. An existing support
 database wins and leaves legacy files untouched. No schema changes are involved.
 
 ## External integration policy
