@@ -53,6 +53,18 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
           .trim();
 
   @override
+  void initState() {
+    super.initState();
+    // Pick up server-side edits on every open. The first open is already
+    // fetching, and the previous list stays visible while this reloads.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !ref.read(radioStationsProvider).isLoading) {
+        ref.invalidate(radioStationsProvider);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _filterController.dispose();
     super.dispose();
@@ -194,7 +206,10 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
               loading: () => local.isEmpty && stationsAsync.value == null
                   ? const ShimmerListPage(count: 8)
                   : sections(stationsAsync.value),
-              error: (error, _) => local.isEmpty
+              // A failed reload keeps the last server stations, silently.
+              error: (error, _) => stationsAsync.hasValue
+                  ? sections(stationsAsync.value)
+                  : local.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: <Widget>[
