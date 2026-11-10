@@ -4262,6 +4262,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get appearanceAutoLooksLabel => 'Use Different Presets for Auto';
+
+  @override
+  String get appearanceAutoLooksSub =>
+      'Apply a saved preset each time Auto switches between light and dark.';
+
+  @override
+  String get appearanceAutoLooksSaveFirst => 'Save a preset first';
+
+  @override
+  String get appearanceAutoLooksLight => 'Light Mode';
+
+  @override
+  String get appearanceAutoLooksDark => 'Dark Mode';
+
+  @override
+  String get appearanceAutoLooksNone => 'None (keep current look)';
+
+  @override
   String get appearanceNightScheduleLabel => 'Night Schedule';
 
   @override

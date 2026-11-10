@@ -843,6 +843,36 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Targeted update for Auto presets: the switch and the Look for each mode.
+  /// An absent argument keeps its value; a blank Look id means None.
+  Future<void> updateAutoLooks({
+    bool? enabled,
+    String? lightLookId,
+    String? darkLookId,
+  }) {
+    Value<String?> id(String? raw) => raw == null
+        ? const Value.absent()
+        : Value(raw.trim().isEmpty ? null : raw.trim());
+    return _writeSettings(
+      AppSettingsTableCompanion(
+        autoLooksEnabled: enabled == null
+            ? const Value.absent()
+            : Value(enabled),
+        autoLightLookId: id(lightLookId),
+        autoDarkLookId: id(darkLookId),
+      ),
+    );
+  }
+
+  /// Records which Auto mode's Look was last applied; null clears it, an
+  /// unknown mode is ignored.
+  Future<void> updateAutoLooksAppliedMode(String? mode) {
+    if (mode != null && !AutoMode.isValid(mode)) return Future<void>.value();
+    return _writeSettings(
+      AppSettingsTableCompanion(autoLooksAppliedMode: Value(mode)),
+    );
+  }
+
   /// Targeted update for color scheme seed.
   Future<void> updateColorSchemeSeed(int? seed) {
     return _writeSettings(

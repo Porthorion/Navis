@@ -479,6 +479,37 @@ void main() {
           expect(c.read(autoDarkScheduleProvider).endMinutes, 6 * 60 + 45),
     ),
     _Control(
+      'Auto presets: switch',
+      writers: {'updateAutoLooks'},
+      columns: {'autoLooksEnabled'},
+      seed: (db) => db.appSettingsDao.updateThemeMode('system'),
+      act: (t) => tap(t, find.text(l10n.appearanceAutoLooksLabel)),
+      effect: (c) => expect(c.read(autoLooksEnabledProvider), isTrue),
+    ),
+    for (final (name, key, column) in <(String, String, String)>[
+      ('Light Mode', 'Light', 'autoLightLookId'),
+      ('Dark Mode', 'Dark', 'autoDarkLookId'),
+    ])
+      _Control(
+        'Auto presets: $name',
+        writers: {'updateAutoLooks'},
+        columns: {column},
+        seed: (db) async {
+          await db.appSettingsDao.updateThemeMode('system');
+          await db.appSettingsDao.updateAutoLooks(enabled: true);
+        },
+        act: (t) async {
+          await tap(t, find.byKey(ValueKey<String>('auto${key}LookDropdown')));
+          await tap(t, find.text('Base').last);
+        },
+        effect: (c) => expect(
+          c.read(
+            key == 'Light' ? autoLightLookIdProvider : autoDarkLookIdProvider,
+          ),
+          c.read(appearanceLooksControllerProvider).looks.single.id,
+        ),
+      ),
+    _Control(
       'Night Schedule: switch',
       writers: {'updateNightSchedule'},
       columns: {'nightScheduleEnabled'},

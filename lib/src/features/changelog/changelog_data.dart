@@ -207,6 +207,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Auto can use a different saved preset for light and dark: in '
+        'Settings › Appearance, turn on Use Different Presets for Auto and '
+        'pick a Light Mode and a Dark Mode preset',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Volume normalization (ReplayGain) has a new Smart mode, the default '
         "for new installs: it keeps an album's own balance when you play it "
         'in order and levels songs one by one for shuffles and mixes. Songs '

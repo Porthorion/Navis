@@ -11,6 +11,7 @@ import 'package:navis/src/features/onboarding/presentation/setup_highlights_prov
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
@@ -326,6 +327,124 @@ class AutoThemeSourceOption extends StatelessWidget {
                         : l10n.appearanceAutoDarkWindow(start, end),
                     style: theme.textTheme.bodySmall,
                   ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Use Different Presets for Auto": a Look for light and one for dark,
+/// revealed under the Auto source while [visible]. Disabled until a Look is
+/// saved. A Look id that no longer exists reads as None.
+class AutoLooksOption extends StatelessWidget {
+  const new({
+    required this.visible,
+    required this.looks,
+    required this.enabled,
+    required this.lightId,
+    required this.darkId,
+    required this.onEnabledChanged,
+    required this.onLightChanged,
+    required this.onDarkChanged,
+    super.key,
+  });
+
+  final bool visible;
+  final List<AppearanceLook> looks;
+  final bool enabled;
+  final String? lightId;
+  final String? darkId;
+  final ValueChanged<bool> onEnabledChanged;
+
+  /// Null means None.
+  final ValueChanged<String?> onLightChanged;
+  final ValueChanged<String?> onDarkChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final inset = AppearanceLayout.subOptionInsetOf(context);
+    final gutter = AppearanceLayout.gutterOf(context);
+    Widget dropdown(
+      String key,
+      String label,
+      String? id,
+      ValueChanged<String?> onChanged,
+    ) {
+      final shown = looks.any((look) => look.id == id) ? id : null;
+      return Padding(
+        key: ValueKey<String>(key),
+        padding: EdgeInsetsDirectional.fromSTEB(
+          inset,
+          NavisSpace.xs,
+          gutter,
+          NavisSpace.xs,
+        ),
+        child: DropdownButtonFormField<String?>(
+          // A new key rebuilds the field when the saved choice changes.
+          key: ValueKey<String?>(shown),
+          initialValue: shown,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: label),
+          items: <DropdownMenuItem<String?>>[
+            DropdownMenuItem<String?>(
+              child: Text(
+                l10n.appearanceAutoLooksNone,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            for (final look in looks)
+              DropdownMenuItem<String?>(
+                value: look.id,
+                child: Text(look.name, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
+      );
+    }
+
+    return AppearanceSubOptionReveal(
+      visible: visible,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          NavisSwitchListTile(
+            key: const ValueKey<String>('autoLooksSwitch'),
+            contentPadding: EdgeInsetsDirectional.only(
+              start: inset,
+              end: gutter,
+            ),
+            title: Text(l10n.appearanceAutoLooksLabel),
+            subtitle: Text(
+              looks.isEmpty
+                  ? l10n.appearanceAutoLooksSaveFirst
+                  : l10n.appearanceAutoLooksSub,
+            ),
+            value: enabled,
+            // Already on with every Look deleted: it can still be turned off.
+            onChanged: looks.isEmpty && !enabled ? null : onEnabledChanged,
+          ),
+          AppearanceSubOptionReveal(
+            visible: enabled,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                dropdown(
+                  'autoLightLookDropdown',
+                  l10n.appearanceAutoLooksLight,
+                  lightId,
+                  onLightChanged,
+                ),
+                dropdown(
+                  'autoDarkLookDropdown',
+                  l10n.appearanceAutoLooksDark,
+                  darkId,
+                  onDarkChanged,
                 ),
               ],
             ),
