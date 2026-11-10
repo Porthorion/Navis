@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +16,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final values = <String, String>{};
+  Completer<void>? readGate;
 
   setUp(() {
     values.clear();
@@ -22,7 +26,9 @@ void main() {
           final key = arguments['key']! as String;
           return switch (call.method) {
             'write' => values[key] = arguments['value']! as String,
-            'read' => values[key],
+            'read' => await (readGate?.future ?? Future<void>.value()).then(
+              (_) => values[key],
+            ),
             'delete' => values.remove(key),
             _ => throw UnsupportedError('Unexpected secure-storage call'),
           };
@@ -89,4 +95,52 @@ void main() {
     expect(restored.alt, isFalse);
     expect(restored.shift, isFalse);
   });
+
+  test(
+    'hydration keeps a binding the user changed while it was loading',
+    () async {
+      final initial = ProviderContainer();
+      addTearDown(initial.dispose);
+      initial.read(desktopShortcutBindingsProvider);
+      await Future<void>.delayed(Duration.zero);
+      initial
+          .read(desktopShortcutBindingsProvider.notifier)
+          .setBinding(
+            DesktopCommandAction.openQuickSearch,
+            const DesktopShortcutBinding(key: LogicalKeyboardKey.keyP),
+          );
+      await Future<void>.delayed(Duration.zero);
+
+      readGate = Completer<void>();
+      final restarted = ProviderContainer();
+      addTearDown(restarted.dispose);
+      restarted.read(desktopShortcutBindingsProvider);
+      restarted
+          .read(desktopShortcutBindingsProvider.notifier)
+          .setBinding(
+            DesktopCommandAction.goHome,
+            const DesktopShortcutBinding(key: LogicalKeyboardKey.keyG),
+          );
+      readGate!.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      final bindings = restarted.read(desktopShortcutBindingsProvider);
+      // The user's late change wins; the saved binding still loads.
+      expect(
+        bindings[DesktopCommandAction.goHome]!.key.keyId,
+        LogicalKeyboardKey.keyG.keyId,
+      );
+      expect(
+        bindings[DesktopCommandAction.openQuickSearch]!.key.keyId,
+        LogicalKeyboardKey.keyP.keyId,
+      );
+      // ...and both are what is saved.
+      final saved = jsonDecode(values.values.single) as Map<String, Object?>;
+      expect((saved['goHome']! as Map)['keyId'], LogicalKeyboardKey.keyG.keyId);
+      expect(
+        (saved['openQuickSearch']! as Map)['keyId'],
+        LogicalKeyboardKey.keyP.keyId,
+      );
+    },
+  );
 }

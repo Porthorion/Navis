@@ -87,8 +87,18 @@ import 'package:navis/src/theme/navis_color_style_data.dart';
 import '../../helpers/reachability_fakes.dart';
 
 class _StaticLibrarySyncController extends LibrarySyncController {
+  static int forceFullSyncCalls = 0;
+
   @override
   LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    forceFullSyncCalls++;
+    return const LibrarySyncState.idle();
+  }
 
   @override
   Future<LibrarySyncState> syncIfStale() async {
@@ -5117,6 +5127,58 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(container.read(playerSheetExpandedProvider), isFalse);
+  });
+
+  testWidgets('Ctrl+Shift+R asks before forcing a full library resync', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    _StaticLibrarySyncController.forceFullSyncCalls = 0;
+
+    final container = _createContainerWithDatabase(
+      overrides: [
+        ..._authenticatedShellOverrides(
+          reachability: ServerReachabilityStatus.offline,
+          desktopRuntime: true,
+        ),
+        radioStationsProvider.overrideWith((ref) async => []),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> pressForceRescan() async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+    }
+
+    await pressForceRescan();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(_StaticLibrarySyncController.forceFullSyncCalls, 0);
+
+    // The chord again with the dialog open does not stack a second one.
+    await pressForceRescan();
+    expect(find.byType(AlertDialog), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(_StaticLibrarySyncController.forceFullSyncCalls, 0);
+
+    await pressForceRescan();
+    await tester.tap(find.widgetWithText(FilledButton, 'Repair Library'));
+    await tester.pumpAndSettle();
+    expect(_StaticLibrarySyncController.forceFullSyncCalls, 1);
   });
 
   testWidgets('desktop quick-search opens via Ctrl+F and submits query', (

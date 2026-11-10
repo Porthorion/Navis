@@ -1199,21 +1199,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     });
   }
 
-  void _togglePlayPause() {
-    if (widget.playback.playing) {
-      NavisHaptics.release(HapticCategory.playbackButtons);
-    } else {
-      NavisHaptics.press(HapticCategory.playbackButtons);
-    }
-    final handler = ref.read(audioHandlerProvider);
-    if (handler == null) return;
-    if (widget.playback.playing) {
-      unawaited(handler.pause());
-    } else {
-      unawaited(handler.play());
-    }
-  }
-
   void _handleArtHorizontalDragStart(DragStartDetails details) {
     _artSwipeController.stop();
   }
@@ -1345,7 +1330,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         return GestureDetector(
           key: key,
           behavior: HitTestBehavior.opaque,
-          onTap: _togglePlayPause,
+          onTap: () => unawaited(
+            togglePlayPause(ref, isPlaying: widget.playback.playing),
+          ),
           onHorizontalDragStart: enabled ? _handleArtHorizontalDragStart : null,
           onHorizontalDragUpdate: enabled
               ? (details) => _handleArtHorizontalDragUpdate(details, width)

@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/cover_art_source.dart';
@@ -1499,6 +1500,18 @@ class _AppShellState extends ConsumerState<AppShell> {
           unawaited(ref.read(librarySyncControllerProvider.notifier).syncNow());
           return;
         case DesktopCommandAction.forceRescanLibrary:
+          // A full resync is heavy and one mistyped chord from Refresh, so it
+          // asks first, with the Settings repair wording. A dialog already open
+          // means it has asked.
+          if (ModalRoute.of(context)?.isCurrent == false) return;
+          final l10n = AppLocalizations.of(context)!;
+          final confirmed = await showConfirmDialog(
+            context,
+            title: l10n.syncSettingsRepairLibraryMetadata,
+            message: l10n.syncSettingsRepairLibraryMetadataDescription,
+            confirmLabel: l10n.syncSettingsRepairLibraryMetadata,
+          );
+          if (!confirmed || !mounted) return;
           unawaited(
             ref.read(librarySyncControllerProvider.notifier).forceFullSync(),
           );

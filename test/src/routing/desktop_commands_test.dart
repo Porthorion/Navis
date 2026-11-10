@@ -138,6 +138,33 @@ void main() {
     );
   });
 
+  test('macOS keeps Cmd+, for Settings and moves speed-down off it', () {
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    final bindings = defaultDesktopShortcutBindings();
+    expect(
+      bindings[DesktopCommandAction.goSettings],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.comma),
+    );
+    expect(
+      bindings[DesktopCommandAction.speedDown],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.minus),
+    );
+    final all = bindings.values.whereType<DesktopShortcutBinding>();
+    expect(all.toSet().length, all.length);
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    final linux = defaultDesktopShortcutBindings();
+    expect(
+      linux[DesktopCommandAction.goSettings],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.digit4),
+    );
+    expect(
+      linux[DesktopCommandAction.speedDown],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.comma),
+    );
+  });
+
   test('shortcut labels use platform-specific modifier names', () {
     const binding = DesktopShortcutBinding(
       key: LogicalKeyboardKey.keyJ,
