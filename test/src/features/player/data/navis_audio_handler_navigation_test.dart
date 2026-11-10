@@ -16860,24 +16860,70 @@ void main() {
           );
         });
 
-        test('a cut song keeps its volume cut and gets no boost', () async {
+        test(
+          'a cut song gets no boost and its cut rides the item mix',
+          () async {
+            final (handler, player) = await gained(
+              [-3, 6],
+              peaks: [0.98, 0.1],
+              caps: ios,
+              eq: EqCapabilities.available,
+            );
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            expect(
+              player.volume,
+              1,
+              reason: 'the cut is in the item audio mix',
+            );
+            expect(player.sourceGains.first.db, -3);
+            expect(player.boostMessages.last.currentDb, 0);
+            expect(player.boostMessages.last.bySongId, {
+              'song-0': 0.0,
+              'song-1': 6.0,
+            });
+          },
+        );
+
+        test('radio gets no stamp and no level with the tap (I26)', () async {
           final (handler, player) = await gained(
-            [-3, 6],
-            peaks: [0.98, 0.1],
+            [-3],
             caps: ios,
             eq: EqCapabilities.available,
+            radioAllowed: (_) => true,
           );
-          await handler.replaceQueue([
-            'song-0',
-            'song-1',
-          ], expandMatchFlows: false);
-          expect(player.volume, closeTo(linearFactor(-3), 0.00001));
-          expect(player.boostMessages.last.currentDb, 0);
-          expect(player.boostMessages.last.bySongId, {
-            'song-0': 0.0,
-            'song-1': 6.0,
-          });
+          await handler.setVolume(0.5);
+          await handler.playRadioStream(
+            stationId: 'fixture',
+            stationName: 'Fixture',
+            streamUrl: 'https://radio.example/live',
+          );
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          expect(player.volume, 0.5);
+          expect(
+            player.levelMessages.expand((m) => m.entries).map((e) => e.songId),
+            isNot(contains('fixture')),
+          );
         });
+
+        test(
+          'an untagged song is stamped with the untagged level (I26)',
+          () async {
+            final (handler, player) = await gained(
+              [null],
+              caps: ios,
+              eq: EqCapabilities.available,
+              untagged: -12,
+            );
+            await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+            expect(player.sourceGains.first.db, -12);
+            expect(player.levelMessages.last.bySongId, {'song-0': -12.0});
+            expect(player.volume, 1);
+          },
+        );
 
         test('a settings change re-sends the map', () async {
           var mode = 'track';
@@ -18239,6 +18285,277 @@ void main() {
         await handler.replaceQueue(ids(1), expandMatchFlows: false);
         expect(handler.collectPlaybackDiagnostics()['replayGainBoost'], isNull);
       });
+    });
+
+    // The iOS equalizer tap makes ReplayGain a pipeline stage too (I26): the
+    // cut is each item's audio-mix volume, the tap keeps the boost.
+    group('on iOS with the tap (I26)', () {
+      const ios = PlaybackAdjustmentCapabilities.ios;
+      const tap = EqCapabilities.available;
+      final cut = linear(-10);
+
+      test(
+        'the tap makes ReplayGain a stage and the boost still goes out',
+        () async {
+          final (handler, player) = await smart(
+            ['a', 'b'],
+            mode: 'track',
+            caps: ios,
+            eq: tap,
+          );
+          await handler.setVolume(0.25);
+          await handler.replaceQueue(ids(2), expandMatchFlows: false);
+          await pumpEventQueue();
+          expect(handler.replayGainInPipeline, isTrue);
+          expect(handler.replayGainBoostSupported, isTrue);
+          expect(player.volume, 0.25, reason: 'the volume carries no gain');
+          expect(player.sourceGains.first.op, 'load');
+          expect(player.sourceGains.map((g) => g.db), everyElement(-10));
+          expect(player.levelMessages.last.bySongId, {
+            'song-0': -10.0,
+            'song-1': -10.0,
+          });
+          expect(
+            player.boostMessages,
+            isNotEmpty,
+            reason: 'the boost map stays',
+          );
+          expect(player.boostMessages.last.bySongId, {
+            'song-0': 0.0,
+            'song-1': 0.0,
+          });
+        },
+      );
+
+      test('a mode change pushes live, off pushes 0', () async {
+        var mode = 'track';
+        final (handler, player) = await smart(
+          ['a', 'b'],
+          caps: ios,
+          eq: tap,
+          readMode: () => mode,
+        );
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await pumpEventQueue();
+        expect(player.levelMessages.any((m) => m.live), isFalse);
+        mode = 'album';
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(player.levelMessages.last.live, isTrue);
+        expect(player.levelMessages.last.bySongId, {
+          'song-0': -4.0,
+          'song-1': -4.0,
+        });
+        mode = 'off';
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(player.levelMessages.last.live, isTrue);
+        expect(player.levelMessages.last.bySongId, {
+          'song-0': 0.0,
+          'song-1': 0.0,
+        });
+        expect(player.volume, 1);
+      });
+
+      test(
+        'a tag refresh pushes non-live and leaves the volume alone',
+        () async {
+          late NavisDatabase database;
+          final (handler, player) = await smart(
+            ['a', 'b'],
+            mode: 'track',
+            caps: ios,
+            eq: tap,
+            onDatabase: (db) => database = db,
+          );
+          await handler.replaceQueue(ids(2), expandMatchFlows: false);
+          await pumpEventQueue();
+          final pushes = player.levelMessages.length;
+          final before = player.volume;
+          await (database.update(database.songsTable)
+                ..where((song) => song.id.equals('song-1')))
+              .write(const SongsTableCompanion(replayGainTrackGain: Value(-7)));
+          await handler.refreshQueuedSongReplayGain();
+          await pumpEventQueue();
+          expect(player.levelMessages.length, greaterThan(pushes));
+          expect(player.levelMessages.last.bySongId['song-1'], -7);
+          expect(player.levelMessages.last.live, isFalse);
+          expect(player.volume, before);
+        },
+      );
+
+      test('an added song and a played-next song are stamped', () async {
+        final (handler, player) = await smart(
+          ['a', 'b', 'c', 'd'],
+          mode: 'track',
+          caps: ios,
+          eq: tap,
+        );
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.addToQueue(['song-2'], expandMatchFlows: false);
+        await handler.playNext(['song-3'], expandMatchFlows: false);
+        await settleQueue(handler);
+        for (final id in ['song-2', 'song-3']) {
+          expect(
+            player.sequence
+                .firstWhere((s) => navisNativeSourceSongId(s) == id)
+                .replayGainDb,
+            -10,
+            reason: id,
+          );
+        }
+        expect(player.levelMessages.last.bySongId.keys, containsAll(ids(4)));
+      });
+
+      test('a removal repushes every remaining entry', () async {
+        final (handler, player) = await smart(
+          ['a', 'b', 'c'],
+          mode: 'track',
+          caps: ios,
+          eq: tap,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await pumpEventQueue();
+        await handler.removeQueueItemAt(1);
+        await settleQueue(handler);
+        expect(player.levelMessages.last.bySongId, {
+          'song-0': -10.0,
+          'song-2': -10.0,
+        });
+        expect(player.levelMessages.last.live, isFalse);
+      });
+
+      test('toggling repeat repushes the levels and the boost', () async {
+        final (handler, player) = await smart(
+          ['a', 'b', 'a'],
+          caps: ios,
+          eq: tap,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await pumpEventQueue();
+        expect(player.levelMessages.last.bySongId['song-2'], -10);
+        final boosts = player.boostMessages.length;
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        player.emitLoopMode(LoopMode.all);
+        await pumpEventQueue();
+        // song-2 wraps to song-0, the same album: album gain.
+        expect(player.levelMessages.last.bySongId['song-2'], -4);
+        expect(player.boostMessages.length, greaterThan(boosts));
+      });
+
+      test('the cut and the boost read the same Smart pair', () async {
+        // song-1 sits between a and b: album gain for the cut, and the boost
+        // (a peak leaves room) comes from the same pair.
+        final (handler, player) = await smart(
+          ['a', 'a', 'b'],
+          trackGain: 2,
+          albumGain: 6,
+          peak: 0.1,
+          caps: ios,
+          eq: tap,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await pumpEventQueue();
+        await handler.skipToNext();
+        await pumpEventQueue();
+        expect(handler.snapshot.currentSongId, 'song-1');
+        final decision = handler.currentReplayGainDecision;
+        expect(decision?.resolvedMode, 'album');
+        expect(player.boostMessages.last.currentDb, decision?.boostDb);
+        expect(player.levelMessages.last.bySongId['song-1'], decision?.db);
+      });
+
+      test('the cross-fade ramps exclude ReplayGain', () async {
+        final decks = <_ControllableAudioPlayer>[];
+        final (handler, player) = await smart(
+          ['a', 'b'],
+          mode: 'track',
+          caps: ios,
+          eq: tap,
+          crossfade: true,
+          decks: decks,
+        );
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.debugStartCrossfade();
+        await pumpEventQueue();
+        final deck = handler.debugInactiveDeck as _ControllableAudioPlayer;
+        expect(deck.sourceGains, isNotEmpty);
+        expect(deck.sourceGains.map((g) => g.db), everyElement(-10));
+        expect(deck.levelMessages, isNotEmpty);
+        expect(deck.boostMessages, isNotEmpty, reason: 'the deck gets the map');
+        await handler.setVolume(0.4);
+        // A second -10 dB cut on the volume would scale the sum.
+        expect(player.volume + deck.volume, closeTo(0.4, 0.00001));
+      });
+
+      test('a rebuild without the tap goes back to the volume cut', () async {
+        final decks = <_ControllableAudioPlayer>[];
+        final (handler, player) = await smart(
+          ['a', 'b'],
+          mode: 'track',
+          caps: ios,
+          eq: tap,
+          decks: decks,
+        );
+        await handler.setVolume(0.25);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        expect(player.volume, 0.25);
+        await handler.debugRebuildPlayerWithoutEqualizer();
+        expect(handler.replayGainInPipeline, isFalse);
+        expect(handler.replayGainBoostSupported, isFalse);
+        final rebuilt = handler.debugActivePlayer as _ControllableAudioPlayer;
+        expect(rebuilt, isNot(same(player)));
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(rebuilt.sourceGains.map((g) => g.db), everyElement(isNull));
+        expect(rebuilt.levelMessages, isEmpty);
+        expect(rebuilt.boostMessages, isEmpty);
+        expect(rebuilt.volume, closeTo(0.25 * cut, 0.00001));
+      });
+
+      test(
+        'without the tap the Dart cut applies and nothing is stamped',
+        () async {
+          final (handler, player) = await smart(
+            ['a'],
+            mode: 'track',
+            caps: ios,
+          );
+          await handler.setVolume(0.25);
+          await handler.replaceQueue(ids(1), expandMatchFlows: false);
+          expect(handler.replayGainInPipeline, isFalse);
+          expect(player.sourceGains.single.db, isNull);
+          expect(player.levelMessages, isEmpty);
+          expect(player.volume, closeTo(0.25 * cut, 0.00001));
+        },
+      );
+
+      test(
+        'the status adds the cut native assigned, under its own keys',
+        () async {
+          final (handler, player) = await smart(
+            ['a'],
+            mode: 'track',
+            caps: ios,
+            eq: tap,
+          );
+          player.nativeEqualizerState = const EqualizerStateMessage(
+            enabled: true,
+            boostRequestedDb: 3,
+            replayGainCutDb: -10,
+            replayGainNextCutDb: -4.5,
+          );
+          await handler.replaceQueue(ids(1), expandMatchFlows: false);
+          await handler.refreshEqualizerState();
+          final status =
+              handler.collectPlaybackDiagnostics()['replayGainBoost']
+                  as Map<String, Object?>;
+          expect(status['cutDb'], -10);
+          expect(status['nextCutDb'], -4.5);
+          expect(status['requestedDb'], 3);
+        },
+      );
     });
   });
 

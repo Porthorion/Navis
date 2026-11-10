@@ -37,11 +37,20 @@
 /// `noteFlush`). `guarded` is only reported. Safe before the tap exists (it is seeded).
 /// The state adds boostRequestedDb, boostAppliedDb (the gain the last block ended on),
 /// boostGuarded and boostClipSamples (samples beyond full scale after the boost gain).
+/// replayGainCutDb and replayGainNextCutDb (I26) are the cut, in dB, last assigned to the current
+/// item's audio mix and to the next queued item's; null while that item has none.
 - (void)setBoostDb:(double)db guarded:(BOOL)guarded;
-/// Gives the item its audio mix (the shared tap, track 1) synchronously.
-/// Idempotent. Call it for every item in the same run-loop turn as the insert
-/// into the queue, never later: changing the mix of a queued item stalls playback.
-- (void)attachToItem:(AVPlayerItem *)item;
+/// Gives the item its audio mix (the shared tap, track 1, and `volume`: the ReplayGain cut, I26)
+/// synchronously. Idempotent: an item that already has its mix keeps it (see `setVolume:forItem:`).
+/// Call it for every item in the same run-loop turn as the insert into the queue, never later:
+/// a first mix (or a new tap/track) on a queued item stalls playback; only the volume may move
+/// later, through `setVolume:forItem:`. If the tap cannot be created the mix still
+/// carries the volume (no tap), and that item is never retried.
+- (void)attachToItem:(AVPlayerItem *)item volume:(float)volume;
+/// Main thread. Moves the cut of an item that already has its mix: a new mix object (same tap, same
+/// track) with `volume`. Nothing happens for an item with no record, or one already at `volume`.
+/// The state's replayGainCutDb / replayGainNextCutDb read the volume recorded here.
+- (void)setVolume:(float)volume forItem:(AVPlayerItem *)item;
 /// The host seeked or skipped: the next block of audio resets the filter history.
 - (void)noteFlush;
 /// Main thread. The transition gap meter samples only while playing.
@@ -49,6 +58,8 @@
 - (void)dispose;
 /// The player's current item (main thread); the state describes that item.
 @property (nonatomic, copy) AVPlayerItem *(^currentItemProvider)(void);
+/// The item queued after the current one (main thread), for the state's replayGainNextCutDb.
+@property (nonatomic, copy) AVPlayerItem *(^nextItemProvider)(void);
 
 @end
 

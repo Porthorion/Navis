@@ -1241,6 +1241,16 @@ extension _NavisQueueLoading on NavisAudioHandler {
         startItem,
         nextItem,
       ], replacesQueue: true);
+      // The successor was prepared before the new play order was known, so
+      // its Smart neighbours came from the old queue; stamp it from the
+      // incoming list (only iOS has a successor).
+      if (replayGainInPipeline) {
+        _stampReplayGainFor(
+          [nextItem],
+          [for (final song in songs) song.albumId],
+          at: clampedIndex + 1,
+        );
+      }
     }
     _checkQueueWorkCurrent(token, generation);
     // Native index 0 must resolve to the selected occurrence as soon as

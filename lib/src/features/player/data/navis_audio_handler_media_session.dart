@@ -724,7 +724,9 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// 0..1 volume cannot do.
   ///
   /// The player volume is linear (ExoPlayer, AVQueuePlayer), so the gain is
-  /// `10^(dB/20)`. mpv never gets here: its cut rides the `@navis_rg` filter.
+  /// `10^(dB/20)`. A backend with a stage (mpv's `@navis_rg` filter, Android's
+  /// processor, iOS's item audio mix) never gets here: its cut is applied in
+  /// the pipeline.
   /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
     final base = _baseVolumeFor();
@@ -830,7 +832,8 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// it without freezing.
   ///
   /// In the pipeline this is the update push of every queued song's level
-  /// ([_pushReplayGainLevels]); [live] is set only by a settings change.
+  /// ([_pushReplayGainLevels]); [live] is set only by a settings change. iOS
+  /// also sends the per-file boost map ([_sendReplayGainBoostTo]).
   void _applyReplayGainBoost({bool live = false}) {
     if (!replayGainBoostSupported && !replayGainInPipeline) return;
     unawaited(
@@ -848,7 +851,21 @@ extension _NavisMediaSession on NavisAudioHandler {
     AudioPlayer player, {
     bool live = false,
   }) async {
-    if (replayGainInPipeline) return _pushReplayGainLevels(player, live: live);
+    if (!replayGainInPipeline) return _sendReplayGainBoostTo(player);
+    // iOS carries the cut in each item's audio mix and the boost in the tap:
+    // both go out, and a failure of one must not stop the other.
+    if (!_usesIos) return _pushReplayGainLevels(player, live: live);
+    try {
+      await _pushReplayGainLevels(player, live: live);
+    } on Object catch (error) {
+      AppLogger.debug('ReplayGain levels could not be pushed: $error');
+    }
+    await _sendReplayGainBoostTo(player);
+  }
+
+  /// The per-file boost map of the iOS tap (and of a backend that boosts per
+  /// file without an in-pipeline stage).
+  Future<void> _sendReplayGainBoostTo(AudioPlayer player) async {
     final current = player.currentIndex;
     final bySource = <IndexedAudioSource, double>{};
     final durationMsBySource = <IndexedAudioSource, int>{};
@@ -959,6 +976,10 @@ extension _NavisMediaSession on NavisAudioHandler {
           'appliedDb': equalizerState.boostAppliedDb,
           'guarded': equalizerState.boostGuarded,
           'clipSamples': equalizerState.boostClipSamples,
+          // The cut in the item audio mix (I26): what native assigned to the
+          // playing item and to the one queued after it, in dB.
+          'cutDb': equalizerState.replayGainCutDb,
+          'nextCutDb': equalizerState.replayGainNextCutDb,
         }
       : null;
 
@@ -1124,6 +1145,8 @@ extension _NavisMediaSession on NavisAudioHandler {
         boostAppliedDb: native.boostAppliedDb,
         boostClipSamples: native.boostClipSamples,
         boostGuarded: native.boostGuarded,
+        replayGainCutDb: native.replayGainCutDb,
+        replayGainNextCutDb: native.replayGainNextCutDb,
         processedFrames: native.processedFrames,
         levelDeltaDb: native.levelDeltaDb,
         resetCount: native.resetCount,

@@ -442,11 +442,17 @@ void main() {
         navisReplayGainInPipeline(usesMpv: false, androidProcessor: true),
         isTrue,
       );
-      // iOS and a rebuilt Android player (no processor) keep the Dart cut.
+      // A rebuilt Android player (no processor) keeps the Dart cut.
       expect(
         navisReplayGainInPipeline(usesMpv: false, androidProcessor: false),
         isFalse,
       );
+    });
+
+    test('the iOS tap carries the cut in the item audio mix (I26)', () {
+      expect(navisReplayGainInPipeline(usesMpv: false, iosTap: true), isTrue);
+      // No tap (the EQ pipeline is gone): the Dart cut through volume stays.
+      expect(navisReplayGainInPipeline(usesMpv: false, iosTap: false), isFalse);
     });
 
     test('Android boosts while its EQ processor pipeline is installed', () {

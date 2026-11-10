@@ -380,6 +380,8 @@ class EqApplicationState {
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
     this.boostGuarded = false,
+    this.replayGainCutDb,
+    this.replayGainNextCutDb,
     this.processedFrames,
     this.levelDeltaDb,
     this.resetCount,
@@ -422,6 +424,11 @@ class EqApplicationState {
   final double boostAppliedDb;
   final int boostClipSamples;
   final bool boostGuarded;
+
+  /// The iOS cut in each item's audio mix (I26): the volume native assigned to
+  /// the current item and to the next queued one, in dB. Null when unreported.
+  final double? replayGainCutDb;
+  final double? replayGainNextCutDb;
 
   /// Frames the native equalizer processed (iOS only), for diagnostics.
   final int? processedFrames;
@@ -491,6 +498,8 @@ class EqApplicationState {
     'boostAppliedDb': boostAppliedDb,
     'boostGuarded': boostGuarded,
     'boostClipSamples': boostClipSamples,
+    'replayGainCutDb': replayGainCutDb,
+    'replayGainNextCutDb': replayGainNextCutDb,
     'processedFrames': processedFrames,
     'levelDeltaDb': levelDeltaDb,
     'resetCount': resetCount,

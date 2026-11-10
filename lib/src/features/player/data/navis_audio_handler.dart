@@ -828,14 +828,16 @@ class NavisAudioHandler extends BaseAudioHandler
   /// True on mpv (Linux, Windows and macOS). On Android it follows the EQ processor,
   /// which both decks are built with (every player build sets
   /// [_equalizerPipelineEnabled]), so a rebuild without the processor drops it
-  /// for the new players. False on iOS, whose tap carries the boost only: the
-  /// cut rides the player volume (the per-song cut is tracked in #392).
+  /// for the new players. On iOS it follows the equalizer tap the same way: the
+  /// cut is each item's audio-mix volume and the tap carries the boost; a
+  /// rebuild without the tap goes back to the Dart cut through the volume.
   @override
   bool get replayGainInPipeline =>
       _replayGainInPipelineOverride ??
       navisReplayGainInPipeline(
         usesMpv: _usesMpv,
         androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
+        iosTap: _usesIos && _equalizerPipelineEnabled,
       );
 
   @override

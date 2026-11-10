@@ -1,6 +1,6 @@
 // Host-side tests for NavisBoost.c (iOS ReplayGain boost, I24): the pure timing
-// decision (the last-seconds guard, latch and hold) and the click-free
-// gain ramp. Run by tool/equalizer_native_test.sh under ASan/UBSan.
+// decision (the last-seconds guard, latch and hold), the click-free
+// gain ramp and the per-item cut volume (I26). Run by tool/equalizer_native_test.sh under ASan/UBSan.
 #include "../just_audio/Sources/just_audio/NavisBoost.h"
 
 #include <math.h>
@@ -454,6 +454,22 @@ static void testTargetAtomicIsLockFree(void) {
     check(atomic_is_lock_free(&probe), "an atomic float is lock-free on this target");
 }
 
+// MARK: cut (I26)
+
+// The per-item cut in the audio mix: linear, never a boost, bounded at -60 dB, and anything that
+// is not a finite negative level (unstamped = NaN, radio, a garbage tag) leaves the song alone.
+static void testCutLinear(void) {
+    near(navis_replaygain_cut_linear(NAN), 1.0, 0, "NaN is no cut");
+    near(navis_replaygain_cut_linear(0), 1.0, 0, "0 dB is no cut");
+    near(navis_replaygain_cut_linear(6), 1.0, 0, "a positive level never boosts here");
+    near(navis_replaygain_cut_linear(INFINITY), 1.0, 0, "+inf is no cut");
+    near(navis_replaygain_cut_linear(-INFINITY), 1.0, 0, "-inf is no cut");
+    near(navis_replaygain_cut_linear(-6.0206), 0.5, 1e-4, "-6.0206 dB is half");
+    near(navis_replaygain_cut_linear(-20), 0.1, 1e-6, "-20 dB is 0.1");
+    near(navis_replaygain_cut_linear(-60), 0.001, 1e-6, "-60 dB is the floor");
+    near(navis_replaygain_cut_linear(-200), 0.001, 1e-6, "-200 dB clamps to -60 dB");
+}
+
 typedef struct {
     const char *name;
     void (*run)(void);
@@ -480,8 +496,9 @@ int main(void) {
         {"rampClampsTheTarget", testRampClampsTheTarget},
         {"rampRateSetsTheLength", testRampRateSetsTheLength},
         {"targetAtomicIsLockFree", testTargetAtomicIsLockFree},
+        {"cutLinear", testCutLinear},
     };
     for (size_t i = 0; i < sizeof tests / sizeof *tests; i++) tests[i].run();
-    puts("Navis Darwin boost: decision table, click-free ramp, clip count and clamps passed.");
+    puts("Navis Darwin boost: decision table, click-free ramp, clip count, clamps and cut passed.");
     return 0;
 }

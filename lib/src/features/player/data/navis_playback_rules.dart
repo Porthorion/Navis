@@ -75,15 +75,17 @@ bool navisReplayGainBoostSupported({
 
 /// Whether the backend applies ReplayGain inside its audio path, on each
 /// song's own samples (see the handler's `replayGainInPipeline`). True on mpv
-/// (the `@navis_rg` stage, macOS included), and on Android while
-/// [androidProcessor] says the EQ processor pipeline is installed (without it
-/// the Dart cut through the player volume stays). False on iOS: its equalizer
-/// tap carries the boost only, the cut rides the player volume (the per-song
-/// cut in the tap is tracked in #392).
+/// (the `@navis_rg` stage, macOS included), on Android while
+/// [androidProcessor] says the EQ processor pipeline is installed, and on iOS
+/// while [iosTap] says the equalizer tap is installed (the cut then rides each
+/// item's audio mix, the boost the tap; #392, I26). Without the stage (a
+/// rebuild without the EQ pipeline) the Dart cut through the player volume
+/// stays.
 bool navisReplayGainInPipeline({
   required bool usesMpv,
   bool androidProcessor = false,
-}) => usesMpv || androidProcessor;
+  bool iosTap = false,
+}) => usesMpv || androidProcessor || iosTap;
 
 /// How much ReplayGain turns one song down ([cutDb], 0 or less) or up
 /// ([boostDb], 0 or more).

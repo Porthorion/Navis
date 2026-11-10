@@ -22,7 +22,9 @@ default throws
 `EqualizerStateMessage` adds `replayGainCurrentKey`, `replayGainAppliedDb` and
 `boostClipSamples` (default null/0/0), read from the Android processor's state.
 It also adds `boostRequestedDb`, `boostAppliedDb` (default 0) and `boostGuarded`
-(default false), read from the iOS tap's state.
+(default false), read from the iOS tap's state. It also adds the optional
+`replayGainCutDb` and `replayGainNextCutDb` (dB of the cut the iOS player
+assigned to the current and the next queued item's audio mix; null when absent).
 
 `EqualizerStateMessage` also carries the optional Darwin-only `processedFrames`
 and `levelDeltaDb` diagnostics.

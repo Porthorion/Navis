@@ -450,6 +450,21 @@ sites, `NavisEqualizerProcessor.setBoost` and the `boostRequestedDb`,
 `boostAppliedDb` and `boostGuarded` state keys. `setReplayGainLevels` keys a
 clipping source by its child's id and URI, because native tags the child item.
 
+ReplayGain cut in the iOS item audio mix (I26, #392 phase 4). The Darwin
+`UriAudioSource.replayGainDb` (an `NSNumber`, nil when unstamped) is read from the
+source message at decode time. `NavisEqualizer` gives every item its audio mix
+with the cut as the input volume (`setVolume:atTime:` at zero, via
+`navis_replaygain_cut_linear` in `NavisBoost.c`: never above 1, floor -60 dB, nil
+or non-finite is 1) in the same run-loop turn as the insert
+(`attachToItem:volume:`). `setReplayGainLevels` (iOS main thread, always replies
+`{}`) updates the stamps by source id (`byId`; a clip by its child) and calls
+`setVolume:forItem:`, which assigns a new mix object (same tap and track) when the
+value moved. The heard item is skipped unless the push is `live`. A queue rebuild
+that keeps the playing item never re-assigns it, but a re-inserted item gets its
+current value. A failed tap creation still gives the item a tap-less mix
+(`NavisEqItemVolumeOnly`, never retried). `getEqualizerState` adds
+`replayGainCutDb` and `replayGainNextCutDb`, read from the item records.
+
 A native playback event whose `updatePosition` and `currentIndex` equal the
 current event's and whose `updateTime` is older keeps the current `updateTime`
 (everything else is taken from the event). `play()` and `pause()` stamp the
