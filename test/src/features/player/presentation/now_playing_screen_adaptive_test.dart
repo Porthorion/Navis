@@ -1007,40 +1007,57 @@ void main() {
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
 
-  for (final size in <Size>[const Size(320, 844), const Size(390, 844)]) {
-    testWidgets('phone radio transport shows EQ, Play, Stop and no Speed at '
-        '${size.width.toInt()} dp', (tester) async {
-      setAdaptiveTestViewport(tester, size);
-      final container = _createContainer(
-        overrides: [
-          eqCapabilitiesProvider.overrideWithValue(EqCapabilities.available),
-          equalizerProvider.overrideWith(FakeEqController.new),
-        ],
+  for (final size in <Size>[const Size(320, 844), const Size(390, 844)])
+    for (final eqSupported in <bool>[true, false]) {
+      testWidgets(
+        'phone radio transport shows EQ, Play, Stop and no Speed at '
+        '${size.width.toInt()} dp, EQ ${eqSupported ? 'on' : 'unsupported'}',
+        (tester) async {
+          setAdaptiveTestViewport(tester, size);
+          final container = _createContainer(
+            overrides: [
+              eqCapabilitiesProvider.overrideWithValue(
+                eqSupported
+                    ? EqCapabilities.available
+                    : EqCapabilities.unavailable,
+              ),
+              equalizerProvider.overrideWith(FakeEqController.new),
+            ],
+          );
+          container
+              .read(nowPlayingTestPlaybackProvider.notifier)
+              .state = _songPlayback.copyWith(
+            radioStation: const RadioStationMetadata(
+              stationId: 'radio-1',
+              stationName: 'Fixture FM',
+              streamUrl: 'https://example.com/radio',
+            ),
+          );
+          await _pumpNowPlaying(
+            tester,
+            container,
+            platform: TargetPlatform.android,
+          );
+          final eq = find.byKey(const ValueKey('nowPlayingEqualizerButton'));
+          final play = find.byTooltip('Pause');
+          final stop = find.byTooltip('Stop Radio');
+          expect(eq, findsOneWidget);
+          expect(tester.getCenter(eq).dx, lessThan(tester.getCenter(play).dx));
+          expect(
+            tester.getCenter(play).dx,
+            lessThan(tester.getCenter(stop).dx),
+          );
+          // Play is centred in the row, so the side slots must be symmetric.
+          expect(tester.getCenter(play).dx, closeTo(size.width / 2, 1));
+          expect(
+            find.byKey(const ValueKey('nowPlayingSpeedButton')),
+            findsNothing,
+          );
+          expect(tester.takeException(), isNull);
+        },
+        skip: !sqliteAvailable,
       );
-      container
-          .read(nowPlayingTestPlaybackProvider.notifier)
-          .state = _songPlayback.copyWith(
-        radioStation: const RadioStationMetadata(
-          stationId: 'radio-1',
-          stationName: 'Fixture FM',
-          streamUrl: 'https://example.com/radio',
-        ),
-      );
-      await _pumpNowPlaying(
-        tester,
-        container,
-        platform: TargetPlatform.android,
-      );
-      final eq = find.byKey(const ValueKey('nowPlayingEqualizerButton'));
-      final play = find.byTooltip('Pause');
-      final stop = find.byTooltip('Stop Radio');
-      expect(eq, findsOneWidget);
-      expect(tester.getCenter(eq).dx, lessThan(tester.getCenter(play).dx));
-      expect(tester.getCenter(play).dx, lessThan(tester.getCenter(stop).dx));
-      expect(find.byKey(const ValueKey('nowPlayingSpeedButton')), findsNothing);
-      expect(tester.takeException(), isNull);
-    }, skip: !sqliteAvailable);
-  }
+    }
 
   group('mobile settings sheet Sound section', () {
     Future<ProviderContainer> openSheet(

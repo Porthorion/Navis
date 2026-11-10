@@ -1861,9 +1861,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
         _checkQueueWorkCurrent(token, generation);
         _cancelCrossfade();
         _radioMetadataService.stop();
-        final wasRadio = _radioStation != null;
         _radioStation = null;
-        if (wasRadio) await _syncPlayerAdjustments();
+        // Unconditional: clearQueue() and _stopUnavailableRadio() null the
+        // station themselves and a replace can cancel their lane job before
+        // it re-applies the saved values.
+        await _syncPlayerAdjustments();
 
         final (songs, selectedOccurrence) = await resolve();
         _checkQueueWorkCurrent(token, generation);

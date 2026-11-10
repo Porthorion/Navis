@@ -1145,13 +1145,19 @@ extension _NavisMediaSession on NavisAudioHandler {
     ]);
   }
 
-  /// Re-applies the saved values after [_radioStation] changed. A failure
+  /// Re-applies the saved values after [_radioStation] changed. Runs on
+  /// [_adjustmentLane] and reads [_appliedAdjustments] when it executes, so an
+  /// overlapping speed change is never overwritten by a stale value. A failure
   /// must not abort radio start or the return to songs.
   Future<void> _syncPlayerAdjustments() async {
-    try {
-      await _applyToStableDecks(
+    final operation = _adjustmentLane.then(
+      (_) => _applyToStableDecks(
         (player) => _applyAdjustmentsToPlayer(player, _appliedAdjustments),
-      ).timeout(_playerResetTimeout);
+      ),
+    );
+    _adjustmentLane = operation.catchError((Object _) {});
+    try {
+      await operation.timeout(_playerResetTimeout);
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'Playback adjustment sync after a radio change failed: '

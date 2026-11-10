@@ -1024,8 +1024,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     appliedVolumes.add(value);
   }
 
+  /// One-shot: the next [setSpeed] parks here before it writes.
+  Completer<void>? speedGate;
+  Completer<void>? speedEntered;
+
   @override
   Future<void> setSpeed(double value) async {
+    final gate = speedGate;
+    if (gate != null) {
+      speedGate = null;
+      speedEntered?.complete();
+      await gate.future;
+    }
     appliedSpeed = value;
   }
 
@@ -8465,6 +8475,57 @@ void main() {
       await settleQueue(handler);
       expectSaved(player);
     });
+
+    test(
+      'a clear superseded by a song load still restores saved values',
+      () async {
+        final (handler, player) = await setup();
+        await handler.playRadioStream(
+          stationId: 'a',
+          stationName: 'A',
+          streamUrl: station,
+        );
+        expectNeutral(player);
+        // clearQueue nulls the station synchronously; the replace cancels its
+        // pending lane job, so only the replace can re-apply the saved values.
+        unawaited(handler.clearQueue());
+        await handler.replaceQueue(['song-1'], expandMatchFlows: false);
+        await settleQueue(handler);
+        expectSaved(player);
+      },
+    );
+
+    test(
+      'a speed change overlapping the stop sync is not overwritten',
+      () async {
+        final directory = Directory.systemTemp.createTempSync('radio-adjust-');
+        final (handler, player, database) = await createHandler(directory, 0);
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          directory.deleteSync(recursive: true);
+        });
+        await handler.setPlaybackAdjustments(saved);
+        await handler.playRadioStream(
+          stationId: 'a',
+          stationName: 'A',
+          streamUrl: station,
+        );
+        player
+          ..speedGate = Completer<void>()
+          ..speedEntered = Completer<void>();
+        final gate = player.speedGate!;
+        final stopping = handler.stopRadio();
+        await player.speedEntered!.future;
+        final change = handler.setPlaybackSpeed(1.25);
+        await pumpEventQueue();
+        gate.complete();
+        await Future.wait([stopping, change]);
+        await settleQueue(handler);
+        expect(handler.playbackAdjustments.speed, 1.25);
+        expect(player.appliedSpeed, 1.25);
+      },
+    );
 
     test('radio recovery after a transient failure stays neutral', () async {
       var online = false;
