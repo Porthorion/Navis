@@ -736,8 +736,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       playOrder: _loadingPlayOrder(item),
     )?.cutDb;
     if (gainDb == null) return base;
-    return (math.pow(10, gainDb / 20).toDouble() * base)
-        .clamp(0.0, 1.0);
+    return (math.pow(10, gainDb / 20).toDouble() * base).clamp(0.0, 1.0);
   }
 
   /// While a replacement loads, the incoming play order around its start

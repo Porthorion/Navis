@@ -734,7 +734,8 @@ frames, so frame timings alone cannot show a freeze. The report also counts
 native player operations) and `tableUpdates` (Drift change notifications per
 table) since the last reset. `GET /v1/playback/status` includes `playerSequenceLength`, `playerVolume` (the
 active player's volume: runtime checks of the Dart ReplayGain cut read it on
-every row, including `queueSettled=false` ones),
+every row, including `queueSettled=false` ones; on mpv, macOS included, the
+cut rides the `@navis_rg` filter, so `playerVolume` stays at the user volume),
 `materializedLength`, `deferredLength`, `queueFill` stage timings, and
 persistence-lane counts. Read-only
 `GET /v1/diagnostics/local-search?query=` times the production local artist,

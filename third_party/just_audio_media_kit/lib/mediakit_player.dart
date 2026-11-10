@@ -302,8 +302,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   late final bool Function(String, String) _setPropertySync;
 
   /// Whether the `@navis_rg` stage is in `af`. Always on in the app; off (tests
-  /// only), the adapter keeps its pre-#392 behaviour: no stage, media_kit's own speed and pitch setters
-  /// while the EQ pipeline is off, and levels are ignored.
+  /// only), the adapter keeps its pre-#392 behaviour: no stage, media_kit's own
+  /// speed and pitch setters while the EQ pipeline is off, and levels are
+  /// ignored.
   final bool _replayGainFilter;
 
   /// The entry and position mpv starts the next load of that entry at.

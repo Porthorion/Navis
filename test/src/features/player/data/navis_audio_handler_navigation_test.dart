@@ -16889,7 +16889,7 @@ void main() {
           crossfade: true,
           replayGainMode: 'track',
           adjustmentCapabilities: caps,
-          
+
           seed: (database) async {
             await (database.update(
               database.songsTable,
