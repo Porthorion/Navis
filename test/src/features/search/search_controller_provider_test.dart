@@ -274,7 +274,7 @@ class _GatedDatabase extends NavisDatabase {
   new(this.artistsGate, this.genresGate)
     : super(
         DatabaseConnection(
-          NativeDatabase.memory(),
+          NativeDatabase.memory(setup: registerSearchFoldFunction),
           closeStreamsSynchronously: true,
         ),
       );

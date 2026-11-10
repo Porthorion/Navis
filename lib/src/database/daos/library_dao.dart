@@ -7,8 +7,6 @@ import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/search_text.dart';
-import 'package:navis/src/features/search/domain/search_result_ranker.dart'
-    show SearchRelevanceTier, searchRelevanceTier;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/snapshot_write_guard.dart';
@@ -3703,23 +3701,25 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   // ── Local (offline) search ──────────────────────────────────────────────
 
   /// Search artists by name: accent- and case-insensitive literal substring
-  /// match, ranked exact > prefix > substring before the [limit] cut.
-  ///
-  /// There is no folded name column, so the (id, name) pairs of the library
-  /// are scanned and folded in Dart; only the winning rows are read in full.
+  /// match (`navis_fold`, see [registerSearchFoldFunction]), ranked exact >
+  /// prefix > substring, then by name, before the [limit] cut. Match, rank and
+  /// limit all run in SQL, so the scan stays on the database isolate.
   Future<List<ArtistsTableData>> searchArtistsLocal(
     String query, {
     int limit = 20,
   }) async {
-    final ids = await _rankedLocalSearchIds(
-      selectOnly(artistsTable)
-        ..addColumns([artistsTable.id, artistsTable.name])
-        ..where(artistsTable.isProvisional.equals(false))
-        ..orderBy([OrderingTerm.asc(artistsTable.name)]),
-      idColumn: artistsTable.id,
-      nameColumns: [artistsTable.name],
-      query: query,
-      limit: limit,
+    final folded = foldSearchLetters(query.trim().toLowerCase());
+    if (folded.isEmpty || limit < 1) return const <ArtistsTableData>[];
+    final ids = await _localSearchIds(
+      '''
+      SELECT id FROM artists
+      WHERE is_provisional = 0 AND navis_fold(name) LIKE ?3 ESCAPE '\\'
+      ORDER BY ${_localSearchTierSql('name', 0)}, name ASC
+      LIMIT ?4
+      ''',
+      folded,
+      limit,
+      artistsTable,
     );
     if (ids.isEmpty) return const <ArtistsTableData>[];
     final rows = {
@@ -3731,24 +3731,32 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return [for (final id in ids) rows[id]!];
   }
 
-  /// Search albums by name or artist name; same matching and ranking as
-  /// [searchArtistsLocal], with album-name matches ahead of artist-name ones.
+  /// Search albums by name or artist name; same matching as
+  /// [searchArtistsLocal]. Decision: every album-name match (exact, prefix,
+  /// substring) ranks ahead of every artist-name-only match; ties keep year
+  /// descending, then name.
   Future<List<AlbumsTableData>> searchAlbumsLocal(
     String query, {
     int limit = 20,
   }) async {
-    final ids = await _rankedLocalSearchIds(
-      selectOnly(albumsTable)
-        ..addColumns([albumsTable.id, albumsTable.name, albumsTable.artistName])
-        ..where(albumsTable.isProvisional.equals(false))
-        ..orderBy([
-          OrderingTerm.desc(albumsTable.year),
-          OrderingTerm.asc(albumsTable.name),
-        ]),
-      idColumn: albumsTable.id,
-      nameColumns: [albumsTable.name, albumsTable.artistName],
-      query: query,
-      limit: limit,
+    final folded = foldSearchLetters(query.trim().toLowerCase());
+    if (folded.isEmpty || limit < 1) return const <AlbumsTableData>[];
+    final ids = await _localSearchIds(
+      '''
+      SELECT id FROM albums
+      WHERE is_provisional = 0
+        AND (navis_fold(name) LIKE ?3 ESCAPE '\\'
+          OR navis_fold(artist_name) LIKE ?3 ESCAPE '\\')
+      ORDER BY
+        CASE WHEN navis_fold(name) LIKE ?3 ESCAPE '\\'
+          THEN ${_localSearchTierSql('name', 0)}
+          ELSE ${_localSearchTierSql('artist_name', 3)} END,
+        year DESC, name ASC
+      LIMIT ?4
+      ''',
+      folded,
+      limit,
+      albumsTable,
     );
     if (ids.isEmpty) return const <AlbumsTableData>[];
     final rows = {
@@ -3760,42 +3768,38 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return [for (final id in ids) rows[id]!];
   }
 
-  /// Ids of the best [limit] rows of [rows] whose [nameColumns] contain
-  /// [query] after folding. The first column ranks highest; ties keep the
-  /// SQL order of [rows]. A blank query keeps that order unranked.
-  Future<List<String>> _rankedLocalSearchIds(
-    JoinedSelectStatement<HasResultSet, dynamic> rows, {
-    required GeneratedColumn<String> idColumn,
-    required List<GeneratedColumn<String>> nameColumns,
-    required String query,
-    required int limit,
-  }) async {
-    if (limit < 1) return const <String>[];
-    final folded = foldSearchLetters(query.trim().toLowerCase());
-    final ranked = <(int, int, String)>[];
-    var position = 0;
-    for (final row in await rows.get()) {
-      var best = -1;
-      for (var i = 0; i < nameColumns.length && best < 0; i++) {
-        final name = row.read(nameColumns[i]);
-        if (name == null) continue;
-        final tier = folded.isEmpty
-            ? SearchRelevanceTier.prefix
-            : searchRelevanceTier(name, folded);
-        if (tier == SearchRelevanceTier.other ||
-            tier == SearchRelevanceTier.tokens) {
-          continue;
-        }
-        best = i * SearchRelevanceTier.values.length + tier.index;
-      }
-      if (best >= 0) ranked.add((best, position, row.read(idColumn)!));
-      position++;
-    }
-    ranked.sort((a, b) {
-      final byTier = a.$1.compareTo(b.$1);
-      return byTier != 0 ? byTier : a.$2.compareTo(b.$2);
-    });
-    return [for (final r in ranked.take(limit)) r.$3];
+  /// SQL CASE for [column]'s relevance: exact, prefix, substring (offset by
+  /// [base]), the same tiers as `searchRelevanceTier`. Uses `?1` (folded
+  /// query), `?2` (prefix pattern); a non-match is the substring tier.
+  static String _localSearchTierSql(String column, int base) =>
+      '''
+CASE WHEN navis_fold($column) = ?1 THEN $base
+  WHEN navis_fold($column) LIKE ?2 ESCAPE '\\' THEN ${base + 1}
+  ELSE ${base + 2} END''';
+
+  /// Runs [sql] with `?1` the folded query, `?2` its LIKE prefix pattern,
+  /// `?3` the contains pattern and `?4` the limit.
+  Future<List<String>> _localSearchIds(
+    String sql,
+    String folded,
+    int limit,
+    TableInfo<Table, dynamic> table,
+  ) async {
+    final escaped = folded.replaceAllMapped(
+      RegExp(r'[\\%_]'),
+      (match) => '\\${match[0]}',
+    );
+    final rows = await customSelect(
+      sql,
+      variables: [
+        Variable<String>(folded),
+        Variable<String>('$escaped%'),
+        Variable<String>('%$escaped%'),
+        Variable<int>(limit),
+      ],
+      readsFrom: {table},
+    ).get();
+    return [for (final row in rows) row.read<String>('id')];
   }
 
   /// Search songs by title, artist name, or album name using cached metadata.

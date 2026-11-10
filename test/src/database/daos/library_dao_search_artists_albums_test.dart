@@ -82,4 +82,25 @@ void main() {
     await albums([('Zed', 'Queen', 2020), ('Queen', 'Someone', 1990)]);
     expect(await albumNames('queen'), ['Queen', 'Zed']);
   });
+
+  test('a query that folds to nothing returns no rows', () async {
+    await artists(['Alpha', 'Beta']);
+    await albums([('Gamma', 'Alpha', 2000)]);
+    expect(await artistNames(''), isEmpty);
+    expect(await artistNames('   '), isEmpty);
+    expect(await albumNames(''), isEmpty);
+  });
+
+  test(
+    'navis_fold exists on test connections and folds, NULL stays NULL',
+    () async {
+      final row = await database
+          .customSelect(
+            "SELECT navis_fold('Édith ÉCOLE') AS a, navis_fold(NULL) AS b",
+          )
+          .getSingle();
+      expect(row.read<String>('a'), 'edith ecole');
+      expect(row.data['b'], isNull);
+    },
+  );
 }

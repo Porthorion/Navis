@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:drift/native.dart';
+import 'package:navis/src/utils/search_text.dart';
 // ignore: experimental_member_use, reason: DriftRemoteException is how drift's isolates report a SQLite error.
 import 'package:drift/remote.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
@@ -2202,7 +2203,23 @@ FROM scrobble_queue;
   }
 }
 
+/// Registers `navis_fold(text)`: the lowercased, accent-folded form the
+/// local artist and album search matches on (same fold as the song search).
+/// NULL in, NULL out. Every connection that runs those searches needs it.
+void registerSearchFoldFunction(Database database) {
+  database.createFunction(
+    functionName: 'navis_fold',
+    argumentCount: const AllowedArgumentCount(1),
+    deterministic: true,
+    function: (args) {
+      final value = args[0];
+      return value is String ? foldSearchLetters(value.toLowerCase()) : null;
+    },
+  );
+}
+
 void _configureNativeDatabase(Database database, Duration busyLimit) {
+  registerSearchFoldFunction(database);
   database.execute('PRAGMA foreign_keys = ON');
   database.execute('PRAGMA journal_mode = WAL');
   // Not PRAGMA busy_timeout: SQLite's own wait sleeps with nanosleep, which the
