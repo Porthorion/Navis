@@ -723,8 +723,8 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// up is the platform's boost stage ([_applyReplayGainBoost]), which a
   /// 0..1 volume cannot do.
   ///
-  /// ExoPlayer's volume is linear, so the gain is `10^(dB/20)`. mpv's volume
-  /// is cubic (volume 50 is -18 dB), so the same dB needs `10^(dB/60)`.
+  /// The player volume is linear (ExoPlayer, AVQueuePlayer), so the gain is
+  /// `10^(dB/20)`. mpv never gets here: its cut rides the `@navis_rg` filter.
   /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
     final base = _baseVolumeFor();
@@ -736,7 +736,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       playOrder: _loadingPlayOrder(item),
     )?.cutDb;
     if (gainDb == null) return base;
-    return (math.pow(10, gainDb / (_usesMpv ? 60 : 20)).toDouble() * base)
+    return (math.pow(10, gainDb / 20).toDouble() * base)
         .clamp(0.0, 1.0);
   }
 

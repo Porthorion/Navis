@@ -427,66 +427,35 @@ void main() {
   });
 
   group('replayGainBoostPlatformSupported', () {
-    test('mpv boosts except on macOS, whose libmpv 0.36 is not verified', () {
-      expect(
-        navisReplayGainBoostSupported(usesMpv: true, isMacOS: false),
-        isTrue,
-      );
-      expect(
-        navisReplayGainBoostSupported(usesMpv: true, isMacOS: true),
-        isFalse,
-      );
-      expect(
-        navisReplayGainBoostSupported(usesMpv: false, isMacOS: false),
-        isFalse,
-      );
+    test('mpv boosts on every desktop, macOS included (#490)', () {
+      expect(navisReplayGainBoostSupported(usesMpv: true), isTrue);
+      expect(navisReplayGainBoostSupported(usesMpv: false), isFalse);
     });
 
-    test('the filter stage is on Linux and Windows mpv, off on macOS', () {
-      expect(navisReplayGainInPipeline(usesMpv: true, isMacOS: false), isTrue);
-      expect(navisReplayGainInPipeline(usesMpv: true, isMacOS: true), isFalse);
-      expect(
-        navisReplayGainInPipeline(usesMpv: false, isMacOS: false),
-        isFalse,
-      );
+    test('the filter stage is on mpv, which covers macOS (#490)', () {
+      expect(navisReplayGainInPipeline(usesMpv: true), isTrue);
+      expect(navisReplayGainInPipeline(usesMpv: false), isFalse);
     });
 
     test('the Android processor turns the stage on without mpv', () {
       expect(
-        navisReplayGainInPipeline(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: true,
-        ),
+        navisReplayGainInPipeline(usesMpv: false, androidProcessor: true),
         isTrue,
       );
+      // iOS and a rebuilt Android player (no processor) keep the Dart cut.
       expect(
-        navisReplayGainInPipeline(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: false,
-        ),
+        navisReplayGainInPipeline(usesMpv: false, androidProcessor: false),
         isFalse,
       );
-      // iOS and a rebuilt Android player (no processor) keep the Dart cut.
-      expect(navisReplayGainInPipeline(usesMpv: false, isMacOS: true), isFalse);
     });
 
     test('Android boosts while its EQ processor pipeline is installed', () {
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: true,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, androidProcessor: true),
         isTrue,
       );
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: false,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, androidProcessor: false),
         isFalse,
         reason: 'the player was rebuilt without the processor',
       );
@@ -494,26 +463,13 @@ void main() {
 
     test('iOS boosts while the tap pipeline is installed (I24)', () {
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          iosTap: true,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, iosTap: true),
         isTrue,
       );
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          iosTap: false,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, iosTap: false),
         isFalse,
         reason: 'the player was rebuilt without the tap',
-      );
-      expect(
-        navisReplayGainBoostSupported(usesMpv: false, isMacOS: true),
-        isFalse,
-        reason: 'macOS has no tap and no volume-gain',
       );
     });
   });

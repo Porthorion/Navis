@@ -224,12 +224,6 @@ const List<ChangelogVersion> changelogs = [
         'Volume normalization now turns quiet songs up when their tags show '
         "room, stopping 1 dB below the song's peak so nothing distorts. Songs "
         'without ReplayGain data are only ever turned down',
-        platforms: {
-          ChangelogPlatform.android,
-          ChangelogPlatform.ios,
-          ChangelogPlatform.windows,
-          ChangelogPlatform.linux,
-        },
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
