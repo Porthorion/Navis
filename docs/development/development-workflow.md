@@ -732,7 +732,9 @@ loop lag (`eventLoopLag`), including p50, p95, p99 and maximum; a blocked UI or 
 frames, so frame timings alone cannot show a freeze. The report also counts
 `playbackCounters` (snapshot broadcasts, queue emissions and their items,
 native player operations) and `tableUpdates` (Drift change notifications per
-table) since the last reset. `GET /v1/playback/status` includes `playerSequenceLength`,
+table) since the last reset. `GET /v1/playback/status` includes `playerSequenceLength`, `playerVolume` (the
+active player's volume: runtime checks of the Dart ReplayGain cut read it on
+every row, including `queueSettled=false` ones),
 `materializedLength`, `deferredLength`, `queueFill` stage timings, and
 persistence-lane counts. Read-only
 `GET /v1/diagnostics/local-search?query=` times the production local artist,
