@@ -1146,6 +1146,7 @@ static void testBufferCheck(void) {
     check(!navis_tap_buffer_ok(2, exact, frames), "an interleaved buffer is rejected");
     check(!navis_tap_buffer_ok(NAVIS_EQ_MAX_CHANNELS + 1, exact, frames), "many channels in a buffer are rejected");
     check(!navis_tap_buffer_ok(1, exact, -1), "a negative frame count is rejected, not wrapped");
+    check(!navis_tap_buffer_ok(1, UINT32_MAX, (int64_t)1 << 32), "a frame count above 32 bits is rejected, not truncated");
 }
 
 // The target is set from the main thread whenever, the blocks keep their invariants.
