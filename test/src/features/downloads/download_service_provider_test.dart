@@ -14,6 +14,7 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/backfill_progress.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -36,6 +37,8 @@ class _TrackingDio extends DioForNative {
 }
 
 class _Api extends Mock implements SubsonicApiClient;
+
+class _Handler extends Mock implements NavisPlaybackHandler;
 
 class _Sync extends LibrarySyncController {
   @override
@@ -291,4 +294,65 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test('remote catalog copies download as the library song they relink to', () async {
+    final db = createTestDatabase();
+    final dir = await Directory.systemTemp.createTemp('navis-resolve-ids-');
+    final handler = _Handler();
+    when(() => handler.applySongIdentityAliases(any()))
+        .thenAnswer((_) async {});
+    when(() => handler.snapshot).thenReturn(const PlaybackSnapshot.idle());
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        db,
+        overrides: [
+          networkTypeProvider.overrideWith((_) => NetworkType.offline),
+          subsonicApiProvider.overrideWithValue(null),
+          customDownloadFolderEnabledProvider.overrideWithValue(true),
+          customDownloadFolderPathProvider.overrideWithValue(dir.path),
+          playerStateProvider.overrideWithValue(const PlaybackSnapshot.idle()),
+          audioHandlerProvider.overrideWithValue(handler),
+          externalDioFactoryProvider.overrideWithValue(
+            (service, {options}) => _TrackingDio(options),
+          ),
+        ],
+      ),
+    );
+    final service = container.read(downloadServiceProvider);
+    addTearDown(() async {
+      await service.stopAndWait();
+      container.dispose();
+      await service.dispose();
+      await db.close();
+      await dir.delete(recursive: true);
+    });
+    Future<void> insertSong(String id, {required bool remote}) => db
+        .into(db.songsTable)
+        .insert(
+          SongsTableData(
+            id: id,
+            title: 'Set Fire to the Rain',
+            artistName: 'Adele',
+            albumName: '21',
+            duration: 238,
+            track: 5,
+            discNumber: 1,
+            isProvisional: remote,
+            isExternal: remote,
+          ),
+        );
+    await insertSong('lib', remote: false);
+    await insertSong('ext-deezer-song-1', remote: true);
+    // Relink candidates come from the search index.
+    await db.libraryDao.scheduleSongSearchIndexRefresh();
+
+    await service.enqueueSong('ext-deezer-song-1');
+
+    // The provider relinked the copy (recording the alias), then looked it up.
+    expect(await db.songIdentityDao.getAliasesFor(['ext-deezer-song-1']), {
+      'ext-deezer-song-1': 'lib',
+    });
+    expect(await db.downloadQueueDao.findBySongId('lib'), isNotNull);
+    expect(await db.downloadQueueDao.findBySongId('ext-deezer-song-1'), isNull);
+  }, skip: !sqliteAvailable);
 }

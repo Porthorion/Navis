@@ -101,6 +101,9 @@ run_step "dead code" dart run tool/dead_code_check.dart
 # custom_lint is temporarily disabled pending analyzer/riverpod_lint compatibility
 # run_step "custom lint" dart run custom_lint
 
+# A missing native SQLite must fail the database suites, not skip them.
+export NAVIS_REQUIRE_SQLITE=1
+
 tmp_log_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_log_dir}"' EXIT
 

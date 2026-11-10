@@ -108,6 +108,9 @@ jobs:
       # flutter test can exit 0 after a runner shutdown crash (#32); the
       # shared guard fails the shard on a failure count or crash text.
       - shell: bash
+        env:
+          # A missing native SQLite fails the database suites instead of skipping them.
+          NAVIS_REQUIRE_SQLITE: '1'
         run: |
           source tool/lib/check_test_log.sh
           flutter test --total-shards 4 --shard-index ${{ matrix.shard }} 2>&1 | tee "$RUNNER_TEMP/test.log"
