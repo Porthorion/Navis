@@ -439,6 +439,24 @@ void main() {
       await pumpEventQueue();
       expect(player.playbackEvent.updateTime, later);
     });
+
+    // I45 (#526): the iOS native observer re-stamps a drifted clock. The
+    // event keeps the index and carries a newer stamp, so the guard above
+    // must hand it over and the position must step back.
+    test('a newer stamp with a lower position replaces the stamp and moves '
+        'the position back', () async {
+      final player = await playingAt(const Duration(seconds: 10));
+      expect(
+        player.position,
+        greaterThanOrEqualTo(const Duration(seconds: 10)),
+      );
+      final restamp = DateTime.now();
+      native.player.emit(position: const Duration(seconds: 4), at: restamp);
+      await pumpEventQueue();
+      expect(player.playbackEvent.updateTime, restamp);
+      expect(player.position, lessThan(const Duration(seconds: 5)));
+      expect(player.position, greaterThanOrEqualTo(const Duration(seconds: 4)));
+    });
   });
 
   test('a zero offset leaves positions and seeks untouched', () async {

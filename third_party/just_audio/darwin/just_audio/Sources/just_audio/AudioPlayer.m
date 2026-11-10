@@ -23,6 +23,9 @@ static const int64_t kBoostRaiseAfterMs = 500;
 static const int kBoostTickMs = 250;
 #endif
 #define ERROR_ABORT 10000000
+// I45 (#526): the item clock may start after the Playing stamp. The 200 ms observer
+// re-stamps the position once it has drifted from the stamp by more than this.
+static const long long kRestampDriftMs = 50;
 
 // TODO: Check for and report invalid state transitions.
 // TODO: Apply Apple's guidance on seeking: https://developer.apple.com/library/archive/qa/qa1820/_index.html
@@ -42,6 +45,7 @@ static const int kBoostTickMs = 250;
     enum LoopMode _loopMode;
     BOOL _shuffleModeEnabled;
     long long _updateTime;
+    long long _lastRestampTime; // I45: wall ms of the last drift re-stamp
     int _updatePosition;
     int _lastPosition;
     int _bufferedPosition;
@@ -116,6 +120,7 @@ static const int kBoostTickMs = 250;
     _updatePosition = 0;
     _updateTime = 0;
     _lastPosition = 0;
+    _lastRestampTime = 0;
     _bufferedPosition = 0;
     _bufferUnconfirmed = NO;
     _playing = NO;
@@ -721,7 +726,21 @@ static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
 - (void)checkForDiscontinuity {
     if (!_playing || CMTIME_IS_VALID(_seekPos) || _processingState == psCompleted) return;
     int position = [self getCurrentPosition];
-    if (_processingState == psBuffering) {
+    if (@available(macOS 10.12, iOS 10.0, *)) {
+        // I45 (#526): buffering is timeControlStatus's job here. Only re-stamp the
+        // position when the running clock drifted from the stamp; never enterBuffering.
+        if (_processingState == psReady && position > _lastPosition && _updateTime != 0L) {
+            long long now = (long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
+            long long expectedPosition = _updatePosition + (long long)((now - _updateTime) * _player.rate);
+            // At most once a second: a rate the item cannot really play (e.g. a stream above 2x)
+            // drifts on every tick, and re-stamping every 200 ms would flood the event channel.
+            if (llabs(position - expectedPosition) > kRestampDriftMs && now - _lastRestampTime >= 1000) {
+                _lastRestampTime = now;
+                [self updatePosition];
+                [self broadcastPlaybackEvent];
+            }
+        }
+    } else if (_processingState == psBuffering) {
         if (position > _lastPosition) {
             [self leaveBuffering:@"stall ended"];
             [self updatePosition];
@@ -1145,15 +1164,13 @@ static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
         //__weak __typeof__(self) weakSelf = self;
         //typeof(self) __weak weakSelf = self;
         __unsafe_unretained typeof(self) weakSelf = self;
-        if (@available(macOS 10.12, iOS 10.0, *)) {}
-        else {
-            _timeObserver = [_player addPeriodicTimeObserverForInterval:CMTimeMake(200, 1000)
-                                                                  queue:nil
-                                                             usingBlock:^(CMTime time) {
-                                                                 [weakSelf checkForDiscontinuity];
-                                                             }
-            ];
-        }
+        // ponytail: 200 ms polling; a boundary observer if battery shows it.
+        _timeObserver = [_player addPeriodicTimeObserverForInterval:CMTimeMake(200, 1000)
+                                                              queue:nil
+                                                         usingBlock:^(CMTime time) {
+                                                             [weakSelf checkForDiscontinuity];
+                                                         }
+        ];
     }
     // Initialise the AVQueuePlayer with items.
     [self enqueueFrom:_index];
