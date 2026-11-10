@@ -138,6 +138,18 @@ class _FakePlayer extends Fake implements AudioPlayer {
   /// returned (an AVQueuePlayer / mpv jump in flight).
   Completer<void>? seekGate;
 
+  /// While set, `setAudioSources` swaps the sequence in and reports it, then
+  /// holds the apply open (just_audio broadcasts the new sequence before the
+  /// platform load finishes).
+  Completer<void>? applyGate;
+
+  /// While true a seek returns with [currentIndex] still on the old entry and
+  /// the index lands on a timer afterwards (mpv's index lag, #509).
+  bool deferIndex = false;
+
+  /// Each volume write with the native index it landed on.
+  final List<(double, int?)> volumeWrites = [];
+
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
     processingState: state,
@@ -223,7 +235,11 @@ class _FakePlayer extends Fake implements AudioPlayer {
   ];
 
   @override
-  Future<void> setVolume(double value) async => appliedVolumes.add(value);
+  Future<void> setVolume(double value) async {
+    appliedVolumes.add(value);
+    volumeWrites.add((value, index));
+  }
+
   @override
   Future<void> setSpeed(double value) async {}
   @override
@@ -256,6 +272,13 @@ class _FakePlayer extends Fake implements AudioPlayer {
   @override
   Future<void> seek(Duration? position, {int? index}) async {
     if (position != null) _position = position;
+    if (index != null && deferIndex) {
+      Timer(Duration.zero, () {
+        this.index = index;
+        _indices.add(index);
+      });
+      return;
+    }
     if (index != null) this.index = index;
     _indices.add(this.index);
     final gate = seekGate;
@@ -290,6 +313,8 @@ class _FakePlayer extends Fake implements AudioPlayer {
         ? ProcessingState.idle
         : ProcessingState.ready;
     _indices.add(index);
+    final gate = applyGate;
+    if (gate != null) await gate.future;
     return const Duration(minutes: 3);
   }
 
@@ -788,6 +813,57 @@ void main() {
       await skip;
       await pumpEventQueue();
       expect(rig.player.volume, closeTo(cutOf(-3), 0.00001));
+    });
+
+    test(
+      '$name: a settings change while the apply is in flight writes '
+      'nothing, though the new entries are already in the sequence',
+      () async {
+        final rig = await create(caps, ios: ios, trackGains: gains);
+        final (:handler, :player, :resolver, session: _) = rig;
+        await settle(rig, await startLoad(rig, startIndex: 2));
+        expect(player.volume, closeTo(cutOf(-3), 0.00001));
+
+        player.applyGate = Completer<void>();
+        final replacing = handler.replaceQueue(ids(), startIndex: 0);
+        await pumpEventQueue();
+        expect(player.currentIndex, 0, reason: 'the new sequence is in');
+        expect(handler.collectPlaybackDiagnostics()['queueSettled'], isFalse);
+        final writes = player.appliedVolumes.length;
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(
+          player.appliedVolumes.length,
+          writes,
+          reason: 'the apply has not returned, so song-2 may still be audible',
+        );
+        expect(player.volume, closeTo(cutOf(-3), 0.00001));
+
+        player.applyGate!.complete();
+        if (!resolver.release.isCompleted) resolver.release.complete();
+        await replacing;
+        await pumpEventQueue();
+        expect(player.volume, closeTo(cutOf(-12), 0.00001));
+      },
+    );
+
+    test('$name: a seek that returns before the index lands writes nothing '
+        'onto the old entry', () async {
+      final rig = await create(caps, ios: ios, trackGains: gains);
+      final (:handler, :player, resolver: _, session: _) = rig;
+      await settle(rig, await startLoad(rig, startIndex: 2));
+      final before = player.volumeWrites.length;
+
+      player.deferIndex = true;
+      await handler.skipToNext();
+      await pumpEventQueue();
+      expect(player.currentIndex, 3);
+      for (final (value, nativeIndex) in player.volumeWrites.skip(before)) {
+        if ((value - cutOf(-9)).abs() < 0.00001) {
+          expect(nativeIndex, 3, reason: 'the target cut only lands on it');
+        }
+      }
+      expect(player.volume, closeTo(cutOf(-9), 0.00001));
     });
 
     test('$name: the backend applies the cut in the pipeline, so a pending '
