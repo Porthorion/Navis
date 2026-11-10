@@ -591,8 +591,80 @@ void main() {
       expect(retained?.cacheType, CacheType.permanent);
       expect(retained?.filePath, unmountedPath);
     },
-    skip: 'Proves #480d, fix pending',
+    skip: !sqliteAvailable,
   );
+
+  Future<void> putCache(
+    String songId,
+    String path, {
+    required CacheType type,
+    DownloadStatus status = DownloadStatus.complete,
+  }) => database.cacheDao.upsertCachedTrack(
+    CachedTracksTableCompanion.insert(
+      songId: songId,
+      filePath: path,
+      fileSize: 4,
+      format: 'flac',
+      lastAccessedAt: DateTime.now(),
+      cacheType: type,
+      downloadStatus: status,
+    ),
+  );
+  Future<void> remap() => database.songIdentityDao.remapSongIdentity(
+    oldSongId: 'remote-song',
+    canonicalSongId: 'server-song',
+    matchReason: 'recordingMbid',
+  );
+  File audio(String name) =>
+      File('${tempDirectory.path}/$name')..writeAsBytesSync(<int>[1, 2, 3, 4]);
+
+  test('an unreadable permanent download on the old id moves to the canonical '
+      'id and the rolling copy is deleted', () async {
+    final unmounted = '${tempDirectory.path}/unmounted/permanent.flac';
+    final rolling = audio('rolling.audio');
+    await putCache('remote-song', unmounted, type: CacheType.permanent);
+    await putCache('server-song', rolling.path, type: CacheType.rolling);
+
+    await remap();
+
+    final retained = await database.cacheDao.getCachedTrack('server-song');
+    expect(retained?.cacheType, CacheType.permanent);
+    expect(retained?.filePath, unmounted);
+    expect(await database.cacheDao.getCachedTrack('remote-song'), isNull);
+    expect(rolling.existsSync(), isFalse);
+  }, skip: !sqliteAvailable);
+
+  test('between two permanent downloads the readable one wins', () async {
+    final readable = audio('readable.audio');
+    final unmounted = '${tempDirectory.path}/unmounted/permanent.flac';
+    await putCache('remote-song', readable.path, type: CacheType.permanent);
+    await putCache('server-song', unmounted, type: CacheType.permanent);
+
+    await remap();
+
+    final retained = await database.cacheDao.getCachedTrack('server-song');
+    expect(retained?.filePath, readable.path);
+    expect(readable.existsSync(), isTrue);
+  }, skip: !sqliteAvailable);
+
+  test('a permanent download still in progress does not beat a complete '
+      'rolling copy', () async {
+    final rolling = audio('rolling.audio');
+    final partial = audio('partial.audio');
+    await putCache(
+      'remote-song',
+      partial.path,
+      type: CacheType.permanent,
+      status: DownloadStatus.downloading,
+    );
+    await putCache('server-song', rolling.path, type: CacheType.rolling);
+
+    await remap();
+
+    final retained = await database.cacheDao.getCachedTrack('server-song');
+    expect(retained?.cacheType, CacheType.rolling);
+    expect(retained?.filePath, rolling.path);
+  }, skip: !sqliteAvailable);
 
   test(
     'active provisional cache survives a canonical cache collision',

@@ -118,33 +118,122 @@ void main() {
     expect(await oldFile('').readAsString(), 'database');
   });
 
-  test('a kill between the main rename and the -wal rename keeps the WAL with '
-      'the database the next launch opens', () async {
-    for (final suffix in ['', '-wal']) {
-      await oldFile(suffix).writeAsString('fixture$suffix');
-    }
-    // The process dies while the -wal rename is pending: the main file has
-    // moved, the -wal has not, and nothing rolls back.
-    final mainMoved = Completer<void>();
-    unawaited(
-      resolve(
-        rename: (source, destination) {
-          if (source.path.endsWith('-wal')) {
-            mainMoved.complete();
-            return Completer<File>().future;
-          }
-          return source.rename(destination);
-        },
-      ),
-    );
-    await mainMoved.future;
-    expect(newFile('').existsSync(), isTrue);
+  // The process dies while the rename of [hangOn] is pending: everything
+  // renamed before it has moved, nothing rolls back.
+  for (final hangOn in ['-wal', '-shm', '']) {
+    test('a kill while renaming "$hangOn" keeps the WAL with the database the '
+        'next launch opens', () async {
+      for (final suffix in ['', '-wal', '-shm']) {
+        await oldFile(suffix).writeAsString('fixture$suffix');
+      }
+      final reached = Completer<void>();
+      unawaited(
+        resolve(
+          rename: (source, destination) {
+            if (source.path.endsWith('sqlite$hangOn')) {
+              reached.complete();
+              return Completer<File>().future;
+            }
+            return source.rename(destination);
+          },
+        ),
+      );
+      await reached.future;
 
-    final selected = await resolve();
-    expect(
-      File('${selected.path}-wal').existsSync(),
-      isTrue,
-      reason: 'the committed WAL must travel with the opened database',
+      final selected = await resolve();
+      expect(selected.path, newFile('').path);
+      for (final suffix in ['', '-wal', '-shm']) {
+        expect(await newFile(suffix).readAsString(), 'fixture$suffix');
+        expect(oldFile(suffix).existsSync(), isFalse);
+      }
+    });
+  }
+
+  test(
+    'a stranded -wal left by a main-first kill moves to the target',
+    () async {
+      await support.create();
+      await newFile('').writeAsString('fixture');
+      await oldFile('-wal').writeAsString('wal');
+      await oldFile('-shm').writeAsString('shm');
+      final selected = await resolve();
+      expect(selected.path, newFile('').path);
+      expect(await newFile('-wal').readAsString(), 'wal');
+      expect(await newFile('-shm').readAsString(), 'shm');
+      expect(oldFile('-wal').existsSync(), isFalse);
+      expect(oldFile('-shm').existsSync(), isFalse);
+    },
+  );
+
+  test('a stranded -wal never overwrites an existing target -wal', () async {
+    await support.create();
+    await newFile('').writeAsString('fixture');
+    await newFile('-wal').writeAsString('current');
+    await oldFile('-wal').writeAsString('legacy');
+    expect((await resolve()).path, newFile('').path);
+    expect(await newFile('-wal').readAsString(), 'current');
+    expect(await oldFile('-wal').readAsString(), 'legacy');
+  });
+
+  test('a legacy -wal beside a legacy main never joins an existing target '
+      'database', () async {
+    await support.create();
+    await newFile('').writeAsString('current');
+    await oldFile('').writeAsString('legacy');
+    await oldFile('-wal').writeAsString('legacy-wal');
+    await resolve();
+    expect(newFile('-wal').existsSync(), isFalse);
+    expect(await oldFile('-wal').readAsString(), 'legacy-wal');
+  });
+
+  test('a failed stranded move keeps the target and removes a partial '
+      'copy', () async {
+    await support.create();
+    await newFile('').writeAsString('fixture');
+    await oldFile('-wal').writeAsString('wal');
+    final selected = await resolve(
+      rename: (_, _) async => throw const FileSystemException('cross-device'),
+      copy: (_, destination) => File(destination).writeAsString('x'),
     );
-  }, skip: 'Proves #480f, fix pending');
+    expect(selected.path, newFile('').path);
+    expect(newFile('-wal').existsSync(), isFalse);
+    expect(await oldFile('-wal').readAsString(), 'wal');
+  });
+
+  test('a kill after the sidecar rename but before the main rename resumes '
+      'and opens the target with its -wal', () async {
+    await support.create();
+    await oldFile('').writeAsString('fixture');
+    await newFile('-wal').writeAsString('wal');
+    final selected = await resolve();
+    expect(selected.path, newFile('').path);
+    expect(await newFile('').readAsString(), 'fixture');
+    expect(await newFile('-wal').readAsString(), 'wal');
+    expect(oldFile('').existsSync(), isFalse);
+  });
+
+  test('a conflicting -wal at both locations falls back to legacy', () async {
+    await support.create();
+    await oldFile('').writeAsString('fixture');
+    await oldFile('-wal').writeAsString('legacy');
+    await newFile('-wal').writeAsString('other');
+    expect((await resolve()).path, oldFile('').path);
+    expect(await newFile('-wal').readAsString(), 'other');
+    expect(await oldFile('-wal').readAsString(), 'legacy');
+  });
+
+  test('a failed main move rolls back a sidecar moved by an earlier '
+      'launch', () async {
+    await support.create();
+    await oldFile('').writeAsString('fixture');
+    await newFile('-wal').writeAsString('wal');
+    final selected = await resolve(
+      rename: (_, _) async => throw const FileSystemException('cross-device'),
+      copy: (_, _) async => throw const FileSystemException('copy failed'),
+    );
+    expect(selected.path, oldFile('').path);
+    expect(await oldFile('-wal').readAsString(), 'wal');
+    expect(newFile('-wal').existsSync(), isFalse);
+    expect(newFile('').existsSync(), isFalse);
+  });
 }

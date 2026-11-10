@@ -3007,7 +3007,13 @@ Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
 directory; Android and iOS use application documents. `database_location.dart`
 resolves both through path_provider, preserving clone diagnostics overrides.
 Before opening on desktop, a missing support database is migrated from documents
-along with any `-wal`, `-shm` and `-journal` files. Cross-device copies are size
+along with any `-wal`, `-shm` and `-journal` files. The sidecars move first and
+the main file last, so the main file at the target marks a finished move; a kill
+midway leaves the main file in documents and the next launch resumes, counting a
+sidecar already at the target (its legacy source gone) as moved. A target main
+file with sidecars still in documents and no legacy main file (a kill under the
+earlier main-first order) has those sidecars moved on the next launch, never
+over an existing target sidecar. Cross-device copies are size
 verified before originals are deleted. Failure restores transferred files and
 falls back to documents; a rollback failure preserves the remaining copy and
 fails opening rather than choosing an incomplete database. An existing support
@@ -7259,7 +7265,12 @@ contract.
   re-queued to the server through `star_sync_queue`), transfers absence
   evidence and local mutation journals. If the canonical song already has a
   download-queue entry, remapping discards the old identity’s queue entries and
-  keeps the canonical entry intact; otherwise it moves the old entries. It
+  keeps the canonical entry intact; otherwise it moves the old entries. The
+  cache rows are read and the winner chosen inside the remap transaction: a
+  complete permanent download always beats a rolling copy, whether or not its
+  file is readable right now (an unmounted volume must not cost the download;
+  the download-integrity path handles a file that is really gone), and
+  readability only breaks ties within the same cache type. It
   writes the typed `entity_identity_aliases` table, shared across profiles.
   Schema 94 imports legacy song aliases as authoritative over typed song
   conflicts, keeps the newest remaining alias per entity type and old ID,
