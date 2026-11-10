@@ -1658,10 +1658,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   if (showQueueOverlay) {
                                     _hideQueueWithAnimation();
                                   } else {
+                                    // Return focus to the toggle only when
+                                    // the keyboard opened the queue (#474):
+                                    // a focused toggle would take Space.
                                     _showQueueOverlay(
                                       queueOnly: useDesktopShell,
                                       invokerFocusNode:
-                                          _desktopQueueToggleFocusNode,
+                                          _desktopQueueToggleFocusNode
+                                              .hasPrimaryFocus
+                                          ? _desktopQueueToggleFocusNode
+                                          : null,
                                     );
                                   }
                                 },

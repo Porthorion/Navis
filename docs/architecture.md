@@ -2989,7 +2989,9 @@ handling. Commands are guarded before dispatch:
 - **Focused-control guard** — bare Space and arrow shortcuts (no Ctrl/Cmd/Alt/Shift) are
   skipped while a leaf control (button, switch, slider, list tile) has focus or focus is
   inside a dialog, sheet or menu, so the control receives the key; the shell's own
-  focus node and focus scopes do not count as controls
+  focus node and focus scopes do not count as controls; Space activates a focused control (Flutter's default
+  `ActivateIntent`), and the desktop queue returns focus to its toggle only when the
+  keyboard opened it
 - **Mini Player guard** — page shortcuts are ignored while Mini Player is shown
 
 Defaults: Ctrl/Cmd+F quick search, Ctrl/Cmd+K go to Search and focus its field,

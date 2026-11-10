@@ -5408,10 +5408,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final queueButton = find.byKey(const ValueKey('desktopQueueButton'));
-    expect(queueButton, findsOneWidget);
-
-    await tester.tap(queueButton);
+    await focusDesktopQueueButton(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(container.read(queueOverlayVisibleProvider), isTrue);
 
@@ -5534,6 +5532,25 @@ void main() {
       await tester.pump();
       return node;
     }
+
+    testWidgets('Space plays/pauses after a mouse-opened queue closes', (
+      tester,
+    ) async {
+      final (handler, _) = await pumpShell(tester);
+      final queueButton = find.byKey(const ValueKey('desktopQueueButton'));
+      await tester.tap(queueButton, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel ?? '',
+        isNot(contains('desktopQueueToggle')),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(handler.calls, isNotEmpty);
+    });
 
     testWidgets('Space activates a focused button, not playback', (
       tester,
