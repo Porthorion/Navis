@@ -845,7 +845,11 @@ void main() {
 
         player.applyGate = Completer<void>();
         final replacing = handler.replaceQueue(ids(), startIndex: 0);
-        await pumpEventQueue();
+        // The load does real file I/O, so a fixed number of event-loop turns
+        // can end before the new sequence is in on a slow runner (#533).
+        for (var i = 0; i < 400 && player.currentIndex != 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
         expect(player.currentIndex, 0, reason: 'the new sequence is in');
         expect(handler.collectPlaybackDiagnostics()['queueSettled'], isFalse);
         final writes = player.appliedVolumes.length;

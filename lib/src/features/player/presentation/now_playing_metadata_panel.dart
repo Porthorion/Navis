@@ -427,6 +427,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                             ? RatingWidget(
                                 rating: inlineRating,
                                 compact: true,
+                                dense: true,
                                 onChanged: (next) {
                                   setState(
                                     () => _showInlineRatingEditor = false,
@@ -786,7 +787,6 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
               alignment: Alignment.centerLeft,
               child: RatingWidget(
                 rating: currentRating,
-                compact: true,
                 onChanged: (next) {
                   unawaited(
                     setSongRating(currentSongId, next, ref).catchError((_) {
