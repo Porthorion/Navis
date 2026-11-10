@@ -5324,7 +5324,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('navis-auto-g-');
       final (handler, _, database) = await createHandler(
         directory,
-        6,
+        9,
         seed: (database) async {
           Future<void> tag(int i, String title, List<String> genres) =>
               database.libraryDao.upsertSongs([
@@ -5340,6 +5340,29 @@ void main() {
           await tag(3, 'Song 3', ['World Music']);
           await tag(4, 'Song 4', ['Jazz']);
           await tag(5, 'Rock', ['Pop']);
+          // A genre named like an artist ("Queen") and like an album ("Blues").
+          await tag(6, 'Song 6', ['Queen']);
+          await tag(7, 'Song 7', ['Pop']);
+          await tag(8, 'Song 8', ['Pop']);
+          await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(id: 'artist-q', name: 'Queen'),
+          ]);
+          await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'album-q',
+              name: 'Hits',
+              artistId: const Value('artist-q'),
+            ),
+            AlbumsTableCompanion.insert(id: 'album-b', name: 'Blues'),
+          ]);
+          for (final (song, album) in [
+            ('song-7', 'album-q'),
+            ('song-8', 'album-b'),
+          ]) {
+            await (database.update(database.songsTable)
+                  ..where((row) => row.id.equals(song)))
+                .write(SongsTableCompanion(albumId: Value(album)));
+          }
         },
       );
       addTearDown(() async {
@@ -5386,6 +5409,20 @@ void main() {
       await handler.prepareFromSearch('rock');
       await settleQueue(handler);
       expect(handler.snapshot.queueSongIds, ['song-5']);
+    });
+
+    test('an exact artist name wins over a genre of that name', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('queen');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-7']);
+    });
+
+    test('an exact album name wins over a genre of that name', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('Blues');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-8']);
     });
 
     test('a genre extra plays the genre even with an empty query', () async {

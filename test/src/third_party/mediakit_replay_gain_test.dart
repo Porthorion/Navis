@@ -237,6 +237,107 @@ void main() {
     });
   });
 
+  group('one file at two queue positions', () {
+    ProgressiveAudioSourceMessage entry(String id, double db) =>
+        ProgressiveAudioSourceMessage(
+          id: id,
+          uri: _a,
+          headers: null,
+          replayGainDb: db,
+        );
+
+    Future<MediaKitPlayer> twice() async {
+      final mpv = await newAdapter(equalizer: _eq());
+      await mpv.load(
+        LoadRequest(
+          audioSourceMessage: ConcatenatingAudioSourceMessage(
+            id: 'queue',
+            children: [entry('first', -9), entry('second', -3)],
+            useLazyPreparation: false,
+            shuffleOrder: const [0, 1],
+          ),
+          initialIndex: 0,
+          initialPosition: null,
+        ),
+      );
+      return mpv;
+    }
+
+    String level(MediaKitPlayer mpv, int index) =>
+        mpv.replayGainFiltersForLoad(_a, index: index);
+
+    test('each entry plays at its own level', () async {
+      final mpv = await twice();
+      expect(level(mpv, 0), startsWith('$_rg-9.000dB'));
+      expect(level(mpv, 1), startsWith('$_rg-3.000dB'));
+      expect(level(mpv, 0), startsWith('$_rg-9.000dB'));
+    });
+
+    test('a push moves the entry it names, by id', () async {
+      final mpv = await twice();
+      level(mpv, 1);
+      await mpv.setReplayGainLevels(
+        SetReplayGainLevelsRequest(
+          byId: const {'first': -1, 'second': -5},
+          byUri: const {_a: -5},
+          live: true,
+        ),
+      );
+      expect(sync, contains(startsWith('af=$_rg-5.000dB')));
+      expect(level(mpv, 0), startsWith('$_rg-1.000dB'));
+      expect(level(mpv, 1), startsWith('$_rg-5.000dB'));
+    });
+
+    test('inserts, moves and removals keep entries with their level', () async {
+      final mpv = await twice();
+      // media_kit's playlist, which the mock does not keep.
+      final medias = [Media(_a), Media(_a)];
+      when(() => player.state)
+          .thenAnswer((_) => PlayerState(playlist: Playlist(medias)));
+      when(() => player.add(any())).thenAnswer((call) async {
+        medias.add(call.positionalArguments[0] as Media);
+      });
+      when(() => player.move(any(), any())).thenAnswer((call) async {
+        final from = call.positionalArguments[0] as int;
+        final to = call.positionalArguments[1] as int;
+        medias.insert(to > from ? to - 1 : to, medias.removeAt(from));
+      });
+      when(() => player.remove(any())).thenAnswer((call) async {
+        medias.removeAt(call.positionalArguments[0] as int);
+      });
+      await mpv.concatenatingInsertAll(
+        ConcatenatingInsertAllRequest(
+          id: 'queue',
+          index: 1,
+          children: [entry('third', 4)],
+          shuffleOrder: const [0, 1, 2],
+        ),
+      );
+      expect(level(mpv, 1), startsWith('${_rg}4.000dB'));
+      expect(level(mpv, 2), startsWith('$_rg-3.000dB'));
+      await mpv.concatenatingMove(
+        ConcatenatingMoveRequest(
+          id: 'queue',
+          currentIndex: 2,
+          newIndex: 0,
+          shuffleOrder: const [0, 1, 2],
+        ),
+      );
+      expect(level(mpv, 0), startsWith('$_rg-3.000dB'));
+      expect(level(mpv, 1), startsWith('$_rg-9.000dB'));
+      await mpv.concatenatingRemoveRange(
+        ConcatenatingRemoveRangeRequest(
+          id: 'queue',
+          startIndex: 0,
+          endIndex: 1,
+          shuffleOrder: const [0, 1],
+        ),
+      );
+      expect(level(mpv, 0), startsWith('$_rg-9.000dB'));
+      expect(level(mpv, 1), startsWith('${_rg}4.000dB'));
+    });
+  });
+
   group('the load path (what the review mutations delete)', () {
     test('the adapter registers the ReplayGain on_load hook', () async {
       final withHook = await newAdapter(equalizer: _eq());

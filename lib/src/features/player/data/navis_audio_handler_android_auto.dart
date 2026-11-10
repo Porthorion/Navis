@@ -308,6 +308,28 @@ extension _NavisAndroidAuto on NavisAudioHandler {
             autoPlay: autoPlay,
           );
         }
+        // An artist or album called exactly what was said beats a genre of
+        // that name; the genre only answers when neither exists.
+        final artists = await _libraryDao.searchArtistsLocal(request.term);
+        final exactArtists = artists.where(
+          (artist) => _equalsIgnoreCase(artist.name, request.term),
+        );
+        if (exactArtists.isNotEmpty) {
+          return _loadFromMediaId(
+            AutoMediaId.artist(exactArtists.first.id),
+            autoPlay: autoPlay,
+          );
+        }
+        final albums = await _libraryDao.searchAlbumsLocal(request.term);
+        final exactAlbums = albums.where(
+          (album) => _equalsIgnoreCase(album.name, request.term),
+        );
+        if (exactAlbums.isNotEmpty) {
+          return _loadFromMediaId(
+            AutoMediaId.album(exactAlbums.first.id),
+            autoPlay: autoPlay,
+          );
+        }
         final genre = await _loadGenreFromSearch(
           request.term,
           autoPlay: autoPlay,
