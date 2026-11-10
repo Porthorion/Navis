@@ -294,8 +294,9 @@ AppearanceSnapshot autoLookSnapshot(AppearanceSnapshot snapshot) =>
 /// other matching Look comes next, and a changed appearance is Custom (null).
 String? matchingAppearanceLookId(AppSettingsModel settings, {String? prefer}) {
   final current = AppearanceSnapshot.capture(settings).toJson();
-  // With Auto presets on, Auto owns those fields, so a Look never counts them.
-  final ignored = settings.autoLooksEnabled
+  // In Auto with presets on, Auto owns those fields, so a Look never counts
+  // them. The switch stays on after leaving Auto, but then nothing is owned.
+  final ignored = settings.autoLooksEnabled && settings.themeMode == 'system'
       ? autoOwnedLookFields
       : const <String>{};
   // Missing saved fields preserve current settings and do not make a Look Custom.

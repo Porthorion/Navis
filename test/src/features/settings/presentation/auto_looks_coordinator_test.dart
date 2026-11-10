@@ -1,10 +1,12 @@
 import 'dart:ui' show Brightness;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/features/settings/presentation/auto_looks_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -35,6 +37,7 @@ void main() {
     bool enabled = true,
     String? applied,
     String source = 'device',
+    List<Override> extra = const [],
   }) async {
     database = createTestDatabase();
     dao = database.appSettingsDao;
@@ -42,7 +45,7 @@ void main() {
     container = ProviderContainer(
       overrides: withTestDatabase(
         database,
-        overrides: [nowProvider.overrideWithValue(() => clock)],
+        overrides: [nowProvider.overrideWithValue(() => clock), ...extra],
       ),
     );
     addTearDown(() async {
@@ -220,6 +223,34 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'a failed apply leaves the mode unrecorded so the next trigger retries',
+      () async {
+        await prepare(
+          extra: [
+            appearanceLooksControllerProvider.overrideWith(_FailingLooks.new),
+          ],
+        );
+        start();
+        await idle();
+        final s = await settings();
+        expect(s.autoLooksAppliedMode, isNull);
+        expect(s.colorStyle, 'neutral');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('an Auto apply leaves the manual apply Undo origin alone', () async {
+      await prepare(enabled: false);
+      final looks = container.read(appearanceLooksControllerProvider.notifier);
+      final origin = (await settings()).selectedAppearanceLookId;
+      expect(origin, isNot(lightId));
+      final previous = await looks.apply(lightId);
+      await looks.apply(darkId, only: autoLookSnapshot);
+      expect(await looks.restore(previous!), isNull);
+      expect((await settings()).selectedAppearanceLookId, origin);
+    }, skip: !sqliteAvailable);
+
     test('follows the schedule source too', () async {
       await prepare(source: 'schedule');
       start();
@@ -247,4 +278,12 @@ void main() {
       );
     }, skip: !sqliteAvailable);
   });
+}
+
+class _FailingLooks extends AppearanceLooksController {
+  @override
+  Future<AppearanceSnapshot?> apply(
+    String id, {
+    AppearanceSnapshot Function(AppearanceSnapshot)? only,
+  }) async => null;
 }

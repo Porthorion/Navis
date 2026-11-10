@@ -106,7 +106,8 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
   /// Applies a saved Look and returns the appearance to use for Undo.
   ///
   /// Unknown ids and failed applications return null. [only] narrows what
-  /// the Look applies (Auto presets drop the fields Auto owns).
+  /// the Look applies (Auto presets drop the fields Auto owns); such an
+  /// automatic apply is not the user's, so it leaves the Undo origin alone.
   Future<AppearanceSnapshot?> apply(
     String id, {
     AppearanceSnapshot Function(AppearanceSnapshot)? only,
@@ -117,7 +118,8 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
           .where((p) => p.id == id)
           .firstOrNull;
       if (look == null) return null;
-      _selectionBeforeApply = storedAppearanceLookId(settings);
+      if (only == null)
+        _selectionBeforeApply = storedAppearanceLookId(settings);
       return await _applySnapshot(
         only == null ? look.snapshot : only(look.snapshot),
         select: look.id,

@@ -315,6 +315,9 @@ void main() {
       expect(matchingAppearanceLookId(on), 'a');
       final tweaked = on.copyWith(colorStyle: 'neutral');
       expect(matchingAppearanceLookId(tweaked), isNull);
+      // The switch stays on after leaving Auto; Auto owns nothing then.
+      final left = on.copyWith(themeMode: 'light');
+      expect(matchingAppearanceLookId(left), isNull);
     });
   });
 }
