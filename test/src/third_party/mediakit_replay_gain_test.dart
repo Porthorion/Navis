@@ -243,8 +243,11 @@ void main() {
       final registered = hooks.length;
       await withHook.release();
       hooks.clear();
-      final macOS = await newAdapter(equalizer: _eq(), replayGainFilter: false);
-      expect(macOS, isNotNull);
+      final withoutFilter = await newAdapter(
+        equalizer: _eq(),
+        replayGainFilter: false,
+      );
+      expect(withoutFilter, isNotNull);
       expect(
         registered - hooks.length,
         1,
@@ -326,7 +329,7 @@ void main() {
     });
   });
 
-  group('macOS (the filter stage is off)', () {
+  group('without the filter stage (replayGainFilter: false)', () {
     test('no ReplayGain stage is ever written to af', () async {
       final mpv = await newAdapter(equalizer: _eq(), replayGainFilter: false);
       // A file is loaded, so a live push would have something to move.

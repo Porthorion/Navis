@@ -62,35 +62,28 @@ const replayGainMaxBoostDb = 12.0;
 const replayGainBoostMarginDb = 1.0;
 
 /// Whether the player can turn songs up. mpv has the float `@navis_rg` filter
-/// stage on Linux and Windows (macOS is off until [navisReplayGainInPipeline]
-/// is); Android has the boost stage of its EQ processor and iOS a gain stage in
-/// the equalizer's tap. Both exist only while [androidProcessor] / [iosTap] say
-/// the pipeline is installed (it is gone after a rebuild without it).
+/// stage on Linux, Windows and macOS; Android has the boost stage of its EQ
+/// processor and iOS a gain stage in the equalizer's tap. Both exist only while
+/// [androidProcessor] / [iosTap] say the pipeline is installed (it is gone
+/// after a rebuild without it).
 @visibleForTesting
 bool navisReplayGainBoostSupported({
   required bool usesMpv,
-  required bool isMacOS,
   bool androidProcessor = false,
   bool iosTap = false,
-}) => (usesMpv && !isMacOS) || androidProcessor || iosTap;
+}) => usesMpv || androidProcessor || iosTap;
 
 /// Whether the backend applies ReplayGain inside its audio path, on each
 /// song's own samples (see the handler's `replayGainInPipeline`). True on mpv
-/// except macOS, and on Android while [androidProcessor] says the EQ processor
-/// pipeline is installed (without it the Dart cut through the player volume
-/// stays). False on iOS: its equalizer tap carries the boost only, the cut
-/// rides the player volume (the per-song cut in the tap is tracked in #392).
-/// False on macOS too: mpv is off the pipeline until `af-command` is wired
-/// (#490).
-// ponytail: macOS stays on the old path until `af-command` and lavfi `volume`
-// are verified on libmpv 0.36 (design D5: run
-// `af-command navis_rg volume -4dB volume` on a Mac build); then drop isMacOS
-// here and in the media_kit adapter's `replayGainFilter` default.
+/// (the `@navis_rg` stage, macOS included), and on Android while
+/// [androidProcessor] says the EQ processor pipeline is installed (without it
+/// the Dart cut through the player volume stays). False on iOS: its equalizer
+/// tap carries the boost only, the cut rides the player volume (the per-song
+/// cut in the tap is tracked in #392).
 bool navisReplayGainInPipeline({
   required bool usesMpv,
-  required bool isMacOS,
   bool androidProcessor = false,
-}) => (usesMpv && !isMacOS) || androidProcessor;
+}) => usesMpv || androidProcessor;
 
 /// How much ReplayGain turns one song down ([cutDb], 0 or less) or up
 /// ([boostDb], 0 or more).
