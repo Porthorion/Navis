@@ -312,11 +312,12 @@ exec /bin/rm "$@"
 
     tearDown(() => root.delete(recursive: true));
 
-    Future<void> start({DateTime? now}) => MacosUpdate.startupHandshake(
-      supportDir: root.path,
-      bundlePath: bundle,
-      now: now,
-    );
+    Future<void> start({DateTime? now, String? supportDir}) =>
+        MacosUpdate.startupHandshake(
+          supportDir: supportDir ?? root.path,
+          bundlePath: bundle,
+          now: now,
+        );
 
     test('no update running: removes the leftover backup', () async {
       await start();
@@ -370,6 +371,27 @@ exec /bin/rm "$@"
         expect(handshake.existsSync(), isFalse);
         expect(backup.existsSync(), isFalse);
       },
+    );
+
+    test(
+      'a stale handshake that cannot be deleted does not pin the backup',
+      () async {
+        // A read-only support dir keeps the handshake, but the bundle lives in
+        // a writable dir, so the backup is still removable.
+        final support = await Directory(p.join(root.path, 'support')).create();
+        final stale = File(p.join(support.path, MacosUpdate.handshakeFileName));
+        await stale.writeAsString('pending');
+        addTearDown(() => Process.run('chmod', ['755', support.path]));
+        final chmod = await Process.run('chmod', ['555', support.path]);
+        expect(chmod.exitCode, 0);
+        await start(
+          supportDir: support.path,
+          now: DateTime.now().add(const Duration(minutes: 10)),
+        );
+        expect(stale.existsSync(), isTrue);
+        expect(backup.existsSync(), isFalse);
+      },
+      skip: Platform.isWindows,
     );
   });
 
