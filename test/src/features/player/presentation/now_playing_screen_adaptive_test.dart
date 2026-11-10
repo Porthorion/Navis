@@ -1621,7 +1621,7 @@ void main() {
           ('Slide Over (phone layout)', Size(320, 1032), false, false),
           ('compact-wide Mini Player', Size(560, 360), false, true),
         ]) {
-      testWidgets('$name', (tester) async {
+      testWidgets(name, (tester) async {
         setAdaptiveTestViewport(tester, size);
         final container = _createContainer();
         container.read(nowPlayingTestPlaybackProvider.notifier).state =
