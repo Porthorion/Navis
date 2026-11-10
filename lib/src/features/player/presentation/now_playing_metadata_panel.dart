@@ -421,11 +421,13 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                       curve: Curves.easeOut,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxWidth: showInlineEditor ? 240 : 210,
+                          maxWidth: showInlineEditor ? 132 : 210,
                         ),
                         child: showInlineEditor
                             ? RatingWidget(
                                 rating: inlineRating,
+                                compact: true,
+                                dense: true,
                                 onChanged: (next) {
                                   setState(
                                     () => _showInlineRatingEditor = false,

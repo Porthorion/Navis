@@ -12,6 +12,7 @@ class RatingWidget extends StatelessWidget {
     this.maxRating = 5,
     this.iconSize = 18,
     this.compact = false,
+    this.dense = false,
   });
 
   final int? rating;
@@ -19,6 +20,10 @@ class RatingWidget extends StatelessWidget {
   final int maxRating;
   final double iconSize;
   final bool compact;
+
+  /// Icon-sized stars with no extra hit area, for the Now Playing info chip,
+  /// which has no room to grow.
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -33,27 +38,31 @@ class RatingWidget extends StatelessWidget {
       }
 
       stars.add(
-        Semantics(
-          button: true,
-          selected: filled,
-          label: l10n.ratingStarLabel(i),
-          excludeSemantics: true,
-          onTap: onTap,
-          child: InkResponse(
+        Flexible(
+          child: Semantics(
+            button: true,
+            selected: filled,
+            label: l10n.ratingStarLabel(i),
+            excludeSemantics: true,
             onTap: onTap,
-            radius: compact ? 16 : 20,
-            child: SizedBox(
-              // The icon stays small; the hit area is a full 48 px tall.
-              // Compact rows (list-tile trailing) cannot take 5 x 48 px, so
-              // their stars are narrower.
-              width: compact ? 28 : kMinInteractiveDimension,
-              height: kMinInteractiveDimension,
-              child: Icon(
-                filled ? Icons.star : Icons.star_border,
-                size: iconSize,
-                color: filled
-                    ? Theme.of(context).colorScheme.secondary
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
+            child: InkResponse(
+              onTap: onTap,
+              radius: compact ? 16 : 20,
+              child: SizedBox(
+                // The icon stays small; the hit area is 48 px tall. Stars share
+                // the row's width, so a narrow parent (a dialog at 320 dp) never
+                // overflows; compact list-tile rows prefer narrower stars.
+                width: dense
+                    ? iconSize
+                    : (compact ? 28 : kMinInteractiveDimension),
+                height: dense ? iconSize : kMinInteractiveDimension,
+                child: Icon(
+                  filled ? Icons.star : Icons.star_border,
+                  size: iconSize,
+                  color: filled
+                      ? Theme.of(context).colorScheme.secondary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ),

@@ -96,4 +96,53 @@ void main() {
     _expectSelected(tester, 0);
     handle.dispose();
   });
+
+  // The album detail rating dialog: an AlertDialog whose content is the
+  // non-compact RatingWidget (232 px wide at 360 dp).
+  for (final width in <double>[320, 360]) {
+    for (final scale in <double>[1, 2]) {
+      testWidgets('in a dialog at ${width.toInt()} dp, text x$scale, all stars '
+          'fit', (tester) async {
+        final handle = tester.ensureSemantics();
+        tester.view.physicalSize = Size(width, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Rating'),
+                      content: RatingWidget(rating: 3, onChanged: (_) {}),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        final dialog = tester.getRect(find.byType(AlertDialog));
+        for (var i = 1; i <= 5; i++) {
+          final star = tester.getRect(find.bySemanticsLabel(_label(i)));
+          expect(dialog.contains(star.topLeft), isTrue, reason: 'star $i');
+          expect(dialog.contains(star.bottomRight), isTrue, reason: 'star $i');
+        }
+        handle.dispose();
+      });
+    }
+  }
 }
