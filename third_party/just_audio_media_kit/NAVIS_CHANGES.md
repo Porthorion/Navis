@@ -25,7 +25,10 @@ writes the entering file's whole chain synchronously; the level comes from
 `ReplayGainLevels` (`src/replay_gain_boost.dart`), a map by `replayGainBoostKey`
 seeded from `UriAudioSourceMessage.replayGainDb` in `load`/`insert` and merged
 from `setReplayGainLevels` pushes, so a natural join, a jump and a seek are the
-same lookup and an unknown key is 0 dB. Only a `live` push moves the playing
+same lookup and an unknown key is 0 dB. The hook also reads `playlist-pos` and
+looks the level up by the entry's source id (the adapter mirrors the ids through
+load, insert, move and remove), so one file queued at two positions keeps two
+levels; the URI key is only the fallback. Only a `live` push moves the playing
 file: `af-command navis_rg volume <dB>dB volume` (the 4th argument is required),
 then an `af` write, since mpv rebuilds the chain from `af` on any seek; if
 `af-command` fails the `af` write alone lands the value (logged). Without the
