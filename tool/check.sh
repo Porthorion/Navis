@@ -45,6 +45,16 @@ run_step_capture() {
   fi
 }
 
+# cmake -P writes fixtures under the current directory; keep them out of the repo.
+run_cmake_script() {
+  local script work status=0
+  script="$(pwd)/$1"
+  work="$(mktemp -d)"
+  (cd "${work}" && cmake -P "${script}") || status=$?
+  rm -rf "${work}"
+  return "${status}"
+}
+
 assert_no_blocking_warnings() {
   local log_file="$1"
   assert_no_test_failures "${log_file}"
@@ -80,6 +90,10 @@ run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_
 run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test.py
 run_step "live seek app identity guard" python3 tool/live_seek_stress_test.py
 run_step "ReplayGain analyzer clamp rules" python3 tool/replaygain_boost_analyze_test.py
+run_step "sync scenario preparation" python3 -m unittest tool.dev_sync_scenario_test
+run_step "sync diagnostics action attribution" python3 -m unittest tool.sync_diagnostics_action_test
+run_step "libmpv Windows download fallback" run_cmake_script tool/libmpv_download_test.cmake
+run_step "libmpv Linux bundle" run_cmake_script tool/libmpv_bundle_test.cmake
 run_step "format check" ./tool/dart_format.sh --check
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos

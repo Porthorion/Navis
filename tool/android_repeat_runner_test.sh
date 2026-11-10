@@ -41,7 +41,7 @@ chmod +x "${navis_fixture}/bin/timeout" \
 
 # Start without ignored wrapper files, as in a clean CI checkout.
 NAVIS_SELF_UPDATE=false "${navis_fixture}/tool/android_repeat_native_test.sh" >"${navis_fixture}/output"
-grep -Fxq 'Android repeat bridge and ReplayGain boost: 3 tests, 0 failures.' "${navis_fixture}/output"
+grep -Fxq 'Android JVM tests: 3 suites, 3 tests, 0 failures.' "${navis_fixture}/output"
 set +e
 NAVIS_FIXTURE_TESTS=0 "${navis_fixture}/tool/android_repeat_native_test.sh" >"${navis_fixture}/zero-output" 2>&1
 navis_actual=$?
@@ -50,11 +50,13 @@ test "${navis_actual}" -ne 0
 grep -Fq 'must execute tests with no failures' "${navis_fixture}/zero-output"
 test -f "${navis_fixture}/android/gradle/wrapper/gradle-wrapper.jar"
 test "$(cat "${NAVIS_FIXTURE_JDK}")" == "${ANDROID_STUDIO_JDK}"
-for navis_arg in ':app:testSideloadDebugUnitTest' '--tests' '*JustAudioRepeat*Test' '*JustAudioReplayGainBoost*Test' \
+for navis_arg in ':app:testSideloadDebugUnitTest' \
   '--no-daemon' '--max-workers=1' '-Pkotlin.compiler.execution.strategy=in-process' \
   '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m'; do
   grep -Fxq -- "${navis_arg}" "${NAVIS_FIXTURE_ARGS}"
 done
+# No --tests filter: every JVM suite runs (#478).
+! grep -Fq -- '--tests' "${NAVIS_FIXTURE_ARGS}"
 for navis_status in 37 124; do
   set +e
   NAVIS_FIXTURE_EXIT="${navis_status}" "${navis_fixture}/tool/android_repeat_native_test.sh"
