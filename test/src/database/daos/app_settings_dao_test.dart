@@ -410,6 +410,32 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('Auto presets update independently, treat empty as None and '
+        'ignore an unknown mode', () async {
+      final dao = database.appSettingsDao;
+      await dao.updateAutoLooks(enabled: true, lightLookId: 'a');
+      var saved = (await dao.getSettings())!;
+      expect(saved.autoLooksEnabled, isTrue);
+      expect(saved.autoLightLookId, 'a');
+      expect(saved.autoDarkLookId, isNull);
+      await dao.updateAutoLooks(darkLookId: 'b');
+      saved = (await dao.getSettings())!;
+      expect(saved.autoLightLookId, 'a', reason: 'absent keeps the value');
+      expect(saved.autoDarkLookId, 'b');
+      await dao.updateAutoLooks(lightLookId: '  ');
+      saved = (await dao.getSettings())!;
+      expect(saved.autoLightLookId, isNull, reason: 'empty is None');
+      expect(saved.autoDarkLookId, 'b');
+      expect(saved.autoLooksEnabled, isTrue);
+      await dao.updateAutoLooksAppliedMode('dark');
+      expect((await dao.getSettings())!.autoLooksAppliedMode, 'dark');
+      await dao.updateAutoLooksAppliedMode('dusk');
+      expect((await dao.getSettings())!.autoLooksAppliedMode, 'dark');
+      await dao.updateAutoLooksAppliedMode(null);
+      expect((await dao.getSettings())!.autoLooksAppliedMode, isNull);
+      expect(saved.themeMode, (await dao.getSettings())!.themeMode);
+    }, skip: !sqliteAvailable);
+
     test('appearance settings default and update independently', () async {
       final initial = (await database.appSettingsDao.getSettings())!;
       expect(initial.oledForAuto, isFalse);

@@ -3202,6 +3202,30 @@ final effectiveDarkProvider = Provider<bool?>((ref) {
   return window.isActiveAt(now);
 });
 
+/// Whether Auto applies a different saved Look for light and dark.
+final autoLooksEnabledProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.autoLooksEnabled;
+});
+
+/// The Look id Auto applies in light mode (null = None).
+final autoLightLookIdProvider = Provider<String?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.autoLightLookId;
+});
+
+/// The Look id Auto applies in dark mode (null = None).
+final autoDarkLookIdProvider = Provider<String?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.autoDarkLookId;
+});
+
 /// Current color scheme seed color value (null = default white).
 final colorSchemeSeedProvider = Provider<int?>((ref) {
   final settings =

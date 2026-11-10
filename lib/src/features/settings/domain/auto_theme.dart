@@ -12,3 +12,13 @@ abstract final class AutoThemeSource {
   static const defaultDarkStartMinutes = 20 * 60;
   static const defaultDarkEndMinutes = 7 * 60;
 }
+
+/// The light or dark side of Auto, as stored in `auto_looks_applied_mode`.
+abstract final class AutoMode {
+  static const light = 'light';
+  static const dark = 'dark';
+
+  static bool isValid(Object? value) => value == light || value == dark;
+
+  static String of({required bool isDark}) => isDark ? dark : light;
+}
