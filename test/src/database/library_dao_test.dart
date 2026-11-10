@@ -1208,5 +1208,32 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test('watchSongsByAlbum treats a NULL disc as disc 1 and sorts NULL tracks last', () async {
+      SongsTableCompanion song(String id, int? disc, int? track) =>
+          SongsTableCompanion.insert(
+            id: id,
+            title: 'T',
+            albumId: const Value('album-1'),
+            discNumber: Value(disc),
+            track: Value(track),
+          );
+      await database.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(id: 'album-1', name: 'Album'),
+      ]);
+      await database.libraryDao.upsertSongs([
+        song('a', null, null),
+        song('b', 1, 2),
+        song('c', null, 1),
+        song('d', 2, 1),
+        song('e', 1, null),
+        song('f', null, 2),
+      ]);
+
+      final songs = await database.libraryDao
+          .watchSongsByAlbum('album-1')
+          .first;
+      expect(songs.map((s) => s.id), ['c', 'b', 'f', 'a', 'e', 'd']);
+    }, skip: !sqliteAvailable);
   });
 }

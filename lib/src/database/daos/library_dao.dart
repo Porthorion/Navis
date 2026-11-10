@@ -1386,8 +1386,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             table.serverDeletedAt.isNull(),
       )
       ..orderBy([
-        (table) => OrderingTerm.asc(table.discNumber),
+        // Same shape as watchSongsByArtist: NULL disc is disc 1, NULL track last.
+        (table) => OrderingTerm.asc(
+          coalesce<int>([table.discNumber, const Constant(1)]),
+        ),
+        (table) => OrderingTerm.asc(table.track.isNull()),
         (table) => OrderingTerm.asc(table.track),
+        (table) => OrderingTerm.asc(table.id),
       ]);
     return query.watch();
   }
