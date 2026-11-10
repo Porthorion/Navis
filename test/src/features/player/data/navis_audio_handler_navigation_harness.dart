@@ -347,6 +347,49 @@ class TranscodedLockResolver extends GatedSourceResolver {
   }
 }
 
+/// The mobile first load of a transcoded song is lock-cached (the tee that
+/// writes a cut connection into the rolling cache). Records every resolve.
+class RecordingLockResolver extends GatedSourceResolver {
+  new(super.delegate, this.directory);
+  final Directory directory;
+  final calls =
+      <({String songId, Duration? offset, PlaybackSourceKind kind})>[];
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) async {
+    var source = await super.resolveForSong(
+      song,
+      preferLockCaching: preferLockCaching,
+      allowStreaming: allowStreaming,
+      transcodeOffset: transcodeOffset,
+      fastSeekBridge: fastSeekBridge,
+    );
+    if (song.id == 'song-1' &&
+        transcodeOffset == null &&
+        preferLockCaching &&
+        source.kind == PlaybackSourceKind.directStream) {
+      final lock = RangeCacheSource(
+        song.id,
+        File('${directory.path}/lock-${song.id}.mp3'),
+      );
+      source = ResolvedPlaybackSource.lockCachedStream(
+        songId: song.id,
+        lockCachingStreamUri: lock.uri,
+        lockCachingAudioSource: lock,
+        cachedFilePath: (await lock.cacheFile).path,
+        metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
+      );
+    }
+    calls.add((songId: song.id, offset: transcodeOffset, kind: source.kind));
+    return source;
+  }
+}
+
 class NoopScrobbleService extends Fake implements ScrobbleService {
   final nowPlaying = <String>[];
   final submissions = <String>[];
@@ -670,6 +713,13 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// The position at each play() call.
   final List<Duration> playedFrom = <Duration>[];
   bool nativePositionFrozen = false;
+
+  /// With [nativePositionFrozen], the stamp of the native event (position and
+  /// time of the last load or seek, as AVQueuePlayer's advance carries). Null
+  /// follows [simulatedPosition]; a completed event re-stamps, as `complete`
+  /// does.
+  Duration? frozenStampPosition;
+  DateTime? frozenStampTime;
   bool keepStreamsAfterDispose = false;
   int sourceLoads = 0;
   int seekCalls = 0;
@@ -784,7 +834,10 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
     processingState: state,
-    updatePosition: nativePositionFrozen ? simulatedPosition : position,
+    updatePosition: nativePositionFrozen
+        ? (frozenStampPosition ?? simulatedPosition)
+        : position,
+    updateTime: nativePositionFrozen ? frozenStampTime : null,
     bufferedPosition: bufferedPosition,
     duration: duration,
     currentIndex: index,
@@ -1165,6 +1218,7 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
       simulatedPosition = Duration.zero;
     } else {
       simulatedPosition = endPosition ?? simulatedDuration;
+      frozenStampPosition = frozenStampTime = null;
       state = ProcessingState.completed;
     }
     if (state != ProcessingState.completed) {
