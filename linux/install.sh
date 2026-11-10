@@ -32,6 +32,10 @@ YES=0 MODE=install TARBALL=''
 DATA='' CONFIG='' CACHE='' LAUNCHER='' DESKTOP='' MANIFEST='' FILE='' PAYLOAD=''
 TMP='' NEW='' OLDDIR='' APP='' NEW_IN_PLACE=0 COMMITTED=0
 VERSION='' ASSET_URL='' ASSET_SHA=''
+# Minimum release this copy will install, so a replayed older signed manifest is refused.
+# tool/lib/github_release.sh fills it with the released version when it attaches this
+# script to a GitHub release; empty (as in the repo) means no floor.
+NAVIS_MIN_VERSION=''
 CREATED=() FRESH=()   # CREATED: paths recorded in the manifest; FRESH: those that did not exist before this run
 
 die() { echo "install.sh: $*" >&2; exit 1; }
@@ -155,6 +159,9 @@ verify_manifest() { # ENVELOPE_FILE -> VERSION ASSET_URL ASSET_SHA
   obj="$(only '"linuxPortable":\{[^{}]*\}' linuxPortable)"
   ASSET_URL="$(only '"url":"[^"]+"' 'linuxPortable url' "${obj}")"; ASSET_URL="${ASSET_URL#*:\"}"; ASSET_URL="${ASSET_URL%\"}"
   ASSET_SHA="$(only '"sha256":"[0-9a-f]{64}"' 'linuxPortable sha256' "${obj}")"; ASSET_SHA="${ASSET_SHA#*:\"}"; ASSET_SHA="${ASSET_SHA%\"}"
+  # Like confirm_foreign, --yes never overrides this.
+  [[ -z ${NAVIS_MIN_VERSION} ]] || version_ge "${VERSION}" "${NAVIS_MIN_VERSION}" \
+    || die "the signed release is ${VERSION}, older than the minimum ${NAVIS_MIN_VERSION} this installer accepts (possible replay of an old release); nothing was installed"
 }
 
 # --- host checks

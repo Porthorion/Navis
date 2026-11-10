@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' show Value;
@@ -15,6 +16,7 @@ import 'package:navis/src/features/library/data/android_background_sync.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:sqlite3/sqlite3.dart' show OpenMode, sqlite3;
 
@@ -257,6 +259,40 @@ void main() {
         'deferredScanChanged',
       );
     });
+  });
+
+  test('entrypoint body runs in the credential-redacting zone with the '
+      'redacting uncaught-error handler', () async {
+    final previousOnError = PlatformDispatcher.instance.onError;
+    addTearDown(() => PlatformDispatcher.instance.onError = previousOnError);
+    final lines = <String>[];
+    // The channel's "ready" call is made by the entrypoint body, so a print
+    // from its handler lands in the body's zone.
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      // ignore: avoid_print, the zone's print is what is under test
+      if (call.method == 'ready') print('GET /rest/stream?id=7&t=TOKEN&s=SALT');
+      return null;
+    });
+    final entry = runZoned(
+      navisBackgroundSyncEntrypoint,
+      zoneSpecification: ZoneSpecification(
+        print: (self, parent, zone, line) => lines.add(line),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    const codec = StandardMethodCodec();
+    final stopped = Completer<void>();
+    await messenger.handlePlatformMessage(
+      channel.name,
+      codec.encodeMethodCall(const MethodCall('shutdown')),
+      (_) => stopped.complete(),
+    );
+    await stopped.future;
+    await entry;
+    channel.setMethodCallHandler(null);
+
+    expect(lines, ['GET /rest/stream?id=7&t=REDACTED&s=REDACTED']);
+    expect(PlatformDispatcher.instance.onError, reportUncaughtErrorRedacted);
   });
 
   test('entrypoint supplies the cached native playback reader to sync', () {

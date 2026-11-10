@@ -195,4 +195,25 @@ void main() {
     expect(lines.single, startsWith('Unhandled Exception: '));
     expect(lines.single, isNot(contains('abc')));
   });
+
+  test('server host redaction hides URI authorities, the host and the socket address', () {
+    expect(
+      redactServerHost(
+        'HttpException: closed, uri = https://music.example.com:4533/rest/stream?id=1',
+      ),
+      'HttpException: closed, uri = <server>/rest/stream?id=1',
+    );
+    expect(
+      redactServerHost(
+        "SocketException: Failed host lookup: 'Music.Example.com:4533' "
+        '(OS error: nope, errno = -2), address = music.example.com, port = 4533',
+        host: 'music.example.com',
+      ),
+      "SocketException: Failed host lookup: '<server>' (OS error: nope, errno = -2)",
+    );
+    expect(
+      redactServerHost('Connection reset by peer'),
+      'Connection reset by peer',
+    );
+  });
 }

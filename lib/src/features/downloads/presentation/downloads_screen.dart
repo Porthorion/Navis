@@ -42,6 +42,7 @@ import 'package:navis/src/features/downloads/data/permanent_download_path_resolv
 import 'package:navis/src/features/downloads/presentation/download_reconciliation_screen.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -720,7 +721,9 @@ class _QueueItemTile extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final reason =
         item.failureReason?.name ?? DownloadFailureReason.unknown.name;
-    final detail = item.failureDetail;
+    // Rows stored by an earlier version may still quote the server's URI.
+    final stored = item.failureDetail;
+    final detail = stored == null ? null : redactServerHost(stored);
     await Clipboard.setData(
       ClipboardData(text: detail == null ? reason : '$reason: $detail'),
     );
