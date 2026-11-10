@@ -749,6 +749,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// A seek out of `completed` keeps reporting `completed`, as media_kit does
   /// while the restarted song plays (mediakit_player.dart `_processingState`).
   bool completedStaysOnSeek = false;
+
+  /// A seek's new index is reported this long after `seek` returned, as
+  /// media_kit does (its index follows a later mpv property event, #509).
+  /// A microtask is not enough: the handler must wait on a real timer.
+  Duration? seekIndexLag;
+
+  /// With [seekIndexLag] set, the seek's index never lands (an ignored seek).
+  bool seekIndexNeverLands = false;
   bool gateNonEmptyLoadsOnly = false;
   bool bufferAfterLoad = false;
   Completer<void>? loadGate;
@@ -760,6 +768,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? afterAppendEntered;
   String? attemptedSongId;
   int lastSetAudioSourcesCount = 0;
+  final List<int> setAudioSourcesCounts = <int>[];
   int maxConcurrentMutations = 0;
   int _activeMutations = 0;
 
@@ -786,6 +795,16 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// Loads succeed and then fail at once, as a stream that drops.
   bool failAfterLoad = false;
+
+  /// The load is reported ready, and the native failure arrives only once
+  /// Play has been issued (libmpv opens a file after `open` returns, so a
+  /// 404 can land after the adapter's first ready). Only the first Play
+  /// fails that way; later loads of the song throw, as with a warm libmpv.
+  bool failOnPlay = false;
+
+  /// How many more Plays fail that way after the current one; the song's
+  /// loads keep succeeding until the last.
+  int failOnPlayRepeats = 0;
   StateError? loadErrorAfterApply;
 
   @override
@@ -1220,6 +1239,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     _positionUpdated = DateTime.now();
     isPlaying = true;
     emitPlayerEvent();
+    if (failOnPlay) {
+      failOnPlay = failOnPlayRepeats > 0;
+      if (failOnPlay) {
+        failOnPlayRepeats--;
+      } else {
+        failLoadSongId = attemptedSongId;
+      }
+      // The player keeps `playing`; only the processing state fails.
+      state = ProcessingState.idle;
+      errorCode = 0;
+      _events.add(playbackEvent);
+    }
     if (playCompletesOnPause) {
       _events.add(playbackEvent);
       await (_playing = Completer<void>()).future;
@@ -1287,6 +1318,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     }
     // Like just_audio, only a prepared, non-empty load clears the idle
     // player's error.
+    final clearedError = errorCode != null;
     if (preload && sources.isNotEmpty) errorCode = null;
     if (source != null) attemptedSongId = _sourceId(source);
     if (source != null && hungLoadSongs.contains(_sourceId(source))) {
@@ -1314,6 +1346,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         : initialPosition ?? Duration.zero;
     _sources = List<AudioSource>.of(sources);
     lastSetAudioSourcesCount = sources.length;
+    setAudioSourcesCounts.add(sources.length);
     index = sources.isEmpty ? null : initialIndex ?? 0;
     state = sources.isEmpty || !preload
         ? ProcessingState.idle
@@ -1338,6 +1371,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       if (rejectBridgeLoad) throw StateError('bridge load failed');
     }
     _indices.add(index);
+    // A reload after a failure reports its error-free state, as native does.
+    if (clearedError && errorCode == null) _events.add(playbackEvent);
     if (loadErrorAfterApply case final error?) {
       loadErrorAfterApply = null;
       state = ProcessingState.idle;
@@ -1491,6 +1526,19 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       if (state == ProcessingState.completed && position < simulatedDuration) {
         state = ProcessingState.ready;
       }
+    }
+    final lag = seekIndexLag;
+    if (index != null && lag != null) {
+      if (!seekIndexNeverLands) {
+        Timer(lag, () {
+          if (disposed) return;
+          this.index = index;
+          _indices.add(index);
+          emitPlayerEvent();
+        });
+      }
+      emitPlayerEvent();
+      return;
     }
     if (index != null) this.index = index;
     _indices.add(this.index);
@@ -2939,6 +2987,86 @@ void main() {
         isNot(AudioProcessingState.buffering),
       );
     });
+
+    test(
+      'a stream that fails right after its load reported ready ends paused',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player.failOnPlay = true;
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(player.state, ProcessingState.idle);
+        expect(player.playing, isFalse);
+        expect(handler.snapshot.playing, isFalse);
+      },
+    );
+
+    test(
+      'a mid-queue stream that fails right after its load skips to the next',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player.failOnPlay = true;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('a paused load whose stream fails after apply never starts', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: true),
+        remote: true,
+      );
+      player.failOnPlay = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.playedFrom, isEmpty);
+      expect(player.playing, isFalse);
+      expect(handler.snapshot.playing, isFalse);
+    });
+
+    test(
+      'a retry reload that also fails after apply skips without looping',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player
+          ..failOnPlay = true
+          ..failOnPlayRepeats = 1;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+        expect(player.playing, isTrue);
+        // Both failing Plays were song-0's; song-1 then played without one.
+        expect(player.failOnPlayRepeats, 0);
+        expect(player.playedFrom, hasLength(2));
+      },
+    );
 
     test('an error event that is not idle still counts as a failure', () async {
       var online = false;
@@ -4663,7 +4791,7 @@ void main() {
 
     for (final crossfade in [false, true]) {
       test(
-        'ReplayGain waits for the selected queue to commit, fade=$crossfade',
+        'ReplayGain applies once the selected source is loaded, fade=$crossfade',
         () async {
           final players = <_ControllableAudioPlayer>[];
           final (handler, player, _) = await fixture(
@@ -4702,9 +4830,12 @@ void main() {
           ], expandMatchFlows: false);
           await entered.future;
           expect(handler.snapshot.hasPendingLogicalQueue, isTrue);
-          // Source application restores user volume; song-scoped gain must
-          // wait until the replacement's logical queue has committed.
-          expect(player.appliedVolumes.last, 1);
+          // The selected source is in the player and audible, so its gain
+          // applies now instead of waiting for the logical queue to commit.
+          expect(
+            player.appliedVolumes.last,
+            closeTo(pow(10, -12 / 20), 0.00001),
+          );
           gate.complete();
           await replacement;
           await settleQueue(handler);
@@ -23400,6 +23531,179 @@ void main() {
       expect(player.seekCalls - seeksBefore, 1);
       expect(player.state, ProcessingState.ready);
       expect(handler.snapshot.playing, isTrue);
+    });
+  });
+  // #509: media_kit reports a seek's new index a moment after `seek` returned,
+  // so a skip read the old index, called that a failed seek and rebuilt the
+  // whole queue in a new player. Native shuffle stays off in Navis (the queue
+  // is shuffled in Dart), so no native shuffle order is involved here.
+  group('a skip whose index lands after the seek returned (#509)', () {
+    const lag = Duration(milliseconds: 60);
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> laggedQueue({
+      int count = 4,
+      int startIndex = 0,
+      bool crossfade = false,
+      bool desktop = true,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-i509-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        count,
+        crossfade: crossfade,
+        desktopRuntimeOverride: desktop,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueueWithData(
+        await database.libraryDao.getSongsByIds([
+          for (var i = 0; i < count; i++) 'song-$i',
+        ]),
+        startIndex: startIndex,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      await settleQueue(handler);
+      player.seekIndexLag = lag;
+      return (handler, player);
+    }
+
+    void expectPlainJump(
+      NavisAudioHandler handler,
+      _ControllableAudioPlayer player, {
+      required int stops,
+      required int loads,
+      required int target,
+    }) {
+      expect(player.stopCalls, stops, reason: 'no stop');
+      expect(player.setAudioSourcesCounts, hasLength(loads), reason: 'reload');
+      expect(player.index, target);
+      expect(handler.snapshot.currentIndex, target);
+      expect(handler.snapshot.currentSongId, 'song-$target');
+      expect(handler.snapshot.isLoading, isFalse);
+    }
+
+    for (final (name, startIndex, target, action)
+        in <(String, int, int, Future<void> Function(NavisAudioHandler))>[
+          ('skipToNext', 0, 1, (h) => h.skipToNext()),
+          ('skipToPrevious', 2, 1, (h) => h.skipToPrevious()),
+          ('skipToQueueItem', 0, 3, (h) => h.skipToQueueItem(3)),
+        ]) {
+      for (final crossfade in [false, true]) {
+        test(
+          '$name is a plain jump${crossfade ? ' with crossfade on' : ''}',
+          () async {
+            final (handler, player) = await laggedQueue(
+              startIndex: startIndex,
+              crossfade: crossfade,
+            );
+            final stops = player.stopCalls;
+            final loads = player.setAudioSourcesCounts.length;
+            await action(handler);
+            await settleQueue(handler);
+
+            expectPlainJump(
+              handler,
+              player,
+              stops: stops,
+              loads: loads,
+              target: target,
+            );
+            expect(handler.snapshot.playing, isTrue);
+          },
+        );
+      }
+    }
+
+    test('repeat-all wraps from the last song with a plain jump', () async {
+      final (handler, player) = await laggedQueue(startIndex: 3);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await settleQueue(handler);
+      final stops = player.stopCalls;
+      final loads = player.setAudioSourcesCounts.length;
+      await handler.skipToNext();
+      await settleQueue(handler);
+
+      expectPlainJump(handler, player, stops: stops, loads: loads, target: 0);
+    });
+
+    test('a rapid double skip ends on the second target', () async {
+      final (handler, player) = await laggedQueue();
+      final stops = player.stopCalls;
+      final loads = player.setAudioSourcesCounts.length;
+      final started = DateTime.now();
+      await Future.wait([handler.skipToNext(), handler.skipToNext()]);
+      await settleQueue(handler);
+      expect(player.stopCalls, stops);
+      expect(player.setAudioSourcesCounts, hasLength(loads));
+
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(player.index, 2);
+      expect(handler.snapshot.isLoading, isFalse);
+      expect(
+        DateTime.now().difference(started),
+        lessThan(const Duration(seconds: 3)),
+        reason: 'the wait must not hold the queue lane for its full bound',
+      );
+    });
+
+    test(
+      'an index that never lands still reloads after a bounded wait',
+      () async {
+        final (handler, player) = await laggedQueue();
+        player.seekIndexNeverLands = true;
+        final loads = player.setAudioSourcesCounts.length;
+        final started = DateTime.now();
+        await handler.skipToNext();
+        await settleQueue(handler);
+
+        expect(player.setAudioSourcesCounts, hasLength(loads + 1));
+        expect(player.stopCalls, greaterThan(0));
+        expect(player.index, 1);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(
+          DateTime.now().difference(started),
+          lessThan(const Duration(seconds: 3)),
+          reason: 'bounded well under the 4 s control timeout',
+        );
+      },
+    );
+
+    for (final late in [false, true]) {
+      test('Play on a finished queue restarts at song 0 with a lagging index '
+          '${late ? '(late echo)' : '(control)'}', () async {
+        final (handler, player) = await laggedQueue(count: 2, startIndex: 1);
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(player.state, ProcessingState.completed);
+        player.exoEndedSeekLate = late;
+        final seeks = player.seekCalls;
+        final loads = player.setAudioSourcesCounts.length;
+        await handler.play();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        await settleQueue(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(player.index, 0);
+        expect(player.seekCalls - seeks, 1);
+        expect(player.setAudioSourcesCounts, hasLength(loads));
+      });
+    }
+
+    test('Previous on a finished queue lands on the previous song with a '
+        'lagging index', () async {
+      final (handler, player) = await laggedQueue(count: 3, startIndex: 2);
+      player.finishCurrentTrack();
+      await pumpEventQueue();
+      player.simulatedPosition = const Duration(seconds: 1);
+      await handler.skipToPrevious();
+      await settleQueue(handler);
+
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.index, 1);
     });
   });
 }

@@ -293,6 +293,25 @@ class NavisAudioHandler extends BaseAudioHandler
   /// another load, this lasts only until the next load or progress.
   bool _loadedSourceFailed = false;
 
+  /// The last queue apply returned normally, so a failure reported before
+  /// its load ends was not surfaced by the load itself.
+  bool _loadedSourceApplied = false;
+
+  /// The native source that played when the current load began. A load whose
+  /// target is the song already playing must not take that old entry for its
+  /// own: only a different entry holding the loading song counts (see
+  /// [_loadingSourceInPlayer]).
+  IndexedAudioSource? _loadStartSource;
+
+  /// Queue applies (`setAudioSources`) in flight. just_audio swaps in the new
+  /// entries and broadcasts them before the platform load finishes, so while
+  /// one runs only [_loadedSourceApplied] says the new source is in.
+  int _sourceAppliesInFlight = 0;
+
+  /// A failure was reported after the load's source was applied and while
+  /// the load still ran; recovery skipped it, so the load end must act.
+  bool _failedAfterApply = false;
+
   /// Automatic failovers since playback last advanced for
   /// [NavisPlaybackTimeouts.healthyPlayback]; [_maxAutoFailovers] is the cap.
   int _autoFailovers = 0;
@@ -802,7 +821,10 @@ class NavisAudioHandler extends BaseAudioHandler
   /// True on Linux and Windows mpv. On Android it follows the EQ processor,
   /// which both decks are built with (every player build sets
   /// [_equalizerPipelineEnabled]), so a rebuild without the processor drops it
-  /// for the new players. False on macOS and iOS until their backends ship.
+  /// for the new players. False on iOS, whose tap carries the boost only: the
+  /// cut rides the player volume (the per-song cut is tracked in #392). False
+  /// on macOS, where mpv is off the pipeline until `af-command` is wired
+  /// (#490).
   @override
   bool get replayGainInPipeline =>
       _replayGainInPipelineOverride ??
@@ -2798,6 +2820,7 @@ class NavisAudioHandler extends BaseAudioHandler
       // False while a replacement is still filling the player, by design;
       // otherwise the player and the Dart queue must agree.
       'queueSettled': !_isLoading && _pendingLogicalQueueSongIds == null,
+      'playerVolume': _player.volume,
       'playerMatchesQueue': _sequenceMatchesQueue(_player),
       'crossfade': <String, Object?>{
         'enabled': _crossfadeEnabled,
@@ -3461,6 +3484,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
+    _loadStartSource = null;
     cancelSeekPreview();
     _cancelLockCacheWarm();
     _resumeLockCacheDownloads();

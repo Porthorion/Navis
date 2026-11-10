@@ -119,11 +119,39 @@ extension _NavisQueueWindow on NavisAudioHandler {
   /// position 0, which the playback events and the load epilogue would read
   /// as that song ending (#374), so the seek is noted until the player leaves
   /// `completed`.
+  ///
+  /// The desktop adapter's `seek` returns once mpv accepts the jump, but
+  /// media_kit reports the new index from a later property event (#509). The
+  /// index is awaited here, so callers that read `currentIndex` right after
+  /// (the navigation reload fallback) do not take the old index for a seek
+  /// that failed.
   Future<void> _seekPlayerToIndex(int index) async {
-    if (_player.processingState == ProcessingState.completed) {
+    final player = _player;
+    final previous = player.currentIndex;
+    if (player.processingState == ProcessingState.completed) {
       _endedSeekEcho = (index: index, transport: _transportGeneration);
     }
-    await _player.seek(Duration.zero, index: index);
+    await player.seek(Duration.zero, index: index);
+    if (index != previous && player.currentIndex == previous) {
+      // Any change ends the wait, not only the target: a newer skip must not
+      // hold the queue lane. A quarter of the control timeout keeps the wait,
+      // and the seek before it, inside that timeout.
+      final changed = Completer<void>();
+      final subscription = player.currentIndexStream.listen((current) {
+        if (current != previous && !changed.isCompleted) changed.complete();
+      });
+      try {
+        // Subscribed first: the stream does not replay a missed event.
+        if (player.currentIndex == previous) {
+          await changed.future.timeout(
+            _playerControlTimeout ~/ 4,
+            onTimeout: () {},
+          );
+        }
+      } finally {
+        await subscription.cancel();
+      }
+    }
     if (_player.processingState != ProcessingState.completed) {
       _endedSeekEcho = null;
     }

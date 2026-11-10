@@ -346,8 +346,11 @@ def main():
                    'the failing stream request')
         settled = wait_until(lambda: (lambda s: s if not s.get('isLoading') else None)(
             api('/v1/playback/status')), 60, 'the failed load to settle')
-        # A hook subprocess runs inside the load, before mpv reports failure.
+        # A hook subprocess runs inside the load, before mpv reports failure,
+        # and a failure reported just after the load returned is recovered
+        # asynchronously: read the state again once both have had time.
         time.sleep(3)
+        settled = api('/v1/playback/status')
         app_log = log_path.read_text(errors='replace')
         details['failedStream'] = {
             'startResponse': started,

@@ -5227,7 +5227,18 @@ Desktop volume follows a parallel local-settings path:
      `_rebuildPlayerWithoutEqualizer`) nothing is stamped or pushed, boost is
      unsupported and the Dart cut applies through `setVolume` (late by the IPC
      time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`, mpv's is
-     cubic, `10^(dB/60)`). The older per-URI boost message
+     cubic, `10^(dB/60)`). During a queue replacement the cut is written as
+     soon as the selected source is in the player (`_loadingSourceInPlayer`, in
+     `_restoreActivePlayerVolume` and `_applyReplayGainVolume`), not at the
+     commit; before that the old song may still be audible and nothing
+     song-scoped is written. The source is in the player once the apply
+     returned (`_loadedSourceApplied`) or, for a manual skip that lands by
+     seeking and never applies, once the player's current entry holds the
+     loading song and is not the entry that played when the load began
+     (`_loadStartSource`: the same song id on the old entry, as in a
+     replacement starting on the playing song, does not count). Smart reads the incoming play order then
+     (`_loadingPlayOrder`), since `_queueItems` holds only the start song.
+     The older per-URI boost message
      (`AudioPlayer.setReplayGainBoost`, `byUri`) is kept for a backend that
      boosts per file but has no in-pipeline stage (dev's iOS tap).
 
@@ -6182,7 +6193,12 @@ During lazy queue fill, manual navigation prepares the requested logical entry
 first and then resumes filling the rest. Queue fill tracks the selected entry
 by occurrence, so repeated song IDs keep the intended queue position. When
 `just_audio` ignores an indexed seek during loading, the handler reloads the
-complete source list at the requested index. The snapshot exposes
+complete source list at the requested index. The desktop adapter's `seek`
+returns when mpv accepts the jump, but media_kit reports the new index from a
+later property event, so `_seekPlayerToIndex` waits for the first
+`currentIndexStream` change (a quarter of the control timeout at most) before
+the handler checks the index. Without that wait every desktop skip looked like
+an ignored seek and rebuilt the queue in a new player (#509). The snapshot exposes
 `pendingQueueIndex` until that transition is confirmed. Desktop sidecar cache
 attempts use separate HTTP clients and partial files; cancellation closes the
 old client before a new attempt can publish the same cache path.
@@ -6592,7 +6608,8 @@ song's transition is tried again the next time it plays. In-place refreshes of a
 (artwork, liked state, canonical id) do not count as queue changes
 (`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
 neither abort a release nor invalidate the deck. `GET /v1/playback/status`
-reports `queueSettled`, `playerMatchesQueue`, a `crossfade` block (active,
+reports `queueSettled`, `playerVolume` (the active player's volume, where the
+Dart ReplayGain cut shows), `playerMatchesQueue`, a `crossfade` block (active,
 inactive deck length and match, outcome counts by phase, `disabledReason`,
 `lastFailure`, and active `outgoing`/`incoming` deck maps with `playing`,
 `volume`, `positionMs`), `queueLane` (the
