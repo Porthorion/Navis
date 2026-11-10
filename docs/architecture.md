@@ -4662,8 +4662,8 @@ use the plugin's media session. After `super.onCreate()`, the subclass restores
 a missing static listener only if the plugin retains its handler interface.
 One guarded reflection method owns the two private listener accesses; a JVM
 contract test checks their names, static modifiers and listener types. The `setState`
-override releases the plugin's partial wakelock (one more guarded reflective
-read of its `wakeLock` field) whenever playback is not playing, because the
+override releases the plugin's partial wakelock (through the vendored plugin's
+package-private `releaseWakeLock()`) whenever playback is not playing, because the
 plugin releases it on pause only when `androidStopForegroundOnPause` is true;
 the lock is held only while playing. The
 recovery custom action forces the Dart projection to republish metadata, the windowed
