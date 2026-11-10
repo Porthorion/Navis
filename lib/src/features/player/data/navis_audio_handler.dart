@@ -810,7 +810,10 @@ class NavisAudioHandler extends BaseAudioHandler
   /// True on Linux and Windows mpv. On Android it follows the EQ processor,
   /// which both decks are built with (every player build sets
   /// [_equalizerPipelineEnabled]), so a rebuild without the processor drops it
-  /// for the new players. False on macOS and iOS until their backends ship.
+  /// for the new players. False on iOS, whose tap carries the boost only: the
+  /// cut rides the player volume (the per-song cut is tracked in #392). False
+  /// on macOS, where mpv is off the pipeline until `af-command` is wired
+  /// (#490).
   @override
   bool get replayGainInPipeline =>
       _replayGainInPipelineOverride ??
@@ -2806,6 +2809,7 @@ class NavisAudioHandler extends BaseAudioHandler
       // False while a replacement is still filling the player, by design;
       // otherwise the player and the Dart queue must agree.
       'queueSettled': !_isLoading && _pendingLogicalQueueSongIds == null,
+      'playerVolume': _player.volume,
       'playerMatchesQueue': _sequenceMatchesQueue(_player),
       'crossfade': <String, Object?>{
         'enabled': _crossfadeEnabled,

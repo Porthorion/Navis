@@ -662,12 +662,22 @@ extension _NavisMediaSession on NavisAudioHandler {
     bool forceDuringCrossfade = false,
     bool live = false,
   }) {
-    if (_isLoading ||
-        _pendingLogicalQueueSongIds != null ||
-        (_isCrossfading && !forceDuringCrossfade)) {
+    final loading = _isLoading || _pendingLogicalQueueSongIds != null;
+    if (loading || (_isCrossfading && !forceDuringCrossfade)) {
       // A settings change held back by a load or a fade still has to reach
       // the playing song, so the next write that goes through sends it live.
       _replayGainLivePending |= live;
+      // Once the selected source is in the player the new song is the
+      // audible one, so its cut must not wait for phase 2 (before that the
+      // old song may still play and keeps its own level). A fade owns the
+      // volume while it runs.
+      if (loading && _loadedSourceApplied && !_isCrossfading) {
+        unawaited(
+          _player.setVolume(
+            _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
+          ),
+        );
+      }
       return;
     }
     live |= _replayGainLivePending;
@@ -714,10 +724,26 @@ extension _NavisMediaSession on NavisAudioHandler {
     // The backend applies the gain on the song's own samples: the player
     // volume stays user volume x ducking (x any cross-fade ramp).
     if (replayGainInPipeline) return base;
-    final gainDb = _replayGainDecisionFor(item)?.cutDb;
+    final gainDb = _replayGainDecisionFor(
+      item,
+      playOrder: _loadingPlayOrder(item),
+    )?.cutDb;
     if (gainDb == null) return base;
     return (math.pow(10, gainDb / (_usesMpv ? 60 : 20)).toDouble() * base)
         .clamp(0.0, 1.0);
+  }
+
+  /// While a replacement loads, the incoming play order around its start
+  /// song: [_queueItems] holds only the start song (and on iOS its successor)
+  /// then, so Smart would read the wrong neighbours and step at the commit.
+  /// Null for any other song, or when only ids are known (the restore fill,
+  /// which is paused and so never audible before its commit).
+  ({List<String?> albumIds, int index})? _loadingPlayOrder(MediaItem? item) {
+    final songs = _pendingLogicalQueueSongs;
+    final index = _navigationIntent.desiredIndex;
+    if (songs == null || index == null || item == null) return null;
+    if (songs.elementAtOrNull(index)?.id != item.id) return null;
+    return (albumIds: [for (final song in songs) song.albumId], index: index);
   }
 
   /// The player volume without ReplayGain: the user volume, ducked or not.

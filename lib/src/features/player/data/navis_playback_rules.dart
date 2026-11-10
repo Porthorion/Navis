@@ -77,7 +77,10 @@ bool navisReplayGainBoostSupported({
 /// song's own samples (see the handler's `replayGainInPipeline`). True on mpv
 /// except macOS, and on Android while [androidProcessor] says the EQ processor
 /// pipeline is installed (without it the Dart cut through the player volume
-/// stays); false on iOS until its backend implements it.
+/// stays). False on iOS: its equalizer tap carries the boost only, the cut
+/// rides the player volume (the per-song cut in the tap is tracked in #392).
+/// False on macOS too: mpv is off the pipeline until `af-command` is wired
+/// (#490).
 // ponytail: macOS stays on the old path until `af-command` and lavfi `volume`
 // are verified on libmpv 0.36 (design D5: run
 // `af-command navis_rg volume -4dB volume` on a Mac build); then drop isMacOS

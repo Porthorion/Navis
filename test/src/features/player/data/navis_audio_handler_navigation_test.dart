@@ -4768,7 +4768,7 @@ void main() {
 
     for (final crossfade in [false, true]) {
       test(
-        'ReplayGain waits for the selected queue to commit, fade=$crossfade',
+        'ReplayGain applies once the selected source is loaded, fade=$crossfade',
         () async {
           final players = <_ControllableAudioPlayer>[];
           final (handler, player, _) = await fixture(
@@ -4807,9 +4807,12 @@ void main() {
           ], expandMatchFlows: false);
           await entered.future;
           expect(handler.snapshot.hasPendingLogicalQueue, isTrue);
-          // Source application restores user volume; song-scoped gain must
-          // wait until the replacement's logical queue has committed.
-          expect(player.appliedVolumes.last, 1);
+          // The selected source is in the player and audible, so its gain
+          // applies now instead of waiting for the logical queue to commit.
+          expect(
+            player.appliedVolumes.last,
+            closeTo(pow(10, -12 / 20), 0.00001),
+          );
           gate.complete();
           await replacement;
           await settleQueue(handler);
