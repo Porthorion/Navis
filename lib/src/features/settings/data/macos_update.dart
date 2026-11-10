@@ -53,7 +53,10 @@ class MacosUpdate {
       if (age < handshakeMaxAge) {
         if (file.readAsStringSync().trim() != 'started') return;
       } else {
-        file.deleteSync();
+        // A stale handshake that cannot be deleted must not block the backup.
+        try {
+          file.deleteSync();
+        } on FileSystemException catch (_) {}
       }
     }
     final backup = Directory('$bundlePath.backup');
