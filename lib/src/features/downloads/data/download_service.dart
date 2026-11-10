@@ -2338,17 +2338,21 @@ class DownloadService {
             '${message == null ? '' : ': ${_withoutPaths(message)}'}',
       _ => _withoutPaths('${error.runtimeType}: $error'),
     };
-    final redacted = redactCredentialQueryParameters(text);
+    final redacted = redactServerHost(redactCredentialQueryParameters(text));
     return redacted.length <= 200 ? redacted : redacted.substring(0, 200);
   }
 
   /// The transport error behind [error] (for example "Connection closed while
   /// receiving data"), for the failure detail. The message of an
-  /// `HttpException` quotes the request URL, so credentials are redacted.
+  /// `HttpException` quotes the request URL, so credentials and the server
+  /// host are redacted.
   static String? _underlyingErrorDetail(DioException error) {
     final text = error.error?.toString().trim();
     if (text == null || text.isEmpty) return null;
-    final redacted = redactCredentialQueryParameters(text);
+    final redacted = redactServerHost(
+      redactCredentialQueryParameters(text),
+      host: error.requestOptions.uri.host,
+    );
     return redacted.length <= 200 ? redacted : redacted.substring(0, 200);
   }
 

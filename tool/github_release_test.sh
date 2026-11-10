@@ -75,8 +75,10 @@ printf 'notes\n' > "${tmp}/notes.md"
 navis_github_publish v1.5.0 false "${tmp}/notes.md" "${tmp}/manifest.json" "${tmp}/navis-v1.5.0-windows.zip" "${tmp}/SHA256SUMS"
 cmp "${tmp}/manifest.json" "${TEST_GITHUB_ASSETS}/manifest.json"
 # The per-user installer rides along with its checksum, and the signed manifest is untouched.
-cmp "${SCRIPT_DIR}/../linux/install.sh" "${TEST_GITHUB_ASSETS}/install.sh" || fail 'installer was not attached'
-installer_sum="$(sha256sum "${SCRIPT_DIR}/../linux/install.sh" | cut -d' ' -f1)"
+# It is the repo script with only its minimum-version floor filled in with the released version.
+grep -qx "NAVIS_MIN_VERSION='1.5.0'" "${TEST_GITHUB_ASSETS}/install.sh" || fail 'installer floor was not set to the released version'
+diff <(sed "s/^NAVIS_MIN_VERSION=.*/NAVIS_MIN_VERSION='1.5.0'/" "${SCRIPT_DIR}/../linux/install.sh") "${TEST_GITHUB_ASSETS}/install.sh" >/dev/null || fail 'installer differs from the repo script by more than the floor'
+installer_sum="$(sha256sum "${TEST_GITHUB_ASSETS}/install.sh" | cut -d' ' -f1)"
 [[ "$(rg -c '  install.sh$' "${TEST_GITHUB_ASSETS}/SHA256SUMS")" == 1 ]] || fail 'SHA256SUMS lacks exactly one install.sh line'
 rg -q "^${installer_sum}  install.sh$" "${TEST_GITHUB_ASSETS}/SHA256SUMS" || fail 'install.sh checksum is wrong'
 rg -q installer "${TEST_GITHUB_ASSETS}/manifest.json" && fail 'installer leaked into the signed manifest'
