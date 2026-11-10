@@ -15,7 +15,13 @@ if [[ ! -x "${navis_javac}" || ! -x "${navis_java}" ]]; then
   exit 1
 fi
 navis_classes="$(mktemp -d)"
-trap 'rm -rf "${navis_classes}"' EXIT
+# One EXIT trap removes every temp dir this script creates; navis_c_out is
+# cleaned when the Darwin C fixtures are present.
+cleanup() {
+  rm -rf "${navis_classes}"
+  if [[ -n "${navis_c_out:-}" ]]; then rm -rf "${navis_c_out}"; fi
+}
+trap cleanup EXIT
 navis_source="${navis_root}/third_party/just_audio/android/src"
 "${navis_javac}" -d "${navis_classes}" \
   "${navis_source}/main/java/com/ryanheise/just_audio/EqualizerDsp.java" \
