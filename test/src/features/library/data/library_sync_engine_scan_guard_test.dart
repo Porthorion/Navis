@@ -5,11 +5,13 @@ import 'dart:convert';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
@@ -448,5 +450,616 @@ void main() {
       expect(recovered.candidateStatus, isNull);
       expect(recovered.currentGeneration, 1);
     }, skip: !sqliteAvailable);
+
+    // ---- #470: the guard must not fail open (scanning, unreadable, cancel) --
+
+    ScanStatus idle(int hour) => ScanStatus(
+      scanning: false,
+      count: 10,
+      lastScan: DateTime.utc(2026, 9, 1, hour),
+    );
+    const busy = ScanStatus(scanning: true, count: 10);
+
+    /// Scripted `getScanStatus` reads, one per call (an [Exception] entry is
+    /// thrown, null is "endpoint missing"); the last entry repeats.
+    void scanScript(List<Object?> reads) {
+      var index = 0;
+      api.onGetScanStatus = () async {
+        final read = reads[index < reads.length ? index++ : reads.length - 1];
+        if (read is Exception) throw read;
+        return read as ScanStatus?;
+      };
+    }
+
+    void listAlbums(int count) {
+      api.artists
+        ..clear()
+        ..add(const Artist(id: 'artist-1', name: 'Artist 1'));
+      api.fastPathPages[0] = <Album>[
+        for (var i = 1; i <= count; i++)
+          Album(
+            id: 'album-$i',
+            name: 'Album $i',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+      ];
+      for (var i = 1; i <= 10; i++) {
+        api.albumDetails['album-$i'] = Album(
+          id: 'album-$i',
+          name: 'Album $i',
+          songs: <Song>[
+            Song(id: 'song-$i', title: 'Song $i', albumId: 'album-$i'),
+          ],
+        );
+      }
+    }
+
+    int pageRequests() =>
+        api.calls.where((c) => c.startsWith('getAlbumListPage')).length;
+
+    Future<LibrarySyncState> runPlan([SyncExecutionPlan? plan]) =>
+        engine.executeSyncPlan(
+          plan ?? syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+
+    /// Committed run 1: ten albums, idle token. Returns the server id.
+    Future<int> commitRunOne({List<Object?>? reads}) async {
+      scanScript(reads ?? <Object?>[idle(8)]);
+      listAlbums(10);
+      final serverId = await saveSession();
+      final state = await runPlan();
+      expect(state.status, LibrarySyncStatus.succeeded);
+      expect(await database.select(database.albumsTable).get(), hasLength(10));
+      return serverId;
+    }
+
+    Future<void> seedNavis(String key, String value) async {
+      final config = (await serverConfigRepository.getActiveServer())!;
+      final capabilities =
+          jsonDecode(config.capabilitiesJson ?? '{}') as Map<String, Object?>;
+      final navis = <String, Object?>{
+        ...((capabilities['navis'] as Map?)?.cast<String, Object?>() ??
+            const <String, Object?>{}),
+        key: value,
+      };
+      await serverConfigRepository.updateCapabilitiesJson(
+        jsonEncode(<String, Object?>{...capabilities, 'navis': navis}),
+      );
+    }
+
+    Future<Map<String, Object?>> navisCaps() async =>
+        (jsonDecode(
+                  (await serverConfigRepository.getActiveServer())!
+                      .capabilitiesJson!,
+                )['navis']
+                as Map)
+            .cast<String, Object?>();
+
+    Future<List<String>> ledgerReasons(int serverId) async =>
+        (await database.librarySyncDao.getRecentOperationLedgerEntries(
+          serverId,
+        )).map((e) => e.reason).toList();
+
+    Future<void> expectCommittedCatalogKept(
+      int serverId, {
+      String status = 'collecting',
+    }) async {
+      expect(await database.select(database.albumsTable).get(), hasLength(10));
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .candidateStatus,
+        status,
+      );
+    }
+
+    test(
+      'D1: a scan running at both observations withholds promotion',
+      () async {
+        final serverId = await commitRunOne();
+        final freshPages = pageRequests();
+        listAlbums(9);
+        scanScript(<Object?>[busy]);
+
+        final state = await runPlan();
+
+        expect(state.freshness, LibrarySyncFreshness.repairRecommended);
+        await expectCommittedCatalogKept(serverId);
+        expect(
+          (await ledgerReasons(serverId))
+              .where((r) => r == 'scanChangedDuringCollection'),
+          hasLength(1),
+        );
+        expect((await navisCaps())['libraryScanDeferralStreak'], '1');
+
+        // Run 3 (idle) recollects every page; nothing from the mid-scan run is
+        // reused.
+        api.calls.clear();
+        scanScript(<Object?>[idle(9)]);
+        final third = await runPlan();
+        expect(third.status, LibrarySyncStatus.succeeded);
+        expect(pageRequests(), freshPages);
+        expect(await database.select(database.albumsTable).get(), hasLength(9));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'D1b: pages collected mid-scan are not resumed by a scanning run',
+      () async {
+        final serverId = await commitRunOne();
+        final freshPages = pageRequests();
+        listAlbums(9);
+        scanScript(<Object?>[busy]);
+        await runPlan();
+
+        api.calls.clear();
+        await runPlan();
+
+        expect(pageRequests(), freshPages);
+        await expectCommittedCatalogKept(serverId);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('D1b tokenless: a scan reading must not let a later idle run resume mid-scan pages', () async {
+      const tokenless = ScanStatus(scanning: false, count: 10);
+      scanScript(<Object?>[tokenless]);
+      listAlbums(10);
+      api.albumDetails['album-5'] = const Album(
+        id: 'album-5',
+        name: 'Album 5',
+        songs: <Song>[
+          Song(id: 'song-5', title: 'Song 5', albumId: 'album-5'),
+          Song(id: 'song-5b', title: 'Song 5b', albumId: 'album-5'),
+        ],
+      );
+      final fullAlbum5 = api.albumDetails['album-5']!;
+      final serverId = await saveSession();
+      await runPlan();
+      expect(await database.select(database.songsTable).get(), hasLength(11));
+
+      // Run 2 collects album-5 mid-scan, without song-5b.
+      api.albumDetails['album-5'] = const Album(
+        id: 'album-5',
+        name: 'Album 5',
+        songs: <Song>[Song(id: 'song-5', title: 'Song 5', albumId: 'album-5')],
+      );
+      scanScript(<Object?>[busy]);
+      await runPlan();
+      await expectCommittedCatalogKept(serverId);
+
+      // Run 3 reads tokenless idle; the server really still has song-5b.
+      api.albumDetails['album-5'] = fullAlbum5;
+      api.calls.clear();
+      scanScript(<Object?>[tokenless]);
+      await runPlan();
+
+      expect(api.calls, contains('getAlbum:album-5'));
+      final songIds = (await database.select(database.songsTable).get())
+          .map((song) => song.id)
+          .toSet();
+      expect(songIds, contains('song-5b'));
+    }, skip: !sqliteAvailable);
+
+    test('D1 held: a confirming run that defers keeps the hold', () async {
+      final serverId = await commitRunOne();
+      listAlbums(8);
+      scanScript(<Object?>[idle(8)]);
+      await runPlan();
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .candidateStatus,
+        'awaitingDeletionConfirmation',
+      );
+
+      scanScript(<Object?>[busy]);
+      await runPlan(await repairPlanAfterDialog(database));
+
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .candidateStatus,
+        'awaitingDeletionConfirmation',
+      );
+      expect(await database.select(database.albumsTable).get(), hasLength(10));
+    }, skip: !sqliteAvailable);
+
+    final unreadableErrors = <String, Exception>{
+      'connection': const SubsonicConnectionException('timeout'),
+      'http 503': const SubsonicGenericException(message: 'down', code: 503),
+      'auth': const SubsonicAuthException(message: 'auth'),
+      'dio cancel without cancelSync': const SubsonicConnectionException(
+        'The request was cancelled.',
+      ),
+    };
+    for (final entry in unreadableErrors.entries) {
+      test(
+        'D2: unreadable status at promotion defers (${entry.key})',
+        () async {
+          final serverId = await commitRunOne();
+          listAlbums(9);
+          scanScript(<Object?>[idle(8), entry.value]);
+
+          final state = await runPlan();
+
+          expect(state.freshness, LibrarySyncFreshness.repairRecommended);
+          await expectCommittedCatalogKept(serverId);
+          expect(
+            await ledgerReasons(serverId),
+            contains('scanStatusUnreadable'),
+          );
+          final caps = await navisCaps();
+          expect(caps['libraryScanDeferralStreak'], isNull);
+          expect(caps['libraryScanUnreadableStreak'], '1');
+          expect(
+            (await database.librarySyncDao.getScanObservation(serverId))!
+                .scanSupported,
+            isTrue,
+          );
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test('D3: scanning at collection, unreadable at promotion defers as scan and never releases', () async {
+      final serverId = await commitRunOne();
+      await seedNavis('libraryScanDeferralStreak', '2');
+      listAlbums(9);
+      scanScript(<Object?>[
+        busy,
+        const SubsonicConnectionException('x'),
+        idle(8),
+      ]);
+
+      await runPlan();
+
+      await expectCommittedCatalogKept(serverId);
+      final reasons = await ledgerReasons(serverId);
+      expect(reasons, contains('scanChangedDuringCollection'));
+      expect(reasons, isNot(contains('scanChurnCapRelease')));
+      expect((await navisCaps())['libraryScanDeferralStreak'], '3');
+    }, skip: !sqliteAvailable);
+
+    for (final atCollection in <String>['idle', 'scanning']) {
+      test(
+        'D4: a missing endpoint at promotion with a stored token defers ($atCollection at collection)',
+        () async {
+          final serverId = await commitRunOne();
+          listAlbums(9);
+          scanScript(<Object?>[
+            if (atCollection == 'idle') idle(8) else busy,
+            null,
+          ]);
+
+          await runPlan();
+
+          await expectCommittedCatalogKept(serverId);
+          expect(
+            (await database.librarySyncDao.getScanObservation(serverId))!
+                .scanSupported,
+            isTrue,
+          );
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test('D6: a permanent API error with no stored token reads unsupported and promotes every run', () async {
+      const forbidden = SubsonicForbiddenException(message: 'forbidden');
+      final serverId = await commitRunOne(reads: <Object?>[forbidden]);
+      for (final count in <int>[9, 9, 9]) {
+        listAlbums(count);
+        final state = await runPlan();
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.freshness, isNot(LibrarySyncFreshness.repairRecommended));
+        expect(
+          await database.select(database.albumsTable).get(),
+          hasLength(count),
+        );
+      }
+      expect(
+        (await database.librarySyncDao.getScanObservation(serverId))!
+            .scanSupported,
+        isFalse,
+      );
+      expect(
+        await ledgerReasons(serverId),
+        isNot(contains('scanStatusUnreadable')),
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'D6: the same API error with a stored token still defers as unreadable',
+      () async {
+        final serverId = await commitRunOne();
+        listAlbums(9);
+        scanScript(<Object?>[
+          const SubsonicForbiddenException(message: 'forbidden'),
+        ]);
+
+        await runPlan();
+
+        await expectCommittedCatalogKept(serverId);
+        expect(await ledgerReasons(serverId), contains('scanStatusUnreadable'));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'D6: a transport error with no stored token stays unreadable',
+      () async {
+        final serverId = await commitRunOne(reads: <Object?>[null]);
+        listAlbums(9);
+        scanScript(<Object?>[const SubsonicConnectionException('timeout')]);
+
+        await runPlan();
+
+        await expectCommittedCatalogKept(serverId);
+        expect(await ledgerReasons(serverId), contains('scanStatusUnreadable'));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final code in <int>[503, 429]) {
+      test(
+        'D6: HTTP $code on the status read with no stored token stays unreadable',
+        () async {
+          final serverId = await commitRunOne(reads: <Object?>[null]);
+          listAlbums(9);
+          scanScript(<Object?>[
+            SubsonicGenericException(message: 'busy', code: code),
+          ]);
+
+          await runPlan();
+
+          await expectCommittedCatalogKept(serverId);
+          expect(
+            await ledgerReasons(serverId),
+            contains('scanStatusUnreadable'),
+          );
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test('D5: unreadable at collection, idle at promotion defers', () async {
+      final serverId = await commitRunOne();
+      listAlbums(9);
+      scanScript(<Object?>[const SubsonicConnectionException('x'), idle(8)]);
+
+      await runPlan();
+
+      await expectCommittedCatalogKept(serverId);
+      expect(await ledgerReasons(serverId), contains('scanStatusUnreadable'));
+    }, skip: !sqliteAvailable);
+
+    test(
+      'C1: cancel inside the promotion status read ends cancelled',
+      () async {
+        final serverId = await commitRunOne();
+        final ledgerBefore = (await ledgerReasons(serverId)).length;
+        listAlbums(9);
+        var calls = 0;
+        api.onGetScanStatus = () async {
+          if (++calls == 2) engine.cancelSync();
+          return idle(8);
+        };
+
+        final state = await runPlan();
+
+        expect(state.status, LibrarySyncStatus.cancelled);
+        // The collected candidate stays `ready` for a resume; nothing applied.
+        await expectCommittedCatalogKept(serverId, status: 'ready');
+        expect((await ledgerReasons(serverId)).length, ledgerBefore);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('C2: cancel inside the analyzer stops before applying', () async {
+      late DriftLibrarySyncEngine cancelling;
+      cancelling = serialDriftEngine(
+        api: api,
+        database: database,
+        repository: serverConfigRepository,
+        scanSettlePollInterval: const Duration(milliseconds: 1),
+        scanSettleMaxPolls: 2,
+        readProtectedSongIds: () {
+          cancelling.cancelSync();
+          return const <String>{};
+        },
+      );
+      final serverId = await commitRunOne();
+      listAlbums(9);
+      scanScript(<Object?>[idle(8)]);
+
+      final state = await cancelling.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      expect(state.status, LibrarySyncStatus.cancelled);
+      expect(await database.select(database.albumsTable).get(), hasLength(10));
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .candidateStatus,
+        'ready',
+      );
+    }, skip: !sqliteAvailable);
+
+    test('C3: cancel during the settle wait ends cancelled', () async {
+      final serverId = await commitRunOne();
+      await seedNavis('libraryScanDeferralStreak', '2');
+      listAlbums(9);
+      var calls = 0;
+      api.onGetScanStatus = () async {
+        if (++calls == 3) engine.cancelSync();
+        return calls == 2 ? busy : idle(8);
+      };
+
+      final state = await runPlan();
+
+      expect(state.status, LibrarySyncStatus.cancelled);
+      expect(
+        await ledgerReasons(serverId),
+        isNot(contains('scanChurnCapRelease')),
+      );
+      expect(await database.select(database.albumsTable).get(), hasLength(10));
+    }, skip: !sqliteAvailable);
+
+    test(
+      'R1: the unreadable cap releases when the final read still fails',
+      () async {
+        final serverId = await commitRunOne();
+        await seedNavis('libraryScanUnreadableStreak', '2');
+        await seedNavis('libraryScanDeferralStreak', '1');
+        listAlbums(9);
+        scanScript(<Object?>[idle(8), const SubsonicConnectionException('x')]);
+
+        final state = await runPlan();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(await database.select(database.albumsTable).get(), hasLength(9));
+        expect(
+          await ledgerReasons(serverId),
+          contains('scanStatusUnreadableCapRelease'),
+        );
+        final caps = await navisCaps();
+        expect(caps.containsKey('libraryScanUnreadableStreak'), isFalse);
+        expect(caps.containsKey('libraryScanDeferralStreak'), isFalse);
+        expect(
+          (await database.librarySyncDao.getScanObservation(serverId))!
+              .scanSupported,
+          isTrue,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('R1b: at the unreadable cap a final idle read with the collection token promotes', () async {
+      final serverId = await commitRunOne();
+      await seedNavis('libraryScanUnreadableStreak', '2');
+      listAlbums(9);
+      scanScript(<Object?>[
+        idle(8),
+        const SubsonicConnectionException('x'),
+        idle(8),
+      ]);
+
+      final state = await runPlan();
+
+      expect(state.status, LibrarySyncStatus.succeeded);
+      expect(await database.select(database.albumsTable).get(), hasLength(9));
+      expect(
+        await ledgerReasons(serverId),
+        isNot(contains('scanStatusUnreadableCapRelease')),
+      );
+      expect(
+        (await navisCaps()).containsKey('libraryScanUnreadableStreak'),
+        isFalse,
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'R1c: at the unreadable cap a final scanning read defers as scan',
+      () async {
+        final serverId = await commitRunOne();
+        await seedNavis('libraryScanUnreadableStreak', '2');
+        listAlbums(9);
+        scanScript(<Object?>[
+          idle(8),
+          const SubsonicConnectionException('x'),
+          busy,
+        ]);
+
+        await runPlan();
+
+        await expectCommittedCatalogKept(serverId);
+        expect(
+          await ledgerReasons(serverId),
+          contains('scanChangedDuringCollection'),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('R2: scan deferrals do not release an unreadable status', () async {
+      final serverId = await commitRunOne();
+      await seedNavis('libraryScanDeferralStreak', '2');
+      listAlbums(9);
+      scanScript(<Object?>[idle(8), const SubsonicConnectionException('x')]);
+
+      await runPlan();
+
+      await expectCommittedCatalogKept(serverId);
+      expect(await ledgerReasons(serverId), contains('scanStatusUnreadable'));
+      expect((await navisCaps())['libraryScanDeferralStreak'], '2');
+    }, skip: !sqliteAvailable);
+
+    test(
+      'R3: a settled server does not release a promotion collected mid-scan',
+      () async {
+        final serverId = await commitRunOne();
+        await seedNavis('libraryScanDeferralStreak', '2');
+        listAlbums(9);
+        scanScript(<Object?>[busy, busy, idle(8)]);
+
+        await runPlan();
+
+        await expectCommittedCatalogKept(serverId);
+        final reasons = await ledgerReasons(serverId);
+        expect(reasons, contains('scanChangedDuringCollection'));
+        expect(reasons, isNot(contains('scanChurnCapRelease')));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('G1: a tokenless idle server still promotes', () async {
+      const tokenless = ScanStatus(scanning: false, count: 10);
+      await commitRunOne(reads: <Object?>[tokenless]);
+      listAlbums(9);
+      scanScript(<Object?>[tokenless]);
+
+      final state = await runPlan();
+
+      expect(state.status, LibrarySyncStatus.succeeded);
+      expect(await database.select(database.albumsTable).get(), hasLength(9));
+    }, skip: !sqliteAvailable);
+
+    test(
+      'G2: with no committed rows a scan at both observations still promotes',
+      () async {
+        scanScript(<Object?>[busy]);
+        listAlbums(10);
+        await saveSession();
+
+        final state = await runPlan();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          await database.select(database.albumsTable).get(),
+          hasLength(10),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'G3: a never-supported endpoint promotes and records unsupported',
+      () async {
+        final serverId = await commitRunOne(reads: <Object?>[null]);
+        listAlbums(9);
+        scanScript(<Object?>[null]);
+
+        final state = await runPlan();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(await database.select(database.albumsTable).get(), hasLength(9));
+        expect(
+          (await database.librarySyncDao.getScanObservation(serverId))!
+              .scanSupported,
+          isFalse,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }
