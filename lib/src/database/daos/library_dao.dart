@@ -3704,40 +3704,106 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   // ── Local (offline) search ──────────────────────────────────────────────
 
-  /// Search artists by name using case-insensitive LIKE matching.
+  /// Search artists by name: accent- and case-insensitive literal substring
+  /// match (`navis_fold`, see [registerSearchFoldFunction]), ranked exact >
+  /// prefix > substring, then by name, before the [limit] cut. Match, rank and
+  /// limit all run in SQL, so the scan stays on the database isolate.
   Future<List<ArtistsTableData>> searchArtistsLocal(
     String query, {
     int limit = 20,
-  }) {
-    final pattern = '%${query.toLowerCase()}%';
-    return (select(artistsTable)
-          ..where(
-            (t) => t.name.lower().like(pattern) & t.isProvisional.equals(false),
-          )
-          ..orderBy([(t) => OrderingTerm.asc(t.name)])
-          ..limit(limit))
-        .get();
+  }) async {
+    final folded = foldSearchLetters(query.trim().toLowerCase());
+    if (folded.isEmpty || limit < 1) return const <ArtistsTableData>[];
+    final ids = await _localSearchIds(
+      '''
+      SELECT id FROM artists
+      WHERE is_provisional = 0 AND navis_fold(name) LIKE ?3 ESCAPE '\\'
+      ORDER BY ${_localSearchTierSql('name', 0)}, name ASC
+      LIMIT ?4
+      ''',
+      folded,
+      limit,
+      artistsTable,
+    );
+    if (ids.isEmpty) return const <ArtistsTableData>[];
+    final rows = {
+      for (final row in await (select(
+        artistsTable,
+      )..where((t) => t.id.isIn(ids))).get())
+        row.id: row,
+    };
+    return [for (final id in ids) rows[id]!];
   }
 
-  /// Search albums by name or artist name.
+  /// Search albums by name or artist name; same matching as
+  /// [searchArtistsLocal]. Decision: every album-name match (exact, prefix,
+  /// substring) ranks ahead of every artist-name-only match; ties keep year
+  /// descending, then name.
   Future<List<AlbumsTableData>> searchAlbumsLocal(
     String query, {
     int limit = 20,
-  }) {
-    final pattern = '%${query.toLowerCase()}%';
-    return (select(albumsTable)
-          ..where(
-            (t) =>
-                (t.name.lower().like(pattern) |
-                    t.artistName.lower().like(pattern)) &
-                t.isProvisional.equals(false),
-          )
-          ..orderBy([
-            (t) => OrderingTerm.desc(t.year),
-            (t) => OrderingTerm.asc(t.name),
-          ])
-          ..limit(limit))
-        .get();
+  }) async {
+    final folded = foldSearchLetters(query.trim().toLowerCase());
+    if (folded.isEmpty || limit < 1) return const <AlbumsTableData>[];
+    final ids = await _localSearchIds(
+      '''
+      SELECT id FROM albums
+      WHERE is_provisional = 0
+        AND (navis_fold(name) LIKE ?3 ESCAPE '\\'
+          OR navis_fold(artist_name) LIKE ?3 ESCAPE '\\')
+      ORDER BY
+        CASE WHEN navis_fold(name) LIKE ?3 ESCAPE '\\'
+          THEN ${_localSearchTierSql('name', 0)}
+          ELSE ${_localSearchTierSql('artist_name', 3)} END,
+        year DESC, name ASC
+      LIMIT ?4
+      ''',
+      folded,
+      limit,
+      albumsTable,
+    );
+    if (ids.isEmpty) return const <AlbumsTableData>[];
+    final rows = {
+      for (final row in await (select(
+        albumsTable,
+      )..where((t) => t.id.isIn(ids))).get())
+        row.id: row,
+    };
+    return [for (final id in ids) rows[id]!];
+  }
+
+  /// SQL CASE for [column]'s relevance: exact, prefix, substring (offset by
+  /// [base]), the same tiers as `searchRelevanceTier`. Uses `?1` (folded
+  /// query), `?2` (prefix pattern); a non-match is the substring tier.
+  static String _localSearchTierSql(String column, int base) =>
+      '''
+CASE WHEN navis_fold($column) = ?1 THEN $base
+  WHEN navis_fold($column) LIKE ?2 ESCAPE '\\' THEN ${base + 1}
+  ELSE ${base + 2} END''';
+
+  /// Runs [sql] with `?1` the folded query, `?2` its LIKE prefix pattern,
+  /// `?3` the contains pattern and `?4` the limit.
+  Future<List<String>> _localSearchIds(
+    String sql,
+    String folded,
+    int limit,
+    TableInfo<Table, dynamic> table,
+  ) async {
+    final escaped = folded.replaceAllMapped(
+      RegExp(r'[\\%_]'),
+      (match) => '\\${match[0]}',
+    );
+    final rows = await customSelect(
+      sql,
+      variables: [
+        Variable<String>(folded),
+        Variable<String>('$escaped%'),
+        Variable<String>('%$escaped%'),
+        Variable<int>(limit),
+      ],
+      readsFrom: {table},
+    ).get();
+    return [for (final row in rows) row.read<String>('id')];
   }
 
   /// Search songs by title, artist name, or album name using cached metadata.

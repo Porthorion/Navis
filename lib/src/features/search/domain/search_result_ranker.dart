@@ -1,11 +1,12 @@
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/search_text.dart';
 
 enum SearchRelevanceTier { exact, prefix, substring, tokens, other }
 
 SearchRelevanceTier searchRelevanceTier(String field, String query) {
-  final normalizedField = field.toLowerCase();
-  final normalizedQuery = query.trim().toLowerCase();
+  final normalizedField = foldSearchLetters(field.toLowerCase());
+  final normalizedQuery = foldSearchLetters(query.trim().toLowerCase());
   if (normalizedQuery.isEmpty) return SearchRelevanceTier.other;
   if (normalizedField == normalizedQuery) return SearchRelevanceTier.exact;
   if (normalizedField.startsWith(normalizedQuery)) {
