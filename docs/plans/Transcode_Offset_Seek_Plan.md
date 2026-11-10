@@ -141,7 +141,7 @@ Then `_seekViaTranscodeOffset(target)`:
   expose `positionOffsetMs` in the existing diagnostics snapshot so
   `tool/live_seek_stress.py` can assert it.
 
-### 6. Edge cases (each one is a handler test in `navis_audio_handler_navigation_test.dart`, using `_ControllableAudioPlayer` / `playerFactory`)
+### 6. Edge cases (each one is a handler test in `navis_audio_handler_navigation_seek_test.dart`, using `ControllableAudioPlayer` / `playerFactory`)
 1. A seek during an in-flight offset reload: the latest seek wins (seek-lane
    semantics). One reload, at the newest T.
 2. Natural end of an offset stream advances to the next song. **No replay of
