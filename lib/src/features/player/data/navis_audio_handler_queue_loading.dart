@@ -2057,8 +2057,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         // The count may have grown since the start was resolved.
         final capped = _autoFailovers >= _maxAutoFailovers;
         final nextIndex = capped ? null : nextRecoveryIndex;
-        if (_player.audioSources.isEmpty &&
-            (nextIndex != null || (!_isDesktopRuntime && !capped))) {
+        if (_player.audioSources.isEmpty && nextIndex != null) {
           _queueItems.clear();
           _clearQueueReplacementMetadataAnchor();
           _setCurrentMediaItem(null);
@@ -2081,6 +2080,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
             ),
           );
           _loadedSourceFailed = true;
+          // The failed load never reached the success publish, so the
+          // lock screen and Now Playing still hold the previous queue.
+          queue.add(List<MediaItem>.unmodifiable(_queueItems));
         }
         if (nextIndex != null) {
           // Admission of the recovery owns the next loading target; do not
