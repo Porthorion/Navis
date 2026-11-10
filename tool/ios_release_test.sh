@@ -14,7 +14,7 @@ repo="${tmp}/repo with space"
 home="${tmp}/home"
 mkdir -p "${repo}/tool/lib" "${repo}/ios" "${tmp}/bin" "${home}"
 cp "${SCRIPT_DIR}/release.sh" "${SCRIPT_DIR}/release_tag_guard.sh" "${SCRIPT_DIR}/dev_build_number.py" "${repo}/tool/"
-cp "${SCRIPT_DIR}/lib/"{release_dist,lastfm_key_defines,r2_tags,github_release,scan_artifact_secret}.sh "${repo}/tool/lib/"
+cp "${SCRIPT_DIR}/lib/"{release_dist,release_notes,lastfm_key_defines,r2_tags,github_release,scan_artifact_secret}.sh "${repo}/tool/lib/"
 cp "${SCRIPT_DIR}/../ios/ExportOptions.plist" "${repo}/ios/"
 printf 'version: 1.5.0+10500\n' > "${repo}/pubspec.yaml"
 printf 'build/\ndist/\ntool/release.env\n*.zip\n*.ipa\n' > "${repo}/.gitignore"
@@ -34,7 +34,7 @@ stub() { printf '#!/bin/bash\nset -euo pipefail\n%s\n' "$2" > "${tmp}/bin/$1"; c
 stub uname 'echo Darwin'
 stub xcodebuild 'exit 0'
 stub sha256sum 'exit 0'
-stub dart 'exit 0'
+stub dart 'echo "## Navis fixture notes"'
 # Two builds, told apart by the subcommand. Stale outputs of either must be
 # gone before flutter runs, and only the sideload build may carry the define.
 cat > "${tmp}/bin/flutter" <<'STUB'
