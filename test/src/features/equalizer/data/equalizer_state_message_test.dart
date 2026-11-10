@@ -53,6 +53,26 @@ void main() {
     expect(state.pitchReason, 'Pitch cannot be applied to this audio format.');
   });
 
+  test('fromMap reads the rate plan, and ignores a wrong type', () {
+    final state = EqualizerStateMessage.fromMap({
+      'enabled': true,
+      'timePitchAlgorithm': 'varispeed',
+      'frequencyScale': 1,
+    });
+    expect(state.timePitchAlgorithm, 'varispeed');
+    expect(state.frequencyScale, 1.0);
+    final wrong = EqualizerStateMessage.fromMap({
+      'enabled': true,
+      'timePitchAlgorithm': 3,
+      'frequencyScale': 'x',
+    });
+    expect(wrong.timePitchAlgorithm, isNull);
+    expect(wrong.frequencyScale, isNull);
+    final absent = EqualizerStateMessage.fromMap({'enabled': true});
+    expect(absent.timePitchAlgorithm, isNull);
+    expect(absent.frequencyScale, isNull);
+  });
+
   test('fromMap reads the Darwin per-format streams and the dry counters', () {
     final state = EqualizerStateMessage.fromMap({
       'enabled': true,

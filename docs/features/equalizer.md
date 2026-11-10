@@ -137,9 +137,11 @@ items keep the time-domain stretch and an unlocked pitch stays the tap's
 independent pitch. `setSpeed` and `setPitch` both queue one plan run, so the pair
 that Dart sends back to back is planned once. The rate is immediate, but the EQ retune
 and any tap cents land about 0.4 s late (the tap renders ahead). The algorithm is
-also set on every queued, not-yet-inserted and loop item. State adds `frequencyScale`
-(the EQ scale in effect) and, from `getEqualizerState`, `timePitchAlgorithm`
-(`varispeed` or `timeDomain`).
+also set on every queued, not-yet-inserted and loop item, and the rate is set again
+right after a switch (AVPlayer may read the algorithm only on a rate set; device check
+owed). State adds `frequencyScale` (the EQ scale in effect) and, from
+`getEqualizerState`, `timePitchAlgorithm` (`varispeed` or `timeDomain`); both reach
+the diagnostics `application` object (null when the backend sends none).
 The ReplayGain boost (I24) is the last step of each format slot, after pitch and EQ
 (`NavisBoost.c`): a gain with a 20 ms linear ramp, independent of `enabled`, so quiet
 songs are turned up with the EQ off or on. The cut (I26) is each item's own audio-mix

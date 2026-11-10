@@ -299,6 +299,8 @@ static const int kBoostTickMs = 250;
         source.playerItem.audioTimePitchAlgorithm = algorithm;
         source.playerItem2.audioTimePitchAlgorithm = algorithm;
     }
+    // AVPlayer may pick up an item's algorithm only on the next rate set (device check owed).
+    if (_playing && _player) _player.rate = _speed;
 }
 #endif
 

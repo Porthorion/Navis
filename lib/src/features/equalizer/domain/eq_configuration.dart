@@ -389,6 +389,8 @@ class EqApplicationState {
     this.flushCount,
     this.transitionGapsMs,
     this.pitchCents,
+    this.timePitchAlgorithm,
+    this.frequencyScale,
     this.pitchActive,
     this.pitchLatencyFrames,
     this.pitchResetCount,
@@ -457,6 +459,12 @@ class EqApplicationState {
   /// and the zero-crossing frequency of its input and output over the last
   /// second.
   final int? pitchCents;
+
+  /// The rate plan in force (iOS only), for diagnostics: the player's
+  /// time-pitch algorithm (`varispeed` or `timeDomain`) and the EQ frequency
+  /// scale.
+  final String? timePitchAlgorithm;
+  final double? frequencyScale;
   final bool? pitchActive;
   final int? pitchLatencyFrames;
   final int? pitchResetCount;
@@ -507,6 +515,8 @@ class EqApplicationState {
     'flushCount': flushCount,
     'transitionGapsMs': transitionGapsMs,
     'pitchCents': pitchCents,
+    'timePitchAlgorithm': timePitchAlgorithm,
+    'frequencyScale': frequencyScale,
     'pitchActive': pitchActive,
     'pitchLatencyFrames': pitchLatencyFrames,
     'pitchResetCount': pitchResetCount,
