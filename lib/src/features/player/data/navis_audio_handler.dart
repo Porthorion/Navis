@@ -408,12 +408,14 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, ({String? prev, String? next})> _smartNeighbours =
       <String, ({String? prev, String? next})>{};
 
-  /// The pair behind the level last sent to native for each song (with its
-  /// source, or in an update push), by song id. A song's start freezes this
-  /// pair instead of re-reading the queue, so an edit that lands between the
-  /// push and the start cannot make the display disagree with what plays.
-  final Map<String, ({String? prev, String? next})> _pushedSmartNeighbours =
-      <String, ({String? prev, String? next})>{};
+  /// The pair behind the level last sent to native for each queue entry (its
+  /// source object, so a song queued twice has two records): with the source,
+  /// or in an update push. A song's start freezes the heard entry's pair
+  /// instead of re-reading the queue, so an edit that lands between the push
+  /// and the start cannot make the display disagree with what plays. Dropped
+  /// with the source.
+  final Expando<({String? prev, String? next})> _pushedSmartNeighbours =
+      Expando<({String? prev, String? next})>('pushedSmartNeighbours');
 
   /// A live ReplayGain settings change that a load or a cross-fade held back;
   /// the next volume write that goes through sends it.
