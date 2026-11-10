@@ -1,7 +1,7 @@
 // ReplayGain boost for the iOS tap (I24): the pure timing decision and the
 // click-free gain ramp. AVPlayer.volume stops at 1.0, so a boost has to be a
-// gain stage in the tap, after the EQ and pitch. The cut stays on the volume,
-// and a song never gets both. Pure C11, no platform dependencies, so the same
+// gain stage in the tap, after the EQ and pitch. The cut is the volume of the
+// item's own audio mix (I26), and a song never gets both. Pure C11, no platform dependencies, so the same
 // file is unit-tested on any host (see darwin/test/navis_boost_test.c).
 #ifndef NAVIS_BOOST_H
 #define NAVIS_BOOST_H
@@ -50,6 +50,12 @@ void navis_boost_decide(const NavisBoostInput *in, int windowMs, NavisBoostOutpu
 
 /// The gain a boost of `db` is: never a cut, never beyond 12 dB, NaN is none. Not realtime (pow).
 float navis_boost_linear(double db);
+
+/// The volume of a ReplayGain cut of `db` as the per-item audio mix applies it (I26): `10^(db/20)`,
+/// never above 1 and never below -60 dB (0.001). NaN (an unstamped item, radio), infinities and
+/// db >= 0 leave the item alone (1). Not realtime (pow); used by the player's attach, re-assign and
+/// diagnostics so all three agree.
+float navis_replaygain_cut_linear(double db);
 
 /// A per-slot gain with a linear 20 ms ramp, owned by the render thread. Linear in
 /// gain, like Android's BoostRamp.

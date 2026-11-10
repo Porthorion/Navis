@@ -141,6 +141,10 @@ static const int kBoostTickMs = 250;
         if (!_equalizer) NSLog(@"just_audio: equalizer unavailable: %@", equalizerError);
         __weak __typeof__(self) weakSelf = self;
         _equalizer.currentItemProvider = ^AVPlayerItem *{ return weakSelf.player.currentItem; };
+        _equalizer.nextItemProvider = ^AVPlayerItem *{
+            NSArray<AVPlayerItem *> *items = weakSelf.player.items;
+            return items.count > 1 ? items[1] : nil;
+        };
     }
 #endif
     _speed = 1.0f;
@@ -217,6 +221,8 @@ static const int kBoostTickMs = 250;
             result(@{});
         } else if ([@"setReplayGainBoost" isEqualToString:call.method]) {
             [self setReplayGainBoost:request result:result];
+        } else if ([@"setReplayGainLevels" isEqualToString:call.method]) {
+            [self setReplayGainLevels:request result:result];
         } else if ([@"setEqualizer" isEqualToString:call.method]) {
             [self setEqualizer:request result:result];
         } else if ([@"getEqualizerState" isEqualToString:call.method]) {
@@ -475,16 +481,65 @@ static const int kBoostTickMs = 250;
 #endif
 }
 
-// Every queued item gets the equalizer's shared tap in the same run-loop turn
-// as its insert (see enqueueFrom:). Attaching is synchronous and loads no
-// tracks, so covering the whole queue costs nothing; an item that is already
-// queued is never re-mixed.
-- (void)attachEqualizerToQueue {
+// Every queued item gets the equalizer's shared tap and its ReplayGain cut in the same run-loop turn
+// as its insert (see enqueueFrom:). Attaching is synchronous and loads no tracks, so covering the
+// whole queue costs nothing. An item that already has its mix keeps it, except that the cut is
+// re-assigned if it moved (an item removed and re-inserted by a skip back or a reorder); `heard`,
+// the item that keeps playing through this rebuild, is never touched: its cut is frozen at its
+// start and only a live setReplayGainLevels moves it.
+- (void)attachEqualizerToQueueKeeping:(AVPlayerItem *)heard {
 #if TARGET_OS_IOS
     for (AVPlayerItem *item in _player.items) {
-        [_equalizer attachToItem:item];
+        float volume = [self replayGainCutVolumeForItem:item];
+        [_equalizer attachToItem:item volume:volume];
+        if (item != heard) [_equalizer setVolume:volume forItem:item];
     }
 #endif
+}
+
+#if TARGET_OS_IOS
+/// The uri source whose stamp governs `item`: the item's own, or a clip's child.
+static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
+    if ([source isKindOfClass:[ClippingAudioSource class]]) return ((ClippingAudioSource *)source).audioSource;
+    if ([source isKindOfClass:[UriAudioSource class]]) return (UriAudioSource *)source;
+    return nil;
+}
+
+/// The volume of the item's ReplayGain cut (I26), from the dB stamped on its source: 1 for an
+/// unstamped item (radio, nil).
+- (float)replayGainCutVolumeForItem:(AVPlayerItem *)item {
+    UriAudioSource *source = uriSourceOf(((IndexedPlayerItem *)item).audioSource);
+    return navis_replaygain_cut_linear(source.replayGainDb ? source.replayGainDb.doubleValue : NAN);
+}
+#endif
+
+// MARK: Navis: ReplayGain cut in the item audio mix (iOS, I26)
+//
+// Each item's audio mix carries its own ReplayGain cut as the input volume, so the cut starts at
+// the item's first sample. The app stamps the signed dB on each source (`replayGainDb`, in the load
+// and insert messages) and sends later changes here by source id. Everything is on the main thread.
+// The heard item (items[0]) changes only for a `live` push, as the Dart handler freezes it at its start.
+
+- (void)setReplayGainLevels:(NSDictionary *)request result:(FlutterResult)result {
+#if TARGET_OS_IOS
+    NSDictionary *byId = [request[@"byId"] isKindOfClass:[NSDictionary class]] ? request[@"byId"] : @{};
+    BOOL live = [request[@"live"] respondsToSelector:@selector(boolValue)] && [request[@"live"] boolValue];
+    // One pass over the queue entries: a clip is keyed by its child, which holds the stamp.
+    // The heard entry's stored value updates too, so its next start uses it.
+    for (IndexedAudioSource *indexed in _indexedAudioSources) {
+        UriAudioSource *source = uriSourceOf(indexed);
+        id value = source.sourceId ? byId[source.sourceId] : nil;
+        if ([value isKindOfClass:[NSNumber class]]) source.replayGainDb = value;
+    }
+    if (_equalizer) {
+        NSArray<AVPlayerItem *> *items = _player.items;
+        for (NSUInteger i = 0; i < items.count; i++) {
+            if (i == 0 && !live) continue;
+            [_equalizer setVolume:[self replayGainCutVolumeForItem:items[i]] forItem:items[i]];
+        }
+    }
+#endif
+    result(@{});
 }
 
 // Navis: a seek, skip or new load; the equalizer drops its filter history at
@@ -782,12 +837,11 @@ static const int kBoostTickMs = 250;
 
 - (AudioSource *)decodeAudioSource:(NSDictionary *)data {
     NSString *type = data[@"type"];
-    if ([@"progressive" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
-    } else if ([@"dash" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
-    } else if ([@"hls" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
+    if ([@"progressive" isEqualToString:type] || [@"dash" isEqualToString:type] || [@"hls" isEqualToString:type]) {
+        UriAudioSource *source = [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
+        // Navis (I26): the app's ReplayGain stamp; a clip's child carries the clip's gain.
+        if ([data[@"replayGainDb"] isKindOfClass:[NSNumber class]]) source.replayGainDb = data[@"replayGainDb"];
+        return source;
     } else if ([@"concatenating" isEqualToString:type]) {
         return [[ConcatenatingAudioSource alloc] initWithId:data[@"id"]
                                                audioSources:[self decodeAudioSources:data[@"children"]]
@@ -929,7 +983,7 @@ static const int kBoostTickMs = 250;
 
     /* NSLog(@"after reorder: _player.items.count: ", _player.items.count); */
     /* [self dumpQueue]; */
-    [self attachEqualizerToQueue];
+    [self attachEqualizerToQueueKeeping:existingItem];
     [self noteBoostQueueChanged];
 
     if (_processingState != psLoading && oldItem != newItem) {

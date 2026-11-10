@@ -187,7 +187,7 @@ static BOOL decodeConfiguration(NSDictionary *raw, NavisEqConfig *out, NSString 
 // MARK: NavisEqualizer
 
 typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
-    NavisEqItemCreateFailed = 1, // MTAudioProcessingTapCreate failed
+    NavisEqItemVolumeOnly = 1, // MTAudioProcessingTapCreate failed: the mix carries the cut and no tap, never retried
     NavisEqItemInstalled,
 };
 
@@ -195,6 +195,7 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 @property (nonatomic) NavisEqItemStatus status;
 @property (nonatomic) BOOL reportedOtherTrack; // logged once that the audio track is not the one mixed
 @property (nonatomic) CMPersistentTrackID trackID; // the audio track the mix names
+@property (nonatomic) float volume; // the ReplayGain cut volume the mix was last assigned (I26)
 @end
 
 @implementation NavisEqItemRecord
@@ -206,7 +207,10 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 // share one pipeline and join sample-continuously. Every item gets its mix
 // before it plays, in the same run-loop turn as its insert, without loading
 // tracks (track 1 unless already loaded): changing the mix of an item AVQueuePlayer already
-// prerolls rebuilds the pipeline and stalls playback for about 0.5 s.
+// prerolls rebuilds the pipeline and stalls playback for about 0.5 s. The one later change is
+// the ReplayGain cut (I26, `setVolume:forItem:`): a new mix with the same tap and track and only the
+// volume different, which the simulator and macOS spikes showed does not stall (a device run is
+// still owed) and the app only asks for when a value moved.
 @implementation NavisEqualizer {
     NavisEqConfig _config;
     int32_t _pitchCents;            // requested pitch; seeds the tap, which is created on first use
@@ -302,6 +306,18 @@ static NSDictionary *stateDictionary(NSString *reason, BOOL enabled, id sampleRa
     };
 }
 
+/// The audio mix of one item: `tap` (NULL for none) on `trackID` and the cut `volume` from time
+/// zero. A new object every time; the item is only ever given one that names the same track.
+static AVMutableAudioMix *mixFor(CMPersistentTrackID trackID, MTAudioProcessingTapRef tap, float volume) {
+    AVMutableAudioMixInputParameters *parameters = [AVMutableAudioMixInputParameters audioMixInputParameters];
+    parameters.trackID = trackID;
+    if (tap) parameters.audioTapProcessor = tap;
+    [parameters setVolume:volume atTime:kCMTimeZero];
+    AVMutableAudioMix *mix = [AVMutableAudioMix audioMix];
+    mix.inputParameters = @[parameters];
+    return mix;
+}
+
 static NSString *reasonString(const char *reason) {
     return reason ? [NSString stringWithUTF8String:reason] : nil;
 }
@@ -341,6 +357,8 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     result[@"boostGuarded"] = @(_boostGuarded);
     result[@"boostClipSamples"] = @((long long)fs.boostClipSamples);
     result[@"transitionGapsMs"] = [_gapsMs copy];
+    result[@"replayGainCutDb"] = [self cutDbOfItem:self.currentItemProvider ? self.currentItemProvider() : nil];
+    result[@"replayGainNextCutDb"] = [self cutDbOfItem:self.nextItemProvider ? self.nextItemProvider() : nil];
     // One entry per audio format of the queue (slots outlive their pipelines), and
     // the audio no format took; both stay 0 / complete in a healthy run.
     NSMutableArray *formats = [[NSMutableArray alloc] init];
@@ -357,6 +375,13 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     result[@"unmatchedFrames"] = @((long long)fs.unmatchedFrames);
     result[@"overlapBlocks"] = @((long long)fs.overlapBlocks);
     return result;
+}
+
+/// The cut the item's mix was last assigned, as dB from the record (not recomputed), or null.
+- (id)cutDbOfItem:(AVPlayerItem *)item {
+    NavisEqItemRecord *record = item ? [_records objectForKey:item] : nil;
+    if (!record) return [NSNull null];
+    return @(20.0 * log10((double)record.volume));
 }
 
 /// pitchCents is the request; the rest is the slot that processed the last block.
@@ -383,7 +408,7 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     if (current) {
         NavisEqItemRecord *record = [_records objectForKey:current];
         if (!record) return stateDictionary(@"The equalizer is attaching to this song.", NO, nil, 0, NO, total, nil, nil);
-        if (record.status == NavisEqItemCreateFailed) {
+        if (record.status == NavisEqItemVolumeOnly) {
             return stateDictionary(@"The equalizer could not attach to this song.", NO, nil, 0, NO, total, nil, nil);
         }
         // The mix names track 1 so no track has to be loaded; a file whose audio
@@ -435,20 +460,16 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     return YES;
 }
 
-- (void)attachToItem:(AVPlayerItem *)item {
+- (void)attachToItem:(AVPlayerItem *)item volume:(float)volume {
     if (_disposed || !item) return;
-    NavisEqItemRecord *record = [_records objectForKey:item];
-    if (record && record.status == NavisEqItemInstalled) return;
-    if (!record) {
-        record = [[NavisEqItemRecord alloc] init];
-        [_records setObject:record forKey:item];
-    }
-    if (![self ensureTap]) {
-        record.status = NavisEqItemCreateFailed;
-        return;
-    }
+    // Already has its mix (installed, or without a tap): it keeps it.
+    if ([_records objectForKey:item]) return;
+    NavisEqItemRecord *record = [[NavisEqItemRecord alloc] init];
+    [_records setObject:record forKey:item];
+    // Without a tap the mix still carries the cut (assigned even at 1.0, so that a later change is a
+    // re-assign: a first assignment on a queued item stalls playback).
+    BOOL tapped = [self ensureTap];
     NSAssert(item.audioMix == nil, @"an item's audio mix must be set once, before it is queued");
-    AVMutableAudioMixInputParameters *parameters = [AVMutableAudioMixInputParameters audioMixInputParameters];
     // Track 1 unless the asset's tracks are already loaded (a non-blocking check):
     // loading them here would hit the network and reach the next item late.
     CMPersistentTrackID trackID = 1;
@@ -458,13 +479,18 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
         if (audio) trackID = audio.trackID;
     }
     record.trackID = trackID;
-    parameters.trackID = trackID;
-    parameters.audioTapProcessor = _tap;
-    AVMutableAudioMix *mix = [AVMutableAudioMix audioMix];
-    mix.inputParameters = @[parameters];
-    // Installed once and kept (bypassing inside the DSP when the EQ is off).
-    item.audioMix = mix;
-    record.status = NavisEqItemInstalled;
+    record.volume = volume;
+    // Installed once and kept (bypassing inside the DSP when the EQ is off); only the volume moves.
+    item.audioMix = mixFor(trackID, tapped ? _tap : NULL, volume);
+    record.status = tapped ? NavisEqItemInstalled : NavisEqItemVolumeOnly;
+}
+
+- (void)setVolume:(float)volume forItem:(AVPlayerItem *)item {
+    if (_disposed || !item) return;
+    NavisEqItemRecord *record = [_records objectForKey:item];
+    if (!record || record.volume == volume) return;
+    item.audioMix = mixFor(record.trackID, record.status == NavisEqItemInstalled ? _tap : NULL, volume);
+    record.volume = volume;
 }
 
 - (void)noteFlush {

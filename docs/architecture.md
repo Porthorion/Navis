@@ -5335,12 +5335,36 @@ Desktop volume follows a parallel local-settings path:
      `currentKey`, `appliedDb`, `clipSamples`), read from the processor when
      asked, not polled. Rolling-cache sources carry no tag, so a song is found
      by the id in its stream URL (`_mediaItemOfSource`).
-   - iOS (I24): no in-pipeline level stage; the tap boosts per file
-     (`navisReplayGainBoostSupported(iosTap:)`, true while
-     `_equalizerPipelineEnabled`): `AVPlayer.volume` stops at 1.0, so the boost is a
+   - iOS (I24, I26): in-pipeline while the equalizer tap is installed
+     (`navisReplayGainInPipeline(iosTap:)` and `navisReplayGainBoostSupported(iosTap:)`,
+     both true while `_equalizerPipelineEnabled`). The cut is the volume of each
+     item's own audio mix: `AVMutableAudioMixInputParameters setVolume:atTime:` at time
+     zero, on the same mix object that names the shared tap (`NavisEqualizer.m`
+     `mixFor`), so it starts with the item's first sample and `AVPlayer.volume` stays
+     user volume x ducking x ramp. The dB is stamped on the source
+     (`UriAudioSource.replayGainDb`, from the load and insert messages; a clip's child
+     carries it) and the mix is made in the same run-loop turn as the item's insert
+     (`attachEqualizerToQueueKeeping:`, `attachToItem:volume:`) with
+     `navis_replaygain_cut_linear` (`NavisBoost.c`: the cut half of the dB, never above 1, floor
+     -60 dB, unstamped or radio is 1). A later change is `setReplayGainLevels` (native
+     `AudioPlayer.m`, on the main thread): it updates the stamps by source id and then
+     `setVolume:forItem:` gives each queued item a new mix object (same tap and track)
+     when its value moved; the playing item is skipped unless the push is `live` (a
+     settings change), and a rebuild that keeps the playing item never re-assigns it. An
+     item removed and re-inserted (skip back, reorder) gets its current value the same
+     way. If the tap cannot be created the item still gets a mix with no tap
+     (`NavisEqItemVolumeOnly`) so the cut works and a later change is a re-assign; it is
+     never retried. A file whose audio track is not track 1 plays without the mix (no
+     cut, EQ or boost: an existing limit, reported in the state). The state reports the
+     cut that was assigned to the current and the next queued item
+     (`replayGainCutDb`, `replayGainNextCutDb`; status `replayGainBoost.cutDb` and
+     `nextCutDb`), read from the item records. Both cross-fade decks have their own tap
+     and records, so each deck's items carry their own cut and the ramps never
+     multiply it. The boost sends the same Smart pair as the cut (it reads the pair
+     last pushed). The tap boosts per file: `AVPlayer.volume` stops at 1.0, so the boost is a
      gain step (`NavisBoost.c`, a 20 ms linear ramp per format slot) on the output of
-     pitch and EQ in the shared tap, working with the EQ off and on. The cut stays on
-     `AVPlayer.volume` and a song never gets both. Dart sends a per-URI map
+     pitch and EQ in the shared tap, working with the EQ off and on. A song never gets
+     both. Dart sends a per-URI map
      (`AudioPlayer.setReplayGainBoost`, `SetReplayGainBoostRequest.byUri` and
      `durationMsByUri`, no lower-before-command) and the timing is native, on the main thread
      (`AudioPlayer.m`, `navis_boost_decide`): native knows the real next item and
@@ -5361,8 +5385,8 @@ Desktop volume follows a parallel local-settings path:
      `boostClipSamples` in `/v1/equalizer` `application`) is read back from the tap.
      A song's head can be under-boosted for about 0.5 s after a join, skip or seek;
      its tail is never over-boosted. Details: `docs/plans/iOS_I24_ReplayGain_Boost_Plan.md`.
-   - Fallback: with no stage (Android after
-     `_rebuildPlayerWithoutEqualizer`) nothing is stamped or pushed, boost is
+   - Fallback: with no stage (Android or iOS after
+     `_rebuildPlayerWithoutEqualizer`, so iOS without a tap) nothing is stamped or pushed, boost is
      unsupported and the Dart cut applies through `setVolume` (late by the IPC
      time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`). During a queue replacement the cut is written as
      soon as the selected source is in the player (`_loadingSourceInPlayer`, in
@@ -5377,7 +5401,7 @@ Desktop volume follows a parallel local-settings path:
      (`_loadingPlayOrder`), since `_queueItems` holds only the start song.
      The older per-URI boost message
      (`AudioPlayer.setReplayGainBoost`, `byUri`) is kept for a backend that
-     boosts per file but has no in-pipeline stage (the iOS tap uses it).
+     boosts per file but has no in-pipeline stage; the iOS tap still uses it for the boost.
 
    Smart picks its album or track gain from the play-order neighbours and is
    frozen per heard song (below). A push, and a source stamped for a list that

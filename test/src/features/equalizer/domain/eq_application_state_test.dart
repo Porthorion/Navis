@@ -95,6 +95,23 @@ void main() {
     expect(none['boostGuarded'], isFalse);
   });
 
+  test('the iOS cut in the item audio mix is reported as dB or null', () {
+    final json = EqApplicationState(
+      desired: EqConfiguration.flat(),
+      applied: EqConfiguration.flat(),
+      replayGainCutDb: -6,
+      replayGainNextCutDb: -3.5,
+    ).toDiagnosticsJson();
+    expect(json['replayGainCutDb'], -6);
+    expect(json['replayGainNextCutDb'], -3.5);
+    final none = EqApplicationState(
+      desired: EqConfiguration.flat(),
+      applied: EqConfiguration.flat(),
+    ).toDiagnosticsJson();
+    expect(none['replayGainCutDb'], isNull);
+    expect(none['replayGainNextCutDb'], isNull);
+  });
+
   test('counters are null when the backend reports none', () {
     final json = EqApplicationState(
       desired: EqConfiguration.flat(),

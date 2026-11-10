@@ -291,6 +291,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Turning a loud song down for ReplayGain now starts with the '
+        "song's first note instead of a moment later",
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
         'takes effect right away during playback, and songs already in your '
         'queue pick up changed ReplayGain after a sync, from the next song on',

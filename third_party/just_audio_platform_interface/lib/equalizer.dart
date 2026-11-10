@@ -100,6 +100,8 @@ class EqualizerStateMessage {
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
     this.boostGuarded = false,
+    this.replayGainCutDb,
+    this.replayGainNextCutDb,
     this.processedFrames,
     this.levelDeltaDb,
     this.resetCount,
@@ -144,6 +146,12 @@ class EqualizerStateMessage {
   final double boostAppliedDb;
   final int boostClipSamples;
   final bool boostGuarded;
+
+  /// The iOS cut in each item's audio mix (I26), for diagnostics: the volume
+  /// native assigned to the current item and to the one queued after it, as
+  /// dB (read from what was assigned, not recomputed). Null when not reported.
+  final double? replayGainCutDb;
+  final double? replayGainNextCutDb;
 
   /// Frames the backend's equalizer has processed since the player started
   /// (Darwin only; null elsewhere). Grows while audio plays.
@@ -220,6 +228,8 @@ class EqualizerStateMessage {
         boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
         boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
         boostGuarded: map['boostGuarded'] as bool? ?? false,
+        replayGainCutDb: (map['replayGainCutDb'] as num?)?.toDouble(),
+        replayGainNextCutDb: (map['replayGainNextCutDb'] as num?)?.toDouble(),
         processedFrames: (map['processedFrames'] as num?)?.toInt(),
         levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
         resetCount: (map['resetCount'] as num?)?.toInt(),

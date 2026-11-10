@@ -36,6 +36,13 @@ float navis_boost_linear(double db) {
     return (float)pow(10.0, clampDb(db) / 20.0);
 }
 
+float navis_replaygain_cut_linear(double db) {
+    if (!isfinite(db) || db >= 0) return 1.0f;
+    float linear = powf(10.0f, (float)db / 20.0f);
+    const float floorLinear = 0.001f; // -60 dB
+    return linear < floorLinear ? floorLinear : linear;
+}
+
 // MARK: ramp
 
 static float clampTarget(float target) {
