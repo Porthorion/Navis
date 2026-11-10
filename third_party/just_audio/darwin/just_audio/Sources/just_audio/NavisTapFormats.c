@@ -351,6 +351,21 @@ static void noteDry(NavisTapFormats *t) {
     }
 }
 
+bool navis_tap_format_is_planar_float(bool linearPcm, bool isFloat, bool nonInterleaved,
+                                      uint32_t bitsPerChannel, uint32_t channels) {
+    return linearPcm && isFloat && nonInterleaved && bitsPerChannel == 32
+        && channels >= 1 && channels <= NAVIS_EQ_MAX_CHANNELS;
+}
+
+bool navis_tap_buffer_count_ok(uint32_t count) {
+    return count >= 1 && count <= NAVIS_EQ_MAX_CHANNELS;
+}
+
+bool navis_tap_buffer_ok(uint32_t numberChannels, uint32_t dataByteSize, int64_t frames) {
+    // A negative count wraps to a huge size and fails the size check, as before.
+    return numberChannels == 1 && dataByteSize >= (uint64_t)frames * sizeof(float);
+}
+
 void navis_tap_formats_note_dry(NavisTapFormats *t, int frames) {
     if (frames > 0) noteDry(t);
 }

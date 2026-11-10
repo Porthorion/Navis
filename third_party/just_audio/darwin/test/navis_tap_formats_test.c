@@ -1107,6 +1107,47 @@ static void testBoostDryBlocksAreNotBoosted(void) {
     freeSet(t);
 }
 
+// The layout checks of the tap glue (NavisEqualizer.m): every rejection branch
+// and the boundaries, since a static MediaToolbox callback cannot be reached here.
+static void testPlanarFloatFormatCheck(void) {
+    const uint32_t max = NAVIS_EQ_MAX_CHANNELS;
+    check(navis_tap_format_is_planar_float(true, true, true, 32, 1), "mono planar float 32 is accepted");
+    check(navis_tap_format_is_planar_float(true, true, true, 32, 2), "stereo is accepted");
+    check(navis_tap_format_is_planar_float(true, true, true, 32, max), "the channel cap is accepted");
+    check(!navis_tap_format_is_planar_float(true, true, true, 32, 0), "0 channels is rejected");
+    check(!navis_tap_format_is_planar_float(true, true, true, 32, max + 1), "one above the cap is rejected");
+    check(!navis_tap_format_is_planar_float(true, true, true, 32, UINT32_MAX), "a huge channel count is rejected");
+    check(!navis_tap_format_is_planar_float(false, true, true, 32, 2), "not linear PCM is rejected");
+    check(!navis_tap_format_is_planar_float(true, false, true, 32, 2), "integer samples are rejected");
+    check(!navis_tap_format_is_planar_float(true, true, false, 32, 2), "interleaved is rejected");
+    check(!navis_tap_format_is_planar_float(true, true, true, 16, 2), "16 bits is rejected");
+    check(!navis_tap_format_is_planar_float(true, true, true, 64, 2), "64 bits is rejected");
+    check(!navis_tap_format_is_planar_float(true, true, true, 0, 2), "0 bits is rejected");
+}
+
+static void testBufferListCountCheck(void) {
+    check(!navis_tap_buffer_count_ok(0), "an empty buffer list is rejected");
+    check(navis_tap_buffer_count_ok(1), "one buffer is accepted");
+    check(navis_tap_buffer_count_ok(NAVIS_EQ_MAX_CHANNELS), "the cap is accepted");
+    check(!navis_tap_buffer_count_ok(NAVIS_EQ_MAX_CHANNELS + 1), "one above the cap is rejected");
+    check(!navis_tap_buffer_count_ok(UINT32_MAX), "a huge count is rejected");
+}
+
+static void testBufferCheck(void) {
+    const int frames = 512;
+    const uint32_t exact = frames * sizeof(float);
+    check(navis_tap_buffer_ok(1, exact, frames), "one channel with exactly frames * 4 bytes is accepted");
+    check(navis_tap_buffer_ok(1, exact + 1, frames), "extra bytes are accepted");
+    check(navis_tap_buffer_ok(1, UINT32_MAX, frames), "a large buffer is accepted");
+    check(!navis_tap_buffer_ok(1, exact - 1, frames), "one byte short is rejected");
+    check(!navis_tap_buffer_ok(1, 0, frames), "an empty buffer for real frames is rejected");
+    check(navis_tap_buffer_ok(1, 0, 0), "no frames need no bytes");
+    check(!navis_tap_buffer_ok(0, exact, frames), "0 channels in a buffer is rejected");
+    check(!navis_tap_buffer_ok(2, exact, frames), "an interleaved buffer is rejected");
+    check(!navis_tap_buffer_ok(NAVIS_EQ_MAX_CHANNELS + 1, exact, frames), "many channels in a buffer are rejected");
+    check(!navis_tap_buffer_ok(1, exact, -1), "a negative frame count is rejected, not wrapped");
+}
+
 // The target is set from the main thread whenever, the blocks keep their invariants.
 static void testBoostRaces(void) {
     NavisTapFormats *t = newSetEq(false, 0, 0);
@@ -1167,6 +1208,9 @@ int main(int argc, char **argv) {
         {"boostSnapsAtTheFirstAudio", testBoostSnapsAtTheFirstAudio, false},
         {"boostTwoSlots", testBoostTwoSlots, false},
         {"boostDryBlocksAreNotBoosted", testBoostDryBlocksAreNotBoosted, false},
+        {"planarFloatFormatCheck", testPlanarFloatFormatCheck, false},
+        {"bufferListCountCheck", testBufferListCountCheck, false},
+        {"bufferCheck", testBufferCheck, false},
         {"boostRaces", testBoostRaces, true},
         {"concurrentPipelines", testConcurrentPipelines, true},
         {"twoRenderThreadsOnOneSlot", testTwoRenderThreadsOnOneSlot, true},
