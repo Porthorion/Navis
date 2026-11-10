@@ -1469,6 +1469,8 @@ class _AppShellState extends ConsumerState<AppShell> {
         case DesktopCommandAction.speedUp:
         case DesktopCommandAction.speedDown:
         case DesktopCommandAction.speedReset:
+          // Radio always plays at 1x; the saved song speed stays untouched.
+          if (ref.read(playerStateProvider).isRadioMode) return;
           final result = await nudgePlaybackSpeed(
             ref,
             hundredths: switch (action) {

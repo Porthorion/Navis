@@ -3607,6 +3607,7 @@ class NavisAudioHandler extends BaseAudioHandler
           streamUrl: streamUrl,
           homePageUrl: homePageUrl,
         );
+        await _syncPlayerAdjustments();
 
         _queueItems.clear();
         await _clearDeferredTail();
@@ -3699,6 +3700,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
       _radioStation = null;
       _radioMetadataService.stop();
+      await _syncPlayerAdjustments();
 
       await _runTimedPlayerOperation(
         generation: generation,
