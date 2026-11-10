@@ -27,6 +27,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/daos/cache_dao.dart';
+import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
@@ -1086,6 +1088,7 @@ void main() {
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
       List<ControllableAudioPlayer>? rebuiltPlayers,
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
+      RollingCacheManager Function(CacheDao)? rollingCache,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-offset-');
       final created = await createHandler(
@@ -1101,6 +1104,7 @@ void main() {
         timeouts: timeouts,
         rebuiltPlayers: rebuiltPlayers,
         wrapResolver: wrapResolver,
+        rollingCache: rollingCache,
         queueWindow: queueWindow,
       );
       addTearDown(() async {
@@ -1576,6 +1580,7 @@ void main() {
         bool mobile = false,
         void Function(NavisDatabase)? onDatabase,
         PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
+        RollingCacheManager Function(CacheDao)? rollingCache,
       }) async {
         final (handler, player, database) = await offsetHandler(
           desktopRuntimeOverride: mobile ? false : null,
@@ -1584,6 +1589,7 @@ void main() {
               ? const StreamingQuality(label: 'original')
               : opus128,
           wrapResolver: wrap,
+          rollingCache: rollingCache,
           scrobbleService: scrobbleService,
           positionStreams: mobile || scrobbleService != null || positionStreams,
         );
@@ -2767,6 +2773,35 @@ void main() {
 
           expect(file.existsSync(), isFalse);
           expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+        });
+
+        test('a queue edit while evicting reopens the cut song at its new '
+            'index', () async {
+          late RecordingLockResolver resolver;
+          late GatedEvictCache cache;
+          final directory = await Directory.systemTemp.createTemp('navis-cut-');
+          addTearDown(() => directory.delete(recursive: true));
+          final (handler, player) = await setup(
+            mobile: true,
+            rollingCache: (dao) => cache = GatedEvictCache(dao, Completer()),
+            wrap: (base) => resolver = RecordingLockResolver(base, directory),
+          );
+          await clockTo47(player);
+          resolver.calls.clear();
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await pumpEventQueue(times: 100);
+          // The eviction is awaiting the gate; an earlier song is removed.
+          expect(cache.awaiting, isTrue);
+          await handler.removeAt(0);
+          cache.gate.complete();
+          await drain(handler);
+
+          expect(handler.snapshot.queueSongIds, ['song-1', 'song-2']);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          final reopen = resolver.calls.where(
+            (c) => c.songId == 'song-1' && c.offset != null,
+          );
+          expect(reopen.map((c) => c.offset), [const Duration(seconds: 47)]);
         });
 
         test('keeps a permanent download', () async {

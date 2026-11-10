@@ -25,6 +25,7 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
@@ -344,6 +345,19 @@ class TranscodedLockResolver extends GatedSourceResolver {
       cachedFilePath: source.cachedFilePath!,
       metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
     );
+  }
+}
+
+/// Holds every rolling-cache eviction until [gate] completes.
+class GatedEvictCache extends RollingCacheManager {
+  new(CacheDao cacheDao, this.gate) : super(cacheDao: cacheDao);
+  final Completer<void> gate;
+  bool awaiting = false;
+  @override
+  Future<void> evictRollingTrack(String songId) async {
+    awaiting = true;
+    await gate.future;
+    await super.evictRollingTrack(songId);
   }
 }
 
@@ -1828,6 +1842,7 @@ createHandler(
   bool nextSongPrefetchAllowed = true,
   bool Function()? readNextSongPrefetchAllowed,
   PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
+  RollingCacheManager Function(CacheDao)? rollingCache,
   bool positionStreams = false,
   int rollingCacheBudgetBytes = 1024 * 1024,
   String crossfadeType = 'normal',
@@ -1919,7 +1934,9 @@ createHandler(
     );
   }
   await seed?.call(database);
-  final cache = RollingCacheManager(cacheDao: database.cacheDao);
+  final cache =
+      rollingCache?.call(database.cacheDao) ??
+      RollingCacheManager(cacheDao: database.cacheDao);
   final player = initialPlayer ?? ControllableAudioPlayer();
   if (positionStreams) player.positionPlayer = HandlerPositionPlayer(player);
   if (hungLoadSongs != null) player.hungLoadSongs = hungLoadSongs;

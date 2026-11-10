@@ -432,14 +432,21 @@ extension _NavisCache on NavisAudioHandler {
         _cacheProgressSubscriptions.remove(cacheFilePath);
         _lockCacheSources.remove(cacheFilePath)?.source.resumeDownload();
         unawaited(subscription.cancel());
-        final registration =
+        late final Future<void> registration;
+        registration =
             _registerRollingCacheTrack(
               song: song,
               resolvedSource: resolvedSource,
               cacheFilePath: cacheFilePath,
             ).whenComplete(() {
               _completeRollingCacheActivity(cacheFilePath);
-              _pendingRollingRegistrations.remove(song.id);
+              // A newer registration for the song keeps its entry.
+              if (identical(
+                _pendingRollingRegistrations[song.id],
+                registration,
+              )) {
+                _pendingRollingRegistrations.remove(song.id);
+              }
             });
         _pendingRollingRegistrations[song.id] = registration;
         unawaited(registration);
