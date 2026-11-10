@@ -216,6 +216,24 @@ void main() {
       find.byKey(const ValueKey('mediaInfoSheet')).evaluate().isNotEmpty;
 
   group('holding anywhere on the chip', () {
+    for (final scale in <double>[1.0, 1.3]) {
+      testWidgets('holding the Rating chip at 320x568 (text x$scale) opens '
+          'the inline editor without overflow or a taller chip', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpSheet(tester, size: const Size(320, 568));
+        await showPageWithIcon(tester, Icons.star_border);
+        final before = tester.getSize(_switcher).height;
+        await tester.longPress(_infoText);
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsLabel('Rate 5 stars'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        expect(tester.getSize(_switcher).height, lessThanOrEqualTo(before + 2));
+      }, skip: !sqliteAvailable);
+    }
+
     testWidgets('holding the ReplayGain chip on its icon opens settings', (
       tester,
     ) async {

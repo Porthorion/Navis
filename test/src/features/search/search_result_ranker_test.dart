@@ -99,6 +99,21 @@ void main() {
     );
   });
 
+  test('relevance tiers fold accents', () {
+    expect(
+      searchRelevanceTier('Café Del Mar', 'cafe'),
+      SearchRelevanceTier.prefix,
+    );
+    expect(
+      searchRelevanceTier('Beyoncé', 'BEYONCE'),
+      SearchRelevanceTier.exact,
+    );
+    expect(
+      searchRelevanceTier('Édith Piaf', 'dith'),
+      SearchRelevanceTier.substring,
+    );
+  });
+
   group('popularity', () {
     const karaoke = Song(id: 'karaoke', title: 'Hello', isExternal: false);
     const adele = Song(id: 'adele', title: 'Hello', isExternal: false);

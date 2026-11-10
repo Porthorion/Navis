@@ -14,7 +14,9 @@ NavisDatabase createTestDatabase({File? file}) {
   // widget tree is torn down.
   return NavisDatabase(
     DatabaseConnection(
-      file == null ? NativeDatabase.memory() : NativeDatabase(file),
+      file == null
+          ? NativeDatabase.memory(setup: registerSearchFoldFunction)
+          : NativeDatabase(file, setup: registerSearchFoldFunction),
       closeStreamsSynchronously: true,
     ),
   );
