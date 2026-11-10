@@ -169,6 +169,8 @@ Checks performed:
 - Native EQ response/PCM and progressive HTTP retry/repeat fixtures
   (`tool/equalizer_native_test.sh`), using an
   available JDK or the Android Studio JDK selected by `ANDROID_STUDIO_JDK`
+- Release-notes failure guard (`tool/release_notes_test.sh`) and live-seek app
+  identity guard (`tool/live_seek_stress_test.py`)
 - Android repeat bridge suites (`tool/android_repeat_native_test.sh`) and their
   hermetic runner contract (`tool/android_repeat_runner_test.sh`), immediately
   after the pure fixtures. Bootstrap, JDK 21, Android SDK 37, Python 3 (stdlib only)

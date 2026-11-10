@@ -14,6 +14,8 @@ void main() {
           .create(recursive: true);
       await File('tool/lib/r2_tags.sh')
           .copy(p.join(fixture.path, 'tool', 'lib', 'r2_tags.sh'));
+      await File('tool/lib/release_notes.sh')
+          .copy(p.join(fixture.path, 'tool', 'lib', 'release_notes.sh'));
     });
     tearDown(() => fixture.delete(recursive: true));
 

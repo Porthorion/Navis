@@ -422,6 +422,12 @@ const List<ChangelogVersion> changelogs = [
         'A new install no longer shows a “New” tag on Appearance after setup',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Radio stations you change on the server now show up in Navis after '
+        'the next sync and whenever you open Radio, without pulling to '
+        'refresh. The list stays in place while it updates',
+        type: ChangelogEntryType.fix,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
