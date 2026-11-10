@@ -3085,17 +3085,27 @@ support directory; Android uses application documents. (iOS moved because the
 Files app shows the whole `Documents` folder; see **iOS downloads in the Files
 app** below.) `database_location.dart`
 resolves both through path_provider, preserving clone diagnostics overrides.
-Before opening off Android, a missing support database is migrated from documents
-along with any `-wal`, `-shm` and `-journal` files. Cross-device copies are size
-verified before originals are deleted. Failure restores transferred files and
-falls back to documents; a rollback failure preserves the remaining copy and
-fails opening rather than choosing an incomplete database. An existing support
-database wins and leaves legacy files untouched. A copy-fallback move deletes
-the legacy sidecars before the legacy main file. A crash between the main-file
-and sidecar renames is a known window inherited from the desktop migration;
-iOS shares it on test builds only (Navis never shipped on iOS), and a stranded
-legacy sidecar is deliberately not adopted, because it cannot be proved fresh.
-No schema changes are involved.
+Before opening off Android, a missing support database is migrated from
+documents along with any `-wal`, `-shm` and `-journal` files; desktop and iOS
+share one code path and the same safety properties.
+The sidecars move first and the main file last, so the main file at the target
+marks a finished move; a kill midway leaves the main file in documents and the
+next launch resumes, counting a sidecar already at the target (its legacy
+source gone, or an identical byte copy whose original was not yet deleted) as
+moved. A cross-device move copies to `<name>.navis-part`, checks the size and
+renames the part file into place, so a final name never holds a partial copy;
+stale `*.navis-part` files in both directories are deleted at every launch.
+After a copy-fallback move the legacy originals are deleted sidecars first and
+the main file last. Rollback renames files back and copies (via a part file)
+only across volumes.
+A target main file with sidecars still in documents and no legacy main file
+(a kill under the earlier main-first order, which iOS test builds may also have
+hit; Navis never shipped on iOS) never attaches them, since the WAL may predate
+later changes to the target: they are renamed `*.orphaned`.
+Failure restores transferred files and falls back to documents; a rollback
+failure preserves the remaining copy and fails opening rather than choosing an
+incomplete database. An existing support database wins and leaves legacy files
+untouched. No schema changes are involved.
 
 ## External integration policy
 
@@ -7430,7 +7440,12 @@ contract.
   re-queued to the server through `star_sync_queue`), transfers absence
   evidence and local mutation journals. If the canonical song already has a
   download-queue entry, remapping discards the old identity’s queue entries and
-  keeps the canonical entry intact; otherwise it moves the old entries. It
+  keeps the canonical entry intact; otherwise it moves the old entries. The
+  cache rows are read and the winner chosen inside the remap transaction: a
+  complete permanent download always beats a rolling copy, whether or not its
+  file is readable right now (an unmounted volume must not cost the download;
+  the download-integrity path handles a file that is really gone), and
+  readability only breaks ties within the same cache type. It
   writes the typed `entity_identity_aliases` table, shared across profiles.
   Schema 94 imports legacy song aliases as authoritative over typed song
   conflicts, keeps the newest remaining alias per entity type and old ID,
