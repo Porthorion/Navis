@@ -143,6 +143,30 @@ void main() {
     expect(player.duration, _offset + const Duration(seconds: 60));
   });
 
+  for (final offset in [Duration.zero, const Duration(seconds: 12)]) {
+    test('a zero platform duration is unknown, so the position keeps '
+        'advancing: offset=$offset', () async {
+      final player = newPlayer();
+      await player.setAudioSource(offsetSource(offset));
+      unawaited(player.play());
+      await pumpEventQueue();
+      // iOS reports 0 for an unknown-length (cut or chunked) transcode.
+      native.player.emit(
+        position: const Duration(milliseconds: 200),
+        duration: Duration.zero,
+        at: DateTime.now().subtract(const Duration(seconds: 2)),
+      );
+      await pumpEventQueue();
+      expect(player.processingState, ProcessingState.ready);
+      expect(player.playing, isTrue);
+      expect(player.duration, isNull);
+      expect(
+        player.position,
+        greaterThan(offset + const Duration(milliseconds: 1500)),
+      );
+    });
+  }
+
   test(
     'the idle platform does not add the offset to the duration twice',
     () async {
