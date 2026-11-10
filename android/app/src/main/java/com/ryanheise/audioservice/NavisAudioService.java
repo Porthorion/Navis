@@ -2,7 +2,6 @@ package com.ryanheise.audioservice;
 
 import android.content.ComponentName;
 import android.content.Intent;
-import android.os.PowerManager;
 import android.util.Log;
 import java.lang.reflect.Field;
 import java.util.List;
@@ -42,32 +41,16 @@ public class NavisAudioService extends AudioService {
     @Override
     void setState(List<MediaControl> controls, long actionBits, int[] compactActionIndices, AudioProcessingState processingState, boolean playing, long position, long bufferedPosition, float speed, long updateTime, Integer errorCode, String errorMessage, int repeatMode, int shuffleMode, boolean captioningEnabled, Long queueIndex) {
         super.setState(controls, actionBits, compactActionIndices, processingState, playing, position, bufferedPosition, speed, updateTime, errorCode, errorMessage, repeatMode, shuffleMode, captioningEnabled, queueIndex);
-        if (shouldReleaseWakeLock(playing)) releaseWakeLock();
-    }
-
-    public static boolean shouldReleaseWakeLock(boolean playing) { return !playing; }
-
-    private static Field wakeLockField;
-    private static boolean wakeLockUnavailable;
-
-    private synchronized void releaseWakeLock() {
-        if (wakeLockUnavailable) return;
+        if (!shouldReleaseWakeLock(playing)) return;
         try {
-            if (wakeLockField == null) {
-                wakeLockField = AudioService.class.getDeclaredField("wakeLock");
-                wakeLockField.setAccessible(true);
-            }
-            PowerManager.WakeLock lock = (PowerManager.WakeLock) wakeLockField.get(this);
-            if (lock != null && lock.isHeld()) lock.release();
-        } catch (ReflectiveOperationException | ClassCastException error) {
-            // A dependency upgrade changed the field: stop trying, keep playing.
-            wakeLockUnavailable = true;
-            Log.w("NavisAudioService", "Wakelock release unavailable");
+            releaseWakeLock();
         } catch (RuntimeException error) {
-            // A one-off release failure; the next paused state retries.
+            // A one-off release failure must not reach the channel; the next paused state retries.
             Log.w("NavisAudioService", "Wakelock release failed");
         }
     }
+
+    public static boolean shouldReleaseWakeLock(boolean playing) { return !playing; }
 
     public static Object serviceIdentityForDiagnostics() { return AudioService.instance; }
 

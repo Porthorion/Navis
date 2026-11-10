@@ -733,7 +733,8 @@ public class AudioService extends MediaBrowserServiceCompat {
             wakeLock.acquire();
     }
 
-    private void releaseWakeLock() {
+    // Navis: package-private so NavisAudioService can release on pause.
+    void releaseWakeLock() {
         if (wakeLock.isHeld())
             wakeLock.release();
     }
