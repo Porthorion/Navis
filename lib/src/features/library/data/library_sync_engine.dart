@@ -361,6 +361,11 @@ const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _libraryDiscoveryDebtStreakCapabilityKey = 'libraryDiscoveryDebtStreak';
 const _libraryScanDeferralStreakCapabilityKey = 'libraryScanDeferralStreak';
 
+/// Consecutive promotions deferred because `getScanStatus` was unreadable.
+/// Separate from the scan-churn streak so the coordinator's backoff, which
+/// reads that one, is not skewed by transport trouble.
+const _libraryScanUnreadableStreakCapabilityKey = 'libraryScanUnreadableStreak';
+
 /// The completed-scan token the hidden candidate was collected under. A
 /// candidate may only resume while the server is still at that token.
 const _libraryCandidateScanTokenCapabilityKey = 'libraryCandidateScanToken';
@@ -368,6 +373,24 @@ const _libraryCandidateScanTokenCapabilityKey = 'libraryCandidateScanToken';
 /// `failureCategory` of a scan-triggered run whose promotion waits because
 /// the server scanned during collection.
 const _scanChangedCategory = 'scanChanged';
+
+/// What one `getScanStatus` read told the engine.
+enum _ScanRead {
+  /// The endpoint never existed for this server (no token ever stored).
+  unsupported,
+
+  /// The read failed, or the endpoint vanished after it once worked.
+  unreadable,
+  scanning,
+
+  /// No scan running; the token may be null on servers without `lastScan`.
+  idle,
+}
+
+typedef _ScanObservation = ({String? token, _ScanRead read});
+
+/// How the scan reads around a collection bear on promoting it.
+enum _ScanVerdict { none, scan, unreadable }
 
 /// Consecutive scan-churn deferrals after which a settled server releases
 /// the withheld promotion. Without a cap, a server that rescans constantly
@@ -2684,12 +2707,14 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     );
     // Pages collected under another scan are stale. Compared first, so a
     // candidate that cannot resume costs no page requests. Only an unreadable
-    // status (failed or unsupported) leaves the current scan unknown and keeps
-    // the candidate; a scan still running is a known, different scan.
+    // or unsupported status leaves the current scan unknown and keeps the
+    // candidate; a scan still running always drops it, since its pages were
+    // collected mid-scan.
     if (resumableGeneration != null &&
         !held &&
-        scanTokenAtCollection.$2 &&
-        storedCandidateToken != scanTokenAtCollection.$1) {
+        (scanTokenAtCollection.read == _ScanRead.scanning ||
+            (scanTokenAtCollection.read == _ScanRead.idle &&
+                storedCandidateToken != scanTokenAtCollection.token))) {
       resumableGeneration = null;
     }
     if (resumableGeneration != null &&
@@ -2744,7 +2769,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     metrics.metadataChanged = true;
     if (resumableGeneration != catalogGeneration || held) {
       await _updateVerificationCapabilities(<String, Object?>{
-        _libraryCandidateScanTokenCapabilityKey: scanTokenAtCollection.$1,
+        _libraryCandidateScanTokenCapabilityKey: scanTokenAtCollection.token,
       }, metrics);
     }
     var current = _withMetrics(
@@ -3070,7 +3095,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       // With the current scan unknown, a resumed candidate still reconciles
       // only the scan its pages were collected under.
       reconcileToken:
-          scanTokenAtCollection.$1 ??
+          scanTokenAtCollection.token ??
           (resumableGeneration == catalogGeneration
               ? storedCandidateToken
               : null),
@@ -3159,10 +3184,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required int serverId,
     required _SyncRunMetrics metrics,
   }) async {
-    final (token, _) = await _recordScanObservation(
+    final token = (await _recordScanObservation(
       serverId: serverId,
       metrics: metrics,
-    );
+    )).token;
     if (token == null) {
       return false;
     }
@@ -3176,36 +3201,53 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   }
 
   /// Waits a bounded number of polls for any running server scan to finish.
-  /// Returns true once the server is observed quiet (or scan status is
-  /// unsupported, which never blocks), false when the wait budget ran out or
-  /// transport failed — the caller then defers safely.
-  Future<bool> _waitForScanSettle(_SyncRunMetrics metrics) async {
+  /// Returns true once the server is observed quiet (or scan status was never
+  /// supported, which never blocks), false when the wait budget ran out or
+  /// transport failed: the caller then defers safely. A cancel during the wait
+  /// ends the run.
+  Future<bool> _waitForScanSettle(int serverId, _SyncRunMetrics metrics) async {
     for (var attempt = 0; attempt < scanSettleMaxPolls; attempt++) {
       try {
         final status = await _api.getScanStatusOrNull();
+        _checkCancelled();
         metrics.recordApiAttempt(
           elapsed: Duration.zero,
           endpoint: 'getScanStatus',
         );
-        if (status == null || !status.scanning) {
+        if (status == null
+            ? !await _scanEndpointWasSupported(serverId)
+            : !status.scanning) {
           return true;
         }
+      } on SyncCancelledException {
+        rethrow;
       } on Object {
+        _checkCancelled();
         return false;
       }
       if (attempt + 1 < scanSettleMaxPolls) {
         await Future<void>.delayed(scanSettlePollInterval);
+        _checkCancelled();
       }
     }
     return false;
   }
 
+  /// True when a completed-scan token is already stored. The DAO never
+  /// downgrades such a row, so a later missing endpoint is a transient proxy
+  /// or restart answer, not "unsupported".
+  Future<bool> _scanEndpointWasSupported(int serverId) async =>
+      (await _database.librarySyncDao.getScanObservation(serverId))
+          ?.observedToken !=
+      null;
+
   /// Observes the server scan state once and records it.
   ///
-  /// Returns the completed-scan token (null while a scan is running or when
-  /// the provider exposes no token field) and whether `getScanStatus` is
-  /// supported at all.
-  Future<(String?, bool)> _recordScanObservation({
+  /// The token is the completed-scan token (null while scanning, or when the
+  /// provider exposes none); the read says why, so callers can tell a running
+  /// scan from a tokenless idle server and a never-supported endpoint from a
+  /// transient failure.
+  Future<_ScanObservation> _recordScanObservation({
     required int serverId,
     required _SyncRunMetrics metrics,
   }) async {
@@ -3216,12 +3258,15 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         endpoint: 'getScanStatus',
       );
       if (status == null) {
+        if (await _scanEndpointWasSupported(serverId)) {
+          return (token: null, read: _ScanRead.unreadable);
+        }
         await _database.librarySyncDao.recordScanObservation(
           serverId: serverId,
           scanInProgress: false,
           supported: false,
         );
-        return (null, false);
+        return (token: null, read: _ScanRead.unsupported);
       }
       if (status.scanning) {
         await _database.librarySyncDao.recordScanObservation(
@@ -3229,7 +3274,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
           scanInProgress: true,
           supported: true,
         );
-        return (null, true);
+        return (token: null, read: _ScanRead.scanning);
       }
       final token = status.lastScan?.toIso8601String();
       await _database.librarySyncDao.recordScanObservation(
@@ -3238,10 +3283,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         supported: true,
         providerScanToken: token,
       );
-      return (token, true);
+      return (token: token, read: _ScanRead.idle);
     } on SubsonicException catch (error) {
       AppLogger.warning('Scan status unavailable: $error');
-      return (null, false);
+      return (token: null, read: _ScanRead.unreadable);
     }
   }
 
@@ -3260,22 +3305,28 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     }
   }
 
-  /// True when a scan landed between the two observations and the candidate's
-  /// completeness evidence can no longer be trusted.
-  bool _scanInvalidatedCollection(
-    (String?, bool) atCollection,
-    (String?, bool) atPromotion,
+  /// Whether a scan around the collection makes its completeness evidence
+  /// untrustworthy, in rule order: both sides unsupported never blocks; a scan
+  /// running on either side invalidates; an unreadable or half-unsupported
+  /// pair is unknown; two idle reads invalidate only on a changed token
+  /// (tokenless servers compare null with null).
+  _ScanVerdict _scanVerdict(
+    _ScanObservation atCollection,
+    _ScanObservation atPromotion,
   ) {
-    final (collectionToken, collectionSupported) = atCollection;
-    final (promotionToken, promotionSupported) = atPromotion;
-    if (!collectionSupported || !promotionSupported) {
-      // Unsupported scan status must not block synchronization; providers
-      // without tokens stay on their existing discovery/audit mechanisms.
-      return false;
+    final reads = {atCollection.read, atPromotion.read};
+    if (atCollection.read == _ScanRead.unsupported &&
+        atPromotion.read == _ScanRead.unsupported) {
+      return _ScanVerdict.none;
     }
-    // A scan running at collection start, or a changed completed token at
-    // promotion time, both mean the candidate may miss post-scan content.
-    return collectionToken != promotionToken;
+    if (reads.contains(_ScanRead.scanning)) return _ScanVerdict.scan;
+    if (reads.contains(_ScanRead.unreadable) ||
+        reads.contains(_ScanRead.unsupported)) {
+      return _ScanVerdict.unreadable;
+    }
+    return atCollection.token != atPromotion.token
+        ? _ScanVerdict.scan
+        : _ScanVerdict.none;
   }
 
   /// Streams the candidate's canonical songs through [session], applies its
@@ -3337,13 +3388,45 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     }
   }
 
+  /// Leaves the candidate collecting (or held) and logs why promotion waits.
+  Future<void> _deferPromotion({
+    required int serverId,
+    required bool startedHeld,
+    required bool droppedHold,
+    required String reason,
+    required Map<String, Object?> details,
+  }) async {
+    await _database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
+        // A confirming run keeps the hold, so the retry confirms it.
+        candidateStatus: Value(
+          startedHeld ? 'awaitingDeletionConfirmation' : 'collecting',
+        ),
+        // A hold whose removal no longer applies leaves no stale prompt.
+        deletionCandidateCount: droppedHold
+            ? const Value(0)
+            : const Value.absent(),
+        deletionCandidateFingerprint: droppedHold
+            ? const Value(null)
+            : const Value.absent(),
+      ),
+    );
+    await _database.librarySyncDao.recordOperationLedgerEntry(
+      serverId: serverId,
+      operation: 'catalogPromotion',
+      reason: reason,
+      details: details,
+    );
+  }
+
   /// Returns true when the candidate was promoted; false when a scan landed
-  /// during collection and the candidate's completeness evidence was withheld
-  /// for a safe recollect.
+  /// during collection (or its status was unreadable) and the candidate's
+  /// completeness evidence was withheld for a safe recollect.
   Future<bool> _promoteFullSyncCandidate({
     required int serverId,
     required int generation,
-    required (String?, bool) scanTokenAtCollection,
+    required _ScanObservation scanTokenAtCollection,
     required bool startedHeld,
     required bool droppedHold,
     required DateTime? collectionStartedAt,
@@ -3362,16 +3445,95 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         collectionStartedAt ??
         syncState.candidateStartedAt ??
         DateTime.fromMillisecondsSinceEpoch(0);
-    final scanAtPromotion = await _recordScanObservation(
+    var scanAtPromotion = await _recordScanObservation(
       serverId: serverId,
       metrics: metrics,
     );
-    if (_scanInvalidatedCollection(scanTokenAtCollection, scanAtPromotion)) {
+    // A user cancel or policy stop that landed during the status read ends
+    // the run here, before any deferral is recorded or promotion starts.
+    _checkCancelled();
+    _ensureBackgroundWorkAllowed();
+    var verdict = _scanVerdict(scanTokenAtCollection, scanAtPromotion);
+    if (verdict == _ScanVerdict.unreadable ||
+        (verdict == _ScanVerdict.scan &&
+            scanTokenAtCollection.read == _ScanRead.scanning &&
+            scanAtPromotion.read == _ScanRead.scanning)) {
+      // With no committed rows there is nothing to delete, so first setup
+      // never waits on a busy or unreadable scan status.
+      final counts = await _database.libraryDao.getCatalogCounts();
+      if (counts.artists + counts.albums + counts.songs == 0) {
+        verdict = _ScanVerdict.none;
+      }
+    }
+    Map<String, Object?> scanDetails(Map<String, Object?> extra) =>
+        <String, Object?>{
+          'generation': generation,
+          'tokenAtCollection': scanTokenAtCollection.token,
+          'tokenAtPromotion': scanAtPromotion.token,
+          'readAtCollection': scanTokenAtCollection.read.name,
+          'readAtPromotion': scanAtPromotion.read.name,
+          ...extra,
+        };
+    if (verdict == _ScanVerdict.unreadable) {
+      // Unreadable status never writes `scanSupported=false` and never counts
+      // toward the scan-churn streak. A bounded streak of them, then one
+      // final read, keeps a permanently broken endpoint from blocking forever.
+      final serverConfig = await _serverConfigRepository.getActiveServer();
+      final unreadableStreak =
+          _readNavisIntCapability(
+            serverConfig?.capabilitiesJson,
+            _libraryScanUnreadableStreakCapabilityKey,
+          ) +
+          1;
+      if (unreadableStreak < _maxScanDeferralStreak) {
+        await _updateVerificationCapabilities(<String, Object?>{
+          _libraryScanUnreadableStreakCapabilityKey: unreadableStreak,
+        }, metrics);
+        await _deferPromotion(
+          serverId: serverId,
+          startedHeld: startedHeld,
+          droppedHold: droppedHold,
+          reason: 'scanStatusUnreadable',
+          details: scanDetails(<String, Object?>{
+            'unreadableStreak': unreadableStreak,
+          }),
+        );
+        AppLogger.warning(
+          'Deferred catalog promotion: scan status unreadable '
+          '(streak $unreadableStreak).',
+        );
+        return false;
+      }
+      scanAtPromotion = await _recordScanObservation(
+        serverId: serverId,
+        metrics: metrics,
+      );
+      _checkCancelled();
+      _ensureBackgroundWorkAllowed();
+      verdict = _scanVerdict(scanTokenAtCollection, scanAtPromotion);
+      if (verdict == _ScanVerdict.unreadable) {
+        await _database.librarySyncDao.recordOperationLedgerEntry(
+          serverId: serverId,
+          operation: 'catalogPromotion',
+          reason: 'scanStatusUnreadableCapRelease',
+          details: scanDetails(<String, Object?>{
+            'unreadableStreak': unreadableStreak,
+          }),
+        );
+        AppLogger.warning(
+          'Released deferred catalog promotion after $unreadableStreak '
+          'consecutive unreadable scan-status reads.',
+        );
+      }
+    }
+    if (verdict == _ScanVerdict.scan) {
       // The server scanned while this candidate was collected. Promoting it
       // would commit incomplete evidence; keep the committed catalog visible
       // and let the resumable planner recollect missing work. On a server
       // that rescans continuously this could defer forever, so after a
-      // bounded streak the promotion is released once the server settles.
+      // bounded streak the promotion is released once the server settles, but
+      // only when this run's collection started on a quiet server: pages
+      // collected mid-scan are never trusted.
       final serverConfig = await _serverConfigRepository.getActiveServer();
       final deferralStreak =
           _readNavisIntCapability(
@@ -3379,42 +3541,23 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             _libraryScanDeferralStreakCapabilityKey,
           ) +
           1;
-      final scanDetails = <String, Object?>{
-        'generation': generation,
-        'tokenAtCollection': scanTokenAtCollection.$1,
-        'tokenAtPromotion': scanAtPromotion.$1,
+      final details = scanDetails(<String, Object?>{
         'deferralStreak': deferralStreak,
-      };
-      final capReached = deferralStreak >= _maxScanDeferralStreak;
-      var capReleased = false;
-      if (capReached) {
-        capReleased = await _waitForScanSettle(metrics);
-      }
+      });
+      final capReleased =
+          deferralStreak >= _maxScanDeferralStreak &&
+          scanTokenAtCollection.read == _ScanRead.idle &&
+          await _waitForScanSettle(serverId, metrics);
       if (!capReleased) {
         await _updateVerificationCapabilities(<String, Object?>{
           _libraryScanDeferralStreakCapabilityKey: deferralStreak,
         }, metrics);
-        await _database.librarySyncDao.writeState(
-          LibrarySyncStateTableCompanion(
-            serverId: Value(serverId),
-            // A confirming run keeps the hold, so the retry confirms it.
-            candidateStatus: Value(
-              startedHeld ? 'awaitingDeletionConfirmation' : 'collecting',
-            ),
-            // A hold whose removal no longer applies leaves no stale prompt.
-            deletionCandidateCount: droppedHold
-                ? const Value(0)
-                : const Value.absent(),
-            deletionCandidateFingerprint: droppedHold
-                ? const Value(null)
-                : const Value.absent(),
-          ),
-        );
-        await _database.librarySyncDao.recordOperationLedgerEntry(
+        await _deferPromotion(
           serverId: serverId,
-          operation: 'catalogPromotion',
+          startedHeld: startedHeld,
+          droppedHold: droppedHold,
           reason: 'scanChangedDuringCollection',
-          details: scanDetails,
+          details: details,
         );
         AppLogger.warning(
           'Deferred catalog promotion: server scan changed during collection '
@@ -3429,7 +3572,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         serverId: serverId,
         operation: 'catalogPromotion',
         reason: 'scanChurnCapRelease',
-        details: scanDetails,
+        details: details,
       );
       AppLogger.warning(
         'Released deferred catalog promotion after $deferralStreak '
@@ -3464,6 +3607,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       'maxPage=${analysis.maximumPageSize} '
       'rssGrowth=${analysis.rssGrowthBytes}.',
     );
+    // The analyzer reads protected playback state and takes a while: honor a
+    // cancel or policy stop that arrived meanwhile before applying anything.
+    _checkCancelled();
+    _ensureBackgroundWorkAllowed();
     final stopwatch = Stopwatch()..start();
     var removedSongCount = 0;
     var retainedUnavailableCount = 0;
@@ -3884,16 +4031,18 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     await _updateVerificationCapabilities(<String, Object?>{
       _libraryCandidateScanTokenCapabilityKey: null,
     }, metrics);
-    // A promotion supersedes any recorded scan-churn deferral streak.
+    // A promotion supersedes any recorded scan deferral streaks.
     final promotedServer = await _serverConfigRepository.getActiveServer();
-    if (_readNavisIntCapability(
-          promotedServer?.capabilitiesJson,
-          _libraryScanDeferralStreakCapabilityKey,
-        ) >
-        0) {
-      await _updateVerificationCapabilities(<String, Object?>{
-        _libraryScanDeferralStreakCapabilityKey: null,
-      }, metrics);
+    final staleStreaks = <String, Object?>{
+      for (final key in const [
+        _libraryScanDeferralStreakCapabilityKey,
+        _libraryScanUnreadableStreakCapabilityKey,
+      ])
+        if (_readNavisIntCapability(promotedServer?.capabilitiesJson, key) > 0)
+          key: null,
+    };
+    if (staleStreaks.isNotEmpty) {
+      await _updateVerificationCapabilities(staleStreaks, metrics);
     }
     return true;
   }
