@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/foundation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -52,8 +51,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     );
     final packageInfo = ref.watch(packageInfoProvider).asData?.value;
     final version = packageInfo?.version ?? '';
-    final showUpdateControls =
-        !kIsWeb && defaultTargetPlatform != TargetPlatform.iOS;
+    final showUpdateControls = selfUpdateSupported;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     // Show a snackbar when a user-triggered check resolves as up to date,

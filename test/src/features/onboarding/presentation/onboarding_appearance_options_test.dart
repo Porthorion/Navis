@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -99,6 +101,7 @@ Future<_Harness> _pump(
   bool updatedUser = true,
   bool reviewMode = true,
   bool clearTagsWhenShown = false,
+  bool realHighlightsService = false,
   Future<void> Function(AppSettingsDao dao)? seed,
 }) async {
   setAdaptiveTestViewport(tester, const Size(500, 3000));
@@ -119,24 +122,25 @@ Future<_Harness> _pump(
         externalScrobbleCredentialStoreProvider.overrideWithValue(
           _MemoryCredentialStore(),
         ),
-        setupHighlightsServiceProvider.overrideWith((ref) {
-          final repository = ref.watch(settingsRepositoryProvider);
-          return SetupHighlightsService(
-            () => repository.updateSetupHighlightsSeenRelease('1.5.0'),
-            () => repository.updateSetupCardDismissedRelease('1.5.0'),
-            (option) async {
-              _shownOptions.add(option);
-              if (clearTagsWhenShown) {
-                await repository.markSetupHighlightSeen(option.storageKey);
-              }
-            },
-          );
-        }),
+        if (!realHighlightsService)
+          setupHighlightsServiceProvider.overrideWith((ref) {
+            final repository = ref.watch(settingsRepositoryProvider);
+            return SetupHighlightsService(
+              () => repository.updateSetupHighlightsSeenRelease('1.5.0'),
+              () => repository.updateSetupCardDismissedRelease('1.5.0'),
+              (option) async {
+                _shownOptions.add(option);
+                if (clearTagsWhenShown) {
+                  await repository.markSetupHighlightSeen(option.storageKey);
+                }
+              },
+            );
+          }),
         packageInfoProvider.overrideWith(
           (ref) async => PackageInfo(
             appName: 'Navis',
             packageName: 'test.navis',
-            version: '1.5.0',
+            version: realHighlightsService ? '1.5.2' : '1.5.0',
             buildNumber: '10500',
           ),
         ),
@@ -262,6 +266,23 @@ void main() {
     expect(row.nowPlayingBackground, 'artwork');
     expect(row.homeDensity, 'compact');
     expect(row.setupHighlightsSeenRelease, '1.5.0');
+  });
+
+  testWidgets('first-run Skip marks the standalone Appearance tag seen', (
+    tester,
+  ) async {
+    final h = await _pump(
+      tester,
+      updatedUser: false,
+      reviewMode: false,
+      realHighlightsService: true,
+    );
+
+    await h.skip(); // jumps to the integrations step
+    await h.skip();
+
+    final row = await h.row();
+    expect(jsonDecode(row.setupHighlightsSeen ?? '[]'), contains('genresPage'));
   });
 
   testWidgets('Skip in review keeps the tags pending', (tester) async {

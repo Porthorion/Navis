@@ -20,6 +20,12 @@ import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
 
 abstract interface class SignOutService {
+  /// Signs out, optionally wiping the server's local data.
+  ///
+  /// Concurrent calls: the same mode joins the running sign-out, and so does a
+  /// keep-data request while a wipe runs (the wipe also signs out). A wipe
+  /// requested during a keep-data sign-out runs right after it, so a wipe is
+  /// never lost, and the returned future completes when that wipe has.
   Future<void> signOut({required bool wipeLocalData});
 }
 
@@ -146,13 +152,30 @@ class SessionLifecycleService implements SignOutService {
   final double _timeoutScale;
 
   Future<void>? _inFlight;
+  bool _inFlightWipes = false;
 
   @override
   Future<void> signOut({required bool wipeLocalData}) {
-    return _inFlight ??= _signOut(wipeLocalData: wipeLocalData)
+    final running = _inFlight;
+    // Same mode, or a keep request while a wipe runs, joins the run.
+    if (running != null && (_inFlightWipes || !wipeLocalData)) return running;
+    // A wipe asked during a keep-data run is chained after it (even if it
+    // failed). The running `_signOut` never changes mode: after its wipe
+    // check that would clear credentials but keep the data.
+    late final Future<void> run;
+    run = (running ?? Future<void>.value())
+        .catchError((Object _) {})
+        .then((_) => _signOut(wipeLocalData: wipeLocalData))
         .whenComplete(() {
-          _inFlight = null;
+          // The keep run finishing must not clear the chained wipe.
+          if (identical(_inFlight, run)) {
+            _inFlight = null;
+            _inFlightWipes = false;
+          }
         });
+    _inFlight = run;
+    _inFlightWipes = wipeLocalData;
+    return run;
   }
 
   Future<void> _signOut({required bool wipeLocalData}) async {

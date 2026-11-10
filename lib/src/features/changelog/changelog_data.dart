@@ -406,6 +406,22 @@ const List<ChangelogVersion> changelogs = [
         platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Haptics no longer lists the Notifications switch on iPhone and iPad, '
+        'where Navis has no download notifications to vibrate for',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'iPhone and iPad builds no longer check for updates, because the App '
+        'Store or TestFlight delivers them',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A new install no longer shows a “New” tag on Appearance after setup',
+        type: ChangelogEntryType.fix,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),

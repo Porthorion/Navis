@@ -48,6 +48,17 @@ class _ListenBrainzStore
   }
 }
 
+class _CountingRepository extends ServerConfigRepository {
+  new(super.database, {required super.credentials, required this.onKeep});
+  final void Function() onKeep;
+
+  @override
+  Future<void> signOutKeepData() {
+    onKeep();
+    return super.signOutKeepData();
+  }
+}
+
 class _ArtworkCacheManager extends Fake implements CacheManager {
   new(this.onClear);
   final void Function() onClear;
@@ -922,6 +933,85 @@ void main() {
           );
         }
       });
+    });
+
+    group('concurrent sign-out modes', () {
+      late Completer<void> gate;
+      late int wipes;
+      late int keeps;
+      late SignOutService held;
+
+      setUp(() async {
+        gate = Completer<void>();
+        wipes = 0;
+        keeps = 0;
+        final cacheFile = File('${tmpDir.path}/race.mp3')
+          ..writeAsStringSync('audio');
+        await _seedAuthenticatedData(database, repository, cacheFile.path);
+        // Counts the keep-data credential step through the real repository.
+        final counting = _CountingRepository(
+          database,
+          credentials: credentials,
+          onKeep: () => keeps++,
+        );
+        held = SessionLifecycleService(
+          credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+          serverConfigRepository: counting,
+          database: database,
+          stopDownloads: () => gate.future,
+          wipeServerData: () async {
+            wipes++;
+            await ServerDataResetService(database: database)
+                .reset(fenceSync: true);
+          },
+        );
+      });
+
+      Future<void> expectWiped() async {
+        expect(wipes, 1);
+        expect(await database.serverDao.getRetainedServer(), isNull);
+        expect(await database.select(database.artistsTable).get(), isEmpty);
+      }
+
+      test('a wipe asked during a keep-data sign-out still wipes', () async {
+        final keep = held.signOut(wipeLocalData: false);
+        final wipe = held.signOut(wipeLocalData: true);
+        gate.complete();
+        await Future.wait([keep, wipe]);
+        await expectWiped();
+      }, skip: !sqliteAvailable);
+
+      test('a keep-data request during a wipe joins the wipe', () async {
+        final wipe = held.signOut(wipeLocalData: true);
+        final keep = held.signOut(wipeLocalData: false);
+        expect(identical(wipe, keep), isTrue);
+        gate.complete();
+        await Future.wait([wipe, keep]);
+        await expectWiped();
+        expect(keeps, 0);
+      }, skip: !sqliteAvailable);
+
+      test('a third caller during the chained wipe joins the chain', () async {
+        final keep = held.signOut(wipeLocalData: false);
+        final wipe = held.signOut(wipeLocalData: true);
+        final third = held.signOut(wipeLocalData: false);
+        expect(identical(wipe, third), isTrue);
+        gate.complete();
+        await Future.wait([keep, wipe, third]);
+        await expectWiped();
+      }, skip: !sqliteAvailable);
+
+      test('the next sign-out after an upgraded pair starts fresh', () async {
+        final keep = held.signOut(wipeLocalData: false);
+        final wipe = held.signOut(wipeLocalData: true);
+        gate.complete();
+        await Future.wait([keep, wipe]);
+        await expectWiped();
+        final keepsBefore = keeps;
+        await held.signOut(wipeLocalData: false);
+        expect(wipes, 1);
+        expect(keeps, keepsBefore + 1);
+      }, skip: !sqliteAvailable);
     });
   });
 }
