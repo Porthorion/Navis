@@ -218,7 +218,11 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         if (handler != null) await handler.applyRuntimeSettings();
       }
       if (!discardDraft || (!widget.reviewMode && _onboardingRequiredAtEntry)) {
-        await ref.read(setupHighlightsServiceProvider).markSeen();
+        await ref
+            .read(setupHighlightsServiceProvider)
+            .markSeen(
+              firstRun: !widget.reviewMode && _onboardingRequiredAtEntry,
+            );
       }
       await ref.read(onboardingCompletionServiceProvider).complete();
       if (!mounted) return;

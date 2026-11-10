@@ -704,6 +704,9 @@ that engine and retry their startup pass when it arrives; only an explicit
 user-triggered retry exposes a persistent unavailable-engine failure.
 
 All logout callers use the injected, single-flight `SessionLifecycleService`.
+A concurrent call joins the running sign-out unless it asks for a wipe during a
+keep-data run: that wipe is chained to run after it (wipe wins), and a keep
+request during a wipe joins the wipe.
 Its ordering is API cancellation → awaited sync stop → sign-out fence of every
 sync lease → download stop → playback/radio session reset → transient
 UI/mix/timer reset → pending mutation/work cleanup → optional server-data/file
@@ -1938,7 +1941,8 @@ and plays only when Settings → Haptics allows it (phones and tablets; the page
 is hidden and its route redirects on desktop). Each category has a
 stored bit: Player Gestures (1), Playback Buttons (2), Sliders & Rulers (4),
 Switches & Steppers (8), Lists & Menus (16), Likes & Alerts (32), Notifications
-(64). Notifications plays no haptic: Android fixes a channel's vibration once
+(64; the switch is hidden off Android, which alone posts download
+notifications). Notifications plays no haptic: Android fixes a channel's vibration once
 it exists, so `NotificationBootstrap` creates a vibration-free `downloads_quiet`
 twin of `downloads`, and `DownloadNotifier.channelId` posts progress, complete
 and failed notifications on it whenever `NavisHaptics.allows(notifications)` is
@@ -3410,7 +3414,8 @@ and Subsonic delivery continues independently.
   the Integrations feature never imports Home. A saved Last.fm key is written
   with `updateLastFmApiKey`. A locked service switch's semantics label carries
   its lock reason. The Updates section is hidden where About hides
-  update controls (web, and iOS except the sideload build). Playback and About hold no copies of these
+  update controls (web, and iOS except the sideload build); `updateProvider` also returns null there
+  (`updateUiAvailable`), so no non-sideload iOS path contacts the update host. Playback and About hold no copies of these
   switches; About keeps "Check now", disabled while the master or `updates`
   service switch is off. Its service names, the line about what each service
   sends and the lock reasons come from `integration_copy.dart`, shared with
@@ -7267,8 +7272,27 @@ contract.
   deferral streak in `libraryScanDeferralStreak`), and the candidate, stored
   with its collection token (`libraryCandidateScanToken`), resumes only while
   the server is still at that token; otherwise its pages are discarded and
-  collected again. A candidate written by an older build carries no token and
-  is discarded and collected again once. A held large-deletion candidate is
+  collected again. A candidate whose collection read a running scan is stored
+  with a sentinel token (`scanning`) that no later read matches, tokenless
+  servers included, so it is always discarded. A scan running at either
+  observation defers the promotion, as does a status that cannot be read (a
+  transport failure, or any failure once a token was stored, or the endpoint
+  vanishing after it once worked) or that is supported at only one of the two
+  observations. While no token has ever been stored, an API error answer
+  (Subsonic code 0, 40 or 50, HTTP 404 or 501) reads as an unsupported endpoint like a
+  missing one, so such a server promotes on every run (HTTP 429 and other 5xx
+  stay unreadable, token or not, since a busy server mid-scan answers them); an
+  unsupported endpoint at both never blocks. Unreadable deferrals record
+  `scanStatusUnreadable` and count in their own streak
+  (`libraryScanUnreadableStreak`), which leaves the scan-churn streak and the
+  coordinator backoff alone. At the third one a final status read decides: a
+  quiet server promotes, a scan defers as above, and a status that is still
+  unreadable releases the promotion (`scanStatusUnreadableCapRelease`). A
+  catalog with no committed rows has nothing to delete, so first setup never
+  waits on a busy or unreadable status. A cancel or background-policy stop
+  during the promotion status read, the settle wait or the diff analysis ends
+  the run as cancelled before anything is applied. A candidate written by an
+  older build carries no token and is discarded and collected again once. A held large-deletion candidate is
   exempt from the token rule, and a run that carries the dialog's confirmation
   is exempt from the 24 hour resume window too: it always collects fresh
   pages, and its generation and start time pin the confirmation fingerprint.
@@ -7317,7 +7341,8 @@ contract.
   Each deferral counts in a streak; a pass whose streak reaches three waits a
   bounded window for a running scan to finish and releases the promotion of the
   data it just collected once the server is quiet (`scanChurnCapRelease`
-  ledger entry), which leaves the newer scan pending. If the server has still
+  ledger entry), which leaves the newer scan pending; a collection that began
+  mid-scan is never released this way. If the server has still
   not settled, the retry after the third backoff step and every later one waits
   at least 24 hours, so a server that never stops scanning costs four automatic
   full passes in the first day (at 0, 15, 45 and 105 minutes) and one a day

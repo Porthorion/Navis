@@ -3543,6 +3543,11 @@ final updateRepositoryProvider = Provider<UpdateRepository>((ref) {
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   ref.watch(effectiveUpdateSourceProvider);
+  // Before the force flag is consumed: no non-sideload iOS path may reach the
+  // network.
+  if (!updateUiAvailable) {
+    return null;
+  }
   final isLoading = ref.watch(
     appSettingsProvider.select((settings) => settings.isLoading),
   );

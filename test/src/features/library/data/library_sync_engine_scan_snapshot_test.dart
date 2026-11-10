@@ -671,22 +671,28 @@ void main() {
     final scan3 = DateTime.utc(2026, 11, 7, 13);
     await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
     serve(withGain(-2.0), baseAlbums(), scan3);
+    final committedGain = (await songsById())['s1']!.replayGainTrackGain;
     api.onGetScanStatus = () async => ScanStatus(scanning: true, count: 12);
     api.calls.clear();
     await snapshot(scanTriggered: true);
     api.onGetScanStatus = null;
     // The deferral proved scan3 landed after the scan2 pages: they are not
-    // reused, and the newest data is what gets promoted.
+    // reused. Pages collected while a scan runs are not trusted either, so
+    // nothing is promoted until a run sees a quiet server.
     expect(
       api.calls.where((c) => c.startsWith('getAlbumListPage:0:100')),
       isNotEmpty,
       reason: 'collected again',
     );
+    expect((await songsById())['s1']!.replayGainTrackGain, committedGain);
+    await snapshot(scanTriggered: true);
     expect((await songsById())['s1']!.replayGainTrackGain, -2.0);
     final observation = await database.librarySyncDao.getScanObservation(
       serverId,
     );
-    expect(observation!.pendingReconciliation, isTrue);
+    // The quiet run reconciles scan3; the mid-scan run reconciled nothing.
+    expect(observation!.reconciledToken, scan3.toIso8601String());
+    expect(observation.pendingReconciliation, isFalse);
   }, skip: !sqliteAvailable);
 
   test('V1: a scan that lands during the confirming run keeps the confirmation', () async {
@@ -730,6 +736,7 @@ void main() {
   test('X6: a failed status read keeps a resumable candidate', () async {
     final scan3 = DateTime.utc(2026, 11, 7, 13);
     await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
+    final committedGain = (await songsById())['s1']!.replayGainTrackGain;
 
     api.onGetScanStatus = () async =>
         throw const SubsonicConnectionException('status unavailable');
@@ -742,7 +749,9 @@ void main() {
       isEmpty,
       reason: 'the candidate resumed',
     );
-    expect((await songsById())['s1']!.replayGainTrackGain, -3.5);
+    // An unreadable status defers promotion (it never blocks forever), so the
+    // committed catalog is unchanged.
+    expect((await songsById())['s1']!.replayGainTrackGain, committedGain);
     // Only the scan the pages were collected under may be reconciled.
     final observation = await database.librarySyncDao.getScanObservation(
       serverId,
@@ -763,6 +772,19 @@ void main() {
         scanInProgress: false,
         supported: true,
         providerScanToken: scan2.toIso8601String(),
+      );
+      // Two unreadable deferrals already happened: this run's final read is
+      // the one that releases the promotion.
+      final server = (await repository.getActiveServer())!;
+      final capabilities = jsonDecode(server.capabilitiesJson ?? '{}') as Map;
+      await repository.updateCapabilitiesJson(
+        jsonEncode({
+          ...capabilities,
+          'navis': {
+            ...(capabilities['navis'] as Map? ?? {}),
+            'libraryScanUnreadableStreak': '2',
+          },
+        }),
       );
       api.onGetScanStatus = () async =>
           throw const SubsonicConnectionException('status unavailable');

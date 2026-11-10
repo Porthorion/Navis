@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -103,26 +105,29 @@ class HapticsSettingsScreen extends ConsumerWidget {
             ),
             const Divider(height: NavisSpace.lg),
             for (final category in HapticCategory.values)
-              NavisSwitchListTile(
-                key: ValueKey<String>('haptics-${category.name}'),
-                contentPadding: EdgeInsets.zero,
-                // The stored choice shows even while locked.
-                value: prefs.isOn(category),
-                onChanged: prefs.enabled
-                    ? (value) => unawaited(
-                        _write(
-                          context,
-                          ref,
-                          (repository) => repository.setHapticCategoryEnabled(
-                            category,
-                            enabled: value,
+              // Download notifications are Android-only (DownloadNotifier).
+              if (category != HapticCategory.notifications ||
+                  defaultTargetPlatform == TargetPlatform.android)
+                NavisSwitchListTile(
+                  key: ValueKey<String>('haptics-${category.name}'),
+                  contentPadding: EdgeInsets.zero,
+                  // The stored choice shows even while locked.
+                  value: prefs.isOn(category),
+                  onChanged: prefs.enabled
+                      ? (value) => unawaited(
+                          _write(
+                            context,
+                            ref,
+                            (repository) => repository.setHapticCategoryEnabled(
+                              category,
+                              enabled: value,
+                            ),
                           ),
-                        ),
-                      )
-                    : null,
-                title: Text(copy[category]!.$1),
-                subtitle: Text(copy[category]!.$2),
-              ),
+                        )
+                      : null,
+                  title: Text(copy[category]!.$1),
+                  subtitle: Text(copy[category]!.$2),
+                ),
           ],
         ),
       ),

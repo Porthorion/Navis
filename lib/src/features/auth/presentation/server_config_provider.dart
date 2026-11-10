@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -82,6 +83,8 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
   }
 
   Future<void> save(ServerConfigModel config) async {
+    // A sign-out still running (a chained wipe) would clear these credentials.
+    await ref.read(signOutServiceProvider).pendingSignOut;
     final repository = ref.read(serverConfigRepositoryProvider);
     await repository.save(config);
     await refresh();

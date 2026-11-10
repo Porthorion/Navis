@@ -93,9 +93,15 @@ final setupHighlightsCardVisibleProvider = Provider<bool>((ref) {
 
 /// Targeted setup acknowledgement and Home invitation dismissal operations.
 class SetupHighlightsService {
-  const new(this._markSeen, this._dismissCard, this._markOptionSeen);
+  const new(
+    this._markSeen,
+    this._dismissCard,
+    this._markOptionSeen, [
+    this._markStandaloneSeen,
+  ]);
 
   final Future<void> Function() _markSeen;
+  final Future<void> Function()? _markStandaloneSeen;
   final Future<void> Function() _dismissCard;
   final Future<void> Function(SetupHighlight) _markOptionSeen;
 
@@ -105,7 +111,13 @@ class SetupHighlightsService {
   /// Acknowledges the current highlight release after Finish or first-run Skip.
   ///
   /// Waits for package metadata so completing setup during loading cannot miss it.
-  Future<void> markSeen() => _markSeen();
+  ///
+  /// [firstRun] also clears the standalone tags: a new install has nothing new
+  /// to discover. An updated user's Finish leaves them for the option itself.
+  Future<void> markSeen({bool firstRun = false}) async {
+    await _markSeen();
+    if (firstRun) await _markStandaloneSeen?.call();
+  }
 
   /// Hides the invitation for this release without clearing its setup tags.
   Future<void> dismissCard() => _dismissCard();
@@ -136,6 +148,12 @@ final setupHighlightsServiceProvider = Provider<SetupHighlightsService>((ref) {
           : release != null && setupHighlightsFor(release).contains(option);
       if (!current) return;
       await repository.markSetupHighlightSeen(option.storageKey);
+    },
+    () async {
+      final info = await ref.read(packageInfoProvider.future);
+      for (final h in standaloneSetupHighlightsFor(info.version)) {
+        await repository.markSetupHighlightSeen(h.storageKey);
+      }
     },
   );
 });

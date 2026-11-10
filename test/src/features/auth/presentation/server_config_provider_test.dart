@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -13,6 +14,17 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
 class _Repository extends Mock implements ServerConfigRepository;
+
+class _PendingSignOut implements SignOutService {
+  final pending = Completer<void>();
+
+  @override
+  Future<void> get pendingSignOut => pending.future;
+
+  @override
+  Future<void> signOut({required bool wipeLocalData}) async {}
+}
+
 class _NetworkUsageMeter extends Mock implements NetworkUsageMeter;
 
 void main() {
@@ -141,5 +153,30 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(container.read(serverConfigProvider).error, same(error));
+  });
+
+  test('saving credentials waits for a sign-out still running', () async {
+    final repository = _Repository();
+    final signOut = _PendingSignOut();
+    when(repository.watchActiveServer).thenAnswer((_) => const Stream.empty());
+    when(repository.getActiveServer).thenAnswer((_) async => null);
+    when(() => repository.save(config)).thenAnswer((_) async {});
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigRepositoryProvider.overrideWithValue(repository),
+        signOutServiceProvider.overrideWithValue(signOut),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(serverConfigProvider, (_, _) {});
+    await container.read(serverConfigProvider.future);
+
+    final saved = container.read(serverConfigProvider.notifier).save(config);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    verifyNever(() => repository.save(config));
+
+    signOut.pending.complete();
+    await saved;
+    verify(() => repository.save(config)).called(1);
   });
 }
