@@ -72,6 +72,9 @@ class _NoRefreshServerConfig extends ServerConfigNotifier {
 /// A slow sign-out that publishes the phases like the session service does
 /// and, like a teardown that could not clear the session, leaves it in place.
 class _PhasedSignOut implements SignOutService {
+  @override
+  Future<void> get pendingSignOut async {}
+
   new(this._ref);
 
   final Ref _ref;

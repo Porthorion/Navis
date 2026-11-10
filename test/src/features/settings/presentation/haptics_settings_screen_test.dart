@@ -93,6 +93,23 @@ void main() {
     }
   });
 
+  testWidgets('iOS hides the Notifications category', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await _pump(tester);
+      expect(
+        find.byKey(const ValueKey<String>('haptics-notifications')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('haptics-likesAndAlerts')),
+        findsOneWidget,
+      );
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('master off disables every category and keeps their values', (
     tester,
   ) async {

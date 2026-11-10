@@ -87,6 +87,9 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
 }
 
 class _CallbackSignOutService implements SignOutService {
+  @override
+  Future<void> get pendingSignOut async {}
+
   new(this._onSignOut);
 
   final Future<void> Function({required bool wipeLocalData}) _onSignOut;

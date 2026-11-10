@@ -440,6 +440,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         capabilitiesJson: jsonEncode(result.capabilities.toJson()),
       );
       final repository = ref.read(serverConfigRepositoryProvider);
+      // The retained row must be compared after a sign-out in flight, which
+      // may be a chained wipe, has finished.
+      await ref.read(signOutServiceProvider).pendingSignOut;
       final retainedMatch = await repository.compareRetainedServer(config);
       if (retainedMatch == RetainedServerMatch.different) {
         if (!mounted || !await _confirmServerReplacement(l10n)) {
