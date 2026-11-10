@@ -2759,6 +2759,122 @@ void main() {
         });
       });
 
+      group('queue replacement is not a cut (mobile)', () {
+        const queue = ['song-2', 'song-0', 'song-1'];
+
+        Future<
+          ({
+            NavisAudioHandler handler,
+            ControllableAudioPlayer player,
+            RecordingLockResolver resolver,
+          })
+        >
+        replaced({required bool playing, required int start}) async {
+          late RecordingLockResolver resolver;
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-swap-',
+          );
+          addTearDown(() => directory.delete(recursive: true));
+          final (handler, player) = await setup(
+            mobile: true,
+            wrap: (base) => resolver = RecordingLockResolver(base, directory),
+          );
+          // The new head loads over an old item at the same native index: only
+          // then does the swapped sequence still map the stale index.
+          await handler.skipToPrevious();
+          await drain(handler);
+          await clockTo47(player, 35);
+          if (!playing) await handler.pause();
+          resolver.calls.clear();
+          player
+            ..staleSequenceSwap = true
+            ..staleSwapPosition = player.position
+            ..staleSwapState = ProcessingState.ready
+            ..useRealDiscontinuityDetector();
+          await handler.replaceQueue(
+            queue,
+            startIndex: start,
+            expandMatchFlows: false,
+          );
+          await drain(handler);
+          return (handler: handler, player: player, resolver: resolver);
+        }
+
+        for (final (playing, start) in [(false, 0), (true, 0)]) {
+          test('keeps the chosen song at its start '
+              '(playing: $playing, start index $start)', () async {
+            final run = await replaced(playing: playing, start: start);
+
+            expect(
+              run.resolver.calls.where((c) => c.offset != null),
+              isEmpty,
+              reason: 'no cut: no time-offset resolve',
+            );
+            expect(
+              (run.handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                  .where(
+                    (e) => (e as Map)['reason'] == 'premature transcode EOF',
+                  ),
+              isEmpty,
+            );
+            expect(run.handler.snapshot.currentSongId, queue[start]);
+            expect(run.player.position, lessThan(const Duration(seconds: 2)));
+          });
+        }
+
+        test(
+          'a real cut of the new song after the swap reopens once',
+          () async {
+            late RecordingLockResolver resolver;
+            final directory = await Directory.systemTemp.createTemp(
+              'navis-swap-',
+            );
+            addTearDown(() => directory.delete(recursive: true));
+            final (handler, player) = await setup(
+              mobile: true,
+              wrap: (base) => resolver = RecordingLockResolver(base, directory),
+            );
+            await handler.skipToPrevious();
+            await drain(handler);
+            await clockTo47(player, 35);
+            await handler.pause();
+            player
+              ..staleSequenceSwap = true
+              ..staleSwapPosition = player.position
+              ..staleSwapState = ProcessingState.ready;
+            await handler.replaceQueue(
+              queue,
+              startIndex: 0,
+              expandMatchFlows: false,
+            );
+            await drain(handler);
+            // The native tail fill adds and inserts without a source apply, so
+            // the sampler re-arms the cleared occurrence for the new song.
+            await handler.play();
+            player
+              ..simulatedDuration = const Duration(seconds: 47)
+              ..frozenStampPosition = Duration.zero
+              ..frozenStampTime = DateTime.now();
+            await clockTo47(player);
+            final loads = player.sourceLoads;
+            resolver.calls.clear();
+            player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+            await until(() => player.sourceLoads > loads);
+            await drain(handler);
+
+            expect(player.sourceLoads, loads + 1);
+            expect(
+              resolver.calls.where(
+                (c) => c.songId == 'song-2' && c.offset != null,
+              ),
+              hasLength(1),
+            );
+            expect(handler.snapshot.currentSongId, 'song-2');
+            expect(current(player).positionOffset, const Duration(seconds: 47));
+          },
+        );
+      });
+
       test('queue edit then cut (mobile)', () async {
         final (handler, player) = await setup(mobile: true);
         await clockTo47(player);

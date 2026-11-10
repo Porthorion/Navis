@@ -497,6 +497,16 @@ extension _NavisRecovery on NavisAudioHandler {
     // carries a stale one (the sparse departing event), so sample the player
     // clock instead (#527).
     final desktop = _isDesktopRuntime;
+    // While a source apply is in flight, or the native item is still loading,
+    // the player reports the previous item's position under the new sequence.
+    // Sampling it would pin the old song's position on the new song (#527).
+    if (!desktop &&
+        (_sourceAppliesInFlight > 0 ||
+            event.processingState == ProcessingState.idle ||
+            event.processingState == ProcessingState.loading)) {
+      if (indexEvent) _transcodeEndOccurrence = null;
+      return;
+    }
     final stamp = desktop ? event.updateTime : DateTime.now();
     final matchingQueue = _sequenceMatchesQueue(_player);
     if (index == null ||
@@ -543,6 +553,11 @@ extension _NavisRecovery on NavisAudioHandler {
     final index = previousEvent.currentIndex;
     final backgroundQueueWork = _backgroundQueueWork;
     if (_disposeHandlerStarted ||
+        // A queue apply swaps the sequence under the old item's clock; the
+        // departure it shows is not a cut.
+        _sourceAppliesInFlight > 0 ||
+        previousEvent.processingState == ProcessingState.idle ||
+        previousEvent.processingState == ProcessingState.loading ||
         (_isLoading && !backgroundQueueWork) ||
         _pendingSeek != null ||
         _remotePlaybackRecoveryInProgress ||
