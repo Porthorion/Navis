@@ -297,6 +297,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A download on a drive that is briefly unavailable is no longer '
+        'replaced by a streamed copy when a sync matches the song to the '
+        'server, and a desktop upgrade interrupted while moving the library '
+        'database no longer loses its latest changes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio always plays at normal speed and original pitch, whatever '
         'your Speed & Pitch setting is, and your setting comes back when '
         'songs play. Radio controls now have an Equalizer button next to '

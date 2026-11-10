@@ -258,13 +258,10 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       matchedAt: timestamp,
     );
 
-    final oldCache = await _cacheRow(oldId);
-    final canonicalCache = await _cacheRow(canonicalId);
-    final cacheChoice = await _chooseCacheWinner(
-      oldCache: oldCache,
-      canonicalCache: canonicalCache,
-    );
-
+    // Read and chosen inside the transaction so a concurrent cache write
+    // cannot slip between the choice and the remap.
+    CachedTracksTableData? oldCache;
+    var cacheChoice = const _CacheChoice(winner: null, losingFilePaths: []);
     final restoredLike = await _remapIdentity(
       _IdentityKind.song,
       oldId,
@@ -272,6 +269,12 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       matchReason,
       timestamp,
       beforeReferences: () async {
+        oldCache = await _cacheRow(oldId);
+        final canonicalCache = await _cacheRow(canonicalId);
+        cacheChoice = await _chooseCacheWinner(
+          oldCache: oldCache,
+          canonicalCache: canonicalCache,
+        );
         await _remapCache(
           oldSongId: oldId,
           canonicalSongId: canonicalId,
@@ -697,19 +700,20 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     required CachedTracksTableData? oldCache,
     required CachedTracksTableData? canonicalCache,
   }) async {
-    final oldValid = await _isValidCache(oldCache);
-    final canonicalValid = await _isValidCache(canonicalCache);
-    CachedTracksTableData? winner;
-    if (oldValid &&
-        oldCache!.cacheType == CacheType.permanent &&
-        (!canonicalValid || canonicalCache!.cacheType != CacheType.permanent)) {
-      winner = oldCache;
-    } else if (canonicalValid &&
-        canonicalCache!.cacheType == CacheType.permanent) {
+    // A finished permanent download always beats a rolling copy, readable or
+    // not: an unmounted volume must not cost the user the download (the
+    // download integrity path handles a file that is really gone), while a
+    // rolling copy can be streamed again. Validity only breaks ties.
+    bool permanent(CachedTracksTableData? row) =>
+        row != null &&
+        row.cacheType == CacheType.permanent &&
+        row.downloadStatus == DownloadStatus.complete;
+    final CachedTracksTableData? winner;
+    if (permanent(oldCache) != permanent(canonicalCache)) {
+      winner = permanent(oldCache) ? oldCache : canonicalCache;
+    } else if (await _isValidCache(canonicalCache)) {
       winner = canonicalCache;
-    } else if (canonicalValid) {
-      winner = canonicalCache;
-    } else if (oldValid) {
+    } else if (await _isValidCache(oldCache)) {
       winner = oldCache;
     } else {
       winner = canonicalCache ?? oldCache;

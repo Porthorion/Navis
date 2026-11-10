@@ -78,6 +78,16 @@ void main() {
     api.scanStatus = ScanStatus(scanning: false, count: 12, lastScan: scan);
   }
 
+  void serveAlbumDetails(Iterable<String> ids) {
+    for (final id in ids) {
+      api.albumDetails[id] = albumRow(
+        id,
+        '1',
+        1,
+      ).copyWith(songs: [song('s-$id', id)]);
+    }
+  }
+
   List<Album> baseAlbums() => [
     for (var n = 1; n <= 12; n++)
       albumRow('a$n', '1', n == 5 || n == 2 ? 2 : 1),
@@ -503,6 +513,88 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test(
+    'observeServerScan keeps the cancel of a running targeted hydration',
+    () async {
+      final gate = Completer<void>();
+      api.albumGates['a1'] = gate;
+      final run = engine.hydrateAlbum('a1');
+      while (!api.calls.contains('getAlbum:a1')) {
+        await pumpEventQueue();
+      }
+      engine.cancelSync();
+      expect(api.activeRequestsCancelled, isTrue);
+
+      // The coordinator's scan check runs while the targeted run unwinds.
+      api.scanStatus = ScanStatus(scanning: false, count: 12, lastScan: scan2);
+      await engine.observeServerScan(serverId);
+
+      expect(
+        api.activeRequestsCancelled,
+        isTrue,
+        reason: 'the targeted run would send fresh requests after its cancel',
+      );
+      gate.complete();
+      await run.then<void>((_) {}, onError: (_) {});
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('a targeted run started while a cancelled plan unwinds waits for it and '
+      'then runs uncancelled', () async {
+    serveAlbumDetails(['a1']);
+    final gate = Completer<void>();
+    api.pageGates[0] = gate;
+    api.calls.clear();
+    final plan = engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    while (!api.calls.any((c) => c.startsWith('getAlbumListPage:0'))) {
+      await pumpEventQueue();
+    }
+    engine.cancelSync();
+    expect(api.activeRequestsCancelled, isTrue);
+
+    final target = engine.hydrateAlbum('a1');
+    await pumpEventQueue();
+    expect(
+      api.calls,
+      isNot(contains('getAlbum:a1')),
+      reason: 'the target waits for the cancelled plan',
+    );
+    expect(api.activeRequestsCancelled, isTrue);
+
+    gate.complete();
+    final planState = await plan;
+    final targetState = await target;
+    expect(planState.status, LibrarySyncStatus.cancelled);
+    expect(targetState.status, LibrarySyncStatus.succeeded);
+    expect(api.calls, contains('getAlbum:a1'));
+  }, skip: !sqliteAvailable);
+
+  test('a plan that starts and ends beside a cancelled targeted run does not '
+      'un-cancel it', () async {
+    serveAlbumDetails(['a1', 'a3']);
+    final gate = Completer<void>();
+    api.albumGates['a1'] = gate;
+    final target = engine.hydrateAlbum('a1');
+    while (!api.calls.contains('getAlbum:a1')) {
+      await pumpEventQueue();
+    }
+    engine.cancelSync();
+    final plan = await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect(api.activeRequestsCancelled, isTrue);
+    gate.complete();
+    await target;
+    expect(plan.status, LibrarySyncStatus.cancelled);
+
+    // Idle again: a later run starts clean.
+    final later = await engine.hydrateAlbum('a3');
+    expect(later.status, LibrarySyncStatus.succeeded);
+  }, skip: !sqliteAvailable);
 
   test(
     'W2: the engine stops a scan-triggered snapshot on metered data',
