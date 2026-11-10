@@ -157,9 +157,10 @@ static void countFree(const volatile void *p) {
 #endif
 
 // #479e: the stage calls render, reset and set_cents on the render thread. None of
-// them may allocate or free (a seek resets with pitch on). Timing is logged by the
-// sweep probe, not asserted here: it is too noisy for CI.
-static void testRenderThreadCallsDoNotAllocate(void) {
+// them may allocate or free (a seek resets with pitch on). ASan's hooks see malloc,
+// realloc and free only (not calloc or aligned allocations). Timing is logged by
+// the sweep probe, not asserted here: it is too noisy for CI.
+static bool testRenderThreadCallsDoNotAllocate(void) {
 #ifdef NAVIS_ALLOC_HOOKS
     __sanitizer_install_malloc_and_free_hooks(countMalloc, countFree);
     atomic_store(&g_counting, true);
@@ -182,7 +183,7 @@ static void testRenderThreadCallsDoNotAllocate(void) {
     for (int i = 0; i < 64; i++) { // a seek with pitch on, a pitch change, then audio
         r.reset(r.user);
         r.set_cents(r.user, i & 1 ? 700.f : 1200.f);
-        r.render(r.user, in, out, CH, FRAMES);
+        if (r.render(r.user, in, out, CH, FRAMES) != 0) fail("render after reset", 0, 1);
     }
     atomic_store(&g_counting, false);
     __sanitizer_install_malloc_and_free_hooks(NULL, NULL);
@@ -190,8 +191,10 @@ static void testRenderThreadCallsDoNotAllocate(void) {
     if (allocations != 0) fail("allocations and frees in render, reset and set_cents", 0, (double)allocations);
     free(buffer);
     navis_pitch_au_free(au);
+    return true;
 #else
     puts("SKIPPED: the pitch AU allocation check needs AddressSanitizer's allocator hooks.");
+    return false;
 #endif
 }
 
@@ -199,7 +202,8 @@ int main(void) {
     testRatios();
     testLatencyOnsetTailAndReset();
     testTimestampMonotonicAcrossReset();
-    testRenderThreadCallsDoNotAllocate();
-    puts("Navis Darwin pitch AU: frequency ratios at 44.1/48/96 kHz, latency, onset, tail, reset, frame parity and no allocation on the render thread passed.");
+    bool allocationChecked = testRenderThreadCallsDoNotAllocate();
+    printf("Navis Darwin pitch AU: frequency ratios at 44.1/48/96 kHz, latency, onset, tail, reset, frame parity%s passed.\n",
+           allocationChecked ? " and no allocation on the render thread" : "");
     return 0;
 }
