@@ -548,6 +548,13 @@ const List<ChangelogVersion> changelogs = [
         'refresh. The list stays in place while it updates',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Skipping to another song on a computer is now a plain jump. It no '
+        'longer stops playback and reloads the whole queue, which briefly '
+        'went silent and could start the new song at the wrong volume',
+        platforms: ChangelogPlatform.desktop,
+        type: ChangelogEntryType.fix,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),

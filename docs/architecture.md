@@ -6329,7 +6329,12 @@ During lazy queue fill, manual navigation prepares the requested logical entry
 first and then resumes filling the rest. Queue fill tracks the selected entry
 by occurrence, so repeated song IDs keep the intended queue position. When
 `just_audio` ignores an indexed seek during loading, the handler reloads the
-complete source list at the requested index. The snapshot exposes
+complete source list at the requested index. The desktop adapter's `seek`
+returns when mpv accepts the jump, but media_kit reports the new index from a
+later property event, so `_seekPlayerToIndex` waits for the first
+`currentIndexStream` change (a quarter of the control timeout at most) before
+the handler checks the index. Without that wait every desktop skip looked like
+an ignored seek and rebuilt the queue in a new player (#509). The snapshot exposes
 `pendingQueueIndex` until that transition is confirmed. Desktop sidecar cache
 attempts use separate HTTP clients and partial files; cancellation closes the
 old client before a new attempt can publish the same cache path.
