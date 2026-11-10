@@ -3072,7 +3072,8 @@ handling. Commands are guarded before dispatch:
 - **Mini Player guard** — page shortcuts are ignored while Mini Player is shown
 
 Defaults: Ctrl/Cmd+F quick search, Ctrl/Cmd+K go to Search and focus its field,
-Ctrl/Cmd+1–4 tabs (Ctrl/Cmd+2 cycles sections only on the Library root),
+Ctrl/Cmd+1–4 tabs (Ctrl/Cmd+2 cycles sections only on the Library root; on
+macOS Settings is Cmd+, instead of Cmd+4, the platform convention),
 Ctrl/Cmd+J queue, Alt+Left/Right (Cmd+[ / Cmd+] on macOS) history, and Escape
 "Close overlay". Escape's persisted action name is still `toggleNowPlaying` for
 saved-binding compatibility. Quick search changes its filter with Tab, or with
@@ -3082,7 +3083,14 @@ Configurable bindings persist per action; a saved map that predates an action
 keeps that action's default. Playback speed up/down/reset (`speedUp`,
 `speedDown`, `speedReset`) default to the primary modifier with unshifted `.`,
 `,` and `0`, because Shift changes the logical key of punctuation on many
-layouts.
+layouts. On macOS speed-down is Cmd+`-` because Cmd+`,` opens Settings. Ctrl/Cmd+R
+refreshes the library; Ctrl/Cmd+Shift+R (`forceRescanLibrary`, a full resync)
+asks for confirmation first, with the Settings Repair Library wording.
+
+Bindings load from secure storage asynchronously. A change made before the load
+finishes is kept and merged over the saved map, which is then written back. On
+Linux without a keyring the storage read and write fail and bindings last only
+for the session (known limit).
 
 ## Database file location
 
@@ -5144,7 +5152,7 @@ While shuffle is on, `QueueShuffleBadge` marks the phone and desktop Queue
 buttons, and their accessible labels read "Queue, shuffle on". The compact
 Mini Player keeps Shuffle in its More menu. The phone Now Playing action row
 is Queue, Like, Lyrics and Settings.
-Configurable desktop shortcuts (default Ctrl/Cmd+`.`, `,` and `0`) step speed by
+Configurable desktop shortcuts (default Ctrl/Cmd+`.`, `,` and `0`; Cmd+`-` for slower on macOS) step speed by
 0.10 or reset it through `nudgePlaybackSpeed`, preserving pitch settings, and
 confirm with an app notice.
 

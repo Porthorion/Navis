@@ -17,6 +17,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
+import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
 
 abstract interface class SignOutService {
@@ -112,6 +113,8 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
       ref.invalidate(autoDownloadStarredDispatchControllerProvider);
       ref.invalidate(scrobbleServiceProvider);
       ref.invalidate(listenBrainzFeedbackServiceProvider);
+      // Cover ids are per server; a new one must not read the old colours.
+      ref.invalidate(dynamicAccentColorCacheProvider);
     },
   );
 });

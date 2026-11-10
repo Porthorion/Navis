@@ -239,7 +239,12 @@ void main() {
     tester,
   ) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
-    final container = _createContainer();
+    final container = _createContainer(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(InertPlaybackHandler()),
+        connectivityProvider.overrideWith((_) => const Stream.empty()),
+      ],
+    );
     container.read(nowPlayingTestPlaybackProvider.notifier).state =
         _songPlayback;
     await _pumpNowPlaying(tester, container);
@@ -256,6 +261,26 @@ void main() {
     await tester.tap(find.byTooltip('Play'));
     await tester.pump();
     expect(await spy.take(tester), ['press']);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('without an audio handler the play button, artwork tap and seek '
+      'bar stay silent', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.pumpAndSettle();
+    final spy = HapticsSpy.install(tester);
+
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.tapAt(tester.getCenter(_artGesture()));
+    await tester.drag(
+      find.byKey(const ValueKey('nowPlayingSeekSlider')),
+      const Offset(40, 0),
+    );
+    await tester.pump();
+    expect(await spy.take(tester), isEmpty);
   }, skip: !sqliteAvailable);
 
   testWidgets('the Like button of a remote song is disabled for semantics', (
@@ -1068,6 +1093,8 @@ void main() {
       TextScaler? textScaler,
       bool desktopRuntime = false,
       bool withSong = false,
+      bool songIsExternal = false,
+      AppNoticeController? notices,
     }) async {
       setAdaptiveTestViewport(tester, size);
       final container = _createContainer(
@@ -1076,13 +1103,13 @@ void main() {
           if (withSong)
             songByIdProvider.overrideWith(
               (ref, id) => Stream<SongsTableData?>.value(
-                const SongsTableData(
+                SongsTableData(
                   id: 'song-1',
                   title: 'Fixture song',
                   artistName: 'Fixture artist',
                   albumName: 'Fixture album',
                   isProvisional: false,
-                  isExternal: false,
+                  isExternal: songIsExternal,
                 ),
               ),
             ),
@@ -1110,6 +1137,7 @@ void main() {
         theme: theme,
         textScaler: textScaler,
         desktopRuntime: desktopRuntime,
+        notices: notices,
       );
       await tester.tap(find.byKey(const ValueKey('nowPlayingSettingsAction')));
       await tester.pumpAndSettle();
@@ -1225,6 +1253,26 @@ void main() {
         expect(tester.takeException(), isNull);
       }, skip: !sqliteAvailable);
     }
+
+    testWidgets(
+      'a song flagged external keeps Download unavailable even with a '
+      'server-looking id',
+      (tester) async {
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        await openSheet(
+          tester,
+          eqSupported: false,
+          withSong: true,
+          songIsExternal: true,
+          notices: notices,
+        );
+        await tester.tap(find.text('Download'));
+        await tester.pump();
+        expect(notices.notice?.message, 'Not available for remote tracks.');
+      },
+      skip: !sqliteAvailable,
+    );
 
     testWidgets('a wide desktop window keeps the sheet at 640 px, centred', (
       tester,

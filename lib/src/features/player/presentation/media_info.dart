@@ -143,8 +143,7 @@ class MediaInfoView extends ConsumerWidget {
     final details = detailsAsync?.asData?.value;
     // Remote tracks never use the server's answer, so they never wait for it.
     final remote =
-        song != null &&
-        (song.isExternal || !isServerAddressableSongId(song.id));
+        song != null && isRemoteSong(id: song.id, isExternal: song.isExternal);
     final detailsNote = remote || detailsAsync == null
         ? null
         : detailsAsync.isLoading
@@ -709,7 +708,7 @@ MediaInfo buildMediaInfo({
   final trackGain = gain(song.replayGainTrackGain);
   final albumGain = gain(song.replayGainAlbumGain);
 
-  final remote = song.isExternal || !isServerAddressableSongId(song.id);
+  final remote = isRemoteSong(id: song.id, isExternal: song.isExternal);
   final origin = remote
       ? MediaInfoOrigin.remote
       : downloaded

@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1755,6 +1756,59 @@ void main() {
         await _disposeApp(tester);
       },
     );
+
+    testWidgets('the heart follows the stored like after a sync unlikes', (
+      tester,
+    ) async {
+      final emitted = StreamController<AlbumWithSongs?>();
+      addTearDown(emitted.close);
+      final base = _albumWithSongs(const <SongsTableData>[
+        SongsTableData(
+          id: 'heart-track',
+          title: 'Heart Track',
+          track: 1,
+          isProvisional: false,
+          isExternal: false,
+        ),
+      ]);
+      AlbumWithSongs starred(bool value) => AlbumWithSongs(
+        album: base.album.copyWith(
+          starred: Value<DateTime?>(value ? DateTime(2026) : null),
+        ),
+        songs: base.songs,
+      );
+      await tester.pumpWidget(
+        _buildApp(
+          child: const AlbumDetailScreen(albumId: 'album-1'),
+          database: database,
+          adaptiveContext: _mobileContext,
+          overrides: [
+            albumProvider('album-1').overrideWith((ref) => emitted.stream),
+          ],
+        ),
+      );
+      await tester.pump();
+      emitted.add(starred(false));
+      await tester.pump();
+      await tester.drag(
+        find.byType(CustomScrollView).first,
+        const Offset(0, -360),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.tap(find.byTooltip('Like'));
+      await tester.pump();
+      expect(find.byTooltip('Liked'), findsOneWidget);
+      // The write reaches the album row, then a sync unlikes it.
+      emitted.add(starred(true));
+      await tester.pump();
+      expect(find.byTooltip('Liked'), findsOneWidget);
+      emitted.add(starred(false));
+      await tester.pump();
+      expect(find.byTooltip('Like'), findsOneWidget);
+      expect(find.byTooltip('Liked'), findsNothing);
+      await _disposeApp(tester);
+    });
 
     testWidgets('mobile album detail keeps expanded art app bar', (
       tester,

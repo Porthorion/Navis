@@ -82,7 +82,10 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
-  bool _isStarred = false;
+  /// The like just tapped, shown until the album row reports it (or the write
+  /// fails); afterwards the row alone decides, so a later unlike from sync
+  /// clears the heart.
+  bool? _pendingStarred;
   bool _isStarring = false;
   bool _isUpdatingRating = false;
   bool _isRefreshingAlbum = false;
@@ -342,7 +345,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   })
                   .toList(growable: false);
               _currentFilteredSongs = filteredSongs;
-              final isStarred = _isStarred || details.starred != null;
+              final storedStarred = details.starred != null;
+              if (_pendingStarred == storedStarred) _pendingStarred = null;
+              final isStarred = _pendingStarred ?? storedStarred;
               final albumInfoAsync = ref.watch(
                 albumInfoProvider(widget.albumId),
               );
@@ -1999,7 +2004,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   Future<void> _toggleStar({required bool isStarred}) async {
     setState(() {
-      _isStarred = !isStarred;
+      _pendingStarred = !isStarred;
       _isStarring = true;
     });
     try {
@@ -2014,7 +2019,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     } on Object {
       // A local persistence failure means the intent was not saved.
       if (!mounted) return;
-      setState(() => _isStarred = isStarred);
+      setState(() => _pendingStarred = null);
       showAppNotice(
         context,
         message: AppLocalizations.of(context)!.albumDetailStarFailure,

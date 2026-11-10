@@ -11,9 +11,11 @@ typedef _GenreItem = ({String letter, List<GenreSummary> genres});
 /// Height of a genre card at standard text size; it grows with text scale.
 const double _kGenreCardHeight = 92;
 
-/// The rail letter a genre sits under: its first Latin letter, else "#".
+/// The rail letter a genre sits under: its first Latin letter with accents
+/// folded away ("Électro" is E), else "#" (other scripts share one section).
 String _genreInitial(String name) {
-  final first = name.isEmpty ? '#' : name.substring(0, 1).toUpperCase();
+  final folded = foldSearchLetters(name.toLowerCase());
+  final first = folded.isEmpty ? '#' : folded.substring(0, 1).toUpperCase();
   return RegExp('[A-Z]').hasMatch(first) ? first : '#';
 }
 
@@ -42,8 +44,7 @@ class _LibraryGenresTab extends ConsumerStatefulWidget {
 }
 
 class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
-    with AutomaticKeepAliveClientMixin {
-  final TextEditingController _filterController = TextEditingController();
+    with AutomaticKeepAliveClientMixin, DebouncedSearch {
   final ItemPositionsListener _positionsListener =
       ItemPositionsListener.create();
   GenreSortOrder _sort = GenreSortOrder.songs;
@@ -57,10 +58,7 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
 
   /// The active filter: the typed field, else the Library's type-to-filter.
   String get _query =>
-      (_filterController.text.isNotEmpty
-              ? _filterController.text
-              : widget.typeFilterQuery)
-          .trim();
+      (query.isNotEmpty ? query : widget.typeFilterQuery).trim();
 
   @override
   bool get wantKeepAlive => true;
@@ -74,14 +72,12 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
   @override
   void dispose() {
     _positionsListener.itemPositions.removeListener(_onViewportChanged);
-    _filterController.dispose();
     super.dispose();
   }
 
   void _clearQuery() {
-    _filterController.clear();
+    clearSearch();
     widget.onClearTypeFilter?.call();
-    setState(() {});
   }
 
   void _setDownloadedOnly(bool value) {
@@ -180,10 +176,10 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
     return Column(
       children: <Widget>[
         ListFilterField(
-          controller: _filterController,
+          controller: search,
           alignWithContent: true,
           hint: l10n.genresSearchHint,
-          onChanged: (_) => setState(() {}),
+          onChanged: onSearchChanged,
           onClear: _clearQuery,
         ),
         LibrarySortFilterRow<GenreSortOrder>(
