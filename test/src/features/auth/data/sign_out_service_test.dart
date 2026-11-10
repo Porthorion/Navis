@@ -59,6 +59,13 @@ class _CountingRepository extends ServerConfigRepository {
   }
 }
 
+class _ThrowingKeepRepository extends ServerConfigRepository {
+  new(super.database, {required super.credentials});
+
+  @override
+  Future<void> signOutKeepData() => throw StateError('keep-data clear failed');
+}
+
 class _ArtworkCacheManager extends Fake implements CacheManager {
   new(this.onClear);
   final void Function() onClear;
@@ -1000,6 +1007,90 @@ void main() {
         await Future.wait([keep, wipe, third]);
         await expectWiped();
       }, skip: !sqliteAvailable);
+
+      test(
+        'a sign-in waiting on the pending sign-out survives a chained wipe',
+        () async {
+          final wipeGate = Completer<void>();
+          var stops = 0;
+          final chained = SessionLifecycleService(
+            credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+            serverConfigRepository: repository,
+            database: database,
+            stopDownloads: () => ++stops == 1 ? gate.future : wipeGate.future,
+            wipeServerData: () async {
+              wipes++;
+              await ServerDataResetService(database: database)
+                  .reset(fenceSync: true);
+            },
+          );
+          expect(chained.pendingSignOut, completes);
+          final keep = chained.signOut(wipeLocalData: false);
+          final wipe = chained.signOut(wipeLocalData: true);
+          gate.complete();
+          await keep; // the keep caller routes to login
+          // What a sign-in path does: wait for the pending sign-out, then save.
+          var saved = false;
+          final signIn = () async {
+            await chained.pendingSignOut;
+            await repository.save(
+              const ServerConfigModel(
+                name: 'example.com',
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'new-secret',
+                apiVersion: '1.16.1',
+              ),
+            );
+            saved = true;
+          }();
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          expect(saved, isFalse, reason: 'must wait for the chained wipe');
+          wipeGate.complete();
+          await Future.wait([wipe, signIn]);
+          expect(wipes, 1);
+          expect((await repository.getActiveServer())?.username, 'alice');
+          expect(credentials.password, 'new-secret');
+          await chained.pendingSignOut; // idle again: completes at once
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test(
+        'a wipe is chained even when the keep-data run had failing steps',
+        () async {
+          final wipeGate = Completer<void>();
+          final failing = SessionLifecycleService(
+            credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+            serverConfigRepository: _ThrowingKeepRepository(
+              database,
+              credentials: credentials,
+            ),
+            database: database,
+            stopDownloads: () => gate.future,
+            resetPlayback: () async => throw StateError('keep run step failed'),
+            wipeServerData: () async {
+              wipes++;
+              await wipeGate.future;
+              await ServerDataResetService(database: database)
+                  .reset(fenceSync: true);
+            },
+          );
+          final keep = failing.signOut(wipeLocalData: false);
+          final wipe = failing.signOut(wipeLocalData: true);
+          gate.complete();
+          await keep; // the keep run's failures never reach its caller
+          var pendingDone = false;
+          unawaited(failing.pendingSignOut.then((_) => pendingDone = true));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          expect(pendingDone, isFalse, reason: 'the wipe is still running');
+          wipeGate.complete();
+          await wipe;
+          await failing.pendingSignOut;
+          await expectWiped();
+        },
+        skip: !sqliteAvailable,
+      );
 
       test('the next sign-out after an upgraded pair starts fresh', () async {
         final keep = held.signOut(wipeLocalData: false);

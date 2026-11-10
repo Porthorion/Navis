@@ -115,6 +115,9 @@ class _CountingCacheReset extends LibraryCacheResetService {
 }
 
 class _GatedSignOut implements SignOutService {
+  @override
+  Future<void> get pendingSignOut async {}
+
   final Completer<void> gate = Completer<void>();
   int calls = 0;
   bool? lastWipeLocalData;

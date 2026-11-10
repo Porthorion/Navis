@@ -25,8 +25,15 @@ abstract interface class SignOutService {
   /// Concurrent calls: the same mode joins the running sign-out, and so does a
   /// keep-data request while a wipe runs (the wipe also signs out). A wipe
   /// requested during a keep-data sign-out runs right after it, so a wipe is
-  /// never lost, and the returned future completes when that wipe has.
+  /// never lost. The keep-data caller's future completes before that chained
+  /// wipe does; only the wipe caller's future waits for it.
   Future<void> signOut({required bool wipeLocalData});
+
+  /// Completes when the running sign-out, including a chained wipe, has
+  /// finished; already complete when none runs. Never throws. Every path that
+  /// saves credentials must await it first, or a late wipe clears the new
+  /// session.
+  Future<void> get pendingSignOut;
 }
 
 /// The sign-out phase shown to the user; teardown publishes one per group of
@@ -153,6 +160,10 @@ class SessionLifecycleService implements SignOutService {
 
   Future<void>? _inFlight;
   bool _inFlightWipes = false;
+
+  @override
+  Future<void> get pendingSignOut =>
+      (_inFlight ?? Future<void>.value()).catchError((Object _) {});
 
   @override
   Future<void> signOut({required bool wipeLocalData}) {
