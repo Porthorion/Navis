@@ -4901,6 +4901,7 @@ void main() {
   });
 
   for (final (count, lateFailure) in [(3, false), (3, true), (70, false)]) {
+    const loadDeadline = Duration(milliseconds: 500);
     test('timed-out explicit saved queue preparation cannot change a newer selection '
         '(count=$count, lateFailure=$lateFailure)', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -4923,6 +4924,9 @@ void main() {
         initialPlayer: initialPlayer,
         waitForReady: false,
         rebuiltPlayers: rebuilt,
+        // Shortened from the 12 s default: the gated native load is what
+        // times out, and the 250 ms load check runs inside this deadline.
+        timeouts: const NavisPlaybackTimeouts(load: loadDeadline),
       );
       addTearDown(() async {
         if (!gate.isCompleted) gate.complete();
@@ -4948,7 +4952,9 @@ void main() {
       // A two-phase restore also has a native load deadline. Its later
       // timeout must not rebuild the player that now owns the selection.
       if (count > 64) {
-        await Future<void>.delayed(const Duration(seconds: 3));
+        // At least 3x the load deadline and 150 ms beyond it plus the 250 ms
+        // load check, so a later deadline would have fired inside.
+        await Future<void>.delayed(loadDeadline * 4);
       }
       gate.complete();
       await pumpEventQueue(times: 50);

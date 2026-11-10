@@ -1675,6 +1675,23 @@ Future<void> settleQueue(NavisAudioHandler handler) async {
   expectNativeMirrorsQueue(handler, handler.debugActivePlayer);
 }
 
+/// Waits until [cond] holds, polling every 5 ms, and fails with [reason] after
+/// [cap]. The cap is generous because it costs nothing when [cond] holds.
+/// Never use it on a baseline or unchanged value: that passes at once and
+/// proves nothing. Keep a fixed window for "nothing more happened" checks.
+@visibleForTesting
+Future<void> until(
+  bool Function() cond, {
+  Duration cap = const Duration(seconds: 10),
+  String? reason,
+}) async {
+  final elapsed = Stopwatch()..start();
+  while (!cond() && elapsed.elapsed < cap) {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+  expect(cond(), isTrue, reason: 'until timed out after $cap: $reason');
+}
+
 Future<(NavisAudioHandler, ControllableAudioPlayer, NavisDatabase)>
 createHandler(
   Directory directory,

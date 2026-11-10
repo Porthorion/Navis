@@ -45,7 +45,7 @@ extension _NavisPersistence on NavisAudioHandler {
         token: token,
         ownershipGeneration: generation,
         prepareSources: prepareSources,
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(_timeouts.queueRestore);
     } on TimeoutException catch (error, stackTrace) {
       token.cancel();
       _queueRestoreOutcome = 'timeout';
