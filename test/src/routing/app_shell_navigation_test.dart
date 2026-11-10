@@ -1,7 +1,6 @@
 import 'dart:io' show Directory;
 import 'dart:async';
 import 'dart:ui' as ui;
-import 'dart:ui' show SemanticsAction;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
@@ -13,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'dart:ui' show Tristate;
 
+import 'package:flutter/semantics.dart'
+    show CustomSemanticsAction, SemanticsAction;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -2518,8 +2519,7 @@ void main() {
     expect(find.text('Not available for remote tracks.'), findsOneWidget);
   });
 
-  testWidgets('the mini player swipe is a Player Gesture and its skip button '
-      'a Playback Button', (tester) async {
+  testWidgets('the mini player swipe is a Player Gesture', (tester) async {
     final container = _createContainerWithDatabase(
       overrides: <Override>[
         ..._authenticatedShellOverrides(),
@@ -2550,17 +2550,11 @@ void main() {
     );
     await swipe();
     expect(await spy.take(tester), isEmpty, reason: 'swipe, category off');
-    await tester.tap(find.byTooltip('Skip to Next'));
-    await tester.pump();
-    expect(await spy.take(tester), ['firm'], reason: 'skip, other cat off');
 
     NavisHaptics.prefs = HapticsPrefs.fromColumns(
       true,
       HapticCategory.playbackButtons.bit,
     );
-    await tester.tap(find.byTooltip('Skip to Next'));
-    await tester.pump();
-    expect(await spy.take(tester), isEmpty, reason: 'skip, category off');
     await swipe();
     expect(await spy.take(tester), ['firm'], reason: 'swipe, other cat off');
     // #428: give real time, as CI did, so a provider that failed on a missing
@@ -2569,6 +2563,187 @@ void main() {
       () => Future<void>.delayed(const Duration(seconds: 2)),
     );
     await tester.pump();
+  });
+
+  group('mobile mini player (#559)', () {
+    const remoteSong = SongsTableData(
+      id: 'pl-deezer-1',
+      title: 'A Remote Track With A Fairly Long Title To Fill The Row',
+      artistName: 'Remote Artist',
+      isProvisional: true,
+      isExternal: true,
+    );
+
+    Future<_TransportRecordingHandler> pumpMini(
+      WidgetTester tester, {
+      bool radio = false,
+    }) async {
+      final handler = _TransportRecordingHandler();
+      final playback = radio
+          ? const PlaybackSnapshot(
+              queueSongIds: <String>[],
+              currentSongId: null,
+              currentIndex: null,
+              playing: true,
+              processingState: AudioProcessingState.ready,
+              position: Duration.zero,
+              duration: Duration.zero,
+              bufferedPosition: Duration.zero,
+              shuffleMode: AudioServiceShuffleMode.none,
+              repeatMode: AudioServiceRepeatMode.none,
+              radioStation: RadioStationMetadata(
+                stationId: 'radio-1',
+                stationName: 'Test Radio',
+                streamUrl: 'https://example.com/radio',
+              ),
+            )
+          : _activePlayback.copyWith(currentSongId: remoteSong.id);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(playback: playback),
+          songByIdProvider.overrideWith((ref, id) => Stream.value(remoteSong)),
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return handler;
+    }
+
+    Finder strip() => find
+        .byWidgetPredicate(
+          (w) => w is GestureDetector && w.onHorizontalDragEnd != null,
+        )
+        .first;
+
+    testWidgets('a remote song shows no Remote tag and no skip buttons', (
+      tester,
+    ) async {
+      await pumpMini(tester);
+      final mini = strip();
+
+      expect(
+        find.descendant(
+          of: mini,
+          matching: find.byKey(
+            const ValueKey<String>('remote-source-indicator'),
+          ),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: mini, matching: find.text('Remote')),
+        findsNothing,
+      );
+      expect(find.byTooltip('Previous'), findsNothing);
+      expect(find.byTooltip('Next'), findsNothing);
+      expect(find.byTooltip('Skip to Next'), findsNothing);
+      // Title and artist only: two lines, so the strip keeps its height.
+      expect(
+        find.descendant(of: mini, matching: find.text(remoteSong.title)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: mini, matching: find.text('Remote Artist')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: mini, matching: find.byType(IconButton)),
+        findsNWidgets(2),
+      );
+      expect(tester.getSize(mini).height, lessThan(72));
+    });
+
+    testWidgets('swipe left skips to next, swipe right to previous', (
+      tester,
+    ) async {
+      final handler = await pumpMini(tester);
+      await tester.fling(strip(), const Offset(-200, 0), 1500);
+      await tester.pump();
+      expect(handler.calls, <String>['next']);
+      await tester.fling(strip(), const Offset(200, 0), 1500);
+      await tester.pump();
+      expect(handler.calls, <String>['next', 'previous']);
+    });
+
+    testWidgets('a slow drag over 56 px still skips; a short one does not', (
+      tester,
+    ) async {
+      final handler = await pumpMini(tester);
+      await tester.drag(strip(), const Offset(-30, 0));
+      await tester.pump();
+      expect(handler.calls, isEmpty);
+      final gesture = await tester.startGesture(tester.getCenter(strip()));
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(-10, 0));
+      }
+      await tester.pump(const Duration(seconds: 1));
+      await gesture.up();
+      await tester.pump();
+      expect(handler.calls, <String>['next']);
+    });
+
+    testWidgets('a vertical drag never skips', (tester) async {
+      final handler = await pumpMini(tester);
+      await tester.fling(strip(), const Offset(0, -150), 1500);
+      await tester.pump();
+      await tester.fling(strip(), const Offset(20, -150), 1500);
+      await tester.pump();
+      expect(handler.calls, isEmpty);
+    });
+
+    testWidgets('Next and Previous are semantics custom actions', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final handler = await pumpMini(tester);
+      final node = tester.getSemantics(
+        find.byKey(const ValueKey<String>('miniPlayerSwipeSemantics')),
+      );
+      final actions = {
+        for (final id
+            in node.getSemanticsData().customSemanticsActionIds ?? <int>[])
+          CustomSemanticsAction.getAction(id)!.label: id,
+      };
+      expect(actions.keys, containsAll(<String>['Next', 'Previous']));
+      final key = find.semantics.byPredicate((n) => n.id == node.id);
+      tester.semantics.performAction(
+        key,
+        SemanticsAction.customAction,
+        args: actions['Next'],
+      );
+      tester.semantics.performAction(
+        key,
+        SemanticsAction.customAction,
+        args: actions['Previous'],
+      );
+      await tester.pump();
+      expect(handler.calls, <String>['next', 'previous']);
+      handle.dispose();
+    });
+
+    testWidgets('radio has no swipe and no custom actions', (tester) async {
+      final handle = tester.ensureSemantics();
+      final handler = await pumpMini(tester, radio: true);
+      await tester.fling(
+        find.byType(InkWell).last,
+        const Offset(-200, 0),
+        1500,
+      );
+      await tester.pump();
+      expect(handler.calls, isEmpty);
+      final node = tester.getSemantics(
+        find.byKey(const ValueKey<String>('miniPlayerSwipeSemantics')),
+      );
+      expect(
+        node.getSemanticsData().customSemanticsActionIds ?? <int>[],
+        isEmpty,
+      );
+      expect(find.byTooltip('Stop Radio'), findsOneWidget);
+      handle.dispose();
+    });
   });
 
   testWidgets('mobile mini player like on a flagged external song is refused', (
