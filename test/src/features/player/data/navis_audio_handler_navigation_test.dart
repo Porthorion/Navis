@@ -768,6 +768,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? afterAppendEntered;
   String? attemptedSongId;
   int lastSetAudioSourcesCount = 0;
+  final List<int> setAudioSourcesCounts = <int>[];
   int maxConcurrentMutations = 0;
   int _activeMutations = 0;
 
@@ -1345,6 +1346,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         : initialPosition ?? Duration.zero;
     _sources = List<AudioSource>.of(sources);
     lastSetAudioSourcesCount = sources.length;
+    setAudioSourcesCounts.add(sources.length);
     index = sources.isEmpty ? null : initialIndex ?? 0;
     state = sources.isEmpty || !preload
         ? ProcessingState.idle

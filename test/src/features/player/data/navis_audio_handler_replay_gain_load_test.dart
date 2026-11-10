@@ -474,7 +474,6 @@ void main() {
       replayGainInPipelineOverride: pipeline,
       starSyncDao: database.starSyncDao,
       player: player,
-      iosRuntimeOverride: ios,
       desktopRuntimeOverride: !ios,
       shuffleRandom: Random(7),
     );
@@ -524,8 +523,6 @@ void main() {
   }
 
   for (final (name, caps, ios, curve) in [
-    // AVQueuePlayer: linear volume.
-    ('iOS', PlaybackAdjustmentCapabilities.ios, true, 20.0),
     // macOS mpv outside the pipeline: cubic volume.
     ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
   ]) {
@@ -654,35 +651,10 @@ void main() {
     });
   }
 
-  test("iOS: a song change during the load applies the new song's cut, "
-      "not the start song's", () async {
-    final rig = await create(
-      PlaybackAdjustmentCapabilities.ios,
-      ios: true,
-      trackGains: const {0: -12, 1: -6},
-    );
-    final replaced = await startLoad(rig);
-    expect(
-      rig.player.audioSources.length,
-      greaterThan(1),
-      reason: 'iOS preloaded the next song in phase 1',
-    );
-    expect(rig.player.volume, closeTo(pow(10, -12 / 20), 0.00001));
-
-    // The player moves on to the preloaded song while phase 2 is still busy.
-    await rig.player.seek(Duration.zero, index: 1);
-    await pumpEventQueue();
-    expect(rig.handler.currentMediaItem?.id, 'song-1');
-    expect(rig.player.volume, closeTo(pow(10, -6 / 20), 0.00001));
-
-    await settle(rig, replaced);
-    expect(rig.player.volume, closeTo(pow(10, -6 / 20), 0.00001));
-  });
   // Issue #479 follow-up (I38): a manual skip that lands by seeking never goes
   // through the queue apply, so the player is already on the target while the
   // seek is pending. The target's cut applies then, not at the commit.
   for (final (name, caps, ios, curve) in [
-    ('iOS', PlaybackAdjustmentCapabilities.ios, true, 20.0),
     ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
   ]) {
     double cutOf(double db) => pow(10, db / curve).toDouble();
