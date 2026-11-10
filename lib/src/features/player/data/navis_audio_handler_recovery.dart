@@ -489,14 +489,19 @@ extension _NavisRecovery on NavisAudioHandler {
       !_queueLane.isIdle && _navigationInFlightRevision == null;
 
   void _captureTranscodeEndOccurrence({bool indexEvent = false}) {
-    if (!_isDesktopRuntime || _prematureTranscodeDeparture != null) return;
+    if (_prematureTranscodeDeparture != null) return;
     final event = _player.playbackEvent;
     final index = event.currentIndex;
     final invalidated = _transcodeEndInvalidatedAt;
+    // Desktop trusts the backend's dense stamps. A mobile advance event
+    // carries a stale one (the sparse departing event), so sample the player
+    // clock instead (#527).
+    final desktop = _isDesktopRuntime;
+    final stamp = desktop ? event.updateTime : DateTime.now();
     final matchingQueue = _sequenceMatchesQueue(_player);
     if (index == null ||
         event.processingState == ProcessingState.completed ||
-        (invalidated != null && !event.updateTime.isAfter(invalidated)) ||
+        (invalidated != null && !stamp.isAfter(invalidated)) ||
         (!matchingQueue && (!indexEvent || !_backgroundQueueWork))) {
       return;
     }
@@ -519,8 +524,8 @@ extension _NavisRecovery on NavisAudioHandler {
       index: index,
       source: source,
       item: item,
-      position: event.updatePosition,
-      updateTime: event.updateTime,
+      position: desktop ? event.updatePosition : _player.position,
+      updateTime: stamp,
     );
   }
 
@@ -537,8 +542,7 @@ extension _NavisRecovery on NavisAudioHandler {
     final occurrence = _transcodeEndOccurrence;
     final index = previousEvent.currentIndex;
     final backgroundQueueWork = _backgroundQueueWork;
-    if (!_isDesktopRuntime ||
-        _disposeHandlerStarted ||
+    if (_disposeHandlerStarted ||
         (_isLoading && !backgroundQueueWork) ||
         _pendingSeek != null ||
         _remotePlaybackRecoveryInProgress ||
@@ -557,7 +561,10 @@ extension _NavisRecovery on NavisAudioHandler {
     if (occurrence == null ||
         (occurrence.index != index && !backgroundQueueWork) ||
         (invalidated != null &&
-            !previousEvent.updateTime.isAfter(invalidated)) ||
+            !(_isDesktopRuntime
+                    ? previousEvent.updateTime
+                    : occurrence.updateTime)
+                .isAfter(invalidated)) ||
         !identical(
           occurrence.source,
           _player.sequence.elementAtOrNull(index),

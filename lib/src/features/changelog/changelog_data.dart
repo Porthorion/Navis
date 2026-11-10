@@ -580,6 +580,12 @@ const List<ChangelogVersion> changelogs = [
         'picked the station again',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'A transcoded song whose connection is cut partway now carries on from '
+        'where it was cut, instead of stopping or skipping to the next song',
+        platforms: {ChangelogPlatform.ios, ChangelogPlatform.android},
+        type: ChangelogEntryType.fix,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),

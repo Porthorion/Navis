@@ -4794,8 +4794,8 @@ rewrite and not a chained stream. Each non-cancelled attempt reports an
 `oggSplice` transport trace event. Other formats, known-length responses and desktop (mpv reads the
 origin directly) keep exact-position recovery.
 
-On desktop, a native auto-advance (including Repeat One) or final-item
-completion can hide a cut transcode as a clean EOF. Navis compares the departed
+A native auto-advance (including Repeat One) or final-item
+completion can hide a cut transcode as a clean EOF, on every platform (#527). Navis compares the departed
 occurrence's last backend position with its authoritative `MediaItem.duration`.
 A remote transcode or offset continuation ending more than 10 seconds early,
 with known metadata duration and server `transcodeOffset` support, consumes
@@ -4805,7 +4805,11 @@ sidecar's re-download has already finished (it usually has, since mpv drains
 the cut stream after the sidecar restarts the whole transcode). Healthy play
 before the cut does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
-not establish the departure position. Position/index events capture the native
+not establish the departure position. On iOS and Android the advance event
+carries a stale native stamp, so capture samples the player clock (at most
+about 200 ms old, from the position sampler) and the retry's invalidation
+guards compare that sample's Dart time; the successor-publish yield is
+unconditional so the discontinuity claims the cut first. Position/index events capture the native
 source occurrence, its source metadata and last backend position. Artwork
 refreshes can replace `MediaItem` copies without changing that occurrence;
 duplicated songs remain distinct native sources. Queue edits, replacements and

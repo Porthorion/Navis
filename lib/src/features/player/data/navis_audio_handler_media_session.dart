@@ -339,7 +339,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       index,
     ) async {
       // Let a same-turn discontinuity claim a cut before publishing its successor.
-      if (_isDesktopRuntime) await Future<void>.value();
+      await Future<void>.value();
       if (_prematureTranscodeDeparture != null ||
           !identical(_player, wiredPlayer) ||
           index != wiredPlayer.currentIndex) {
