@@ -300,7 +300,8 @@ static const int kBoostTickMs = 250;
         source.playerItem2.audioTimePitchAlgorithm = algorithm;
     }
     // AVPlayer may pick up an item's algorithm only on the next rate set (device check owed).
-    if (_playing && _player) _player.rate = _speed;
+    // Not mid-seek: the seek paused the player and its completion sets the rate itself.
+    if (_playing && _player && CMTIME_IS_INVALID(_seekPos)) _player.rate = _speed;
 }
 #endif
 
