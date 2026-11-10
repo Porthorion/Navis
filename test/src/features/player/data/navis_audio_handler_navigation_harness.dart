@@ -25,6 +25,7 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
@@ -344,6 +345,64 @@ class TranscodedLockResolver extends GatedSourceResolver {
       cachedFilePath: source.cachedFilePath!,
       metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
     );
+  }
+}
+
+/// Holds every rolling-cache eviction until [gate] completes.
+class GatedEvictCache extends RollingCacheManager {
+  new(CacheDao cacheDao, this.gate) : super(cacheDao: cacheDao);
+  final Completer<void> gate;
+  bool awaiting = false;
+  @override
+  Future<void> evictRollingTrack(String songId) async {
+    awaiting = true;
+    await gate.future;
+    await super.evictRollingTrack(songId);
+  }
+}
+
+/// The mobile first load of a transcoded song is lock-cached (the tee that
+/// writes a cut connection into the rolling cache). Records every resolve.
+class RecordingLockResolver extends GatedSourceResolver {
+  new(super.delegate, this.directory);
+  final Directory directory;
+  final calls =
+      <({String songId, Duration? offset, PlaybackSourceKind kind})>[];
+  final locks = <String, RangeCacheSource>{};
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) async {
+    var source = await super.resolveForSong(
+      song,
+      preferLockCaching: preferLockCaching,
+      allowStreaming: allowStreaming,
+      transcodeOffset: transcodeOffset,
+      fastSeekBridge: fastSeekBridge,
+    );
+    if (song.id == 'song-1' &&
+        transcodeOffset == null &&
+        preferLockCaching &&
+        source.kind == PlaybackSourceKind.directStream) {
+      final lock = RangeCacheSource(
+        song.id,
+        File('${directory.path}/lock-${song.id}.mp3'),
+      );
+      locks[song.id] = lock;
+      source = ResolvedPlaybackSource.lockCachedStream(
+        songId: song.id,
+        lockCachingStreamUri: lock.uri,
+        lockCachingAudioSource: lock,
+        cachedFilePath: (await lock.cacheFile).path,
+        metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
+      );
+    }
+    calls.add((songId: song.id, offset: transcodeOffset, kind: source.kind));
+    return source;
   }
 }
 
@@ -670,6 +729,52 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// The position at each play() call.
   final List<Duration> playedFrom = <Duration>[];
   bool nativePositionFrozen = false;
+
+  /// A load swaps the sequence under the old item's index, position and ready
+  /// state before the new item loads (see [setAudioSources]).
+  bool staleSequenceSwap = false;
+
+  /// The position and state the stale events carry (the old item's), when the
+  /// handler stopped the player before the load.
+  Duration? staleSwapPosition;
+  ProcessingState? staleSwapState;
+
+  /// just_audio's own pairwise detector: an event whose source differs from
+  /// the previous event's is an autoAdvance, each mapped at emit time.
+  void useRealDiscontinuityDetector() {
+    playbackEvents.stream
+        .map(
+          (event) => (
+            event,
+            event.currentIndex != null && event.currentIndex! < sequence.length
+                ? sequence[event.currentIndex!]
+                : null,
+          ),
+        )
+        .pairwise()
+        .listen((pair) {
+          final [(previous, before), (event, after)] = pair.toList();
+          if (before == null || after == null || identical(before, after)) {
+            return;
+          }
+          discontinuityEvents.add(
+            PositionDiscontinuity(
+              PositionDiscontinuityReason.autoAdvance,
+              previous,
+              event,
+            ),
+          );
+        });
+    // The event before the swap, mapped onto the old sequence.
+    playbackEvents.add(playbackEvent);
+  }
+
+  /// With [nativePositionFrozen], the stamp of the native event (position and
+  /// time of the last load or seek, as AVQueuePlayer's advance carries). Null
+  /// follows [simulatedPosition]; a completed event re-stamps, as `complete`
+  /// does.
+  Duration? frozenStampPosition;
+  DateTime? frozenStampTime;
   bool keepStreamsAfterDispose = false;
   int sourceLoads = 0;
   int seekCalls = 0;
@@ -784,7 +889,10 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
     processingState: state,
-    updatePosition: nativePositionFrozen ? simulatedPosition : position,
+    updatePosition: nativePositionFrozen
+        ? (frozenStampPosition ?? simulatedPosition)
+        : position,
+    updateTime: nativePositionFrozen ? frozenStampTime : null,
     bufferedPosition: bufferedPosition,
     duration: duration,
     currentIndex: index,
@@ -1165,6 +1273,7 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
       simulatedPosition = Duration.zero;
     } else {
       simulatedPosition = endPosition ?? simulatedDuration;
+      frozenStampPosition = frozenStampTime = null;
       state = ProcessingState.completed;
     }
     if (state != ProcessingState.completed) {
@@ -1296,6 +1405,7 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
     Duration? initialPosition,
     ShuffleOrder? shuffleOrder,
   }) => _mutate(() async {
+    final priorState = state;
     final source = sources.isEmpty ? null : sources[initialIndex ?? 0];
     _logGains('load', sources);
     sourceLoads++;
@@ -1330,6 +1440,26 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
       loadEntered?.complete();
       await gate.future;
       if (blockedLoadError case final error?) throw error;
+    }
+    if (staleSequenceSwap &&
+        sources.isNotEmpty &&
+        index != null &&
+        queuedSources.isNotEmpty) {
+      // AVQueuePlayer across a load (#527): the sequence swaps while the old
+      // item's index, position and ready state stay current; the old item's
+      // index event arrives after the swap, then a tick, then loading.
+      queuedSources = List<AudioSource>.of(sources);
+      state = staleSwapState ?? priorState;
+      if (staleSwapPosition case final stale?) simulatedPosition = stale;
+      indexEvents.add(index);
+      playbackEvents.add(playbackEvent);
+      // The old ready state stays current while the tick is handled.
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      state = ProcessingState.loading;
+      indexEvents.add(index);
+      playbackEvents.add(playbackEvent);
+      // The native item is still loading: the old position stays current.
+      await Future<void>.delayed(const Duration(milliseconds: 30));
     }
     simulatedPosition = ignoreInitialPosition
         ? Duration.zero
@@ -1712,6 +1842,7 @@ createHandler(
   bool nextSongPrefetchAllowed = true,
   bool Function()? readNextSongPrefetchAllowed,
   PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
+  RollingCacheManager Function(CacheDao)? rollingCache,
   bool positionStreams = false,
   int rollingCacheBudgetBytes = 1024 * 1024,
   String crossfadeType = 'normal',
@@ -1803,7 +1934,9 @@ createHandler(
     );
   }
   await seed?.call(database);
-  final cache = RollingCacheManager(cacheDao: database.cacheDao);
+  final cache =
+      rollingCache?.call(database.cacheDao) ??
+      RollingCacheManager(cacheDao: database.cacheDao);
   final player = initialPlayer ?? ControllableAudioPlayer();
   if (positionStreams) player.positionPlayer = HandlerPositionPlayer(player);
   if (hungLoadSongs != null) player.hungLoadSongs = hungLoadSongs;

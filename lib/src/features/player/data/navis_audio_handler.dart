@@ -582,6 +582,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, int> _cacheReceivedBytes = <String, int>{};
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
+  // The registration of a finished lock-cache download, by song: a cut
+  // recovery waits for it before evicting the file (#527).
+  final Map<String, Future<void>> _pendingRollingRegistrations =
+      <String, Future<void>>{};
   final Map<String, RollingCacheActivity> _rollingCacheActivities =
       <String, RollingCacheActivity>{};
   // When each song's cache download last received bytes.

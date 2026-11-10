@@ -120,6 +120,22 @@ class RollingCacheManager {
     await _cacheDao.touchTrack(canonicalSongId);
   }
 
+  /// Drops the rolling entry of [songId] and its files. Never a permanent
+  /// download. Used when a cached stream turned out to be a cut transcode, so
+  /// the reopen must stream the song again instead of replaying the cut file.
+  Future<void> evictRollingTrack(String songId) async {
+    final canonicalSongId =
+        await _songIdentityDao?.resolveCanonicalId(songId) ?? songId;
+    final entry = await _cacheDao.getCachedTrack(canonicalSongId);
+    if (entry == null || entry.cacheType != CacheType.rolling) {
+      return;
+    }
+    await _deleteCacheFileSet(entry.filePath);
+    await _cacheDao.deleteCachedTracksBySongIds([
+      canonicalSongId,
+    ], rollingOnly: true);
+  }
+
   Future<Set<String>> getPermanentlyCachedSongIds() {
     return _cacheDao.getPermanentlyCachedSongIds();
   }

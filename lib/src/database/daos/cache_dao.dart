@@ -134,7 +134,12 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
-  Future<void> deleteCachedTracksBySongIds(Iterable<String> songIds) async {
+  /// With [rollingOnly] a permanent row is never deleted, even if it was
+  /// written between the caller's read and this delete.
+  Future<void> deleteCachedTracksBySongIds(
+    Iterable<String> songIds, {
+    bool rollingOnly = false,
+  }) async {
     final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
     if (ids.isEmpty) {
       return;
@@ -147,9 +152,14 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
           start,
           start + 500 < ids.length ? start + 500 : ids.length,
         );
-        await (delete(
-          cachedTracksTable,
-        )..where((table) => table.songId.isIn(batch))).go();
+        await (delete(cachedTracksTable)..where(
+              (table) =>
+                  table.songId.isIn(batch) &
+                  (rollingOnly
+                      ? table.cacheType.equals(CacheType.rolling.name)
+                      : const Constant(true)),
+            ))
+            .go();
       }
     });
   }

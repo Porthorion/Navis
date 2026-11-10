@@ -1745,6 +1745,10 @@ class AudioPlayer {
       _playbackEventSubscription =
           platform.playbackEventMessageStream.listen((message) {
         var duration = message.duration;
+        // Navis: iOS reports 0 for a stream with no length (a cut or chunked
+        // transcode). That is unknown, not "ended at 0": a 0 here clamps the
+        // position at the offset in _getPositionFor.
+        if (duration == Duration.zero) duration = null;
         final index = message.currentIndex ?? currentIndex;
         final IndexedAudioSource? source;
         if (_sequenceEditsInFlight > 0 &&

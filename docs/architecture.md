@@ -4794,8 +4794,8 @@ rewrite and not a chained stream. Each non-cancelled attempt reports an
 `oggSplice` transport trace event. Other formats, known-length responses and desktop (mpv reads the
 origin directly) keep exact-position recovery.
 
-On desktop, a native auto-advance (including Repeat One) or final-item
-completion can hide a cut transcode as a clean EOF. Navis compares the departed
+A native auto-advance (including Repeat One) or final-item
+completion can hide a cut transcode as a clean EOF, on every platform (#527). Navis compares the departed
 occurrence's last backend position with its authoritative `MediaItem.duration`.
 A remote transcode or offset continuation ending more than 10 seconds early,
 with known metadata duration and server `transcodeOffset` support, consumes
@@ -4805,7 +4805,25 @@ sidecar's re-download has already finished (it usually has, since mpv drains
 the cut stream after the sidecar restarts the whole transcode). Healthy play
 before the cut does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
-not establish the departure position. Position/index events capture the native
+not establish the departure position. On mobile the stamp the retry reads is
+stale (on iOS the advance event keeps the old stamp; on Android the previous
+event's stamp is the stale one), so capture samples the player clock (at most
+about 200 ms old, from the position sampler) and the retry's invalidation
+guards compare that sample's Dart time; the successor-publish yield is
+unconditional so the discontinuity claims the cut first. A queue replacement is
+not a cut: while a counted source apply is in flight, or the native item is
+idle or loading, mobile capture records nothing (an index event also clears the
+held occurrence) and the retry is refused, because the player still reports the
+previous item's position under the new sequence. On mobile the cut
+response of a lock-cached stream has no length and is committed to the rolling
+cache as a complete file, which the resolver would prefer to any stream; before
+reopening, the retry therefore evicts that song's rolling entry
+(`RollingCacheManager.evictRollingTrack`, never a permanent download; it first
+awaits that song's pending registration so a late one cannot add the file back) so the
+reopen streams at the cut offset, and defers its pause by a microtask because it
+runs inside the player's synchronous event dispatch. The just_audio fork treats
+a zero platform duration (iOS, for an unknown-length stream) as unknown, so the
+position is not clamped to the offset. Position/index events capture the native
 source occurrence, its source metadata and last backend position. Artwork
 refreshes can replace `MediaItem` copies without changing that occurrence;
 duplicated songs remain distinct native sources. Queue edits, replacements and

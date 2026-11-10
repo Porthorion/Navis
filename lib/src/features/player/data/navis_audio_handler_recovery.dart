@@ -489,14 +489,29 @@ extension _NavisRecovery on NavisAudioHandler {
       !_queueLane.isIdle && _navigationInFlightRevision == null;
 
   void _captureTranscodeEndOccurrence({bool indexEvent = false}) {
-    if (!_isDesktopRuntime || _prematureTranscodeDeparture != null) return;
+    if (_prematureTranscodeDeparture != null) return;
     final event = _player.playbackEvent;
     final index = event.currentIndex;
     final invalidated = _transcodeEndInvalidatedAt;
+    // Desktop trusts the backend's dense stamps. A mobile advance event
+    // carries a stale one (the sparse departing event), so sample the player
+    // clock instead (#527).
+    final desktop = _isDesktopRuntime;
+    // While a source apply is in flight, or the native item is still loading,
+    // the player reports the previous item's position under the new sequence.
+    // Sampling it would pin the old song's position on the new song (#527).
+    if (!desktop &&
+        (_sourceAppliesInFlight > 0 ||
+            event.processingState == ProcessingState.idle ||
+            event.processingState == ProcessingState.loading)) {
+      if (indexEvent) _transcodeEndOccurrence = null;
+      return;
+    }
+    final stamp = desktop ? event.updateTime : DateTime.now();
     final matchingQueue = _sequenceMatchesQueue(_player);
     if (index == null ||
         event.processingState == ProcessingState.completed ||
-        (invalidated != null && !event.updateTime.isAfter(invalidated)) ||
+        (invalidated != null && !stamp.isAfter(invalidated)) ||
         (!matchingQueue && (!indexEvent || !_backgroundQueueWork))) {
       return;
     }
@@ -519,8 +534,8 @@ extension _NavisRecovery on NavisAudioHandler {
       index: index,
       source: source,
       item: item,
-      position: event.updatePosition,
-      updateTime: event.updateTime,
+      position: desktop ? event.updatePosition : _player.position,
+      updateTime: stamp,
     );
   }
 
@@ -537,8 +552,12 @@ extension _NavisRecovery on NavisAudioHandler {
     final occurrence = _transcodeEndOccurrence;
     final index = previousEvent.currentIndex;
     final backgroundQueueWork = _backgroundQueueWork;
-    if (!_isDesktopRuntime ||
-        _disposeHandlerStarted ||
+    if (_disposeHandlerStarted ||
+        // A queue apply swaps the sequence under the old item's clock; the
+        // departure it shows is not a cut.
+        _sourceAppliesInFlight > 0 ||
+        previousEvent.processingState == ProcessingState.idle ||
+        previousEvent.processingState == ProcessingState.loading ||
         (_isLoading && !backgroundQueueWork) ||
         _pendingSeek != null ||
         _remotePlaybackRecoveryInProgress ||
@@ -557,7 +576,10 @@ extension _NavisRecovery on NavisAudioHandler {
     if (occurrence == null ||
         (occurrence.index != index && !backgroundQueueWork) ||
         (invalidated != null &&
-            !previousEvent.updateTime.isAfter(invalidated)) ||
+            !(_isDesktopRuntime
+                    ? previousEvent.updateTime
+                    : occurrence.updateTime)
+                .isAfter(invalidated)) ||
         !identical(
           occurrence.source,
           _player.sequence.elementAtOrNull(index),
@@ -573,7 +595,8 @@ extension _NavisRecovery on NavisAudioHandler {
     // ponytail: metadata-only EOF detection; add native cut evidence if server
     // durations overstate real transcode ends by more than the 10-second margin.
     // A completed cache file does not exempt the end: the sidecar's re-download
-    // finishes before mpv drains the cut stream, and the reopen reads that file.
+    // finishes before mpv drains the cut stream, and a mobile lock-cache tee
+    // commits the cut stream itself; recover() evicts the latter before reopening.
     if ((kind != PlaybackSourceKind.directStream.name &&
             kind != PlaybackSourceKind.lockCachedStream.name) ||
         (item.extras?['transcodingApplied'] != true &&
@@ -597,13 +620,17 @@ extension _NavisRecovery on NavisAudioHandler {
     final player = _player;
     final seekRevision = _seekRevision;
     final loadGeneration = _activeLoadGeneration;
+    // A microtask later: this runs inside the player's synchronous event
+    // dispatch, where a pause re-enters the same subject and throws.
     final pausing =
-        _runTimedPlayerOperation(
-          generation: loadGeneration,
-          operation: 'pause premature transcode EOF',
-          action: player.pause,
-          songId: item.id,
-          timeout: _timeouts.control,
+        Future<void>.microtask(
+          () => _runTimedPlayerOperation(
+            generation: loadGeneration,
+            operation: 'pause premature transcode EOF',
+            action: player.pause,
+            songId: item.id,
+            timeout: _timeouts.control,
+          ),
         ).catchError((Object error) {
           AppLogger.debug('Pause before transcode recovery failed: $error');
         });
@@ -611,14 +638,37 @@ extension _NavisRecovery on NavisAudioHandler {
       if (backgroundQueueWork) {
         await _queueLane.enqueue((token) async => token.checkCancelled());
       }
-      final departedIndex = player.sequence.indexOf(occurrence.source);
-      if (_seekRevision != seekRevision ||
-          !_isActiveLoadGeneration(loadGeneration) ||
-          !identical(player, _player) ||
-          !identical(_prematureTranscodeDeparture?.source, occurrence.source) ||
-          departedIndex < 0 ||
-          _queueItems.elementAtOrNull(departedIndex)?.id != item.id) {
-        return;
+      int departedIndex = -1;
+      bool stale() {
+        departedIndex = player.sequence.indexOf(occurrence.source);
+        return _seekRevision != seekRevision ||
+            !_isActiveLoadGeneration(loadGeneration) ||
+            !identical(player, _player) ||
+            !identical(
+              _prematureTranscodeDeparture?.source,
+              occurrence.source,
+            ) ||
+            departedIndex < 0 ||
+            _queueItems.elementAtOrNull(departedIndex)?.id != item.id;
+      }
+
+      if (stale()) return;
+      if (kind == PlaybackSourceKind.lockCachedStream.name) {
+        // The lock-caching tee committed the cut connection as a complete
+        // rolling file, and the resolver prefers that file to any stream.
+        // Drop it (never a permanent download) so the reopen streams at the
+        // cut. A failure only logs: the reopen still runs, once.
+        try {
+          // A registration still running would add the cut file back.
+          await _pendingRollingRegistrations[item.id];
+          await _rollingCacheManager.evictRollingTrack(
+            _canonicalSongId(item.id),
+          );
+          _completedCacheSongIds.remove(item.id);
+        } catch (error) {
+          AppLogger.warning('Evicting the cut rolling cache failed: $error');
+        }
+        if (stale()) return;
       }
       await _retryRemotePlayback(
         currentIndex: departedIndex,
