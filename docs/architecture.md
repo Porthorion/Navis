@@ -5975,7 +5975,7 @@ may loop the temporary one-song playlist.
 `GET /v1/playback/status` reports `materializedLength`, `deferredLength`,
 `deferredHeadLength` and release counters. The queue window model test
 (`queue window model` in
-`test/src/features/player/data/navis_audio_handler_navigation_test.dart`)
+`test/src/features/player/data/navis_audio_handler_navigation_queue_test.dart`)
 runs 500 seeded random sequences of navigation, auto-advance, edits and
 shuffle and pre-shuffled replacements (including cold external HTTP selections)
 against a tiny window. It checks all active, inactive and retired players against
