@@ -1976,6 +1976,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
         _cancelCrossfade();
         _radioMetadataService.stop();
         _radioStation = null;
+        // Unconditional: clearQueue() and _stopUnavailableRadio() null the
+        // station themselves and a replace can cancel their lane job before
+        // it re-applies the saved values.
+        await _syncPlayerAdjustments();
 
         final (songs, selectedOccurrence) = await resolve();
         _checkQueueWorkCurrent(token, generation);

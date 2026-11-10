@@ -5078,6 +5078,11 @@ full-precision derived semitone value, preserving the sound. Speed-only reset
 retains lock; combined reset applies the immutable built-in preset shown as
 Normal (stored id `none`: 1×, zero pitch, lock off); new presets cannot use the
 names None or Normal. The lock is labelled "Pitch Lock" ("Match pitch to speed.").
+Radio always plays at 1× and original pitch: `_applyAdjustmentsToPlayer` in the
+audio handler writes neutral values to the players while a station is active,
+and `_syncPlayerAdjustments` re-applies the saved values (kept in
+`_appliedAdjustments`) when entering or leaving radio. Radio controls show the
+EQ button but no Speed button.
 
 Player quick panels share `showQuickPanel`/`QuickPanelScaffold`
 (`common_widgets/quick_panel.dart`): a pinned title with a live summary, an
