@@ -45,6 +45,7 @@ static const long long kRestampDriftMs = 50;
     enum LoopMode _loopMode;
     BOOL _shuffleModeEnabled;
     long long _updateTime;
+    long long _lastRestampTime; // I45: wall ms of the last drift re-stamp
     int _updatePosition;
     int _lastPosition;
     int _bufferedPosition;
@@ -119,6 +120,7 @@ static const long long kRestampDriftMs = 50;
     _updatePosition = 0;
     _updateTime = 0;
     _lastPosition = 0;
+    _lastRestampTime = 0;
     _bufferedPosition = 0;
     _bufferUnconfirmed = NO;
     _playing = NO;
@@ -730,7 +732,10 @@ static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
         if (_processingState == psReady && position > _lastPosition && _updateTime != 0L) {
             long long now = (long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
             long long expectedPosition = _updatePosition + (long long)((now - _updateTime) * _player.rate);
-            if (llabs(position - expectedPosition) > kRestampDriftMs) {
+            // At most once a second: a rate the item cannot really play (e.g. a stream above 2x)
+            // drifts on every tick, and re-stamping every 200 ms would flood the event channel.
+            if (llabs(position - expectedPosition) > kRestampDriftMs && now - _lastRestampTime >= 1000) {
+                _lastRestampTime = now;
                 [self updatePosition];
                 [self broadcastPlaybackEvent];
             }
