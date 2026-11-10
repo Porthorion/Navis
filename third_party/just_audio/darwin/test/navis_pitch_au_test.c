@@ -5,11 +5,19 @@
 #include "../just_audio/Sources/just_audio/NavisPitchAU.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define NAVIS_PI 3.14159265358979323846
+
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define NAVIS_ALLOC_HOOKS 1
+#include <sanitizer/allocator_interface.h>
+#endif
+#endif
 
 static void fail(const char *context, double expected, double actual) {
     fprintf(stderr, "FAIL %s: expected %g, received %g\n", context, expected, actual);
@@ -135,10 +143,67 @@ static void testTimestampMonotonicAcrossReset(void) {
     navis_pitch_au_free(au);
 }
 
+#ifdef NAVIS_ALLOC_HOOKS
+static _Atomic bool g_counting;
+static _Atomic long g_allocations;
+static void countMalloc(const volatile void *p, size_t n) {
+    (void)p; (void)n;
+    if (atomic_load(&g_counting)) atomic_fetch_add(&g_allocations, 1);
+}
+static void countFree(const volatile void *p) {
+    (void)p;
+    if (atomic_load(&g_counting)) atomic_fetch_add(&g_allocations, 1);
+}
+#endif
+
+// #479e: the stage calls render, reset and set_cents on the render thread. None of
+// them may allocate or free (a seek resets with pitch on). ASan's hooks see malloc,
+// realloc and free only (not calloc or aligned allocations). Timing is logged by
+// the sweep probe, not asserted here: it is too noisy for CI.
+static bool testRenderThreadCallsDoNotAllocate(void) {
+#ifdef NAVIS_ALLOC_HOOKS
+    __sanitizer_install_malloc_and_free_hooks(countMalloc, countFree);
+    atomic_store(&g_counting, true);
+    void *volatile probe = malloc(16); // volatile: the compiler may drop a bare malloc/free pair
+    free(probe);
+    atomic_store(&g_counting, false);
+    check(atomic_load(&g_allocations) == 2, "the allocation hooks see a malloc and a free");
+    enum { CH = 2, FRAMES = 4096 };
+    NavisPitchAU *au = navis_pitch_au_new(44100, CH, FRAMES);
+    check(au != NULL, "AUNewTimePitch available");
+    NavisPitchRenderer r = navis_pitch_au_renderer(au);
+    float *buffer = calloc(4 * FRAMES, sizeof(float));
+    const float *in[CH] = {buffer, buffer + FRAMES};
+    float *out[CH] = {buffer + 2 * FRAMES, buffer + 3 * FRAMES};
+    for (int i = 0; i < FRAMES; i++) buffer[i] = buffer[FRAMES + i] = (float)(0.5 * sin(0.1 * i));
+    r.set_cents(r.user, 1200);
+    for (int i = 0; i < 8; i++) check(r.render(r.user, in, out, CH, FRAMES) == 0, "render warms up");
+    atomic_store(&g_allocations, 0);
+    atomic_store(&g_counting, true);
+    for (int i = 0; i < 64; i++) { // a seek with pitch on, a pitch change, then audio
+        r.reset(r.user);
+        r.set_cents(r.user, i & 1 ? 700.f : 1200.f);
+        if (r.render(r.user, in, out, CH, FRAMES) != 0) fail("render after reset", 0, 1);
+    }
+    atomic_store(&g_counting, false);
+    __sanitizer_install_malloc_and_free_hooks(NULL, NULL);
+    long allocations = atomic_load(&g_allocations);
+    if (allocations != 0) fail("allocations and frees in render, reset and set_cents", 0, (double)allocations);
+    free(buffer);
+    navis_pitch_au_free(au);
+    return true;
+#else
+    puts("SKIPPED: the pitch AU allocation check needs AddressSanitizer's allocator hooks.");
+    return false;
+#endif
+}
+
 int main(void) {
     testRatios();
     testLatencyOnsetTailAndReset();
     testTimestampMonotonicAcrossReset();
-    puts("Navis Darwin pitch AU: frequency ratios at 44.1/48/96 kHz, latency, onset, tail, reset and frame parity passed.");
+    bool allocationChecked = testRenderThreadCallsDoNotAllocate();
+    printf("Navis Darwin pitch AU: frequency ratios at 44.1/48/96 kHz, latency, onset, tail, reset, frame parity%s passed.\n",
+           allocationChecked ? " and no allocation on the render thread" : "");
     return 0;
 }
