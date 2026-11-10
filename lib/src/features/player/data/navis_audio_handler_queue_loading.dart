@@ -35,6 +35,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
     _loadedSourceApplied = false;
+    _loadStartSource = _nativeSourceAt(_player.currentIndex);
     _failedAfterApply = false;
     _isLoading = isLoading;
     _loadingSongId = isLoading ? loadingSongId : null;
@@ -61,6 +62,32 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _broadcastPlaybackState();
     _emitSnapshot();
     return generation;
+  }
+
+  IndexedAudioSource? _nativeSourceAt(int? index) {
+    final sequence = _player.sequence;
+    return index == null || index < 0 || index >= sequence.length
+        ? null
+        : sequence[index];
+  }
+
+  /// True once the loading song's source is in the player: the queue apply
+  /// returned, or a navigation's seek has landed on another entry that holds
+  /// the loading song while the seek call is still pending (that path never
+  /// goes through the apply). The entry that played when the load began does
+  /// not count, even for the same song id: a replacement of the song now
+  /// playing, a restart or a recovery reload has not reached its source yet.
+  /// While an apply is in flight the new entries are already in the sequence
+  /// but the load has not finished, so only the apply's return counts.
+  bool get _loadingSourceInPlayer {
+    if (_loadedSourceApplied) return true;
+    if (_sourceAppliesInFlight > 0) return false;
+    final loadingSongId = _loadingSongId;
+    final source = _nativeSourceAt(_player.currentIndex);
+    return loadingSongId != null &&
+        source != null &&
+        !identical(source, _loadStartSource) &&
+        navisNativeSourceSongId(source) == loadingSongId;
   }
 
   bool _isActiveLoadGeneration(int generation) =>
@@ -200,6 +227,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // left unhandled: without this the song stays idle yet playing.
     final failedAfterApply = _failedAfterApply;
     _loadedSourceApplied = false;
+    _loadStartSource = null;
     _failedAfterApply = false;
     if (!failed && failedAfterApply && _remoteSourceFailed) {
       unawaited(
@@ -1549,39 +1577,44 @@ extension _NavisQueueLoading on NavisAudioHandler {
         'preload': preload,
       },
     );
-    for (var attempt = 0; attempt < operations.length; attempt++) {
-      try {
-        if (generation > 0) {
-          await _runTimedPlayerOperation(
-            generation: generation,
-            operation: operations[attempt],
-            timeout: timeout,
-            action: apply,
-            songId: songId,
-            extendWhileDownloading: preload,
-            // Poll cancellation with hardCap == initial for offset loads.
-            fixedLoadDeadline:
-                _isDesktopRuntime && initialPosition != Duration.zero,
+    _sourceAppliesInFlight++;
+    try {
+      for (var attempt = 0; attempt < operations.length; attempt++) {
+        try {
+          if (generation > 0) {
+            await _runTimedPlayerOperation(
+              generation: generation,
+              operation: operations[attempt],
+              timeout: timeout,
+              action: apply,
+              songId: songId,
+              extendWhileDownloading: preload,
+              // Poll cancellation with hardCap == initial for offset loads.
+              fixedLoadDeadline:
+                  _isDesktopRuntime && initialPosition != Duration.zero,
+            );
+          } else {
+            await apply();
+          }
+          break;
+        } on Object catch (error, stackTrace) {
+          if (attempt == operations.length - 1) rethrow;
+          token?.checkCancelled();
+          if (!_isAndroidDspInitializationFailure(error)) rethrow;
+          AppLogger.warning(
+            attempt == 0
+                ? 'Android DSP initialization failed during queue apply. '
+                      'Disabling DSP pipeline for this session and retrying. '
+                      '$error\n$stackTrace'
+                : 'Android DSP fallback retry failed again. Rebuilding a plain player '
+                      'instance and retrying one final time. '
+                      '$error\n$stackTrace',
           );
-        } else {
-          await apply();
+          await _rebuildPlayerWithoutEqualizer();
         }
-        break;
-      } on Object catch (error, stackTrace) {
-        if (attempt == operations.length - 1) rethrow;
-        token?.checkCancelled();
-        if (!_isAndroidDspInitializationFailure(error)) rethrow;
-        AppLogger.warning(
-          attempt == 0
-              ? 'Android DSP initialization failed during queue apply. '
-                    'Disabling DSP pipeline for this session and retrying. '
-                    '$error\n$stackTrace'
-              : 'Android DSP fallback retry failed again. Rebuilding a plain player '
-                    'instance and retrying one final time. '
-                    '$error\n$stackTrace',
-        );
-        await _rebuildPlayerWithoutEqualizer();
       }
+    } finally {
+      _sourceAppliesInFlight--;
     }
     token?.checkCancelled();
     _loadedSourceApplied = true;
@@ -1640,7 +1673,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// audible, and the new song's gain waits for its own source.
   Future<void> _restoreActivePlayerVolume() {
     if ((_isLoading || _pendingLogicalQueueSongIds != null) &&
-        !_loadedSourceApplied) {
+        !_loadingSourceInPlayer) {
       return _player.setVolume(_baseVolumeFor().clamp(0.0, 1.0));
     }
     return _player.setVolume(

@@ -5353,10 +5353,15 @@ Desktop volume follows a parallel local-settings path:
      unsupported and the Dart cut applies through `setVolume` (late by the IPC
      time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`, mpv's is
      cubic, `10^(dB/60)`). During a queue replacement the cut is written as
-     soon as the selected source is in the player (`_loadedSourceApplied`, in
+     soon as the selected source is in the player (`_loadingSourceInPlayer`, in
      `_restoreActivePlayerVolume` and `_applyReplayGainVolume`), not at the
      commit; before that the old song may still be audible and nothing
-     song-scoped is written. Smart reads the incoming play order then
+     song-scoped is written. The source is in the player once the apply
+     returned (`_loadedSourceApplied`) or, for a manual skip that lands by
+     seeking and never applies, once the player's current entry holds the
+     loading song and is not the entry that played when the load began
+     (`_loadStartSource`: the same song id on the old entry, as in a
+     replacement starting on the playing song, does not count). Smart reads the incoming play order then
      (`_loadingPlayOrder`), since `_queueItems` holds only the start song.
      The older per-URI boost message
      (`AudioPlayer.setReplayGainBoost`, `byUri`) is kept for a backend that

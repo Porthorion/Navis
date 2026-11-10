@@ -304,6 +304,17 @@ class NavisAudioHandler extends BaseAudioHandler
   /// its load ends was not surfaced by the load itself.
   bool _loadedSourceApplied = false;
 
+  /// The native source that played when the current load began. A load whose
+  /// target is the song already playing must not take that old entry for its
+  /// own: only a different entry holding the loading song counts (see
+  /// [_loadingSourceInPlayer]).
+  IndexedAudioSource? _loadStartSource;
+
+  /// Queue applies (`setAudioSources`) in flight. just_audio swaps in the new
+  /// entries and broadcasts them before the platform load finishes, so while
+  /// one runs only [_loadedSourceApplied] says the new source is in.
+  int _sourceAppliesInFlight = 0;
+
   /// A failure was reported after the load's source was applied and while
   /// the load still ran; recovery skipped it, so the load end must act.
   bool _failedAfterApply = false;
@@ -3495,6 +3506,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
+    _loadStartSource = null;
     cancelSeekPreview();
     _cancelLockCacheWarm();
     _resumeLockCacheDownloads();
