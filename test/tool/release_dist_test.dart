@@ -102,6 +102,7 @@ void main() {
       'tool/lib/lastfm_key_defines.sh',
       'tool/lib/r2_tags.sh',
       'tool/lib/github_release.sh',
+      'tool/lib/release_notes.sh',
       // Stable GitHub releases attach the per-user installer from the repo.
       'linux/install.sh',
     ]) {

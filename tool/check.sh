@@ -77,6 +77,7 @@ run_step "GitHub update publication" ./tool/github_release_test.sh
 run_step "iOS release path" ./tool/ios_release_test.sh
 run_step "Last.fm key masking" ./tool/lastfm_key_defines_test.sh
 run_step "artifact secret scan" ./tool/scan_artifact_secret_test.sh
+run_step "release notes failure guard" ./tool/release_notes_test.sh
 run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "Android repeat runner contract" ./tool/android_repeat_runner_test.sh
 # Gradle compiles the Android app module; macOS hosts run no Android builds.
@@ -87,6 +88,7 @@ else
 fi
 run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_test.py
 run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test.py
+run_step "live seek app identity guard" python3 tool/live_seek_stress_test.py
 run_step "ReplayGain analyzer clamp rules" python3 tool/replaygain_boost_analyze_test.py
 run_step "format check" ./tool/dart_format.sh --check
 run_step "code generation" dart run build_runner build
