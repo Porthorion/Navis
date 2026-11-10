@@ -749,6 +749,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// A seek out of `completed` keeps reporting `completed`, as media_kit does
   /// while the restarted song plays (mediakit_player.dart `_processingState`).
   bool completedStaysOnSeek = false;
+
+  /// A seek's new index is reported this long after `seek` returned, as
+  /// media_kit does (its index follows a later mpv property event, #509).
+  /// A microtask is not enough: the handler must wait on a real timer.
+  Duration? seekIndexLag;
+
+  /// With [seekIndexLag] set, the seek's index never lands (an ignored seek).
+  bool seekIndexNeverLands = false;
   bool gateNonEmptyLoadsOnly = false;
   bool bufferAfterLoad = false;
   Completer<void>? loadGate;
@@ -1516,6 +1524,19 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       if (state == ProcessingState.completed && position < simulatedDuration) {
         state = ProcessingState.ready;
       }
+    }
+    final lag = seekIndexLag;
+    if (index != null && lag != null) {
+      if (!seekIndexNeverLands) {
+        Timer(lag, () {
+          if (disposed) return;
+          this.index = index;
+          _indices.add(index);
+          emitPlayerEvent();
+        });
+      }
+      emitPlayerEvent();
+      return;
     }
     if (index != null) this.index = index;
     _indices.add(this.index);
@@ -23508,6 +23529,179 @@ void main() {
       expect(player.seekCalls - seeksBefore, 1);
       expect(player.state, ProcessingState.ready);
       expect(handler.snapshot.playing, isTrue);
+    });
+  });
+  // #509: media_kit reports a seek's new index a moment after `seek` returned,
+  // so a skip read the old index, called that a failed seek and rebuilt the
+  // whole queue in a new player. Native shuffle stays off in Navis (the queue
+  // is shuffled in Dart), so no native shuffle order is involved here.
+  group('a skip whose index lands after the seek returned (#509)', () {
+    const lag = Duration(milliseconds: 60);
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> laggedQueue({
+      int count = 4,
+      int startIndex = 0,
+      bool crossfade = false,
+      bool desktop = true,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-i509-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        count,
+        crossfade: crossfade,
+        desktopRuntimeOverride: desktop,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueueWithData(
+        await database.libraryDao.getSongsByIds([
+          for (var i = 0; i < count; i++) 'song-$i',
+        ]),
+        startIndex: startIndex,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      await settleQueue(handler);
+      player.seekIndexLag = lag;
+      return (handler, player);
+    }
+
+    void expectPlainJump(
+      NavisAudioHandler handler,
+      _ControllableAudioPlayer player, {
+      required int stops,
+      required int loads,
+      required int target,
+    }) {
+      expect(player.stopCalls, stops, reason: 'no stop');
+      expect(player.setAudioSourcesCounts, hasLength(loads), reason: 'reload');
+      expect(player.index, target);
+      expect(handler.snapshot.currentIndex, target);
+      expect(handler.snapshot.currentSongId, 'song-$target');
+      expect(handler.snapshot.isLoading, isFalse);
+    }
+
+    for (final (name, startIndex, target, action)
+        in <(String, int, int, Future<void> Function(NavisAudioHandler))>[
+          ('skipToNext', 0, 1, (h) => h.skipToNext()),
+          ('skipToPrevious', 2, 1, (h) => h.skipToPrevious()),
+          ('skipToQueueItem', 0, 3, (h) => h.skipToQueueItem(3)),
+        ]) {
+      for (final crossfade in [false, true]) {
+        test(
+          '$name is a plain jump${crossfade ? ' with crossfade on' : ''}',
+          () async {
+            final (handler, player) = await laggedQueue(
+              startIndex: startIndex,
+              crossfade: crossfade,
+            );
+            final stops = player.stopCalls;
+            final loads = player.setAudioSourcesCounts.length;
+            await action(handler);
+            await settleQueue(handler);
+
+            expectPlainJump(
+              handler,
+              player,
+              stops: stops,
+              loads: loads,
+              target: target,
+            );
+            expect(handler.snapshot.playing, isTrue);
+          },
+        );
+      }
+    }
+
+    test('repeat-all wraps from the last song with a plain jump', () async {
+      final (handler, player) = await laggedQueue(startIndex: 3);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await settleQueue(handler);
+      final stops = player.stopCalls;
+      final loads = player.setAudioSourcesCounts.length;
+      await handler.skipToNext();
+      await settleQueue(handler);
+
+      expectPlainJump(handler, player, stops: stops, loads: loads, target: 0);
+    });
+
+    test('a rapid double skip ends on the second target', () async {
+      final (handler, player) = await laggedQueue();
+      final stops = player.stopCalls;
+      final loads = player.setAudioSourcesCounts.length;
+      final started = DateTime.now();
+      await Future.wait([handler.skipToNext(), handler.skipToNext()]);
+      await settleQueue(handler);
+      expect(player.stopCalls, stops);
+      expect(player.setAudioSourcesCounts, hasLength(loads));
+
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(player.index, 2);
+      expect(handler.snapshot.isLoading, isFalse);
+      expect(
+        DateTime.now().difference(started),
+        lessThan(const Duration(seconds: 3)),
+        reason: 'the wait must not hold the queue lane for its full bound',
+      );
+    });
+
+    test(
+      'an index that never lands still reloads after a bounded wait',
+      () async {
+        final (handler, player) = await laggedQueue();
+        player.seekIndexNeverLands = true;
+        final loads = player.setAudioSourcesCounts.length;
+        final started = DateTime.now();
+        await handler.skipToNext();
+        await settleQueue(handler);
+
+        expect(player.setAudioSourcesCounts, hasLength(loads + 1));
+        expect(player.stopCalls, greaterThan(0));
+        expect(player.index, 1);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(
+          DateTime.now().difference(started),
+          lessThan(const Duration(seconds: 3)),
+          reason: 'bounded well under the 4 s control timeout',
+        );
+      },
+    );
+
+    for (final late in [false, true]) {
+      test('Play on a finished queue restarts at song 0 with a lagging index '
+          '${late ? '(late echo)' : '(control)'}', () async {
+        final (handler, player) = await laggedQueue(count: 2, startIndex: 1);
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(player.state, ProcessingState.completed);
+        player.exoEndedSeekLate = late;
+        final seeks = player.seekCalls;
+        final loads = player.setAudioSourcesCounts.length;
+        await handler.play();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        await settleQueue(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(player.index, 0);
+        expect(player.seekCalls - seeks, 1);
+        expect(player.setAudioSourcesCounts, hasLength(loads));
+      });
+    }
+
+    test('Previous on a finished queue lands on the previous song with a '
+        'lagging index', () async {
+      final (handler, player) = await laggedQueue(count: 3, startIndex: 2);
+      player.finishCurrentTrack();
+      await pumpEventQueue();
+      player.simulatedPosition = const Duration(seconds: 1);
+      await handler.skipToPrevious();
+      await settleQueue(handler);
+
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.index, 1);
     });
   });
 }
