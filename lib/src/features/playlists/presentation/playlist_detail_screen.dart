@@ -207,6 +207,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final heightClass = desktopHeightClassOf(context);
     final shortHeader = heightClass == DesktopHeightClass.short;
 
+    // Reorder row keys name the song and which copy of it the row is, not
+    // its index, so a drop moves rows instead of rebuilding all that follow.
+    final seen = <String, int>{};
+    final rowOccurrences = <int>[
+      for (final song in songs)
+        seen.update(song.id, (n) => n + 1, ifAbsent: () => 1) - 1,
+    ];
+
     return NavisRefreshIndicator(
       onRefresh: () async {
         ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
@@ -437,7 +445,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 itemBuilder: (context, index) {
                   final song = songs[index];
                   return Material(
-                    key: ValueKey('${widget.playlistId}-${song.id}-$index'),
+                    key: ValueKey(
+                      '${widget.playlistId}-${song.id}-${rowOccurrences[index]}',
+                    ),
                     type: MaterialType.transparency,
                     child: TrackListTile(
                       song: song,
@@ -455,11 +465,20 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         anchor: details.globalPosition,
                       ),
                       trailing: desktopMode
-                          ? DesktopSongActions(
-                              song: song,
-                              keyPrefix: 'playlist-song',
-                              onMore: (anchor) =>
-                                  _showSongActions(song, index, anchor: anchor),
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                DesktopSongActions(
+                                  song: song,
+                                  keyPrefix: 'playlist-song',
+                                  onMore: (anchor) => _showSongActions(
+                                    song,
+                                    index,
+                                    anchor: anchor,
+                                  ),
+                                ),
+                                if (_canEdit) _reorderHandle(index),
+                              ],
                             )
                           : Row(
                               mainAxisSize: MainAxisSize.min,
@@ -474,15 +493,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                   ),
                                 ),
                                 _songActionsButton(song, index),
-                                if (_canEdit)
-                                  ReorderableDragStartListener(
-                                    index: index,
-                                    child: const SizedBox(
-                                      width: 48,
-                                      height: 48,
-                                      child: Icon(Icons.drag_handle),
-                                    ),
-                                  ),
+                                if (_canEdit) _reorderHandle(index),
                               ],
                             ),
                     ),
@@ -629,6 +640,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       );
     }
   }
+
+  Widget _reorderHandle(int index) => ReorderableDragStartListener(
+    index: index,
+    child: Tooltip(
+      message: AppLocalizations.of(context)!.commonReorder,
+      child: const SizedBox(
+        width: 48,
+        height: 48,
+        child: Icon(Icons.drag_handle),
+      ),
+    ),
+  );
 
   Widget _songActionsButton(SongsTableData song, int songIndex) {
     final l10n = AppLocalizations.of(context)!;

@@ -3982,6 +3982,9 @@ works like the weekly playlists. `homeTrendingProvider`
   `playlistDetailTrackRemoveFailed` or `playlistDetailReorderFailed` instead of
   swallowing the error. The playlist detail screen computes editability once per
   build and hides the drag handle and "Remove from playlist" when it is false.
+  The handle (tooltip `commonReorder`) shows on desktop too, beside the hover
+  actions; reorder row keys use the song id plus its occurrence number, not the
+  index.
   The add-to-playlist sheet lists only editable playlists. `addSongs` skips
   ids the playlist already holds (read from the server just before the add, or
   the stored rows for a device playlist) and ids repeated in the picked list,

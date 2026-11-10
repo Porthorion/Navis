@@ -82,8 +82,11 @@ Future<AppNoticeController> _pumpEditableDetail(
   PlaylistsTableData playlist, {
   String? viewer,
   required PlaylistActions actions,
+  bool desktop = false,
+  List<SongsTableData> songs = _twoSongs,
 }) async {
-  setAdaptiveTestViewport(tester, const Size(390, 844));
+  final size = desktop ? const Size(1280, 800) : const Size(390, 844);
+  setAdaptiveTestViewport(tester, size);
   final database = createTestDatabase();
   addTearDown(database.close);
   final notices = AppNoticeController();
@@ -98,7 +101,7 @@ Future<AppNoticeController> _pumpEditableDetail(
           playlistByIdProvider(_playlistId)
               .overrideWith((ref) => Stream.value(playlist)),
           playlistSongsProvider(_playlistId)
-              .overrideWith((ref) => Stream.value(_twoSongs)),
+              .overrideWith((ref) => Stream.value(songs)),
           playlistDetailSyncProvider(_playlistId).overrideWith((ref) async {}),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
@@ -116,8 +119,8 @@ Future<AppNoticeController> _pumpEditableDetail(
             AppNoticeScope(notifier: notices, child: child!),
         home: AdaptiveContextScope(
           adaptiveContext: resolveAdaptiveContext(
-            desktopRuntime: false,
-            viewportSize: const Size(390, 844),
+            desktopRuntime: desktop,
+            viewportSize: size,
             safePadding: EdgeInsets.zero,
           ),
           child: const PlaylistDetailScreen(playlistId: _playlistId),
@@ -462,6 +465,75 @@ void main() {
         ),
       ).called(1);
       expect(notices.notice?.message, 'Failed to reorder tracks');
+    });
+  });
+
+  group('desktop editable playlist', () {
+    testWidgets('shows a labelled drag handle per row and reorders by drag', (
+      tester,
+    ) async {
+      final actions = _MockPlaylistActions();
+      when(() => actions.reorder(any(), any(), any(), any()))
+          .thenAnswer((_) async {});
+      await _pumpEditableDetail(
+        tester,
+        _playlist,
+        viewer: 'navis',
+        actions: actions,
+        desktop: true,
+      );
+
+      expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
+      expect(find.byTooltip('Reorder'), findsNWidgets(2));
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byIcon(Icons.drag_handle).first),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      for (var i = 0; i < 8; i++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      verify(
+        () => actions.reorder(
+          any(),
+          <String>['playlist-1', 'playlist-2'],
+          0,
+          any(that: greaterThan(0)),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('read-only playlists show no handle', (tester) async {
+      await _pumpEditableDetail(
+        tester,
+        _playlist.copyWith(readOnly: const Value(true)),
+        viewer: 'navis',
+        actions: _MockPlaylistActions(),
+        desktop: true,
+      );
+
+      expect(find.byIcon(Icons.drag_handle), findsNothing);
+    });
+
+    testWidgets('a duplicate song builds without duplicate-key errors', (
+      tester,
+    ) async {
+      await _pumpEditableDetail(
+        tester,
+        _playlist,
+        viewer: 'navis',
+        actions: _MockPlaylistActions(),
+        desktop: true,
+        songs: <SongsTableData>[..._twoSongs, _twoSongs.first],
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('First song'), findsNWidgets(2));
+      expect(find.byIcon(Icons.drag_handle), findsNWidgets(3));
     });
   });
 
