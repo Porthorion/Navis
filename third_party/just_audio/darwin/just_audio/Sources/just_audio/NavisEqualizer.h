@@ -31,6 +31,12 @@
 /// and pitchInputHz/pitchOutputHz (diagnostics), and pitchReason when the tap
 /// cannot pitch its audio.
 - (void)setPitchCents:(float)cents;
+/// Pitch Lock (#528): every EQ band is heard at `scale` x its frequency, because AVPlayer
+/// resamples the tap's output by the speed (a locked 1.25x plays 1/1.25 here so the
+/// band is heard where the user set it). 1 is the user's configuration; see
+/// navis_eq_config_scaled for the limits. Main thread. Safe before the tap exists (it
+/// is seeded). The state adds frequencyScale.
+- (void)setFrequencyScale:(double)scale;
 /// ReplayGain boost (I24) in dB for the player's one tap, clamped to 0..12; 0 is a
 /// bit-exact bypass. Main thread; the tap ramps every format to it over 20 ms, and
 /// snaps at the first block after a flush or a new pipeline (so store a drop before

@@ -9,6 +9,7 @@
 #import "./include/just_audio/ClippingAudioSource.h"
 #import "NavisBoost.h"
 #import "NavisEqualizer.h"
+#import "NavisRatePlan.h"
 #import <AVFoundation/AVFoundation.h>
 #import <stdlib.h>
 #include <TargetConditionals.h>
@@ -66,6 +67,11 @@ static const int kBoostTickMs = 250;
 #if TARGET_OS_IOS
     // Navis: nil unless the app sent an equalizerConfiguration (iOS only).
     NavisEqualizer *_equalizer;
+    // Navis: Pitch Lock (#528). The last pitch factor (_speed is the speed), the algorithm every item
+    // plays with, and whether one applyRatePlan is already queued (main thread).
+    double _pitch;
+    AVAudioTimePitchAlgorithm _timePitchAlgorithm;
+    BOOL _ratePlanPending;
     // Navis: the ReplayGain boost (I24), all on the main thread. The map is the boost of each
     // queued song by URI; the rest is the policy state of navis_boost_decide.
     NSDictionary<NSString *, NSNumber *> *_boostByUri;
@@ -146,6 +152,8 @@ static const int kBoostTickMs = 250;
             return items.count > 1 ? items[1] : nil;
         };
     }
+    _pitch = 1.0;
+    _timePitchAlgorithm = AVAudioTimePitchAlgorithmTimeDomain;
 #endif
     _speed = 1.0f;
     _volume = 1.0f;
@@ -239,26 +247,67 @@ static const int kBoostTickMs = 250;
     }
 }
 
-// Navis: independent pitch (iOS). The factor becomes 1200*log2(factor) cents in an
-// AUNewTimePitch inside the equalizer's tap; items keep their time-domain
-// algorithm, so speed and pitch stay independent. Without a tap only 1 succeeds.
+// Navis: pitch (iOS). Independent pitch is 1200*log2(factor) cents in an AUNewTimePitch inside
+// the equalizer's tap, with items on the time-domain algorithm. Pitch Lock (pitch == speed) is
+// instead one Varispeed resample in AVPlayer with the tap at 0 (see applyRatePlan). Without a tap
+// only 1 and a locked pair succeed.
 - (void)setPitch:(double)pitch result:(FlutterResult)result {
     if (!isfinite(pitch) || pitch < 0.25 || pitch > 4) {
         result([FlutterError errorWithCode:@"pitch_invalid" message:@"Pitch factor must be between 0.25 and 4" details:nil]);
         return;
     }
 #if TARGET_OS_IOS
-    if (_equalizer) {
-        [_equalizer setPitchCents:(float)(1200.0 * log2(pitch))];
+    if (_equalizer || pitch == 1.0 || navis_rate_plan(_speed, pitch).algorithm == NAVIS_RATE_VARISPEED) {
+        _pitch = pitch;
+        [self scheduleRatePlan];
         result(@{});
         return;
     }
-#endif
+#else
     if (pitch == 1.0) {
         result(@{});
         return;
     }
+#endif
     result([FlutterError errorWithCode:@"pitch_unavailable" message:@"No audio tap was installed for this player" details:nil]);
+}
+
+#if TARGET_OS_IOS
+// Navis: Pitch Lock (#528). Dart sends setSpeed and setPitch back to back, so both are queued
+// before this runs and the plan is made once from the final pair: no algorithm flap in between.
+// ponytail: coalesces only messages already queued; a combined setSpeedPitch method if a flap is ever heard.
+- (void)scheduleRatePlan {
+    if (_ratePlanPending) return;
+    _ratePlanPending = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self applyRatePlan]; });
+}
+
+// Locked (and not 1x): every item plays through AVPlayer's own Varispeed resample, the tap's pitch is
+// 0 and its EQ bands move to f/speed. Otherwise: time-domain stretch and the tap's independent pitch.
+// The algorithm goes on every item that exists: playing, queued and not yet inserted (and the loop item).
+- (void)applyRatePlan {
+    _ratePlanPending = NO;
+    NavisRatePlan plan = navis_rate_plan(_speed, _pitch);
+    [_equalizer setPitchCents:plan.tapCents];
+    [_equalizer setFrequencyScale:plan.eqFrequencyScale];
+    AVAudioTimePitchAlgorithm algorithm = plan.algorithm == NAVIS_RATE_VARISPEED
+        ? AVAudioTimePitchAlgorithmVarispeed : AVAudioTimePitchAlgorithmTimeDomain;
+    if ([algorithm isEqualToString:_timePitchAlgorithm]) return;
+    _timePitchAlgorithm = algorithm;
+    for (AVPlayerItem *item in _player.items) item.audioTimePitchAlgorithm = algorithm;
+    for (IndexedAudioSource *source in _indexedAudioSources) {
+        source.playerItem.audioTimePitchAlgorithm = algorithm;
+        source.playerItem2.audioTimePitchAlgorithm = algorithm;
+    }
+}
+#endif
+
+/// Queue insert (always at the end). A new item gets the current Pitch Lock algorithm first.
+- (void)insertQueueItem:(AVPlayerItem *)item {
+#if TARGET_OS_IOS
+    item.audioTimePitchAlgorithm = _timePitchAlgorithm;
+#endif
+    [_player insertItem:item afterItem:nil];
 }
 
 // Navis: equalizer (iOS). Unsupported where no tap was installed, as on Android.
@@ -277,7 +326,9 @@ static const int kBoostTickMs = 250;
 - (void)getEqualizerState:(FlutterResult)result {
 #if TARGET_OS_IOS
     if (_equalizer) {
-        result([_equalizer state]);
+        NSMutableDictionary *state = [[_equalizer state] mutableCopy];
+        state[@"timePitchAlgorithm"] = [_timePitchAlgorithm isEqualToString:AVAudioTimePitchAlgorithmVarispeed] ? @"varispeed" : @"timeDomain";
+        result(state);
         return;
     }
 #endif
@@ -952,7 +1003,7 @@ static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
                     break;
                 }
                 //NSLog(@"inserting item %d", si);
-                [_player insertItem:_indexedAudioSources[si].playerItem afterItem:nil];
+                [self insertQueueItem:_indexedAudioSources[si].playerItem];
                 if (_loopMode == lmLoopOne) {
                     // We only want one item in the queue.
                     break;
@@ -970,14 +1021,14 @@ static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
                 [_indexedAudioSources[si] preparePlayerItem2];
                 [self addItemObservers:_indexedAudioSources[si].playerItem2];
             }
-            [_player insertItem:_indexedAudioSources[si].playerItem2 afterItem:nil];
+            [self insertQueueItem:_indexedAudioSources[si].playerItem2];
         } else if (_loopMode == lmLoopOne) {
             //NSLog(@"### add loop item:%d", _index);
             if (!_indexedAudioSources[_index].playerItem2) {
                 [_indexedAudioSources[_index] preparePlayerItem2];
                 [self addItemObservers:_indexedAudioSources[_index].playerItem2];
             }
-            [_player insertItem:_indexedAudioSources[_index].playerItem2 afterItem:nil];
+            [self insertQueueItem:_indexedAudioSources[_index].playerItem2];
         }
     }
 
@@ -1531,6 +1582,9 @@ static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
     }
     [self updatePosition];
     [self refreshReplayGainBoost];
+#if TARGET_OS_IOS
+    [self scheduleRatePlan];
+#endif
 }
 
 - (void)setLoopMode:(int)loopMode {

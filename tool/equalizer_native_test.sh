@@ -41,6 +41,13 @@ if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
     "${navis_c_sources}/NavisBoost.c" \
     -lm -o "${navis_c_out}/navis_boost_test"
   "${navis_c_out}/navis_boost_test"
+  # Pitch Lock as one Varispeed stage (#528): the rate plan and the scaled EQ config.
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_rate_plan_test.c" \
+    "${navis_c_sources}/NavisRatePlan.c" \
+    "${navis_c_sources}/NavisEqualizerDsp.c" \
+    -lm -o "${navis_c_out}/navis_rate_plan_test"
+  "${navis_c_out}/navis_rate_plan_test"
   # One tap stream per audio format (I25): the slot set around the stage, with a fake AU.
   navis_tap_sources=("${navis_c_sources}/NavisTapFormats.c" "${navis_c_sources}/NavisBoost.c" "${navis_c_sources}/NavisPitchStage.c" "${navis_c_sources}/NavisEqualizerDsp.c")
   "${navis_cc}" "${navis_c_flags[@]}" \

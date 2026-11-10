@@ -127,6 +127,19 @@ reads a few tens of milliseconds early (a negative gap) when the main thread is
 busy; that is a clock reading, not an overlap in the audio (the transport trace
 intervals stay at the song length). `tool/ios_gapless_diagnostics.sh` plays the
 fixture queues and checks these values.
+Pitch Lock on iOS (#528) is one resample, not two. When pitch equals speed (and is
+not 1x) the plan (`NavisRatePlan.c`, applied by `AudioPlayer.m`) puts every item on
+`AVAudioTimePitchAlgorithmVarispeed` (AVPlayer's own rate resample, which moves pitch
+with speed), sets the tap's pitch to 0 and moves each EQ band to `f / speed` (the EQ
+runs in the tap, before the rate, so the band is then heard where it was set; a band
+that lands above 20 kHz is disabled, one below 20 Hz clamps to 20 Hz). Otherwise
+items keep the time-domain stretch and an unlocked pitch stays the tap's
+independent pitch. `setSpeed` and `setPitch` both queue one plan run, so the pair
+that Dart sends back to back is planned once. The rate is immediate, but the EQ retune
+and any tap cents land about 0.4 s late (the tap renders ahead). The algorithm is
+also set on every queued, not-yet-inserted and loop item. State adds `frequencyScale`
+(the EQ scale in effect) and, from `getEqualizerState`, `timePitchAlgorithm`
+(`varispeed` or `timeDomain`).
 The ReplayGain boost (I24) is the last step of each format slot, after pitch and EQ
 (`NavisBoost.c`): a gain with a 20 ms linear ramp, independent of `enabled`, so quiet
 songs are turned up with the EQ off or on. The cut (I26) is each item's own audio-mix
@@ -147,7 +160,8 @@ Without the tap (after the EQ pipeline was rebuilt away) the capability is false
 nothing is sent.
 The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
 run from `tool/equalizer_native_test.sh` (it needs only a C compiler), as are
-`navis_pitch_stage_test.c`, `navis_boost_test.c` (the boost decision table and
+`navis_pitch_stage_test.c`, `navis_rate_plan_test.c` (the Pitch Lock plan, the
+scaled EQ config and where a scaled band is heard), `navis_boost_test.c` (the boost decision table and
 ramp) and `navis_tap_formats_test.c` (the format slots with a fake pitch unit,
 including concurrent pipelines, the boost and the layout checks the tap glue uses to
 pass an unsupported format or buffer list unchanged; under ThreadSanitizer too on macOS).

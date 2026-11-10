@@ -6,6 +6,7 @@
 #import "NavisEqualizerDsp.h"
 #import "NavisPitchAU.h"
 #import "NavisPitchStage.h"
+#import "NavisRatePlan.h"
 #import "NavisTapFormats.h"
 #import <MediaToolbox/MediaToolbox.h>
 #import <QuartzCore/QuartzCore.h>
@@ -212,7 +213,8 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 // volume different, which the simulator and macOS spikes showed does not stall (a device run is
 // still owed) and the app only asks for when a value moved.
 @implementation NavisEqualizer {
-    NavisEqConfig _config;
+    NavisEqConfig _config;          // the user's configuration; the tap gets it scaled by _frequencyScale
+    double _frequencyScale;         // Pitch Lock (#528): 1 unless locked and not 1x
     int32_t _pitchCents;            // requested pitch; seeds the tap, which is created on first use
     double _boostRequestedDb;       // requested ReplayGain boost; seeds the tap too
     BOOL _boostGuarded;             // reported only
@@ -254,6 +256,7 @@ static void warmUpPitchAudioUnit(void) {
 - (instancetype)initWithConfiguration:(NSDictionary *)map error:(NSString **)error {
     self = [super init];
     if (!decodeConfiguration(map, &_config, error)) return nil;
+    _frequencyScale = 1;
     warmUpPitchAudioUnit();
     // The app sets this only where the diagnostics API may run (diagnosticsBuildEnabled).
     _meterEnabled = [map[@"diagnostics"] isKindOfClass:[NSNumber class]] && [map[@"diagnostics"] boolValue];
@@ -270,9 +273,23 @@ static void warmUpPitchAudioUnit(void) {
         _config = next;
         // Banks are built here, off the audio thread; every format's stream swaps at
         // a block boundary. A format prepared later is seeded with the configuration.
-        if (_context) navis_tap_formats_configure(_context->formats, &next);
+        if (_context) {
+            NavisEqConfig scaled;
+            navis_eq_config_scaled(&next, _frequencyScale, &scaled);
+            navis_tap_formats_configure(_context->formats, &scaled);
+        }
     }
     return [self state];
+}
+
+- (void)setFrequencyScale:(double)scale {
+    if (_disposed || !isfinite(scale) || scale <= 0 || scale == _frequencyScale) return;
+    _frequencyScale = scale;
+    if (_context) {
+        NavisEqConfig scaled;
+        navis_eq_config_scaled(&_config, scale, &scaled);
+        navis_tap_formats_configure(_context->formats, &scaled);
+    }
 }
 
 - (void)setPitchCents:(float)cents {
@@ -390,6 +407,7 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     if (fs && fs->hasPitch) st = fs->pitch;
     st.cents = _pitchCents;
     result[@"pitchCents"] = @(st.cents);
+    result[@"frequencyScale"] = @(_frequencyScale);
     result[@"pitchActive"] = @(st.active);
     result[@"pitchLatencyFrames"] = @(st.latencyFrames);
     result[@"pitchResetCount"] = @((long long)(fs ? fs->pitchResetCount : 0));
@@ -437,7 +455,9 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
 /// Creates the player's one tap on first use. NO when MTAudioProcessingTapCreate fails.
 - (BOOL)ensureTap {
     if (_context) return YES;
-    NavisTapContext *context = contextNew(&_config, _pitchCents, navis_boost_linear(_boostRequestedDb));
+    NavisEqConfig scaled;
+    navis_eq_config_scaled(&_config, _frequencyScale, &scaled);
+    NavisTapContext *context = contextNew(&scaled, _pitchCents, navis_boost_linear(_boostRequestedDb));
     MTAudioProcessingTapCallbacks callbacks = {
         .version = kMTAudioProcessingTapCallbacksVersion_0,
         .clientInfo = context,
