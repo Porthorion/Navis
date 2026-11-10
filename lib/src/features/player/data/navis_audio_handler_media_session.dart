@@ -208,21 +208,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       );
       // Network failures retain the station and its requested playback.
       if (_radioStation != null && _isTransientRadioFailure(error)) {
-        final station = _radioStation!;
-        final previous = _pendingRadioRecovery;
-        _pendingRadioRecovery = (
-          generation: _transportGeneration,
-          station: station,
-          // A repeated failure during one outage keeps its recovery budget.
-          since: _radioOutageStart(station, previous),
-        );
-        _radioMetadataService.stop();
-        AppLogger.startup(
-          StartupEvent.radioRecovery,
-          outcome: StartupOutcome.offline,
-        );
-        _scheduleNetworkPlaybackRetry();
-        unawaited(_recoverRadioAfterNetworkFailure());
+        _beginRadioRecovery(reason: 'playback event stream error');
       } else if (_radioStation != null) {
         unawaited(_stopUnavailableRadio());
       } else {
@@ -297,7 +283,12 @@ extension _NavisMediaSession on NavisAudioHandler {
       final processing = _player.processingState;
       final index = _player.currentIndex;
       if (processing == ProcessingState.completed) {
-        _continueIntoDeferredTail();
+        // A live station never legitimately completes: its connection ended.
+        if (_radioStation != null) {
+          _beginRadioRecovery(reason: 'station stream ended', onlyIfIdle: true);
+        } else {
+          _continueIntoDeferredTail();
+        }
       } else {
         _endedSeekEcho = null;
       }

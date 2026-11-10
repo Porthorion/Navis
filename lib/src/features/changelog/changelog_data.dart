@@ -569,6 +569,12 @@ const List<ChangelogVersion> changelogs = [
         platforms: ChangelogPlatform.desktop,
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'A radio station that stalls or whose stream ends now reconnects by '
+        'itself. Before, it could stay silent, ignoring Play, until you '
+        'picked the station again',
+        type: ChangelogEntryType.fix,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),

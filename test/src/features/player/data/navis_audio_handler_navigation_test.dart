@@ -2723,6 +2723,192 @@ void main() {
       },
     );
 
+    // Issue #527: a stalled or ended station stream never reports an error.
+    void endStation(_ControllableAudioPlayer player) {
+      player
+        ..state = ProcessingState.completed
+        ..isPlaying = true;
+      player._events.add(player.playbackEvent);
+    }
+
+    void stallStation(_ControllableAudioPlayer player) {
+      player
+        ..state = ProcessingState.buffering
+        ..isPlaying = true;
+      player._events.add(player.playbackEvent);
+    }
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> playStation({
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+      Future<NetworkReconciliation> Function()? reconcile,
+    }) async {
+      final (handler, player, _) = await setup(
+        reconcile: reconcile ?? () async => net(online: true),
+        timeouts: timeouts,
+      );
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      return (handler, player);
+    }
+
+    String stationUrl(_ControllableAudioPlayer player) =>
+        (player.sequence.single as UriAudioSource).uri.toString();
+
+    test('a station whose stream ends reconnects once', () async {
+      final (handler, player) = await playStation();
+      final loads = player.sourceLoads;
+      final stops = player.stopCalls;
+      endStation(player);
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.stopCalls, stops + 1);
+      expect(stationUrl(player), 'https://radio.example.invalid/live');
+      expect(player.playing, isTrue);
+      expect(handler.snapshot.radioStation?.stationId, 'fixture');
+    });
+
+    test('Play on an ended station reconnects instead of replaying', () async {
+      final (handler, player) = await playStation();
+      final loads = player.sourceLoads;
+      // The end was never reported as an event (a dropped one).
+      player
+        ..state = ProcessingState.completed
+        ..isPlaying = false;
+      await handler.play();
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.state, ProcessingState.ready);
+      expect(player.playing, isTrue);
+    });
+
+    test('an error then an end in one outage reconnect once', () async {
+      final (handler, player) = await playStation();
+      final loads = player.sourceLoads;
+      final reconnect = Completer<void>();
+      player.loadGate = reconnect;
+      await dropStation(player);
+      endStation(player);
+      await pumpEventQueue(times: 50);
+      reconnect.complete();
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(handler.snapshot.isRadioMode, isTrue);
+    });
+
+    test('a station that keeps ending stops after the budget', () async {
+      final (handler, player) = await playStation(
+        timeouts: const NavisPlaybackTimeouts(
+          radioRecovery: Duration(milliseconds: 600),
+          radioHealthyPlay: Duration(seconds: 30),
+        ),
+      );
+      final notices = <void>[];
+      final subscription = handler.radioStreamErrorStream.listen(notices.add);
+      addTearDown(subscription.cancel);
+      for (var i = 0; i < 12 && handler.snapshot.isRadioMode; i++) {
+        final reconnect = Completer<void>();
+        player.loadGate = reconnect;
+        endStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        reconnect.complete();
+        await pumpEventQueue(times: 50);
+      }
+      expect(handler.snapshot.isRadioMode, isFalse);
+      expect(notices, hasLength(1));
+    });
+
+    for (final cancel in ['stop', 'replace']) {
+      test('an ended station reconnect is abandoned on $cancel', () async {
+        var online = false;
+        final recovered = StreamController<void>.broadcast();
+        addTearDown(recovered.close);
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: online),
+          recovered: recovered.stream,
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        endStation(player);
+        await pumpEventQueue();
+        if (cancel == 'stop') {
+          await handler.stopRadio();
+        } else {
+          await handler.replaceQueue(
+            ['song-2'],
+            autoPlay: false,
+            expandMatchFlows: false,
+          );
+        }
+        final loadsAfterCommand = player.sourceLoads;
+        online = true;
+        recovered.add(null);
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loadsAfterCommand);
+        expect(player.playing, isFalse);
+      });
+    }
+
+    const stall = NavisPlaybackTimeouts(
+      remoteStall: Duration(milliseconds: 300),
+    );
+
+    test(
+      'a station stuck buffering reconnects after the stall timeout',
+      () async {
+        final (_, player) = await playStation(timeouts: stall);
+        final loads = player.sourceLoads;
+        stallStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(player.sourceLoads, loads);
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loads + 1);
+        expect(stationUrl(player), 'https://radio.example.invalid/live');
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('a station buffering with progress is left alone', () async {
+      final (_, player) = await playStation(timeouts: stall);
+      final loads = player.sourceLoads;
+      stallStation(player);
+      for (var i = 1; i <= 8; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        player.simulatedBuffered = Duration(seconds: i);
+        player._events.add(player.playbackEvent);
+      }
+      expect(player.sourceLoads, loads);
+    });
+
+    test('a ready station that keeps advancing is left alone', () async {
+      final (_, player) = await playStation(timeouts: stall);
+      final loads = player.sourceLoads;
+      player
+        ..simulateProgress = true
+        ..state = ProcessingState.ready
+        ..isPlaying = true;
+      player._events.add(player.playbackEvent);
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      expect(player.sourceLoads, loads);
+    });
+
+    test('a paused station is not watched for a stall', () async {
+      final (_, player) = await playStation(timeouts: stall);
+      final loads = player.sourceLoads;
+      player
+        ..state = ProcessingState.buffering
+        ..isPlaying = false;
+      player._events.add(player.playbackEvent);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(player.sourceLoads, loads);
+    });
+
     test(
       'a station that played healthily gets a fresh recovery budget',
       () async {

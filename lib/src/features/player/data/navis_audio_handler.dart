@@ -2408,8 +2408,10 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
+    // A stuck-buffering station is left to the stall watchdog.
     if (_radioStation != null &&
-        _player.processingState == ProcessingState.idle) {
+        (_player.processingState == ProcessingState.idle ||
+            _player.processingState == ProcessingState.completed)) {
       _pendingRadioRecovery = (
         generation: transportGeneration,
         station: _radioStation!,
