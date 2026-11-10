@@ -498,12 +498,8 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(
-        () => actions.reorder(
-          any(),
-          <String>['playlist-1', 'playlist-2'],
-          0,
-          any(that: greaterThan(0)),
-        ),
+        () =>
+            actions.reorder(any(), <String>['playlist-1', 'playlist-2'], 0, 1),
       ).called(1);
     });
 

@@ -643,12 +643,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
   Widget _reorderHandle(int index) => ReorderableDragStartListener(
     index: index,
-    child: Tooltip(
-      message: AppLocalizations.of(context)!.commonReorder,
-      child: const SizedBox(
-        width: 48,
-        height: 48,
-        child: Icon(Icons.drag_handle),
+    child: MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      child: Tooltip(
+        message: AppLocalizations.of(context)!.commonReorder,
+        child: const SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(Icons.drag_handle),
+        ),
       ),
     ),
   );
