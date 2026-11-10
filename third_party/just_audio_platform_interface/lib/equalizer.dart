@@ -109,6 +109,8 @@ class EqualizerStateMessage {
     this.flushCount,
     this.transitionGapsMs,
     this.pitchCents,
+    this.timePitchAlgorithm,
+    this.frequencyScale,
     this.pitchActive,
     this.pitchLatencyFrames,
     this.pitchResetCount,
@@ -183,6 +185,11 @@ class EqualizerStateMessage {
   /// whether it processes, its latency in frames, its resets and the
   /// zero-crossing frequency of its input and output.
   final int? pitchCents;
+
+  /// The rate plan in force (Darwin only, diagnostics): the player's time-pitch
+  /// algorithm (`varispeed` or `timeDomain`) and the EQ frequency scale.
+  final String? timePitchAlgorithm;
+  final double? frequencyScale;
   final bool? pitchActive;
   final int? pitchLatencyFrames;
   final int? pitchResetCount;
@@ -239,6 +246,14 @@ class EqualizerStateMessage {
             ?.map((gap) => (gap as num).toDouble())
             .toList(growable: false),
         pitchCents: (map['pitchCents'] as num?)?.toInt(),
+        timePitchAlgorithm: switch (map['timePitchAlgorithm']) {
+          final String value => value,
+          _ => null,
+        },
+        frequencyScale: switch (map['frequencyScale']) {
+          final num value => value.toDouble(),
+          _ => null,
+        },
         pitchActive: map['pitchActive'] as bool?,
         pitchLatencyFrames: (map['pitchLatencyFrames'] as num?)?.toInt(),
         pitchResetCount: (map['pitchResetCount'] as num?)?.toInt(),

@@ -16,6 +16,8 @@ void main() {
       flushCount: 2,
       transitionGapsMs: const [0.4, -0.2],
       pitchCents: 500,
+      timePitchAlgorithm: 'varispeed',
+      frequencyScale: 1.25,
       pitchActive: true,
       pitchLatencyFrames: 4096,
       pitchResetCount: 3,
@@ -49,6 +51,8 @@ void main() {
     expect(json['flushCount'], 2);
     expect(json['transitionGapsMs'], [0.4, -0.2]);
     expect(json['pitchCents'], 500);
+    expect(json['timePitchAlgorithm'], 'varispeed');
+    expect(json['frequencyScale'], 1.25);
     expect(json['pitchActive'], isTrue);
     expect(json['pitchLatencyFrames'], 4096);
     expect(json['pitchResetCount'], 3);
@@ -126,6 +130,8 @@ void main() {
     expect(json['transitionGapsMs'], isNull);
     for (final key in [
       'pitchCents',
+      'timePitchAlgorithm',
+      'frequencyScale',
       'pitchActive',
       'pitchLatencyFrames',
       'pitchResetCount',

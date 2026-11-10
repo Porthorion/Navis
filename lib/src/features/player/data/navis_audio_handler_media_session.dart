@@ -1145,6 +1145,8 @@ extension _NavisMediaSession on NavisAudioHandler {
         flushCount: native.flushCount,
         transitionGapsMs: native.transitionGapsMs,
         pitchCents: native.pitchCents,
+        timePitchAlgorithm: native.timePitchAlgorithm,
+        frequencyScale: native.frequencyScale,
         pitchActive: native.pitchActive,
         pitchLatencyFrames: native.pitchLatencyFrames,
         pitchResetCount: native.pitchResetCount,
