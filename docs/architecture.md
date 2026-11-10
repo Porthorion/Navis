@@ -4810,11 +4810,16 @@ stale (on iOS the advance event keeps the old stamp; on Android the previous
 event's stamp is the stale one), so capture samples the player clock (at most
 about 200 ms old, from the position sampler) and the retry's invalidation
 guards compare that sample's Dart time; the successor-publish yield is
-unconditional so the discontinuity claims the cut first. On mobile the cut
+unconditional so the discontinuity claims the cut first. A queue replacement is
+not a cut: while a counted source apply is in flight, or the native item is
+idle or loading, mobile capture records nothing (an index event also clears the
+held occurrence) and the retry is refused, because the player still reports the
+previous item's position under the new sequence. On mobile the cut
 response of a lock-cached stream has no length and is committed to the rolling
 cache as a complete file, which the resolver would prefer to any stream; before
 reopening, the retry therefore evicts that song's rolling entry
-(`RollingCacheManager.evictRollingTrack`, never a permanent download) so the
+(`RollingCacheManager.evictRollingTrack`, never a permanent download; it first
+awaits that song's pending registration so a late one cannot add the file back) so the
 reopen streams at the cut offset, and defers its pause by a microtask because it
 runs inside the player's synchronous event dispatch. The just_audio fork treats
 a zero platform duration (iOS, for an unknown-length stream) as unknown, so the

@@ -243,3 +243,30 @@ Root cause: `build/i527b/ROOT_CAUSE.md` (Opus, runtime-proven). Three fixes:
 - **C (app):** the recovery pause runs in a microtask, outside the player's event dispatch.
   The fake cannot model a synchronous controller; the runtime probe must show no
   "Pause before transcode recovery failed" line.
+
+## Fix round 3
+
+Root cause: `build/i527b/ROOT_CAUSE_2.md` (D1) with the Fable advice `FABLE_ADVICE.md`.
+
+- **D1:** `_captureTranscodeEndOccurrence` (mobile only) records nothing while
+  `_sourceAppliesInFlight > 0` or the native state is idle/loading, and an index event in
+  either state clears the held occurrence. `_retryPrematureTranscodeEnd` returns false when an
+  apply is in flight or the previous event was idle/loading. Desktop capture is unchanged;
+  the retry guards are platform-neutral and the desktop tests stay green.
+- **Tests:** the fake player gained `staleSequenceSwap` (the sequence swaps under the old
+  item's index, position and ready state, then a tick, then loading) and
+  `useRealDiscontinuityDetector` (just_audio's pairwise detector). The negative tests fail on the
+  previous head and with only the idle/loading gates. The positive test (a real cut after the swap
+  reopens once at 47 s) passes before and after.
+- **Tail fill:** `_fillQueueBatch` uses `addAudioSources`/`insertAudioSources`, never the counted
+  `_setAudioSourcesWithFallback`, so the apply gate does not block a cut during the tail fill.
+  While the tail fill runs the queue items do not match the native sequence, so the mobile sampler
+  does not refresh the occurrence; a cut then reopens at the position sampled at the index
+  event (about 0 s, where such a cut happens in practice).
+- **Not reproduced:** the shift case (old index 1, new start 0) needs a first apply with two sources;
+  the test queue's first apply carries one, so only the same-index case is exercised.
+- **R1:** `_pendingRollingRegistrations` (by song) holds the registration started at 1.0 progress;
+  `recover()` awaits it before evicting. Test: a download finishing as the cut is judged leaves
+  neither the file nor the row.
+- **R2:** `deleteCachedTracksBySongIds(rollingOnly: true)`, used by `evictRollingTrack`, so a
+  permanent row is never deleted between its read and the delete.
