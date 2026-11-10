@@ -904,6 +904,39 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test(
+    'getAliasesFor maps only the asked song ids to their library ids',
+    () async {
+      Future<void> alias(String kind, String old, String target) => database
+          .into(database.entityIdentityAliasTable)
+          .insert(
+            EntityIdentityAliasTableCompanion.insert(
+              entityType: kind,
+              oldId: old,
+              newId: target,
+              matchReason: 'recordingMbid',
+              matchedAt: DateTime.utc(2026, 1, 1),
+            ),
+          );
+      await alias('song', 'remote-song', 'server-song');
+      await alias('song', 'remote-other', 'server-other');
+      // An album alias on the same old id must not leak into song results.
+      await alias('album', 'remote-album', 'server-album');
+
+      expect(
+        await database.songIdentityDao.getAliasesFor([
+          'remote-song',
+          'remote-song',
+          'remote-album',
+          'unknown',
+        ]),
+        {'remote-song': 'server-song'},
+      );
+      expect(await database.songIdentityDao.getAliasesFor(const []), isEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
 }
 
 Future<int> _count(NavisDatabase database, String table, String songId) async {

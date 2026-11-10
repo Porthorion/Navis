@@ -60,6 +60,21 @@ jobs:
       # The per-user Linux installer verifies signatures and writes into $HOME.
       - run: ./tool/linux_install_test.sh
       - run: shellcheck linux/install.sh
+      # Hermetic tooling self-tests (also in tool/check.sh). They use rg,
+      # which the runner image may not ship.
+      - run: command -v rg >/dev/null || sudo apt-get install -y ripgrep
+      - name: GitHub update publication self-test
+        run: ./tool/github_release_test.sh
+      - name: Artifact secret scan self-test
+        run: ./tool/scan_artifact_secret_test.sh
+      - name: Sync scenario preparation self-test
+        run: python3 -m unittest tool.dev_sync_scenario_test
+      - name: Sync diagnostics action attribution self-test
+        run: python3 -m unittest tool.sync_diagnostics_action_test
+      - name: libmpv Windows download fallback self-test
+        run: cd "$RUNNER_TEMP" && cmake -P "$GITHUB_WORKSPACE/tool/libmpv_download_test.cmake"
+      - name: libmpv Linux bundle self-test
+        run: cd "$RUNNER_TEMP" && cmake -P "$GITHUB_WORKSPACE/tool/libmpv_bundle_test.cmake"
 
   # Generated code is committed, so shards skip build_runner.
   test:
@@ -93,6 +108,9 @@ jobs:
       # flutter test can exit 0 after a runner shutdown crash (#32); the
       # shared guard fails the shard on a failure count or crash text.
       - shell: bash
+        env:
+          # A missing native SQLite fails the database suites instead of skipping them.
+          NAVIS_REQUIRE_SQLITE: '1'
         run: |
           source tool/lib/check_test_log.sh
           flutter test --total-shards 4 --shard-index ${{ matrix.shard }} 2>&1 | tee "$RUNNER_TEMP/test.log"
