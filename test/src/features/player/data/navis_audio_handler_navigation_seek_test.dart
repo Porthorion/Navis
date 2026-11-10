@@ -2745,6 +2745,30 @@ void main() {
           },
         );
 
+        test('waits for a late registration before evicting', () async {
+          late RecordingLockResolver resolver;
+          late NavisDatabase database;
+          final directory = await Directory.systemTemp.createTemp('navis-cut-');
+          addTearDown(() => directory.delete(recursive: true));
+          final (handler, player) = await setup(
+            mobile: true,
+            onDatabase: (value) => database = value,
+            wrap: (base) => resolver = RecordingLockResolver(base, directory),
+          );
+          final file = File('${directory.path}/lock-song-1.mp3')
+            ..writeAsBytesSync(List.filled(64, 1));
+          await clockTo47(player);
+          final loads = player.sourceLoads;
+          // The download finishes (its cut connection) as the cut is judged.
+          resolver.locks['song-1']!.progress.add(1);
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(file.existsSync(), isFalse);
+          expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+        });
+
         test('keeps a permanent download', () async {
           final run = await cutWithCachedFile(CacheType.permanent);
 

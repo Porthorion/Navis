@@ -659,6 +659,8 @@ extension _NavisRecovery on NavisAudioHandler {
         // Drop it (never a permanent download) so the reopen streams at the
         // cut. A failure only logs: the reopen still runs, once.
         try {
+          // A registration still running would add the cut file back.
+          await _pendingRollingRegistrations[item.id];
           await _rollingCacheManager.evictRollingTrack(
             _canonicalSongId(item.id),
           );

@@ -354,6 +354,7 @@ class RecordingLockResolver extends GatedSourceResolver {
   final Directory directory;
   final calls =
       <({String songId, Duration? offset, PlaybackSourceKind kind})>[];
+  final locks = <String, RangeCacheSource>{};
   @override
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
@@ -377,6 +378,7 @@ class RecordingLockResolver extends GatedSourceResolver {
         song.id,
         File('${directory.path}/lock-${song.id}.mp3'),
       );
+      locks[song.id] = lock;
       source = ResolvedPlaybackSource.lockCachedStream(
         songId: song.id,
         lockCachingStreamUri: lock.uri,

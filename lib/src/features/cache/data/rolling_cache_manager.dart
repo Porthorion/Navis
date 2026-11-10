@@ -131,7 +131,9 @@ class RollingCacheManager {
       return;
     }
     await _deleteCacheFileSet(entry.filePath);
-    await _cacheDao.deleteCachedTracksBySongIds([canonicalSongId]);
+    await _cacheDao.deleteCachedTracksBySongIds([
+      canonicalSongId,
+    ], rollingOnly: true);
   }
 
   Future<Set<String>> getPermanentlyCachedSongIds() {

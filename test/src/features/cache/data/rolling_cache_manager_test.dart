@@ -96,6 +96,27 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('a rolling-only delete never removes a permanent row', () async {
+      await _insertSong(database, 'permanent');
+      final permanent = await _writeFile(tempDir, 'permanent.mp3', 64);
+      await _seedCachedTrack(
+        database,
+        'permanent',
+        permanent.path,
+        64,
+        cacheType: CacheType.permanent,
+      );
+
+      await database.cacheDao.deleteCachedTracksBySongIds([
+        'permanent',
+      ], rollingOnly: true);
+
+      expect(
+        (await database.cacheDao.getCachedTrack('permanent'))?.cacheType,
+        CacheType.permanent,
+      );
+    }, skip: !sqliteAvailable);
+
     test('registerTrack resolves a retired song identity', () async {
       await database.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
         SongsTableCompanion.insert(id: 'remote-song', title: 'Song'),
