@@ -11,6 +11,7 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
@@ -51,6 +52,7 @@ void main() {
       density: NavisDensity.compact,
       artistViewMode: 'list',
       nowPlayingBackground: NowPlayingBackground.artwork,
+      sheetStyle: SheetStyle.albumColor,
       appLocale: 'en',
       homeRecommendationsAutoAdvance: true,
     );
@@ -62,7 +64,7 @@ void main() {
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      27,
+      28,
     ); // Every Look setting; tuning is Custom.
     await dao.applyAppearanceSnapshot(
       AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
@@ -77,6 +79,8 @@ void main() {
     );
     final restored = await repository.getSettings();
     expect(AppearanceSnapshot.capture(restored), original);
+    expect(restored.sheetStyle, SheetStyle.albumColor);
+    expect(original.toJson()['sheetStyle'], 'album_color');
     final container = ProviderContainer(overrides: withTestDatabase(database));
     addTearDown(container.dispose);
     // Language, saved swatches and recommendation auto-advance are not part
@@ -92,6 +96,44 @@ void main() {
     expect(restored.homeSectionsHidden, ['recentlyAdded']);
     expect(restored.scrobbleEnabled, isTrue);
   }, skip: !sqliteAvailable);
+
+  test(
+    'an older Look without sheetStyle or with an unknown one leaves it',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final dao = database.appSettingsDao;
+      final repository = SettingsRepository(dao);
+      await dao.getSettings();
+      await dao.updateSheetStyle('theme');
+      final full = AppearanceSnapshot.capture(await repository.getSettings())
+          .toJson();
+      final old = AppearanceSnapshot.fromJson(full..remove('sheetStyle'));
+      expect(old.sheetStyle, isNull);
+      expect(old.toJson().containsKey('sheetStyle'), isFalse);
+      await dao.updateSheetStyle('album_color');
+      await dao.applyAppearanceSnapshot(old);
+      expect(
+        (await repository.getSettings()).sheetStyle,
+        SheetStyle.albumColor,
+      );
+      final unknown = AppearanceSnapshot.fromJson({
+        ...full,
+        'sheetStyle': 'glass',
+      });
+      expect(unknown.sheetStyle, isNull);
+      await dao.applyAppearanceSnapshot(unknown);
+      expect(
+        (await repository.getSettings()).sheetStyle,
+        SheetStyle.albumColor,
+      );
+      await dao.applyAppearanceSnapshot(
+        AppearanceSnapshot.fromJson({...full, 'sheetStyle': 'theme'}),
+      );
+      expect((await repository.getSettings()).sheetStyle, SheetStyle.theme);
+    },
+    skip: !sqliteAvailable,
+  );
 
   for (final legacyDensity in <int?>[null, 6]) {
     test('old stored Look restores layout keys ($legacyDensity)', () async {

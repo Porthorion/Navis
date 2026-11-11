@@ -453,7 +453,7 @@ void main() {
       expect(await controller.update('partial'), isNull);
       final saved =
           (await repository.getSettings()).appearanceLooks.single.snapshot;
-      expect(saved.toJson(), hasLength(27));
+      expect(saved.toJson(), hasLength(28));
       await dao.updateDensity(NavisDensity.comfortable);
       final restarted = ProviderContainer(
         overrides: withTestDatabase(database),
@@ -528,8 +528,9 @@ void main() {
           'density': 'compact',
           'artistViewMode': 'list',
           'nowPlayingBackground': 'artwork',
+          'sheetStyle': 'album_color',
         });
-        expect(before.toJson(), hasLength(27));
+        expect(before.toJson(), hasLength(28));
         await database.appSettingsDao.applyAppearanceSnapshot(before);
         String? previousLookId;
         if (matchedLook) {
@@ -556,6 +557,7 @@ void main() {
         expect(restored.themeMode, 'system');
         expect(restored.colorSchemeSeed, isNull);
         expect(restored.albumGridDensity, isNull);
+        expect(restored.sheetStyle.storageKey, 'album_color');
         expect(
           restored.colorTuning,
           const ColorTuning(

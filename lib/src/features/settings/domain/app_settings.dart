@@ -9,6 +9,7 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
@@ -85,6 +86,7 @@ class AppSettingsModel {
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     this.nowPlayingBackground = NowPlayingBackground.tinted,
+    this.sheetStyle = SheetStyle.matchNowPlaying,
     this.cornerStyle = NavisCornerStyle.rounded,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
@@ -190,6 +192,7 @@ class AppSettingsModel {
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       nowPlayingBackground = NowPlayingBackground.tinted,
+      sheetStyle = SheetStyle.matchNowPlaying,
       cornerStyle = NavisCornerStyle.rounded,
       dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
@@ -306,6 +309,7 @@ class AppSettingsModel {
   final int crossfadeDurationSeconds;
   final String crossfadeType;
   final NowPlayingBackground nowPlayingBackground;
+  final SheetStyle sheetStyle;
   final NavisCornerStyle cornerStyle;
 
   final bool dynamicAlbumColorEnabled;
@@ -497,6 +501,7 @@ class AppSettingsModel {
     int? crossfadeDurationSeconds,
     String? crossfadeType,
     NowPlayingBackground? nowPlayingBackground,
+    SheetStyle? sheetStyle,
     NavisCornerStyle? cornerStyle,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
@@ -638,6 +643,7 @@ class AppSettingsModel {
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
       nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
+      sheetStyle: sheetStyle ?? this.sheetStyle,
       cornerStyle: cornerStyle ?? this.cornerStyle,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,

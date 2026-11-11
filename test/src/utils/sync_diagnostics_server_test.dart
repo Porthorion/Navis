@@ -503,6 +503,7 @@ void main() {
       addTearDown(fixture.close);
       final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
       await dao.updateNowPlayingBackground('artwork');
+      await dao.updateSheetStyle('album_color');
       await dao.updateCornerStyle('soft');
       await dao.updateDensity(NavisDensity.compact);
       for (final path in [
@@ -516,6 +517,7 @@ void main() {
         );
         expect(response.statusCode, HttpStatus.ok);
         expect(response.body['nowPlayingBackground'], 'artwork');
+        expect(response.body['sheetStyle'], 'album_color');
         expect(response.body['cornerStyle'], 'soft');
         expect(response.body['density'], 'compact');
       }
@@ -565,6 +567,7 @@ void main() {
         'nowPlayingArtShape': 'circle',
         'artistCardShape': 'square',
         'nowPlayingBackground': 'tinted',
+        'sheetStyle': 'match_now_playing',
         'cornerStyle': 'rounded',
         'density': 'comfortable',
         'themeMode': 'dark',
@@ -733,6 +736,7 @@ void main() {
       'albumArtColoredShade': true,
       'cornerStyle': 'square',
       'nowPlayingBackground': 'artwork',
+      'sheetStyle': 'theme',
       'density': 'compact',
     };
     final unauthorized = await _request(
@@ -766,6 +770,7 @@ void main() {
     expect(persisted.controlColor, 'white');
     expect(persisted.albumArtShade, isTrue);
     expect(persisted.albumArtColoredShade, isTrue);
+    expect(persisted.sheetStyle, 'theme');
     final observed = await fixture.get(path);
     expect(observed.body, changed.body);
     expect(persisted.colorStyle, 'immersive');
@@ -826,6 +831,9 @@ void main() {
       {'albumArtColoredShade': null},
       {'cornerStyle': 'circle'},
       {'nowPlayingBackground': 'blur'},
+      {'sheetStyle': 'blur'},
+      {'sheetStyle': null},
+      {'sheetStyle': 1},
       {'density': null},
       {'nightSchedule': null},
       {'nightSchedule': {}},

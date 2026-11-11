@@ -1136,7 +1136,8 @@ void main() {
       final covered = {for (final c in controls) ...c.fields};
       // albumGridDensity is a legacy column: nothing reads or writes it
       // outside the Look snapshot, and the page has no control for it.
-      const withoutControl = {'albumGridDensity'};
+      // sheetStyle has no control until #560 P3 adds its row; remove it then.
+      const withoutControl = {'albumGridDensity', 'sheetStyle'};
       expect(fields.difference(covered), withoutControl);
       expect(covered.difference(fields), isEmpty);
     });
