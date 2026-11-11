@@ -209,8 +209,9 @@ title (`active: false`, bodyMedium w600, primary when selected) over a bodySmall
 artist line, both in the `ListTile` title slot (a `ListTile` subtitle is placed
 by fixed baselines and ignores `minTileHeight` once the text is tall), with
 12 dp / 4 dp directional insets and `minTileHeight` from
-`trackRowReservedHeight`, so short and long titles give equally tall rows at any text scale. Desktop and the loading,
-unknown and error rows keep the plain `ListTile`.
+`trackRowReservedHeight`, so short and long titles give equally tall rows at
+any text scale; a disabled row dims both lines. Desktop and the loading, unknown
+and error rows keep the plain `ListTile`.
 
 **queue_track_row.dart** (swipe to remove): a normal `QueueTrackRow` is a
 `Dismissible` in the end-to-start direction only (a left swipe in LTR, directional

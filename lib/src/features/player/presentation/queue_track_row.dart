@@ -391,7 +391,11 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
                             maxLines: 2,
                             active: false,
                             style: titleStyle.copyWith(
-                              color: isSelected ? scheme.primary : null,
+                              color: isSelected
+                                  ? scheme.primary
+                                  : widget.actionsDisabled
+                                  ? scheme.onSurface.withValues(alpha: 0.38)
+                                  : null,
                             ),
                           ),
                           artistLine(

@@ -377,6 +377,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('disabled phone rows dim the title like the artist line', (
+      tester,
+    ) async {
+      await _pumpRemovable(tester, pendingLogicalQueue: true);
+      final title = tester.widget<MarqueeText>(find.byType(MarqueeText).at(1));
+      expect(title.style.color?.a, closeTo(0.38, 0.01));
+    });
+
     testWidgets('desktop queue rows are unchanged', (tester) async {
       await _pumpRemovable(tester, ids: ['a', longId, 'c'], desktop: true);
 
