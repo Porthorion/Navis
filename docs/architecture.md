@@ -1688,10 +1688,19 @@ under Flat text over artwork. An album title is never more than one line:
 `MarqueeText` (`marquee_text.dart`) is a plain `Text` when it fits, otherwise it
 rests ~1.75 s, scrolls to the end at 35 px/s, rests ~0.8 s and snaps back, with
 one `AnimationController` inside a `RepaintBoundary`. It runs only while
-visible (`TickerMode` plus `VisibilityDetector`), becomes a still ellipsised line
-under reduced motion (`MotionPolicy`), and exposes the full title as its
-semantics label. Subtitles stay single-line ellipsis. A scrolling title never
-settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
+visible (`TickerMode` plus `VisibilityDetector`) and exposes the full title as
+its semantics label. Whenever it is not moving (`active: false`, reduced motion
+through `MotionPolicy`, the start pause, after the last of `passes`) a truncated
+title shows its still form: `splitTitleVersion` (`metadata_normalization.dart`)
+splits the last trailing `(…)`, `[…]`, full-width or ` - ` qualifier off the
+title, the base is ellipsised and the version kept whole on the same line
+("Long Song Na… (Radio Edit)"; a version over 60% of the width is ellipsised
+too, in the title's own direction), so edits of one song stay distinguishable.
+Track rows (`AdaptiveTrackRow`) make the title active only while the row is
+hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes), and the
+wide artist and album cells only while hovered; the compact secondary
+"Artist · Album" line and subtitles stay single-line ellipsis. A hovered or
+looping title never settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
 `VisibilityDetector` debounce so tests leave no pending timer. The Home
 Recently added / Frequent carousel card is `AlbumCardContent`, the raw-field
 body that `AlbumCard` wraps, so it shares `AlbumCardLabel` and

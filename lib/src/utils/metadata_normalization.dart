@@ -14,6 +14,9 @@ final RegExp _featuring = RegExp(r'\b(feat\.?|ft\.?)\b.*$');
 final RegExp _bracketed = RegExp(r'[(\[]([^)\]]*)[)\]]');
 final RegExp _closedBrackets = RegExp(r'\([^()]*\)|\[[^\[\]]*\]');
 final RegExp _dashSuffix = RegExp(r'\s[-–—]\s([^-–—]*)$');
+final RegExp _versionTail = RegExp(
+  r'(?:\s*(?:\([^()]*\)|\[[^\[\]]*\]|（[^（）]*）|【[^【】]*】)|\s[-–—]\s[^-–—]*)$',
+);
 final RegExp _nonWord = RegExp(r'[^\p{L}\p{N}\s]', unicode: true);
 final RegExp _whitespace = RegExp(r'\s+');
 
@@ -122,6 +125,23 @@ String stripTitleQualifiers(String title) {
       .replaceAll(_whitespace, ' ')
       .trim();
   return stripped.isEmpty ? title : stripped;
+}
+
+/// Splits the last trailing qualifier off [title] so a truncated title can keep
+/// it whole: "Song (Radio Edit)" gives "Song" and " (Radio Edit)". The
+/// qualifier is a closed (...), [...], full-width or " - " tail, and its
+/// leading whitespace belongs to it. A title without one, or whose base would
+/// be empty ("(Intro)"), is returned whole. Lossless: `base + suffix == title`.
+///
+/// The text never changes, so a wrong guess ("Intro - Outro") only moves where
+/// an ellipsis falls. Unlike [stripTitleQualifiers] it splits just the last
+/// qualifier.
+({String base, String suffix}) splitTitleVersion(String title) {
+  final match = _versionTail.firstMatch(title);
+  if (match == null || title.substring(0, match.start).trim().isEmpty) {
+    return (base: title, suffix: '');
+  }
+  return (base: title.substring(0, match.start), suffix: match[0]!);
 }
 
 // Preserve locations such as "Live at Ft. Worth" inside brackets. Masking
