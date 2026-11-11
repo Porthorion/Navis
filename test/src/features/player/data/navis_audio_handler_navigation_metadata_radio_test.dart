@@ -4354,6 +4354,13 @@ void main() {
     );
   }
 
+  test('the saved queue restore times out after ten seconds by default', () {
+    expect(
+      const NavisPlaybackTimeouts().queueRestore,
+      const Duration(seconds: 10),
+    );
+  });
+
   for (final streamFailure in [false, true]) {
     test(
       'radio restore timeout keeps saved queue (failure=$streamFailure)',
@@ -4366,6 +4373,11 @@ void main() {
           directory,
           3,
           rebuiltPlayers: rebuilt,
+          // Shortened from the 10 s default; the 12 s native load deadline
+          // stays far above it, so the restore timeout still fires first.
+          timeouts: const NavisPlaybackTimeouts(
+            queueRestore: Duration(seconds: 1),
+          ),
         );
         final gate = Completer<void>();
         final entered = Completer<void>();
@@ -4402,7 +4414,18 @@ void main() {
           await handler.stopRadio();
         }
         await entered.future.timeout(const Duration(seconds: 2));
-        await Future<void>.delayed(const Duration(seconds: 11));
+        await until(
+          () =>
+              handler.collectPlaybackDiagnostics()['queueRestoreOutcome'] ==
+                  'timeout' &&
+              handler.debugQueueLaneIdle,
+          // Below the 12 s native load deadline, which also ends in 'timeout'.
+          cap: const Duration(seconds: 5),
+          reason: 'the restore timeout fires and its recovery finishes',
+        );
+        // Keeping the saved queue must hold after a debounced write (300 ms)
+        // would have landed, not only at the instant the lane went idle.
+        await Future<void>.delayed(const Duration(seconds: 1));
         expect(
           (await database.playQueueDao.getQueueItems()).map((song) => song.id),
           ['song-0', 'song-1'],
@@ -4414,7 +4437,10 @@ void main() {
         );
         await handler.replaceQueue(['song-2'], expandMatchFlows: false);
         gate.complete();
-        await Future<void>.delayed(const Duration(seconds: 2));
+        await settleQueue(handler);
+        // The stale restore completes now; its late effects (and the 300 ms
+        // persistence debounce of the new queue) must not undo the selection.
+        await Future<void>.delayed(const Duration(seconds: 1));
         expect(handler.snapshot.currentSongId, 'song-2');
         expect(
           (await database.playQueueDao.getQueueItems()).map((song) => song.id),
