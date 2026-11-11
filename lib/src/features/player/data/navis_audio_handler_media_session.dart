@@ -682,11 +682,17 @@ extension _NavisMediaSession on NavisAudioHandler {
     _smartNeighbours.removeWhere(
       (id, _) => id != current?.id && id != incoming,
     );
-    final queued = {for (final item in _queueItems) item.id};
-    _pushedSmartNeighbours.removeWhere((id, _) => !queued.contains(id));
     // In the pipeline the song's start adopts the Smart pair last pushed to
-    // native, which is the only place the level is applied.
-    if (replayGainInPipeline) _replayGainDecisionFor(current);
+    // native for the heard entry, which is the only place the level is applied.
+    if (replayGainInPipeline) {
+      final heardIndex = _resolveCurrentQueueMetadata().currentIndex;
+      _replayGainDecisionFor(
+        current,
+        heard: heardIndex == null
+            ? null
+            : _player.sequence.elementAtOrNull(heardIndex),
+      );
+    }
     unawaited(_player.setVolume(_replayGainVolumeFor(current)));
     _applyReplayGainBoost(live: live);
   }
@@ -749,19 +755,20 @@ extension _NavisMediaSession on NavisAudioHandler {
   double _baseVolumeFor() => _isDucked ? _userVolume * 2 / 5 : _userVolume;
 
   /// The signed ReplayGain in dB native applies to [item] from its first
-  /// sample, or null when it has none (radio). An update [push] records the
-  /// Smart pair it used, which the song's start then freezes. A level sent
-  /// with a source records it only for [playOrder] (see [_withReplayGain]):
-  /// without one the queue may still be filling.
+  /// sample, or null when it has none (radio). A level pushed for [source]
+  /// records the Smart pair it used against that queue entry, which the
+  /// entry's start then freezes. A level sent with a source records it only
+  /// for [playOrder] (see [_withReplayGain]): without one the queue may still
+  /// be filling.
   double? _replayGainLevelFor(
     MediaItem item, {
-    bool push = false,
+    IndexedAudioSource? source,
     ({List<String?> albumIds, int index})? playOrder,
   }) {
     final decision = _replayGainDecisionFor(
       item,
       freeze: false,
-      push: push,
+      source: source,
       playOrder: playOrder,
     );
     if (decision == null && _radioStation != null) return null;
@@ -787,7 +794,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (replayGainInPipeline && item != null) {
       source.replayGainDb = _replayGainLevelFor(
         item,
-        push: playOrder != null,
+        source: playOrder == null ? null : source,
         playOrder: playOrder,
       );
     }
@@ -861,13 +868,26 @@ extension _NavisMediaSession on NavisAudioHandler {
     final bySource = <IndexedAudioSource, double>{};
     final durationMsBySource = <IndexedAudioSource, int>{};
     final sequence = player.sequence;
+    final albumIds = _mirroredAlbumIds(player, sequence);
     for (var i = 0; i < sequence.length; i++) {
       final item = _mediaItemOfSource(sequence[i]);
       if (item == null) continue;
+      // Per entry, as in [_pushReplayGainLevels]: a song queued twice has two
+      // boosts. The heard entry on the main deck freezes the pair recorded
+      // for it; an entry the queue does not name that way reads the queue.
+      final heard = identical(player, _player) && i == current;
+      final entryOrder =
+          albumIds == null ||
+              heard ||
+              _canonicalSongId(_queueItems[i].id) != _canonicalSongId(item.id)
+          ? null
+          : (albumIds: albumIds, index: i);
       bySource[sequence[i]] =
           _replayGainDecisionFor(
             item,
-            freeze: identical(player, _player) && i == current,
+            freeze: heard,
+            heard: heard ? sequence[i] : null,
+            playOrder: entryOrder,
           )?.boostDb ??
           0;
       // The tag's duration times the iOS guard along with the player's own.
@@ -880,6 +900,15 @@ extension _NavisMediaSession on NavisAudioHandler {
       durationMsBySource: durationMsBySource,
     );
   }
+
+  /// The queue's album ids when [player] is the main deck and mirrors the
+  /// queue entry for entry, else null.
+  List<String?>? _mirroredAlbumIds(
+    AudioPlayer player,
+    List<IndexedAudioSource> sequence,
+  ) => identical(player, _player) && sequence.length == _queueItems.length
+      ? [for (final item in _queueItems) item.extras?['albumId'] as String?]
+      : null;
 
   /// Updates one deck's in-pipeline level of every song it holds. Nothing
   /// freezes here: the heard song freezes at its start from the pair this push
@@ -894,10 +923,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     // The main deck mirrors the queue, so each entry reads its own neighbours
     // there (a song queued twice is two entries), as its seed did. The heard
     // entry keeps its frozen pair.
-    final albumIds =
-        identical(player, _player) && sequence.length == _queueItems.length
-        ? [for (final item in _queueItems) item.extras?['albumId'] as String?]
-        : null;
+    final albumIds = _mirroredAlbumIds(player, sequence);
     for (var i = 0; i < sequence.length; i++) {
       final source = sequence[i];
       final item = _mediaItemOfSource(source);
@@ -918,7 +944,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           ? null
           : _replayGainLevelFor(
               item,
-              push: push,
+              source: push ? source : null,
               playOrder: albumIds == null || i == heard
                   ? null
                   : (albumIds: albumIds, index: i),
@@ -985,10 +1011,15 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// neighbours in play order; null for radio. No item counts as untagged.
   /// A read that is not a song's own volume (diagnostics) passes `freeze:
   /// false`, so it never stores a decision the song start would not have.
+  ///
+  /// [source] is the queue entry a pushed level is for: Smart records its pair
+  /// against it. [heard] is the entry that is starting: its freeze adopts the
+  /// pair last pushed for it.
   ReplayGainDecision? _replayGainDecisionFor(
     MediaItem? item, {
     bool freeze = true,
-    bool push = false,
+    IndexedAudioSource? source,
+    IndexedAudioSource? heard,
     ({List<String?> albumIds, int index})? playOrder,
   }) {
     if (_radioStation != null) return null;
@@ -998,7 +1029,8 @@ extension _NavisMediaSession on NavisAudioHandler {
         ? _smartNeighbourAlbums(
             item,
             freeze: freeze,
-            push: push,
+            source: source,
+            heard: heard,
             playOrder: playOrder,
           )
         : null;
@@ -1039,13 +1071,20 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// ([_applyNavigationDecision]). While a queue load settles the neighbours
   /// may be incomplete, so nothing is frozen then.
   ///
+  /// [_smartNeighbours] is by song id: it holds only the heard and the incoming
+  /// song, and two copies of one song resolve alike unless they are the heard
+  /// and incoming pair (adjacent copies, which share an album, so both are
+  /// album). What native was told is per entry, in [_pushedSmartNeighbours].
+  ///
   /// [playOrder] reads a list that is not [_queueItems] yet (see
   /// [_withReplayGain]); it ignores a frozen pair, which belongs to a song
-  /// already playing.
+  /// already playing. [source] records the pair for that entry; [heard] makes
+  /// a freeze adopt the pair recorded for that entry.
   ({String? prev, String? next}) _smartNeighbourAlbums(
     MediaItem item, {
     required bool freeze,
-    bool push = false,
+    IndexedAudioSource? source,
+    IndexedAudioSource? heard,
     ({List<String?> albumIds, int index})? playOrder,
   }) {
     final frozen = playOrder == null ? _smartNeighbours[item.id] : null;
@@ -1070,10 +1109,10 @@ extension _NavisMediaSession on NavisAudioHandler {
     // In the pipeline native holds the pair last pushed (or sent with the
     // source): the song's start adopts it, so a queue edit between that push
     // and the start cannot make the display disagree with what plays.
-    if (replayGainInPipeline && freeze) {
-      neighbours = _pushedSmartNeighbours[item.id] ?? neighbours;
+    if (replayGainInPipeline && freeze && heard != null) {
+      neighbours = _pushedSmartNeighbours[heard] ?? neighbours;
     }
-    if (push) _pushedSmartNeighbours[item.id] = neighbours;
+    if (source != null) _pushedSmartNeighbours[source] = neighbours;
     if (freeze &&
         playOrder == null &&
         !_isLoading &&

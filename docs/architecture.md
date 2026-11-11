@@ -5450,11 +5450,15 @@ Desktop volume follows a parallel local-settings path:
    frozen per heard song (below). A push, and a source stamped for a list that
    is not `_queueItems` yet (a replace's start song, an insert, a released
    tail, which pass their incoming play order to `_withReplayGain`), records the
-   Smart pair it used (`_pushedSmartNeighbours`). A non-live push leaves the
-   heard entry's record alone, since native froze it. The song's start freezes
-   the recorded pair instead of re-reading the queue, so the display equals what
-   native holds. A stamp without a play order (a queue fill still in progress)
-   is corrected by the push that follows the fill.
+   Smart pair it used against that queue entry's source object
+   (`_pushedSmartNeighbours`, an `Expando`), so a song queued twice has one
+   record per copy. A non-live push leaves the heard entry's record alone,
+   since native froze it. The song's start freezes the pair recorded for the
+   heard entry instead of re-reading the queue, so the display equals what
+   native holds for that copy. A stamp without a play order (a queue fill
+   still in progress) is corrected by the push that follows the fill.
+   The iOS per-file boost map reads each entry's own neighbours the same
+   way, so a song queued twice can have two boosts.
 
    A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
