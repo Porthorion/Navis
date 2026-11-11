@@ -41,6 +41,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -73,6 +74,16 @@ void main() {
       reset: Duration(milliseconds: 150),
       remoteLoad: Duration(seconds: 5),
     );
+    // The hung remote load waits out remoteLoad twice (retry, then failover),
+    // so the 5 s default dominated the test. 2 s stays far above the 300 ms
+    // load deadline, the 250 ms load check and the probe's wait for the
+    // server's first bytes (answered at once by the test).
+    const hungRemoteDeadlines = NavisPlaybackTimeouts(
+      control: Duration(milliseconds: 100),
+      load: Duration(milliseconds: 300),
+      reset: Duration(milliseconds: 150),
+      remoteLoad: Duration(seconds: 2),
+    );
     List<String> ids(int count) => List.generate(count, (i) => 'song-$i');
 
     Future<(NavisAudioHandler, ControllableAudioPlayer, NavisDatabase)> fixture(
@@ -86,6 +97,7 @@ void main() {
       Set<String>? hungLoadSongs,
       ScrobbleService? scrobbleService,
       String replayGainMode = 'off',
+      NavisPlaybackTimeouts timeouts = deadlines,
     }) async {
       final directory = await Directory.systemTemp.createTemp(
         'navis-invariant-',
@@ -96,7 +108,7 @@ void main() {
         crossfade: crossfade,
         players: players,
         queueWindow: queueWindow,
-        timeouts: deadlines,
+        timeouts: timeouts,
         readApiClient: () => api,
         seed: seed,
         clock: clock,
@@ -813,6 +825,7 @@ void main() {
                 scrobbleService: scrobbles,
                 api: api,
                 queueWindow: const NavisQueueWindow(),
+                timeouts: failure == 'load' ? hungRemoteDeadlines : deadlines,
               );
               addTearDown(() async {
                 if (!firstBytes.isCompleted) firstBytes.complete();
@@ -4457,6 +4470,95 @@ void main() {
         );
       },
     );
+  }
+
+  for (final streamFailure in [false, true]) {
+    // The restore timeout retires the gated player and supersedes its load;
+    // the abandoned load then ends on its own and must not rebuild the
+    // player a second time (its player is already retired).
+    test('the abandoned load after a restore timeout does not rebuild the '
+        'player again (failure=$streamFailure)', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-radio-restore-race-',
+      );
+      final rebuilt = <ControllableAudioPlayer>[];
+      final trace = PlaybackTransportTrace(enabled: true);
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        rebuiltPlayers: rebuilt,
+        transportTrace: trace,
+        timeouts: const NavisPlaybackTimeouts(
+          queueRestore: Duration(seconds: 1),
+        ),
+      );
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      addTearDown(() async {
+        if (!gate.isCompleted) gate.complete();
+        await pumpEventQueue();
+        await handler.disposeHandler();
+        player.keepStreamsAfterDispose = false;
+        await player.dispose();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await handler.debugFlushQueuePersistence();
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/stream',
+      );
+      player
+        ..gateNonEmptyLoadsOnly = true
+        ..loadGate = gate
+        ..loadEntered = entered
+        ..keepStreamsAfterDispose = true;
+      final rebuiltBefore = rebuilt.length;
+      if (streamFailure) {
+        player.playbackEvents.addError(
+          StateError('fixture radio failure'),
+          StackTrace.current,
+        );
+      } else {
+        await handler.stopRadio();
+      }
+      await entered.future.timeout(const Duration(seconds: 2));
+      // The gate stays closed. The restore timeout supersedes the gated load,
+      // which then ends by itself (a stale 'current: false' timeout).
+      await until(
+        () =>
+            handler.collectPlaybackDiagnostics()['queueRestoreOutcome'] ==
+                'timeout' &&
+            handler.debugQueueLaneIdle &&
+            trace.entries.any(
+              (entry) =>
+                  entry['decision'] == 'playerOperationTimedOut' &&
+                  entry['current'] == false,
+            ),
+        // Far above the 1 s restore timeout; the native load deadline is 12 s.
+        cap: const Duration(seconds: 5),
+        reason: 'the restore timeout fires and the abandoned load ends',
+      );
+      final newPlayer = handler.debugActivePlayer;
+      await handler.replaceQueue(['song-2'], expandMatchFlows: false);
+      await settleQueue(handler);
+      await pumpEventQueue();
+      // Exactly the restore recovery's rebuild; the abandoned load adds none.
+      expect(rebuilt, hasLength(rebuiltBefore + 1));
+      expect(handler.debugActivePlayer, same(newPlayer));
+      expect(
+        handler.collectPlaybackDiagnostics()['queueRestoreOutcome'],
+        'timeout',
+      );
+      expect(handler.snapshot.currentSongId, 'song-2');
+      await handler.debugFlushQueuePersistence();
+      expect(
+        (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+        ['song-2'],
+      );
+    });
   }
 
   test(
