@@ -18,7 +18,8 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/interface_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
@@ -30,7 +31,12 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 
-/// One control on the Appearance page, driven through the real screen.
+/// The two pages Appearance is split into. Themes holds everything a Look
+/// saves; Interface holds no Look field.
+enum _Page { themes, interface }
+
+/// One control on the Themes or Interface page, driven through the real
+/// screen.
 ///
 /// [fields] are the Look fields the control changes (empty for settings a
 /// Look does not hold) and [columns] the settings columns it writes. Both are
@@ -48,6 +54,7 @@ class _Control {
     this.fields = const <String>{},
     this.seed,
     this.desktop = false,
+    this.page = _Page.themes,
   });
 
   final String name;
@@ -55,6 +62,7 @@ class _Control {
   final Set<String> columns;
   final Set<String> fields;
   final bool desktop;
+  final _Page page;
 
   /// Settings in place before the Look is saved, so the control has something
   /// to change.
@@ -86,8 +94,11 @@ void main() {
 
   // ── harness ──────────────────────────────────────────────────────────────
 
-  Widget app({required bool desktop}) {
-    const screen = AppearanceSettingsScreen();
+  Widget app({required bool desktop, required _Page page}) {
+    final screen = switch (page) {
+      _Page.themes => const ThemesSettingsScreen(),
+      _Page.interface => const InterfaceSettingsScreen(),
+    };
     return UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
@@ -138,6 +149,7 @@ void main() {
     WidgetTester tester, {
     required Future<void> Function(NavisDatabase db)? seed,
     required bool desktop,
+    required _Page page,
   }) async {
     // Tall enough that every control is built without scrolling.
     setAdaptiveTestViewport(
@@ -170,14 +182,18 @@ void main() {
       container.dispose();
       await database.close();
     });
-    await tester.pumpWidget(app(desktop: desktop));
+    await tester.pumpWidget(app(desktop: desktop, page: page));
     await settle(tester);
   }
 
-  /// Leaves the page and comes back to it with the same container.
-  Future<void> reenter(WidgetTester tester, {required bool desktop}) async {
+  /// Leaves the page and comes back to [page] with the same container.
+  Future<void> reenter(
+    WidgetTester tester, {
+    required bool desktop,
+    required _Page page,
+  }) async {
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(app(desktop: desktop));
+    await tester.pumpWidget(app(desktop: desktop, page: page));
     await settle(tester);
   }
 
@@ -890,6 +906,7 @@ void main() {
     // Not part of a Look: the Look must stay selected.
     _Control(
       'Home: automatic recommendations',
+      page: _Page.interface,
       writers: {'updateHomeRecommendationsAutoAdvance'},
       columns: {'homeRecommendationsAutoAdvance'},
       act: (t) async {
@@ -901,6 +918,7 @@ void main() {
     ),
     _Control(
       'Home: hide a section',
+      page: _Page.interface,
       writers: {'updateHomeSectionsHidden'},
       columns: {'homeSectionsHidden'},
       act: (t) async {
@@ -925,6 +943,7 @@ void main() {
     ),
     _Control(
       'Home: show a hidden section',
+      page: _Page.interface,
       writers: {'updateHomeSectionsHidden'},
       columns: {'homeSectionsHidden'},
       seed: (db) => db.appSettingsDao.updateHomeSectionsHidden(hiddenOnce),
@@ -954,6 +973,7 @@ void main() {
       // Random Albums is hidden by default and was never in a saved list, so
       // showing it must also save the order or it resolves hidden again.
       'Home: show a never-seen hidden section',
+      page: _Page.interface,
       writers: {'updateHomeSectionsHidden', 'updateHomeSectionOrder'},
       columns: {'homeSectionsHidden', 'homeSectionOrder'},
       act: (t) async {
@@ -981,6 +1001,7 @@ void main() {
     ),
     _Control(
       'Home: reorder sections',
+      page: _Page.interface,
       writers: {'updateHomeSectionOrder'},
       columns: {'homeSectionOrder'},
       act: (t) async {
@@ -1015,6 +1036,7 @@ void main() {
     ])
       _Control(
         'Pages: hide $name',
+        page: _Page.interface,
         writers: {
           'updateShowAlbumsPage',
           'updateShowLikedPage',
@@ -1041,6 +1063,7 @@ void main() {
       ),
     _Control(
       'Pages: reorder',
+      page: _Page.interface,
       writers: {'updateLibraryPageOrder'},
       columns: {'libraryPageOrder'},
       act: (t) async {
@@ -1063,6 +1086,7 @@ void main() {
     ])
       _Control(
         'Desktop navigation: $name',
+        page: _Page.interface,
         desktop: true,
         writers: {'updateDesktopNavbarStyle'},
         columns: {'desktopNavbarStyle'},
@@ -1074,6 +1098,7 @@ void main() {
       ),
     _Control(
       'Desktop navigation: Collapse Sidebar',
+      page: _Page.interface,
       desktop: true,
       writers: {'updateDesktopNavbarAutohide'},
       columns: {'desktopNavbarAutohide'},
@@ -1087,12 +1112,30 @@ void main() {
 
   // ── the audit ────────────────────────────────────────────────────────────
 
-  group('Appearance controls', () {
+  group('Themes and Interface controls', () {
     for (final control in controls) {
-      testWidgets(control.name, (tester) async {
-        await pumpPage(tester, seed: control.seed, desktop: control.desktop);
+      testWidgets('${control.page.name}: ${control.name}', (tester) async {
+        final onThemes = control.page == _Page.themes;
+        // The page rule: Interface holds no Look field.
+        expect(
+          onThemes || control.fields.isEmpty,
+          isTrue,
+          reason: 'an Interface control writes a Look field',
+        );
+        await pumpPage(
+          tester,
+          seed: control.seed,
+          desktop: control.desktop,
+          page: control.page,
+        );
         await saveBaseLook(tester);
-        expect(pickerText(tester), 'Base', reason: 'starts on the saved Look');
+        if (onThemes) {
+          expect(
+            pickerText(tester),
+            'Base',
+            reason: 'starts on the saved Look',
+          );
+        }
         final rowBefore = await row(tester);
         final snapshotBefore = snapshot();
 
@@ -1114,12 +1157,16 @@ void main() {
         );
 
         // 3. A captured change makes the Look Custom and remembers the
-        // origin, also after leaving the page and coming back.
+        // origin, also after leaving the page and coming back. An Interface
+        // change never does: the Look is still selected on Themes.
         final captured = control.fields.isNotEmpty;
         final label = captured ? 'Base*' : 'Base';
+        if (onThemes) expect(pickerText(tester), label);
+        await reenter(tester, desktop: control.desktop, page: _Page.themes);
         expect(pickerText(tester), label);
-        await reenter(tester, desktop: control.desktop);
-        expect(pickerText(tester), label);
+        if (!captured) {
+          expect(looks().selectedLookId, looks().looks.single.id);
+        }
         expect(looks().originLookId, looks().looks.single.id);
 
         // 4. Update is offered exactly then, and saving selects the Look.
@@ -1147,22 +1194,56 @@ void main() {
   });
 
   group('coverage guard', () {
-    final screen = File(
-      'lib/src/features/settings/presentation/appearance_settings_screen.dart',
-    ).readAsStringSync();
+    String source(String file) =>
+        File('lib/src/features/settings/presentation/$file').readAsStringSync();
+    Set<String> writersIn(String file) =>
+        RegExp(r'\.(update[A-Z]\w*)\(')
+            .allMatches(source(file))
+            .map((m) => m.group(1)!)
+            .toSet();
+    Set<String> writersOf(bool Function(_Control) where) => {
+      for (final c in controls.where(where)) ...c.writers,
+    };
+    // The language picker needs a compile-time flag and a second locale;
+    // neither exists, so it is not reachable (see the page).
+    const unreachable = {'updateAppLocale'};
 
-    test('every writer on the Appearance page has a row', () {
-      final onPage = RegExp(r'\.(update[A-Z]\w*)\(')
-          .allMatches(screen)
-          .map((m) => m.group(1)!);
-      final covered = {for (final c in controls) ...c.writers};
-      // The language picker needs a compile-time flag and a second locale;
-      // neither exists, so it is not reachable (see the page).
-      const unreachable = {'updateAppLocale'};
+    test('every writer on the Themes page has a row there', () {
       expect(
-        onPage.toSet().difference(covered).difference(unreachable),
+        writersIn('themes_settings_screen.dart')
+            .difference(writersOf((c) => c.page == _Page.themes))
+            .difference(unreachable),
         isEmpty,
-        reason: 'a control writes a setting that no row exercises',
+        reason: 'a Themes control writes a setting that no row exercises',
+      );
+    });
+
+    test('every writer on the Interface page has a row there', () {
+      expect(
+        writersIn('interface_settings_screen.dart')
+            .difference(writersOf((c) => c.page == _Page.interface))
+            .difference(unreachable),
+        isEmpty,
+        reason: 'an Interface control writes a setting that no row exercises',
+      );
+    });
+
+    test('Interface writes no Look field; Themes holds every Look writer', () {
+      // (a) every control that changes a Look field is on Themes
+      expect(
+        controls.where((c) => c.fields.isNotEmpty && c.page != _Page.themes),
+        isEmpty,
+      );
+      // (b) every Interface control leaves the Look alone
+      expect(
+        controls.where((c) => c.page == _Page.interface && c.fields.isNotEmpty),
+        isEmpty,
+      );
+      // (c) no writer in the Interface file is also a Look-field writer
+      expect(
+        writersIn('interface_settings_screen.dart')
+            .intersection(writersOf((c) => c.fields.isNotEmpty)),
+        isEmpty,
       );
     });
 
@@ -1172,7 +1253,7 @@ void main() {
       ).toJson().keys.toSet();
       final covered = {for (final c in controls) ...c.fields};
       // albumGridDensity is a legacy column: nothing reads or writes it
-      // outside the Look snapshot, and the page has no control for it.
+      // outside the Look snapshot, and the pages have no control for it.
       const withoutControl = {'albumGridDensity'};
       expect(fields.difference(covered), withoutControl);
       expect(covered.difference(fields), isEmpty);

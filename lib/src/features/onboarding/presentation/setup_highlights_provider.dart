@@ -42,13 +42,27 @@ final pendingSetupHighlightsProvider = Provider<Set<SetupHighlight>>((ref) {
   );
 });
 
-/// Whether Settings home should mark Appearance as having new options.
+/// Whether Settings home should mark Themes as having new options.
 ///
 /// Use OLED When Dark only exists in Auto mode and the Flat areas only while
 /// Flat Surfaces is on, so while they are hidden they do not count: the tag
-/// must lead to something the user can actually see.
-final settingsHasNewOptionsProvider = Provider<bool>(
-  (ref) => _hasVisibleNewOptions(ref, includeStandalone: true),
+/// must lead to something the user can actually see. Highlights that live on
+/// the Interface page do not count here, or the tag would never clear.
+final themesHasNewOptionsProvider = Provider<bool>(
+  (ref) => _hasVisibleNewOptions(
+    ref,
+    includeStandalone: true,
+    where: (highlight) => !highlight.onInterfacePage,
+  ),
+);
+
+/// Whether Settings home should mark Interface as having new options.
+final interfaceHasNewOptionsProvider = Provider<bool>(
+  (ref) => _hasVisibleNewOptions(
+    ref,
+    includeStandalone: true,
+    where: (highlight) => highlight.onInterfacePage,
+  ),
 );
 
 /// Whether Settings home should mark Quick Customization as having new
@@ -58,13 +72,18 @@ final quickCustomizationHasNewOptionsProvider = Provider<bool>(
   (ref) => _hasVisibleNewOptions(ref, includeStandalone: false),
 );
 
-bool _hasVisibleNewOptions(Ref ref, {required bool includeStandalone}) {
+bool _hasVisibleNewOptions(
+  Ref ref, {
+  required bool includeStandalone,
+  bool Function(SetupHighlight highlight)? where,
+}) {
   final pending = ref.watch(pendingSetupHighlightsProvider);
   final autoMode = ref.watch(themeModeProvider) == 'system';
   final flat = ref.watch(flatSurfacesProvider);
   return pending.any(
     (highlight) =>
         (includeStandalone || !highlight.standalone) &&
+        (where?.call(highlight) ?? true) &&
         switch (highlight) {
           SetupHighlight.oledForAuto => autoMode,
           SetupHighlight.flatAreas => flat,

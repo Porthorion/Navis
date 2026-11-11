@@ -33,7 +33,7 @@
   "lib/src/features/player/presentation/queue_sheet.dart": {
     "radius": 1
   },
-  "lib/src/features/settings/presentation/appearance_settings_screen.dart": {
+  "lib/src/features/settings/presentation/themes_settings_screen.dart": {
     "colorLiteral": 1,
     "paletteColor": 8
   },

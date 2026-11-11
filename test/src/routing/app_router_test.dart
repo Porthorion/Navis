@@ -24,7 +24,8 @@ import 'package:navis/src/features/settings/data/external_scrobble_credentials.d
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/interface_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/haptics_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -1228,17 +1229,20 @@ void main() {
       'drum/bass',
     );
 
-    router.go(AppRoutes.appearanceLibraryPages);
+    router.go(AppRoutes.interfaceLibraryPages);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(
       tester
-          .widget<AppearanceSettingsScreen>(
-            find.byType(AppearanceSettingsScreen),
-          )
+          .widget<InterfaceSettingsScreen>(find.byType(InterfaceSettingsScreen))
           .focusLibraryPages,
       isTrue,
     );
+
+    router.go('/settings/themes');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byType(ThemesSettingsScreen), findsOneWidget);
 
     // Flush any pending Riverpod retry timers (e.g. from the artist provider
     // failing its HTTP call in the test environment) to avoid a pending-timer
@@ -1452,6 +1456,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(router.state.matchedLocation, '/settings/server');
+
+    router.go('/settings/appearance');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(router.state.matchedLocation, '/settings/themes');
+    expect(find.byType(ThemesSettingsScreen), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 500));
   });
 
@@ -1735,7 +1745,7 @@ void main() {
       AppRoutes.album('al/bum?#1'),
       AppRoutes.artist('artist 1'),
       AppRoutes.genre('drum/bass'),
-      AppRoutes.appearanceLibraryPages,
+      AppRoutes.interfaceLibraryPages,
       AppRoutes.playbackReplayGain,
       AppRoutes.artistTopTracks('artist-1'),
       AppRoutes.playlist('playlist-1'),
@@ -1815,7 +1825,8 @@ void main() {
     expect(configuredLocations, contains('/settings/cache'));
     expect(configuredLocations, contains('/settings/sync'));
     expect(configuredLocations, contains('/settings/playback'));
-    expect(configuredLocations, contains('/settings/appearance'));
+    expect(configuredLocations, contains('/settings/themes'));
+    expect(configuredLocations, contains('/settings/interface'));
 
     // /queue is now a modal sheet (NavService.showQueue), not a GoRouter route.
     // /downloads will be re-added in Phase 8.

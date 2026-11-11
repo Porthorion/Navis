@@ -70,9 +70,9 @@ void main() {
                 Text('genre page ${state.pathParameters['key']}'),
           ),
           GoRoute(
-            path: '/settings/appearance',
+            path: '/settings/interface',
             builder: (context, state) =>
-                Text('appearance focus=${state.uri.queryParameters['focus']}'),
+                Text('interface focus=${state.uri.queryParameters['focus']}'),
           ),
         ],
       );
@@ -121,7 +121,7 @@ void main() {
 
       await tester.tap(find.text('Show'));
       await tester.pumpAndSettle();
-      expect(find.text('appearance focus=libraryPages'), findsOneWidget);
+      expect(find.text('interface focus=libraryPages'), findsOneWidget);
     });
 
     testWidgets('Show still works after the sheet holding the chip closed', (
@@ -140,7 +140,7 @@ void main() {
 
       await tester.tap(find.text('Show'));
       await tester.pumpAndSettle();
-      expect(find.text('appearance focus=libraryPages'), findsOneWidget);
+      expect(find.text('interface focus=libraryPages'), findsOneWidget);
     });
 
     testWidgets('ten or more genres wrap onto further rows', (tester) async {

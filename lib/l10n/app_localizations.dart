@@ -556,17 +556,29 @@ abstract class AppLocalizations {
   /// **'Stream quality, gapless, crossfade and equalizer.'**
   String get settingsPlaybackSubtitle;
 
-  /// No description provided for @settingsAppearanceTitle.
+  /// No description provided for @settingsThemesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Appearance'**
-  String get settingsAppearanceTitle;
+  /// **'Themes'**
+  String get settingsThemesTitle;
 
-  /// No description provided for @settingsAppearanceSubtitle.
+  /// No description provided for @settingsThemesSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Themes, colors and display preferences.'**
-  String get settingsAppearanceSubtitle;
+  /// **'Looks, colors, shapes and layout.'**
+  String get settingsThemesSubtitle;
+
+  /// No description provided for @settingsInterfaceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface'**
+  String get settingsInterfaceTitle;
+
+  /// No description provided for @settingsInterfaceSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Home sections, library pages and navigation.'**
+  String get settingsInterfaceSubtitle;
 
   /// No description provided for @hapticsTitle.
   ///
@@ -3325,7 +3337,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSectionTheme.
   ///
   /// In en, this message translates to:
-  /// **'Theme'**
+  /// **'Mode'**
   String get appearanceSectionTheme;
 
   /// No description provided for @appearanceSectionColor.
@@ -3660,13 +3672,13 @@ abstract class AppLocalizations {
   /// No description provided for @libraryNoPagesEnabledSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Enable a page in Appearance settings to browse your library.'**
+  /// **'Enable a page in Interface settings to browse your library.'**
   String get libraryNoPagesEnabledSubtitle;
 
   /// No description provided for @libraryNoPagesEnabledAction.
   ///
   /// In en, this message translates to:
-  /// **'Open Appearance Settings'**
+  /// **'Open Interface Settings'**
   String get libraryNoPagesEnabledAction;
 
   /// No description provided for @libraryLikedOnlyEmptySubtitle.
@@ -6075,12 +6087,6 @@ abstract class AppLocalizations {
   /// **'Remote'**
   String get remoteSourceLabel;
 
-  /// No description provided for @appearanceTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Appearance'**
-  String get appearanceTitle;
-
   /// No description provided for @appearanceThemeModeLabel.
   ///
   /// In en, this message translates to:
@@ -6276,7 +6282,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceColorTuningLooksHint.
   ///
   /// In en, this message translates to:
-  /// **'Save this as part of a Look in Appearance.'**
+  /// **'Save this as part of a Look in Themes.'**
   String get appearanceColorTuningLooksHint;
 
   /// No description provided for @appearanceColorTuningHintNoAccent.
@@ -10038,7 +10044,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingAppearanceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Choose your theme, style, accent and layout. You can change them later in Appearance settings.'**
+  /// **'Choose your theme, style, accent and layout. You can change them later in Settings › Themes.'**
   String get onboardingAppearanceDescription;
 
   /// No description provided for @onboardingMoreAppearanceOptions.
@@ -10056,7 +10062,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingAppearanceColorPickerHint.
   ///
   /// In en, this message translates to:
-  /// **'This is the full color picker from Appearance settings. You can revisit it there at any time.'**
+  /// **'This is the full color picker from Themes settings. You can revisit it there at any time.'**
   String get onboardingAppearanceColorPickerHint;
 
   /// No description provided for @onboardingListeningTitle.

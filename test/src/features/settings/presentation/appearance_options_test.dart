@@ -4,7 +4,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';

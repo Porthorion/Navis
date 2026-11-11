@@ -144,8 +144,10 @@ void main() {
         SetupHighlight.genresPage,
       });
       expect(container.read(setupHighlightsCardVisibleProvider), isFalse);
-      // The tag still leads somewhere: Appearance shows it on its group.
-      expect(container.read(settingsHasNewOptionsProvider), isTrue);
+      // The tag still leads somewhere: Interface shows it on its group, and
+      // Themes does not count it (it would never clear there).
+      expect(container.read(interfaceHasNewOptionsProvider), isTrue);
+      expect(container.read(themesHasNewOptionsProvider), isFalse);
       expect(container.read(quickCustomizationHasNewOptionsProvider), isFalse);
     });
 
