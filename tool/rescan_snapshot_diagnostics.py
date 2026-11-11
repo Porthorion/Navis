@@ -348,7 +348,7 @@ def main():
         check(later["positionMs"] > after["positionMs"] > before["positionMs"], "song 1 position advanced (it was not restarted)")
         check(before["replayGain"] == after["replayGain"] == later["replayGain"], "song 1 ReplayGain decision unchanged by the sync")
         check(before["volume"] == after["volume"] == later["volume"], f"song 1 applied volume unchanged ({before['volume']})")
-        check(before["gain"] == after["gain"] == later["gain"], f"song 1 filter gain unchanged ({before['gain']} dB)")
+        check(before["gain"] is not None and before["gain"] == after["gain"] == later["gain"], f"song 1 filter gain unchanged ({before['gain']} dB)")
         # Linux applies ReplayGain in mpv's `@navis_rg` filter: the player
         # volume stays at the user's level and the filter carries the cut.
         cut_db = before["replayGain"]["cutDb"]
@@ -379,7 +379,6 @@ def main():
         check(joined["replayGain"]["db"] == -3.5, f"song 2 uses the new -3.5 dB gain, not -7.0 ({joined['replayGain']})")
         check(math.isclose(joined["volume"], joined["userVolume"], abs_tol=0.002)
               and math.isclose(joined["gain"], -3.5, abs_tol=0.01), f"song 2 applies -3.5 dB in the mpv filter ({joined['gain']} dB)")
-        check(not math.isclose(joined["gain"], -7.0, abs_tol=0.01), "song 2 filter gain is not the stale -7.0 dB level")
         run.post("/v1/playback/next")
         run.wait_song(PLAY_QUEUE[2], timeout=30)
         skipped = run.wait_gain("skipped-song-3", -8.0)
