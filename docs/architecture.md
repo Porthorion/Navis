@@ -1958,7 +1958,7 @@ The Android touch sound is dropped on tiles with a long press.
 |---|---|---|---|---|---|
 | Switch on / off | Switches & Steppers (the shuffle toggle: Playback Buttons) | `toggle(on)` | TOGGLE_ON / TOGGLE_OFF (34) | light / selection | `NavisSwitchListTile`, `NavisSwitch`; shuffle toggle |
 | Play / Pause | Playback Buttons | `press` / `release` | VIRTUAL_KEY / VIRTUAL_KEY_RELEASE (27) | light / selection | `togglePlayPause`, Now Playing art tap |
-| Skip | Playback Buttons (art and phone mini player swipes: Player Gestures) | `firm` | KEYBOARD_TAP | medium | transport, rail mini player, art swipe, mini player swipe |
+| Skip | Playback Buttons (art and mini player swipes: Player Gestures) | `firm` | KEYBOARD_TAP | medium | transport, mini player buttons and swipe, art swipe |
 | Repeat step, rating star, seek landing, EQ gain per dB | Playback Buttons (repeat), Likes & Alerts (rating), Sliders & Rulers (seek, EQ) | `tick` | CLOCK_TICK | selection | transport, `RatingWidget`, seek bar, EQ graph |
 | 0 dB crossing on the EQ graph | Sliders & Rulers | `firm` | KEYBOARD_TAP | medium | `EqGraphEditor` |
 | Pick an EQ band | Sliders & Rulers | `contextClick` | CONTEXT_CLICK (23) | selection | `EqGraphEditor` |
@@ -2035,11 +2035,14 @@ The `ExpandablePlayerSheet` widget (`common_widgets/expandable_player_sheet.dart
 handles the phone mini player ↔ Now Playing transition. Desktop, rail and wide
 layouts do not use it.
 
-The phone mini player strip (`_MiniPlayerStrip`) has no Previous/Next buttons
-and no Remote tag, so a remote song keeps the same two-line height. A left
-swipe skips to the next song and a right swipe to the previous one (a flick
-over 300 px/s or a drag over 56 px; none for radio). Previous and Next stay
-available to screen readers as semantics custom actions.
+The portrait phone mini player strip (`_MiniPlayerStrip`) has no
+Previous/Next buttons, so the title gets the room. The phone-landscape and wide
+(>= 960 px) strips (`showSkipButtons`) keep them, hidden for radio as before. No
+strip shows a Remote tag, so a remote song keeps the same two-line height. Every
+strip also swipes: left skips to the next song, right to the previous one (a
+flick over 300 px/s, or a drag of 56 px counted after touch slop; none for
+radio). Previous and Next stay available to screen readers as semantics custom
+actions.
 
 - **Panel.** The full player stays mounted but hidden (`Offstage`, tickers off)
   while collapsed, so opening is instant. A layout delegate places it: its top

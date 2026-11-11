@@ -705,6 +705,7 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
     required this.onTap,
     this.flattenWideStyle = false,
     this.compactWideLandscapeMode = false,
+    this.showSkipButtons = false,
     this.bottomInset = 0,
     this.enableVerticalExpandGesture = true,
     this.songTitle,
@@ -720,6 +721,10 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
   final VoidCallback onTap;
   final bool flattenWideStyle;
   final bool compactWideLandscapeMode;
+
+  /// Previous and Next buttons around Play. The portrait phone strip drops
+  /// them for title room; it still swipes and has semantics actions.
+  final bool showSkipButtons;
 
   /// A system inset (home indicator, status strip) below the compact wide
   /// strip; its content stays above it and the background runs through it.
@@ -836,7 +841,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
 
     return Semantics(
       key: const ValueKey<String>('miniPlayerSwipeSemantics'),
-      // The removed Previous/Next buttons stay reachable for screen readers.
+      // Previous/Next stay reachable for screen readers, buttons or not.
       customSemanticsActions: isRadio
           ? const <CustomSemanticsAction, VoidCallback>{}
           : <CustomSemanticsAction, VoidCallback>{
@@ -914,6 +919,15 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               large: true,
                             ),
                           ),
+                          if (widget.showSkipButtons && !isRadio)
+                            IconButton(
+                              tooltip: l10n.nowPlayingPrevious,
+                              onPressed: () => _miniSkipPrevious(ref),
+                              icon: const Icon(
+                                Icons.skip_previous_rounded,
+                                size: 28,
+                              ),
+                            ),
                           IconButton(
                             tooltip: isPlaying
                                 ? l10n.miniPlayerPause
@@ -936,6 +950,15 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               size: 28,
                             ),
                           ),
+                          if (widget.showSkipButtons && !isRadio)
+                            IconButton(
+                              tooltip: l10n.miniPlayerSkipNext,
+                              onPressed: () => _miniSkipNext(ref),
+                              icon: const Icon(
+                                Icons.skip_next_rounded,
+                                size: 28,
+                              ),
+                            ),
                           if (isRadio)
                             IconButton(
                               tooltip: l10n.radioStopStation,
@@ -1014,6 +1037,20 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   large: false,
                                 ),
                               ),
+                              if (widget.showSkipButtons && !isRadio)
+                                IconButton(
+                                  tooltip: l10n.nowPlayingPrevious,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  onPressed: () => _miniSkipPrevious(ref),
+                                  icon: const Icon(
+                                    Icons.skip_previous_rounded,
+                                    size: 19,
+                                  ),
+                                ),
                               IconButton(
                                 tooltip: isPlaying
                                     ? l10n.miniPlayerPause
@@ -1039,6 +1076,20 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   size: 22,
                                 ),
                               ),
+                              if (widget.showSkipButtons && !isRadio)
+                                IconButton(
+                                  tooltip: l10n.miniPlayerSkipNext,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  onPressed: () => _miniSkipNext(ref),
+                                  icon: const Icon(
+                                    Icons.skip_next_rounded,
+                                    size: 19,
+                                  ),
+                                ),
                               if (isRadio)
                                 IconButton(
                                   tooltip: l10n.radioStopStation,

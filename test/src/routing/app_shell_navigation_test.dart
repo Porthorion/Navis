@@ -2577,7 +2577,16 @@ void main() {
     Future<_TransportRecordingHandler> pumpMini(
       WidgetTester tester, {
       bool radio = false,
+      Size? size,
     }) async {
+      if (size != null) {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+      }
       final handler = _TransportRecordingHandler();
       final playback = radio
           ? const PlaybackSnapshot(
@@ -2722,6 +2731,32 @@ void main() {
       await tester.pump();
       expect(handler.calls, <String>['next', 'previous']);
       handle.dispose();
+    });
+
+    // Phone landscape (compact rail) keeps the buttons. The wide (>= 960 px)
+    // bottom-nav strip does too, but no shell reaches it: tablets and
+    // desktop use a rail or the desktop surface.
+    const landscape = Size(900, 420);
+
+    testWidgets('the phone landscape strip keeps Previous and Next', (
+      tester,
+    ) async {
+      final handler = await pumpMini(tester, size: landscape);
+      expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
+      await tester.tap(find.byTooltip('Skip to Next'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Previous'));
+      await tester.pump();
+      expect(handler.calls, <String>['next', 'previous']);
+    });
+
+    testWidgets('the phone landscape strip hides them for radio', (
+      tester,
+    ) async {
+      await pumpMini(tester, radio: true, size: landscape);
+      expect(find.byTooltip('Previous'), findsNothing);
+      expect(find.byTooltip('Skip to Next'), findsNothing);
+      expect(find.byTooltip('Stop Radio'), findsOneWidget);
     });
 
     testWidgets('radio has no swipe and no custom actions', (tester) async {

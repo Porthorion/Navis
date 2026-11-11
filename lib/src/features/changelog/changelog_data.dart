@@ -203,7 +203,7 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'The mini player shows more of the song title and no longer grows '
         'taller for remote songs. Swipe it left or right for the next or '
-        'previous song; the skip buttons are gone',
+        'previous song; on a phone held upright the skip buttons are gone',
       ),
       ChangelogEntry(
         'Auto theme can now follow a schedule instead of your device: in '

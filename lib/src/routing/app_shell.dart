@@ -1933,6 +1933,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                       true,
                                                                   compactWideLandscapeMode:
                                                                       true,
+                                                                  showSkipButtons:
+                                                                      true,
                                                                   bottomInset:
                                                                       compactMiniPlayerBottomInset,
                                                                   enableVerticalExpandGesture:
@@ -2181,6 +2183,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                             : _MiniPlayerStrip(
                                                 playback: playback,
                                                 flattenWideStyle:
+                                                    useWideMiniPlayerStyle,
+                                                showSkipButtons:
                                                     useWideMiniPlayerStyle,
                                                 enableVerticalExpandGesture:
                                                     false,
