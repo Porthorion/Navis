@@ -1511,7 +1511,7 @@ target-selection rules.
       `surfaceContainer` (popup menus) and `surfaceContainerHigh` (dialogs)
       3, 5 and 7 tone steps below the tinted paper at Tint 0. Tint progressively
       reverses this ladder to lighter, softer panels.
-  - Appearance and onboarding pick a style with `ColorStyleSelector`, whose
+  - Themes and onboarding pick a style with `ColorStyleSelector`, whose
     tiles are painted from each style's real scheme (their inner radii follow
     Corner Style); the accent grid fills each swatch with the accent the selected style
     will use (a pastel box under Pastel) and shows the raw seed as a small inner
@@ -1520,7 +1520,7 @@ target-selection rules.
     (`playButtonFill`/`playStyleOf`). Flat
     also drops the album-card caption fade for a solid `CaptionTint.fill` block, the selected-swatch glow and the
     anchored popover's black shadow.
-  - Fine-Tune Colors is one row in Appearance (`ColorTuningOption` in
+  - Fine-Tune Colors is one row in Themes (`ColorTuningOption` in
     `appearance_options.dart`: title, New tag, a summary subtitle and a
     trailing chevron, like the switch rows beside it) that opens a panel
     (`color_tuning_panel.dart`, `showColorTuningPanel`) through the Speed and
@@ -1591,7 +1591,7 @@ target-selection rules.
     built from its draft.
   - The panel adds two one-line `bodySmall` notes. Beside Reset, only where the
     host has Looks (`looksHint`, Settings) and the values are not Default:
-    "Save this as part of a Look in Appearance." Under the Intensity captions,
+    "Save this as part of a Look in Themes." Under the Intensity captions,
     when the −5 and +5 primaries of the current basis (same depth and mode)
     differ by less than 11 HCT chroma: "Pick an accent color to see
     Intensity." when the seed's own chroma is under `achromaticSeedChroma`
@@ -1682,7 +1682,7 @@ target-selection rules.
     from Pill: 14 px rounded-rectangle controls (not pills), `xl` 32 for
     dialogs and sheets and 1.5x steps elsewhere; Square uses 4 px controls.
     Soft and Square also theme `menuTheme` (md) and `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
-    `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Artwork Shape. Users choose it in Settings > Appearance
+    `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Artwork Shape. Users choose it in Settings › Themes
     (Shape & Layout, after Flat Surfaces, via `CornerStyleOption`) and on the
     setup Appearance step under "More appearance options". The setup preview
     theme uses the draft's color style, Flat Surfaces and Corner Style.
@@ -2656,12 +2656,13 @@ night schedule never switches the preview by time. Options whose
 once at least half of it has been on screen (a `VisibilityDetector`, once per
 screen visit) it calls `markOptionSeen`, so only options the user actually saw
 lose their tag on the next visit. Tags render from `AppearanceVisitScope`'s
-per-visit snapshot of the pending highlights (taken when the Appearance screen
-or setup step is entered, which also decides whether the setup expander opens),
+per-visit snapshot of the pending highlights (taken when the Themes or Interface
+screen or setup step is entered, which also decides whether the setup expander opens),
 so a tag stays visible while the user is on the screen. Hidden options (OLED outside Auto, a closed expander) never
-mark. On Settings home `settingsHasNewOptionsProvider` tags the Appearance and
-Run Quick Customization rows ("Has new options"); OLED does not count while it
-is hidden. Home shows `SetupHighlightsCard` ("New appearance options")
+mark. On Settings home `themesHasNewOptionsProvider` tags the Themes row (every
+pending highlight except the Genres page) and `interfaceHasNewOptionsProvider`
+tags the Interface row (the Genres page only); `quickCustomizationHasNewOptionsProvider`
+tags Run Quick Customization ("Has new options"). OLED does not count while it is hidden. Home shows `SetupHighlightsCard` ("New appearance options")
 while `setupHighlightsCardVisibleProvider` is true. Tapping it opens the
 onboarding review without acknowledging anything; its close button only calls
 `dismissCard`. Home shows one notice: the Integrations notice, else the setup
