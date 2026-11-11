@@ -4254,7 +4254,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSheetStyleMatchNowPlayingSub =>
-      'The queue shows the Now Playing background. Menus and sheets use your theme.';
+      'Sheets over Now Playing follow it; menus use your theme.';
 
   @override
   String get appearanceSheetStyleAlbumColorSub =>

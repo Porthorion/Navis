@@ -6672,7 +6672,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSheetStyleMatchNowPlayingSub.
   ///
   /// In en, this message translates to:
-  /// **'The queue shows the Now Playing background. Menus and sheets use your theme.'**
+  /// **'Sheets over Now Playing follow it; menus use your theme.'**
   String get appearanceSheetStyleMatchNowPlayingSub;
 
   /// No description provided for @appearanceSheetStyleAlbumColorSub.
