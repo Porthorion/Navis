@@ -232,6 +232,7 @@ class AdaptiveTrackRow extends StatelessWidget {
     this.leadingGap = 12,
     this.actionExtent,
     this.actions,
+    this.trailingStatus,
     this.badge,
     this.isRemote = false,
     this.selected = false,
@@ -258,6 +259,13 @@ class AdaptiveTrackRow extends StatelessWidget {
   final double leadingGap;
   final double? actionExtent;
   final Widget? actions;
+
+  /// A non-interactive state glyph (download state) shown before [actions].
+  /// Compact touch rows lay it out at its natural width beside [actions], so
+  /// it costs title width only while it shows something, and ignore
+  /// [actionExtent]. Wider touch rows keep it in a 48 dp box inside
+  /// [actionExtent], so the column header alignment never changes.
+  final Widget? trailingStatus;
   final Widget? badge;
   final bool isRemote;
   final bool selected;
@@ -384,13 +392,37 @@ class AdaptiveTrackRow extends StatelessWidget {
             ),
           ),
         );
-        final estimatedActions =
-            actionExtent ??
-            (actions == null
-                ? 0
-                : mode == TrackRowMode.wide
-                ? 144
-                : 48);
+        final touchCompact = _isCompactTouch(context, width);
+        final status = trailingStatus;
+        // Natural width: [actionExtent] still counts the status box here, so
+        // it is subtracted (a shown glyph takes 20 dp more, see the glyph).
+        final naturalActions = touchCompact && status != null;
+        final estimatedActions = naturalActions
+            ? (actions == null
+                  ? 0.0
+                  : math.max(48.0, (actionExtent ?? 96) - 48))
+            : actionExtent ??
+                  (actions == null
+                      ? 0.0
+                      : mode == TrackRowMode.wide
+                      ? 144
+                      : 48);
+        final rowActions = status == null
+            ? actions
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (naturalActions)
+                    status
+                  else
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(child: status),
+                    ),
+                  ?actions,
+                ],
+              );
         final availableMetadata =
             width -
             leadingExtent -
@@ -409,12 +441,14 @@ class AdaptiveTrackRow extends StatelessWidget {
         // Compact desktop rows reserve it too: one row's More button next to
         // another row's empty action would otherwise shift its Time.
         final Widget? actionWidget;
-        if (actionExtent != null) {
+        if (naturalActions) {
+          actionWidget = rowActions;
+        } else if (actionExtent != null) {
           actionWidget = SizedBox(
             width: actionExtent,
-            child: Align(alignment: Alignment.centerRight, child: actions),
+            child: Align(alignment: Alignment.centerRight, child: rowActions),
           );
-        } else if (actions != null &&
+        } else if (rowActions != null &&
             (mode != TrackRowMode.compact ||
                 resolveAdaptiveContextFor(context).desktopRuntime)) {
           actionWidget = ConstrainedBox(
@@ -422,13 +456,12 @@ class AdaptiveTrackRow extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               widthFactor: 1,
-              child: actions,
+              child: rowActions,
             ),
           );
         } else {
-          actionWidget = actions;
+          actionWidget = rowActions;
         }
-        final touchCompact = _isCompactTouch(context, width);
         final compactMobile = touchCompact && (twoLineTitle || crowded);
         final twoLines = compactMobile && twoLineTitle;
         final mobileTextWidth =

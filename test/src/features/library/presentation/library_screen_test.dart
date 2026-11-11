@@ -837,7 +837,6 @@ void main() {
           matching: find.byType(CustomScrollView),
         );
         final start = tester.getRect(scroll).top;
-        final firstSongTop = tester.getRect(find.text('First liked song')).top;
         final row = find.ancestor(
           of: find.text('First liked song'),
           matching: find.byType(AdaptiveTrackRow),
@@ -848,7 +847,8 @@ void main() {
           matching: find.byIcon(Icons.more_vert),
         );
         expect(tester.getRect(more).center.dy, tester.getRect(row).center.dy);
-        expect(firstSongTop - start, lessThanOrEqualTo(440));
+        // The row, not its title: a title on one line sits lower in the row.
+        expect(tester.getRect(row).top - start, lessThanOrEqualTo(440));
         expect(find.text('See All'), findsNWidgets(2));
         expect(tester.takeException(), isNull);
       },
