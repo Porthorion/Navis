@@ -157,10 +157,13 @@ class _VersionKeepingLine extends StatelessWidget {
         if (!constraints.hasBoundedWidth || textWidth <= constraints.maxWidth) {
           return plain;
         }
-        // Follow the title's own direction, not the surrounding layout's.
-        final direction = Bidi.detectRtlDirectionality(text)
+        // Follow the base's first strong character, not the surrounding
+        // layout or a foreign-script version word.
+        final direction = Bidi.startsWithRtl(base)
             ? TextDirection.rtl
-            : TextDirection.ltr;
+            : Bidi.startsWithLtr(base)
+            ? TextDirection.ltr
+            : Directionality.of(context);
         return Semantics(
           label: text,
           excludeSemantics: true,

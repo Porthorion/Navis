@@ -378,6 +378,17 @@ void main() {
       expect(suffix.center.dx, greaterThan(base.center.dx));
     });
 
+    testWidgets('a Latin title with an Arabic version stays left to right', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(text: 'Song (ريمكس)', width: 100, active: false),
+      );
+      final suffix = rect(tester, find.text(' (ريمكس)'));
+      final base = rect(tester, find.text('Song'));
+      expect(suffix.center.dx, greaterThan(base.center.dx));
+    });
+
     testWidgets('a suffix wider than 60 percent is ellipsized too', (
       tester,
     ) async {
