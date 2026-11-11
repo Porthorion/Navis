@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
+import 'package:navis/src/common_widgets/song_sheet_header.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
@@ -970,81 +971,29 @@ class _DownloadedTrackTile extends ConsumerWidget {
       context: context,
       builder: (sheetContext) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.play_arrow_outlined),
-                title: Text(l10n.librarySongMenuPlayNow),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _handleTrackMenuAction(
-                    context,
-                    ref,
-                    track,
-                    l10n,
-                    _DownloadedTrackAction.playNow,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.swap_vert),
-                title: Text(l10n.downloadsChangeQuality),
-                subtitle: Text(
-                  l10n.downloadsChangeQualityCurrent(
-                    downloadQualityLabel(
-                      l10n,
-                      downloadedQualityChoice(
-                        track,
-                        ref.read(songByIdProvider(track.songId)).asData?.value,
-                      ),
-                    ),
-                  ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Consumer(
+                  builder: (_, headerRef, _) {
+                    final song = headerRef
+                        .watch(songByIdProvider(track.songId))
+                        .asData
+                        ?.value;
+                    return SongSheetHeader(
+                      title: song?.title ?? track.songId,
+                      artist: song?.artistName,
+                      album: song?.albumName,
+                      coverArtId: song?.coverArt,
+                      coverArtRevision: song?.coverArtRevision ?? 0,
+                      isExternal: song?.isExternal ?? false,
+                    );
+                  },
                 ),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _handleTrackMenuAction(
-                    context,
-                    ref,
-                    track,
-                    l10n,
-                    _DownloadedTrackAction.changeQuality,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.queue_music),
-                title: Text(l10n.librarySongMenuAddToQueue),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _handleTrackMenuAction(
-                    context,
-                    ref,
-                    track,
-                    l10n,
-                    _DownloadedTrackAction.addQueue,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add),
-                title: Text(l10n.librarySongMenuAddToPlaylist),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _handleTrackMenuAction(
-                    context,
-                    ref,
-                    track,
-                    l10n,
-                    _DownloadedTrackAction.addToPlaylist,
-                  );
-                },
-              ),
-              // iOS cannot open a folder in Files from the app.
-              if (!Platform.isIOS)
                 ListTile(
-                  leading: const Icon(Icons.folder_open_outlined),
-                  title: Text(l10n.downloadsOpenFolderAction),
+                  leading: const Icon(Icons.play_arrow_outlined),
+                  title: Text(l10n.librarySongMenuPlayNow),
                   onTap: () async {
                     Navigator.of(sheetContext).pop();
                     await _handleTrackMenuAction(
@@ -1052,32 +1001,107 @@ class _DownloadedTrackTile extends ConsumerWidget {
                       ref,
                       track,
                       l10n,
-                      _DownloadedTrackAction.openFolder,
+                      _DownloadedTrackAction.playNow,
                     );
                   },
                 ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(
-                  Icons.delete_outline,
-                  color: Theme.of(context).colorScheme.error,
+                ListTile(
+                  leading: const Icon(Icons.swap_vert),
+                  title: Text(l10n.downloadsChangeQuality),
+                  subtitle: Text(
+                    l10n.downloadsChangeQualityCurrent(
+                      downloadQualityLabel(
+                        l10n,
+                        downloadedQualityChoice(
+                          track,
+                          ref
+                              .read(songByIdProvider(track.songId))
+                              .asData
+                              ?.value,
+                        ),
+                      ),
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _handleTrackMenuAction(
+                      context,
+                      ref,
+                      track,
+                      l10n,
+                      _DownloadedTrackAction.changeQuality,
+                    );
+                  },
                 ),
-                title: Text(
-                  l10n.downloadsRemoveAction,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ListTile(
+                  leading: const Icon(Icons.queue_music),
+                  title: Text(l10n.librarySongMenuAddToQueue),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _handleTrackMenuAction(
+                      context,
+                      ref,
+                      track,
+                      l10n,
+                      _DownloadedTrackAction.addQueue,
+                    );
+                  },
                 ),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _handleTrackMenuAction(
-                    context,
-                    ref,
-                    track,
-                    l10n,
-                    _DownloadedTrackAction.removeDownload,
-                  );
-                },
-              ),
-            ],
+                ListTile(
+                  leading: const Icon(Icons.playlist_add),
+                  title: Text(l10n.librarySongMenuAddToPlaylist),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _handleTrackMenuAction(
+                      context,
+                      ref,
+                      track,
+                      l10n,
+                      _DownloadedTrackAction.addToPlaylist,
+                    );
+                  },
+                ),
+                // iOS cannot open a folder in Files from the app.
+                if (!Platform.isIOS)
+                  ListTile(
+                    leading: const Icon(Icons.folder_open_outlined),
+                    title: Text(l10n.downloadsOpenFolderAction),
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      await _handleTrackMenuAction(
+                        context,
+                        ref,
+                        track,
+                        l10n,
+                        _DownloadedTrackAction.openFolder,
+                      );
+                    },
+                  ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: Text(
+                    l10n.downloadsRemoveAction,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _handleTrackMenuAction(
+                      context,
+                      ref,
+                      track,
+                      l10n,
+                      _DownloadedTrackAction.removeDownload,
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },

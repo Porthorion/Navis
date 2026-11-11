@@ -6645,6 +6645,48 @@ abstract class AppLocalizations {
   /// **'The plain background of your theme, with no album color.'**
   String get appearanceNowPlayingBackgroundPlainSub;
 
+  /// No description provided for @appearanceSheetStyleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheets & Menus'**
+  String get appearanceSheetStyleLabel;
+
+  /// No description provided for @appearanceSheetStyleMatchNowPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Match Now Playing'**
+  String get appearanceSheetStyleMatchNowPlaying;
+
+  /// No description provided for @appearanceSheetStyleAlbumColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Album Color'**
+  String get appearanceSheetStyleAlbumColor;
+
+  /// No description provided for @appearanceSheetStyleTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get appearanceSheetStyleTheme;
+
+  /// No description provided for @appearanceSheetStyleMatchNowPlayingSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The queue shows the Now Playing background. Menus and sheets use your theme.'**
+  String get appearanceSheetStyleMatchNowPlayingSub;
+
+  /// No description provided for @appearanceSheetStyleAlbumColorSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The queue, menus and sheets take on the color of the playing album. Dialogs keep your theme.'**
+  String get appearanceSheetStyleAlbumColorSub;
+
+  /// No description provided for @appearanceSheetStyleThemeSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain theme colors everywhere, including the queue.'**
+  String get appearanceSheetStyleThemeSub;
+
   /// No description provided for @appearanceOledForAutoLabel.
   ///
   /// In en, this message translates to:

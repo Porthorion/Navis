@@ -442,3 +442,10 @@ popover; dialogs stay theme-coloured. It is not put in `ThemeData`, which
 would rebuild every `Theme.of` listener on each song, and a sheet keeps the
 fill it opened with. With accent-from-album on, the scheme is already
 album-seeded, so the mix stays subtle and the contrast is still checked.
+
+Sheets & Menus has three modes (owner, 2026-11-11). **Match Now Playing**
+(default) leaves menus and sheets on the theme and makes the phone queue follow
+the Now Playing background, now including Art-Tinted. **Album Color** gives the
+queue, menus and sheets the tint above, opaque, and never a blur. **Theme**
+draws the queue as an opaque theme surface. The setting is a Look field, has no
+setup step and no "New" tag.

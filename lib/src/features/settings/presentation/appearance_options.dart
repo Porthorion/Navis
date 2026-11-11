@@ -17,6 +17,7 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -996,6 +997,53 @@ class NowPlayingBackgroundOption extends StatelessWidget {
   }
 }
 
+/// Sheets & Menus: Match Now Playing, Album Color or Theme, with a
+/// description of the selected look. Settings only, not part of setup.
+class SheetStyleOption extends StatelessWidget {
+  const new({required this.value, required this.onChanged, super.key});
+
+  final SheetStyle value;
+  final ValueChanged<SheetStyle> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    String name(SheetStyle style) => switch (style) {
+      SheetStyle.matchNowPlaying => l10n.appearanceSheetStyleMatchNowPlaying,
+      SheetStyle.albumColor => l10n.appearanceSheetStyleAlbumColor,
+      SheetStyle.theme => l10n.appearanceSheetStyleTheme,
+    };
+    return AppearanceChoiceSection(
+      title: l10n.appearanceSheetStyleLabel,
+      description: switch (value) {
+        SheetStyle.matchNowPlaying =>
+          l10n.appearanceSheetStyleMatchNowPlayingSub,
+        SheetStyle.albumColor => l10n.appearanceSheetStyleAlbumColorSub,
+        SheetStyle.theme => l10n.appearanceSheetStyleThemeSub,
+      },
+      selector: SegmentedButton<SheetStyle>(
+        key: const ValueKey<String>('sheetStyleSelector'),
+        showSelectedIcon: false,
+        expandedInsets: EdgeInsets.zero,
+        segments: <ButtonSegment<SheetStyle>>[
+          for (final style in SheetStyle.values)
+            ButtonSegment<SheetStyle>(
+              value: style,
+              label: Text(
+                name(style),
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        selected: <SheetStyle>{value},
+        onSelectionChanged: (selection) => onChanged(selection.first),
+      ),
+    );
+  }
+}
+
 /// Density: Comfortable or Compact spacing for Home, track lists and library
 /// rows. Shared by Appearance settings and setup.
 class DensityOption extends StatelessWidget {
@@ -1124,8 +1172,9 @@ class CornerStyleOption extends StatelessWidget {
 /// The options that Settings and setup both show, in the order they share.
 ///
 /// Setup lists them under "More appearance options" except Night Schedule,
-/// which sits beside Color Style; Settings spreads them over its Theme, Color,
-/// Shape & Layout and Now Playing sections. Both keep this relative order,
+/// which sits beside Color Style, and Sheets & Menus, which is Settings only.
+/// Settings spreads them over its Theme, Color, Shape & Layout and Now Playing
+/// sections. Both keep this relative order,
 /// which a test pins.
 enum AppearanceOptionKind {
   oledForAuto(SetupHighlight.oledForAuto),
@@ -1134,7 +1183,8 @@ enum AppearanceOptionKind {
   flatSurfaces(SetupHighlight.flatSurfaces),
   cornerStyle(SetupHighlight.cornerStyle),
   density(null),
-  nowPlayingBackground(SetupHighlight.nowPlayingBackground);
+  nowPlayingBackground(SetupHighlight.nowPlayingBackground),
+  sheetStyle(null);
 
   new(this.highlight);
 
@@ -1168,6 +1218,8 @@ class AppearanceOptionSet {
     required this.onDensityChanged,
     required this.nowPlayingBackground,
     required this.onNowPlayingBackgroundChanged,
+    required this.sheetStyle,
+    required this.onSheetStyleChanged,
     required this.colorTuning,
     required this.onOpenColorTuning,
     required this.previewBrightness,
@@ -1198,6 +1250,8 @@ class AppearanceOptionSet {
   final ValueChanged<NavisDensity> onDensityChanged;
   final NowPlayingBackground nowPlayingBackground;
   final ValueChanged<NowPlayingBackground> onNowPlayingBackgroundChanged;
+  final SheetStyle sheetStyle;
+  final ValueChanged<SheetStyle> onSheetStyleChanged;
 
   /// The saved (or drafted) Fine-Tune Colors values for the row's summary.
   final ColorTuning colorTuning;
@@ -1291,6 +1345,10 @@ class AppearanceOptionSet {
           adornment: adornment,
           onChanged: onNowPlayingBackgroundChanged,
         ),
+      ),
+      AppearanceOptionKind.sheetStyle => SheetStyleOption(
+        value: sheetStyle,
+        onChanged: onSheetStyleChanged,
       ),
     };
   }

@@ -293,7 +293,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(_artworkKey), findsNothing);
     expect(decoration(tester).gradient, isNotNull);
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+    // A chosen Art-Tinted background publishes its tint for the queue.
+    final published = container.read(nowPlayingPublishedBackdropProvider)!;
+    expect(published.image, isNull);
+    expect(published.tintColor, _tint);
     background.value = NowPlayingBackground.plain;
     await tester.pumpAndSettle();
     expect(decoration(tester).gradient, isNull);

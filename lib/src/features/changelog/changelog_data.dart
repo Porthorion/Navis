@@ -201,9 +201,20 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'New Sheets & Menus setting in Settings › Appearance: Album Color '
+        'tints the queue, menus and sheets with the playing album, Theme '
+        'keeps them plain, and the default follows Now Playing. The queue '
+        'now also takes on the Art-Tinted background',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Long song titles keep their version, such as (Radio Edit), visible '
         'in lists, and scroll on the playing song and, on desktop, under the '
         'pointer, and in the player',
+      ),
+      ChangelogEntry(
+        'Song menus on phones show the whole song title, with its cover and '
+        'artist, at the top',
       ),
       ChangelogEntry(
         'The mini player shows more of the song title and no longer grows '

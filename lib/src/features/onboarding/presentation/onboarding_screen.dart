@@ -771,6 +771,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       nowPlayingBackground: draft.nowPlayingBackground,
       onNowPlayingBackgroundChanged: (value) =>
           setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
+      sheetStyle: draft.sheetStyle,
+      onSheetStyleChanged: (value) =>
+          setState(() => _draft = draft.copyWith(sheetStyle: value)),
       colorTuning: draft.colorTuning,
       onOpenColorTuning: (anchor) => unawaited(
         _openColorTuning(
@@ -933,10 +936,15 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   /// The options under "More appearance options": everything except Night
-  /// Schedule, which is shown beside Color Style.
+  /// Schedule, which is shown beside Color Style, and Sheets & Menus, which
+  /// has no setup step.
   static final List<AppearanceOptionKind> _moreOptionKinds =
       AppearanceOptionKind.values
-          .where((kind) => kind != AppearanceOptionKind.nightSchedule)
+          .where(
+            (kind) =>
+                kind != AppearanceOptionKind.nightSchedule &&
+                kind != AppearanceOptionKind.sheetStyle,
+          )
           .toList(growable: false);
 
   /// Whether any option under "More appearance options" is tagged and shown.

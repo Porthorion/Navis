@@ -27,6 +27,7 @@ import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';

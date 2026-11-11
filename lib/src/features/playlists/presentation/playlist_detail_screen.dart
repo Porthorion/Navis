@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
+import 'package:navis/src/common_widgets/song_sheet_header.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -700,6 +701,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                SongSheetHeader(
+                  title: song.title,
+                  artist: song.artistName,
+                  album: song.albumName,
+                  coverArtId: song.coverArt,
+                  coverArtRevision: song.coverArtRevision ?? 0,
+                  isExternal: song.isExternal,
+                ),
                 ListTile(
                   leading: const Icon(Icons.play_arrow_outlined),
                   title: Text(l10n.librarySongMenuPlayNow),
