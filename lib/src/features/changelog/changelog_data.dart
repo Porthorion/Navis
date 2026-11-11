@@ -206,6 +206,10 @@ const List<ChangelogVersion> changelogs = [
         'pointer, and in the player',
       ),
       ChangelogEntry(
+        'Song menus on phones show the whole song title, with its cover and '
+        'artist, at the top',
+      ),
+      ChangelogEntry(
         'The mini player shows more of the song title and no longer grows '
         'taller for remote songs. Swipe it left or right for the next or '
         'previous song; on a phone held upright the skip buttons are gone',
