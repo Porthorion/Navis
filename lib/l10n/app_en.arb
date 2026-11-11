@@ -2326,10 +2326,10 @@
   "appearanceHomeSectionsLabel": "Home Sections",
   "appearanceDensityLabel": "Density",
   "appearanceDensitySub": "Spacing for Home, track lists, playlists and artist lists.",
-  "appearanceKeepTitleVersionLabel": "Keep Song Versions Visible",
-  "appearanceKeepTitleVersionSub": "Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.",
   "appearanceDensityComfortable": "Comfortable",
   "appearanceDensityCompact": "Compact",
+  "appearanceKeepTitleVersionLabel": "Keep Song Versions Visible",
+  "appearanceKeepTitleVersionSub": "Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.",
 
   "desktopNavbarSectionLabel": "Desktop Navigation",
   "desktopNavbarStyleLabel": "Navigation Style",

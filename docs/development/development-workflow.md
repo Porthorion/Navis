@@ -1158,7 +1158,8 @@ targeted production DAO methods. The same endpoint also accepts `themeMode`
 (rounded/soft/square), `nowPlayingBackground` (tinted/artwork/plain), `sheetStyle`
 (match_now_playing/album_color/theme), and
 `density` (comfortable/compact). `flatAreas` is an integer mask 0–7;
-`albumArtShade` and `albumArtColoredShade` are booleans. Colour tuning uses
+`albumArtShade`, `albumArtColoredShade` and `keepTitleVersionVisible`
+are booleans. Colour tuning uses
 `colorVividness`, `surfaceDepthLight` and `surfaceDepthDark` (integers
 −5…+5, default 0), `surfaceTintLight` / `surfaceTintDark` (integers
 0…5, default 0), and `controlColor` (`accent` or `white`, default `accent`).

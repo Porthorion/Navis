@@ -1178,8 +1178,8 @@ target-selection rules.
     owns the single 1.5.0 parent tag and retains the `albumArtColoredShade`
     storage key so existing acknowledgements survive.
     The authenticated, clone-gated `/v1/presentation/appearance` endpoint
-    returns `flatAreas` as an integer and `albumArtShade` / `albumArtColoredShade`
-    as booleans; POST validates their types and mask bounds before any targeted
+    returns `flatAreas` as an integer and `albumArtShade` / `albumArtColoredShade` /
+    `keepTitleVersionVisible` as booleans; POST validates their types and mask bounds before any targeted
     writes. Either shade flag can be set independently.
   - Colour and Brightness tuning (`ColorAdjustment`) layer on every style,
     including Neutral, in Light, Dark and OLED. Vividness and depth are integer

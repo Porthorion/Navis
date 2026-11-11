@@ -790,7 +790,14 @@ void main() {
       await tester.pumpWidget(
         _host(text: _versioned, width: 320, keepVersion: false),
       );
+      // At rest (the start pause) the title is the plain ellipsized Text.
+      expect(_scrollers, findsNothing);
       expect(rows, findsNothing);
+      expect(texts, findsOneWidget);
+      final rest = tester.widget<Text>(texts);
+      expect(rest.data, _versioned);
+      expect(rest.maxLines, 1);
+      expect(rest.overflow, TextOverflow.ellipsis);
       await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
       expect(_scrollers, findsOneWidget);
     });
