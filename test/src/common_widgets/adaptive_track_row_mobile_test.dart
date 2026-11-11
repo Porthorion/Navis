@@ -359,6 +359,9 @@ void main() {
       bool twoLineTitle = true,
       bool selected = false,
       Widget? badge,
+      Set<int>? badgeOn,
+      bool reserveBadge = false,
+      bool remote = false,
       EdgeInsetsGeometry? padding,
     }) async {
       setAdaptiveTestViewport(tester, size);
@@ -392,7 +395,11 @@ void main() {
                           duration: 223,
                           selected: selected,
                           twoLineTitle: twoLineTitle,
-                          badge: badge,
+                          badge: badgeOn == null || badgeOn.contains(i)
+                              ? badge
+                              : null,
+                          reserveBadge: reserveBadge,
+                          isRemote: remote,
                           padding: padding,
                           leading: const Icon(Icons.album),
                           actionExtent: 48,
@@ -444,6 +451,94 @@ void main() {
         }
       }
     }
+
+    for (final density in NavisDensity.values) {
+      testWidgets('stacked controls keep short and long rows equal: $density', (
+        tester,
+      ) async {
+        await pumpRows(
+          tester,
+          [shortTitle, longTitle],
+          size: const Size(320, 800),
+          scale: 2,
+          density: density,
+        );
+        expect(height(tester, 1), height(tester, 0));
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final (width, scale) in [(360.0, 2.0), (412.0, 2.0), (320.0, 1.3)]) {
+      for (final density in NavisDensity.values) {
+        testWidgets(
+          'remote rows keep short and long equal: $density, x$scale, $width',
+          (tester) async {
+            await pumpRows(
+              tester,
+              [shortTitle, longTitle],
+              size: Size(width, 800),
+              scale: scale,
+              density: density,
+              remote: true,
+            );
+            expect(height(tester, 1), height(tester, 0));
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+
+    testWidgets('reserveBadge keeps rows with and without a badge equal', (
+      tester,
+    ) async {
+      await pumpRows(
+        tester,
+        [shortTitle, shortTitle, longTitle],
+        badgeOn: {0},
+        reserveBadge: true,
+        badge: Builder(
+          builder: (context) => Text(
+            '12 listeners',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      );
+      expect(height(tester, 1), height(tester, 0));
+      expect(height(tester, 2), height(tester, 0));
+    });
+
+    testWidgets('a tablet playing row still uses the marquee', (tester) async {
+      await pumpRows(
+        tester,
+        [longTitle],
+        size: const Size(800, 800),
+        selected: true,
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        tester.widget<MarqueeText>(find.byType(MarqueeText).first).maxLines,
+        1,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (w) => w.runtimeType.toString() == '_MarqueeScroller',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('twoLineTitle false keeps one line when playing', (
+      tester,
+    ) async {
+      await pumpRows(
+        tester,
+        [longTitle],
+        size: const Size(412, 800),
+        selected: true,
+        twoLineTitle: false,
+      );
+      expect(tester.widget<MarqueeText>(find.byType(MarqueeText)).maxLines, 1);
+    });
 
     testWidgets('a short title is centred in the reserved height', (
       tester,

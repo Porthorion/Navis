@@ -496,6 +496,8 @@ class _TopTrackTile extends ConsumerWidget {
           ? 0
           : 96,
       padding: _topTracksRowPadding,
+      // Some tracks have no listener count; their rows keep its line.
+      reserveBadge: true,
       badge: subtitle == null
           ? null
           : Text(
@@ -575,6 +577,7 @@ class _TopTracksShimmer extends StatelessWidget {
                   context,
                   constraints.maxWidth,
                   padding: _topTracksRowPadding,
+                  badge: true,
                 );
                 return height == null
                     ? const Padding(

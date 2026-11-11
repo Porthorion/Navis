@@ -3020,8 +3020,13 @@ Density's 64 or 52) and the padding plus two title lines, the secondary line and
 a badge line, measured with `textLineHeight` (the same style merge, strut and
 text scaler `MarqueeText` lays out with). That is 72 at text scale 1 with
 Comfortable Density and grows with the scale, so short and long titles give
-equally tall rows and loading skeletons (`ShimmerListTile(songRows: true)`,
-`trackRowSkeletonHeight`) take the same height; Home shelves, Home hero
+equally tall rows, also when the controls stack below the text, a Remote row
+puts its duration on a separate line, or only some rows have a badge
+(`reserveBadge`, Artist top tracks): the text block keeps a minimum height of
+`trackRowReservedContentHeight` plus the separate duration line, and the
+controls row comes on top of it. Loading skeletons
+(`ShimmerListTile(songRows: true)`, `trackRowSkeletonHeight`) take the same
+height; Home shelves, Home hero
 rows and the weekly hero list pass `twoLineTitle: false` and keep one line and today's
 heights. Long metadata truncates first; Remote labels, duration and badges may
 use additional lines inside that block. Controls move below only when the
