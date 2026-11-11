@@ -274,6 +274,149 @@ the platform loads it from. A backend without a boost stage throws
 `setReplayGainLevels`), and neither does mpv's adapter, which uses the same
 levels path.
 
+## iOS ReplayGain boost (I24)
+
+The Darwin `AudioPlayer` answers `setReplayGainBoost` (iOS only; it returns
+`boost_unavailable` without a tap and `FlutterMethodNotImplemented` on macOS). It
+keeps the `byUri` map (clamped to 0..12 dB; the key is `UriAudioSource.uri`, or a
+`ClippingAudioSource`'s child) and decides the target on the main thread with
+`navis_boost_decide` (`NavisBoost.c`): the song's
+own boost, or in the last 3 s of wall-clock time (and for songs shorter than 4 s or of
+unknown length) the lower of its and the next item's (`_player.items[1]`), latched
+until the next song event. A drop applies at once; a rise waits `kBoostRaiseAfterMs`
+(500) after a song event: a `currentItem` change, a seek or skip, `load:` and an
+`enqueueFrom:` that changed the playing item. A 250 ms time observer (installed only
+while the map has a positive value, removed in `dispose:`), `setSpeed:`,
+`enqueueFrom:` and `setReplayGainBoost` refresh it. `seek:index:` and `load:` store the
+destination's value before `noteEqualizerFlush` (a seek decides from the remaining time at its
+target position), and `enqueueFrom:` does the same when a queue edit changes the playing item
+without a command having flushed. The map's `durationMsByUri` (the song tags' durations) times the
+guard along with the player's duration: the smaller remaining time wins. `NavisEqualizer setBoostDb:guarded:`
+hands the target to the tap as one atomic linear gain (`navis_tap_formats_set_boost`),
+and `tapProcess` reads the flush generation with acquire so the first block after a
+flush sees it. Each `NavisTapFormats` slot owns a `NavisBoostRamp` applied after pitch
+and EQ (20 ms linear, snapped on its first block and on a reset). The state adds
+`boostRequestedDb`, `boostAppliedDb`, `boostGuarded` and `boostClipSamples`. Tests:
+`darwin/test/navis_boost_test.c` and `navis_tap_formats_test.c`.
+
+## iOS equalizer
+
+The Darwin player accepts the same `equalizerConfiguration`, `setEqualizer` and
+`getEqualizerState` as Android. `NavisEqualizerDsp.c/.h` is a C port of
+`EqualizerDsp.java` plus the bank swap and 20 ms crossfade of
+`NavisEqualizerProcessor.java`. `NavisEqualizer.m/.h` (one per `AudioPlayer`)
+creates one `MTAudioProcessingTap` (pre-effects) per player and gives every
+item of the `AVQueuePlayer` an `AVMutableAudioMix` with that tap and the
+first audio track (`trackID` 1, or its real ID when the asset's `tracks` key is
+already loaded; checked with `statusOfValueForKey:`, never loaded here), synchronously and in the same run-loop turn as the insert
+(`AudioPlayer attachEqualizerToQueue`, called at the end of `enqueueFrom:`). No
+tracks are loaded, so covering the whole queue costs no network. Two
+constraints come from `AVQueuePlayer` and were measured (I23, iOS 27.2
+simulator and macOS): an item with its own tap gets its own audio pipeline that
+starts only after the previous item's drained (0.4 to 1.2 s of silence at every
+song change, which I9 shipped), so all items share one tap; and setting the mix
+of an item that is already queued rebuilds the pipeline and stalls playback for
+about 0.5 s, so a mix is set once, before the item is queued, and never again
+(a file whose audio track ID differs from the one mixed plays unchanged, with a
+state `reason`; not tested with a real file).
+The state reports Android's keys plus `processedFrames`, `levelDeltaDb`,
+`resetCount`, `tapPrepareCount`, `flushCount` and `transitionGapsMs` (a 50 Hz
+main-thread gap meter that runs only while playing and only when the app set
+`diagnostics` in the equalizer configuration at creation, i.e. in builds that
+can run the diagnostics API; it reads `item.duration` and skips a tick while that
+is not finite). The filter history resets
+on StartOfStream and when `AudioPlayer` calls `noteFlush` (a seek or skip, at
+the top of `seek:index:completionHandler:`, and a new `load:`); the render
+thread compares the flush counter at each block with audio
+(`navis_eq_stream_begin_block`), never the source time range, which re-bases
+mid-song when an item is queued behind the playing one. `enqueueFrom:` no longer
+removes and re-inserts the queued items that already sit in the right order at
+the head of the queue (an append used to remove the prefetched next item, whose
+removal restarts the shared pipeline); it still rebuilds the queue for any other
+change, and while looping. This is iOS only (`TARGET_OS_IOS`): macOS behaves as
+before. The class is compiled for iOS only
+(`TARGET_OS_IOS`); the C DSP is inert on macOS, which never sends a
+configuration. `MediaToolbox` is linked for iOS in the podspec and
+`Package.swift`. Host-side C fixtures live in
+`darwin/test/navis_equalizer_dsp_test.c`. Known limitation: putting another
+song in front of the prefetched next one ("play next" in the middle of a song)
+rebuilds the shared pipeline and stalls the playing song for about 0.8 s.
+
+## Darwin independent pitch (I21)
+
+`setPitch` is implemented for iOS (`AudioPlayer.m`): the factor (0.25 to 4,
+else `pitch_invalid`) becomes `1200*log2(factor)` cents, sent to the player's
+`NavisEqualizer` (`setPitchCents:`), which hands it to an `AUNewTimePitch` inside
+the one shared `MTAudioProcessingTap` (rate 1, before the EQ, so the order is
+as on Android). Without a tap only pitch 1 succeeds; anything else returns the
+error code `pitch_unavailable`, which the app reads as "no pitch here" (macOS
+never sends it). Items keep their time-domain algorithm and are never re-mixed,
+so speed and pitch stay independent and lock-to-speed is just the app sending
+`pitchFactor = speed`. (I25 moved the stage and its AU into per-format slots.)
+
+`NavisPitchStage.c/.h` (plain C11, host-tested with a fake renderer) holds the
+state machine: bit-exact bypass at 0 cents; wet from the first frame (one AU
+latency of silence, 4096 frames at 44.1/48 kHz, 8192 at 96 kHz) after a reset
+and for a stage created at non-zero cents; dry while the AU fills, then a 20 ms
+ramp, for a user switch from 0 mid-play; a 20 ms ramp, then bypass, for a
+switch to 0. It resets exactly when `navis_eq_stream_begin_block` returns true
+(StartOfStream or a new flush generation), latched before the layout checks in
+`tapProcess`, and its `resetCount` counts exactly those. Like the equalizer's,
+it moves by 0 or 1 for a seek or skip: AVFoundation usually re-prepares the tap
+first, and a new stage has an empty buffer (and, at non-zero cents, starts wet),
+so there is nothing to reset. A natural song change in the shared tap is not a
+reset: the AU carries over. Pause and resume reset nothing in a pipeline that
+keeps running; since I25 a re-prepare reuses the format's slot, so the resume
+after a pause that re-prepared counts one reset (the stage restarts empty, as a
+new one did).
+`NavisPitchAU.c/.h` binds the unit (one `AudioUnitRender` and one input pull per
+block, a monotonic sample time, AudioToolbox linked for iOS in the podspec and
+`Package.swift`); it is built for iOS and for the host test only. The AU and the
+stage are created in `tapPrepare`, one per audio format, and freed with the tap
+(I25; see below).
+The state adds `pitchCents`, `pitchActive`, `pitchLatencyFrames`,
+`pitchResetCount`, `pitchInputHz` and `pitchOutputHz` (zero-crossing estimates
+over a tumbling one-second window, computed on the audio thread) and
+`pitchReason`, `pitchPullMismatches` (AU input pulls that did not match the block, zero-filled). Host fixtures: `darwin/test/navis_pitch_stage_test.c` (ASan/UBSan,
+portable) and `darwin/test/navis_pitch_au_test.c` (the real unit, macOS only).
+Known limits: the heard audio lags `currentTime` by one AU latency while pitch
+is on; the AU runs while lock-to-speed is on at a speed other than 1x.
+
+## Darwin one tap stream per audio format (I25)
+
+`AVQueuePlayer` runs one audio pipeline per run of items with an identical
+source format (rate, channels, int or float samples, codec, bit depth) and each
+one prepares and unprepares the one shared tap, with no pipeline identity, on
+other threads than the render thread. The single stream and pitch stage of I23
+and I21 therefore ran song N at song N+1's format, were freed at each unprepare
+and left the last pipeline with no EQ or pitch (evidence in
+`docs/plans/iOS_I25_Format_Streams_Plan.md`). `NavisTapFormats.c/.h` (plain C11 +
+pthread, host-tested in `darwin/test/navis_tap_formats_test.c` with a fake AU
+under ASan/UBSan, and its concurrency tests under ThreadSanitizer on macOS)
+holds the lock, counters and a slot per (rounded rate, channels): an EQ stream,
+a pitch stage and its AU. Slots are published with release stores and live until
+`navis_tap_formats_free` (the tap's finalize), at most 16; only a 17th format
+with no pipeline live frees them all (clearing `lastSlot` first). `tapProcess`
+passes the source-range duration (value and timescale) and the slot is the one
+of the block's channel count with the nearest rate within 4 % or inside the
+CMTime rounding interval; one slot takes every block of its channel count;
+otherwise the block passes dry (`unmatchedFrames`, counted only for blocks with a
+valid range), and a slot in use by another render thread passes the later block
+dry (`overlapBlocks`). `NavisEqualizer.m` keeps the MediaToolbox glue, the item
+records and the meter, and its `NavisPitchFactory` wraps `NavisPitchAU`. The
+state adds `formatStreams`, `unmatchedFrames`, `overlapBlocks` and the balance of
+pipelines (`livePipelines`, `prepareCalls`, `unprepareCalls`, `clampedUnprepares`); the other
+fields describe the slot of the last audio block and the counters are sums over
+the slots. The layout checks in `tapProcess` now run before the reset decision.
+After review: a block with no usable rate goes to the slot of the latest prepare
+(its StartOfStream too), a coarse clock that admits several rates keeps the song on
+the last slot, a StartOfStream dropped on a busy slot waits in a per-slot flag, a
+reused slot without a pitch stage gets one built again, and reasons stay until a
+block is processed (a layout-failing block calls `navis_tap_formats_note_dry`).
+Deviations from the plan: `process` takes `(durationValue, timescale)` instead of
+`blockRate`, so the rounding interval is computed in the tested C; `unprepare`
+returns false for an unmatched call and the glue logs it.
+
 `IndexedAudioSource.replayGainDb` (signed dB, null by default) is carried by
 the progressive, DASH, HLS and stream source messages (and a clipping source's
 child), so a backend that applies ReplayGain in its audio path has each song's
@@ -306,6 +449,21 @@ case, the native end-of-song latch (`applyBoost`), `lowerBoost` and its call
 sites, `NavisEqualizerProcessor.setBoost` and the `boostRequestedDb`,
 `boostAppliedDb` and `boostGuarded` state keys. `setReplayGainLevels` keys a
 clipping source by its child's id and URI, because native tags the child item.
+
+ReplayGain cut in the iOS item audio mix (I26, #392 phase 4). The Darwin
+`UriAudioSource.replayGainDb` (an `NSNumber`, nil when unstamped) is read from the
+source message at decode time. `NavisEqualizer` gives every item its audio mix
+with the cut as the input volume (`setVolume:atTime:` at zero, via
+`navis_replaygain_cut_linear` in `NavisBoost.c`: never above 1, floor -60 dB, nil
+or non-finite is 1) in the same run-loop turn as the insert
+(`attachToItem:volume:`). `setReplayGainLevels` (iOS main thread, always replies
+`{}`) updates the stamps by source id (`byId`; a clip by its child) and calls
+`setVolume:forItem:`, which assigns a new mix object (same tap and track) when the
+value moved. The heard item is skipped unless the push is `live`. A queue rebuild
+that keeps the playing item never re-assigns it, but a re-inserted item gets its
+current value. A failed tap creation still gives the item a tap-less mix
+(`NavisEqItemVolumeOnly`, never retried). `getEqualizerState` adds
+`replayGainCutDb` and `replayGainNextCutDb`, read from the item records.
 
 A native playback event whose `updatePosition` and `currentIndex` equal the
 current event's and whose `updateTime` is older keeps the current `updateTime`

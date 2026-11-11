@@ -7,12 +7,25 @@
 #import "./include/just_audio/ConcatenatingAudioSource.h"
 #import "./include/just_audio/LoopingAudioSource.h"
 #import "./include/just_audio/ClippingAudioSource.h"
+#import "NavisBoost.h"
+#import "NavisEqualizer.h"
+#import "NavisRatePlan.h"
 #import <AVFoundation/AVFoundation.h>
 #import <stdlib.h>
 #include <TargetConditionals.h>
 
 #define TREADMILL_SIZE 2
+#if TARGET_OS_IOS
+// A ReplayGain boost rise waits this long after the last song event (the desktop
+// replayGainBoostRaiseAfter). The throwaway hold-gate build of the I24 proof sets it to 0.
+static const int64_t kBoostRaiseAfterMs = 500;
+// The tick that moves the boost into and out of the guard window, on the main queue.
+static const int kBoostTickMs = 250;
+#endif
 #define ERROR_ABORT 10000000
+// I45 (#526): the item clock may start after the Playing stamp. The 200 ms observer
+// re-stamps the position once it has drifted from the stamp by more than this.
+static const long long kRestampDriftMs = 50;
 
 // TODO: Check for and report invalid state transitions.
 // TODO: Apply Apple's guidance on seeking: https://developer.apple.com/library/archive/qa/qa1820/_index.html
@@ -32,6 +45,7 @@
     enum LoopMode _loopMode;
     BOOL _shuffleModeEnabled;
     long long _updateTime;
+    long long _lastRestampTime; // I45: wall ms of the last drift re-stamp
     int _updatePosition;
     int _lastPosition;
     int _bufferedPosition;
@@ -53,9 +67,31 @@
     NSDictionary<NSString *, NSObject *> *_icyMetadata;
     NSNumber *_errorCode;
     NSString *_errorMessage;
+    BOOL _commandFlushed;             // Navis: a seek, skip or load flushed and is about to call enqueueFrom:
+#if TARGET_OS_IOS
+    // Navis: nil unless the app sent an equalizerConfiguration (iOS only).
+    NavisEqualizer *_equalizer;
+    // Navis: Pitch Lock (#528). The last pitch factor (_speed is the speed), the algorithm every item
+    // plays with, and whether one applyRatePlan is already queued (main thread).
+    double _pitch;
+    AVAudioTimePitchAlgorithm _timePitchAlgorithm;
+    BOOL _ratePlanPending;
+    // Navis: the ReplayGain boost (I24), all on the main thread. The map is the boost of each
+    // queued song by URI; the rest is the policy state of navis_boost_decide.
+    NSDictionary<NSString *, NSNumber *> *_boostByUri;
+    NSDictionary<NSString *, NSNumber *> *_boostTagDurationMsByUri; // the song tags' durations, sent with the map
+    BOOL _boostMapPositive;           // some song has a boost: only then the tick runs
+    double _boostTargetDb;            // the target in force, dB
+    BOOL _boostReportedGuarded;
+    BOOL _boostLatched;               // the playing song stays guarded until the next song event
+    BOOL _boostHeld;                  // a rise waits (a song event < kBoostRaiseAfterMs ago)
+    uint64_t _boostEvents;            // bumped by every song event: cancels the pending rise
+    __weak AVPlayerItem *_boostItem;  // the item the last song event was for
+    id _boostObserver;                // the tick
+#endif
 }
 
-- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration useLazyPreparation:(BOOL)useLazyPreparation {
+- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration useLazyPreparation:(BOOL)useLazyPreparation equalizerConfiguration:(NSDictionary *)equalizerConfiguration {
     self = [super init];
     NSAssert(self, @"super init cannot be nil");
     _registrar = registrar;
@@ -84,6 +120,7 @@
     _updatePosition = 0;
     _updateTime = 0;
     _lastPosition = 0;
+    _lastRestampTime = 0;
     _bufferedPosition = 0;
     _bufferUnconfirmed = NO;
     _playing = NO;
@@ -108,6 +145,21 @@
         _loadControl.canUseNetworkResourcesForLiveStreamingWhilePaused = NO;
         _loadControl.preferredPeakBitRate = (NSNumber *)[NSNull null];
     }
+#if TARGET_OS_IOS
+    if (equalizerConfiguration) {
+        NSString *equalizerError = nil;
+        _equalizer = [[NavisEqualizer alloc] initWithConfiguration:equalizerConfiguration error:&equalizerError];
+        if (!_equalizer) NSLog(@"just_audio: equalizer unavailable: %@", equalizerError);
+        __weak __typeof__(self) weakSelf = self;
+        _equalizer.currentItemProvider = ^AVPlayerItem *{ return weakSelf.player.currentItem; };
+        _equalizer.nextItemProvider = ^AVPlayerItem *{
+            NSArray<AVPlayerItem *> *items = weakSelf.player.items;
+            return items.count > 1 ? items[1] : nil;
+        };
+    }
+    _pitch = 1.0;
+    _timePitchAlgorithm = AVAudioTimePitchAlgorithmTimeDomain;
+#endif
     _speed = 1.0f;
     _volume = 1.0f;
     _justAdvanced = NO;
@@ -143,6 +195,8 @@
         } else if ([@"setSpeed" isEqualToString:call.method]) {
             [self setSpeed:(float)[request[@"speed"] doubleValue]];
             result(@{});
+        } else if ([@"setPitch" isEqualToString:call.method]) {
+            [self setPitch:[request[@"pitch"] doubleValue] result:result];
         } else if ([@"setLoopMode" isEqualToString:call.method]) {
             [self setLoopMode:[request[@"loopMode"] intValue]];
             result(@{});
@@ -178,6 +232,14 @@
         } else if ([@"concatenatingMove" isEqualToString:call.method]) {
             [self concatenatingMove:(NSString *)request[@"id"] currentIndex:[request[@"currentIndex"] intValue] newIndex:[request[@"newIndex"] intValue] shuffleOrder:(NSArray<NSNumber *> *)request[@"shuffleOrder"]];
             result(@{});
+        } else if ([@"setReplayGainBoost" isEqualToString:call.method]) {
+            [self setReplayGainBoost:request result:result];
+        } else if ([@"setReplayGainLevels" isEqualToString:call.method]) {
+            [self setReplayGainLevels:request result:result];
+        } else if ([@"setEqualizer" isEqualToString:call.method]) {
+            [self setEqualizer:request result:result];
+        } else if ([@"getEqualizerState" isEqualToString:call.method]) {
+            [self getEqualizerState:result];
         } else if ([@"setAndroidAudioAttributes" isEqualToString:call.method]) {
             result(@{});
         } else {
@@ -188,6 +250,370 @@
         FlutterError *flutterError = [FlutterError errorWithCode:@"error" message:@"Error in handleMethodCall" details:nil];
         result(flutterError);
     }
+}
+
+// Navis: pitch (iOS). Independent pitch is 1200*log2(factor) cents in an AUNewTimePitch inside
+// the equalizer's tap, with items on the time-domain algorithm. Pitch Lock (pitch == speed) is
+// instead one Varispeed resample in AVPlayer with the tap at 0 (see applyRatePlan). Without a tap
+// only 1 and a locked pair succeed.
+- (void)setPitch:(double)pitch result:(FlutterResult)result {
+    if (!isfinite(pitch) || pitch < 0.25 || pitch > 4) {
+        result([FlutterError errorWithCode:@"pitch_invalid" message:@"Pitch factor must be between 0.25 and 4" details:nil]);
+        return;
+    }
+#if TARGET_OS_IOS
+    if (_equalizer || pitch == 1.0 || navis_rate_plan(_speed, pitch).algorithm == NAVIS_RATE_VARISPEED) {
+        _pitch = pitch;
+        [self scheduleRatePlan];
+        result(@{});
+        return;
+    }
+#else
+    if (pitch == 1.0) {
+        result(@{});
+        return;
+    }
+#endif
+    result([FlutterError errorWithCode:@"pitch_unavailable" message:@"No audio tap was installed for this player" details:nil]);
+}
+
+#if TARGET_OS_IOS
+// Navis: Pitch Lock (#528). Dart sends setSpeed and setPitch back to back, so both are queued
+// before this runs and the plan is made once from the final pair: no algorithm flap in between.
+// ponytail: coalesces only messages already queued; a combined setSpeedPitch method if a flap is ever heard.
+- (void)scheduleRatePlan {
+    if (_ratePlanPending) return;
+    _ratePlanPending = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self applyRatePlan]; });
+}
+
+// Locked (and not 1x): every item plays through AVPlayer's own Varispeed resample, the tap's pitch is
+// 0 and its EQ bands move to f/speed. Otherwise: time-domain stretch and the tap's independent pitch.
+// The algorithm goes on every item that exists: playing, queued and not yet inserted (and the loop item).
+- (void)applyRatePlan {
+    _ratePlanPending = NO;
+    NavisRatePlan plan = navis_rate_plan(_speed, _pitch);
+    [_equalizer setPitchCents:plan.tapCents];
+    [_equalizer setFrequencyScale:plan.eqFrequencyScale];
+    AVAudioTimePitchAlgorithm algorithm = plan.algorithm == NAVIS_RATE_VARISPEED
+        ? AVAudioTimePitchAlgorithmVarispeed : AVAudioTimePitchAlgorithmTimeDomain;
+    if ([algorithm isEqualToString:_timePitchAlgorithm]) return;
+    _timePitchAlgorithm = algorithm;
+    for (AVPlayerItem *item in _player.items) item.audioTimePitchAlgorithm = algorithm;
+    for (IndexedAudioSource *source in _indexedAudioSources) {
+        source.playerItem.audioTimePitchAlgorithm = algorithm;
+        source.playerItem2.audioTimePitchAlgorithm = algorithm;
+    }
+    // AVPlayer may pick up an item's algorithm only on the next rate set (device check owed).
+    // Not mid-seek: the seek paused the player and its completion sets the rate itself.
+    if (_playing && _player && CMTIME_IS_INVALID(_seekPos)) _player.rate = _speed;
+}
+#endif
+
+/// Queue insert (always at the end). A new item gets the current Pitch Lock algorithm first.
+- (void)insertQueueItem:(AVPlayerItem *)item {
+#if TARGET_OS_IOS
+    item.audioTimePitchAlgorithm = _timePitchAlgorithm;
+#endif
+    [_player insertItem:item afterItem:nil];
+}
+
+// Navis: equalizer (iOS). Unsupported where no tap was installed, as on Android.
+- (void)setEqualizer:(NSDictionary *)request result:(FlutterResult)result {
+#if TARGET_OS_IOS
+    if (_equalizer) {
+        NSString *error = nil;
+        NSDictionary *state = [_equalizer setConfiguration:request error:&error];
+        result(state ?: [FlutterError errorWithCode:@"eq_invalid" message:error details:nil]);
+        return;
+    }
+#endif
+    result([FlutterError errorWithCode:@"eq_unavailable" message:@"No EQ processor was installed for this player" details:nil]);
+}
+
+- (void)getEqualizerState:(FlutterResult)result {
+#if TARGET_OS_IOS
+    if (_equalizer) {
+        NSMutableDictionary *state = [[_equalizer state] mutableCopy];
+        state[@"timePitchAlgorithm"] = [_timePitchAlgorithm isEqualToString:AVAudioTimePitchAlgorithmVarispeed] ? @"varispeed" : @"timeDomain";
+        result(state);
+        return;
+    }
+#endif
+    result([FlutterError errorWithCode:@"eq_unavailable" message:@"No EQ processor was installed for this player" details:nil]);
+}
+
+// MARK: Navis: ReplayGain boost (iOS, I24)
+//
+// AVPlayer.volume stops at 1.0, so a boost is a gain stage in the equalizer's tap, after
+// pitch and EQ. Dart sends the boost of every queued song by URI (the per-file map the
+// desktop player gets). This side owns the timing: it knows the real next item and changes
+// the queue in the same run-loop turn, so a song's samples never get more than its own boost
+// (navis_boost_decide): inside the last 3 s the target is the lower of the two songs', a
+// drop applies at once and a rise waits kBoostRaiseAfterMs after the last song event.
+
+- (void)setReplayGainBoost:(NSDictionary *)request result:(FlutterResult)result {
+#if TARGET_OS_IOS
+    if (!_equalizer) {
+        result([FlutterError errorWithCode:@"boost_unavailable" message:@"No audio tap was installed for this player" details:nil]);
+        return;
+    }
+    NSDictionary *raw = [request[@"byUri"] isKindOfClass:[NSDictionary class]] ? request[@"byUri"] : @{};
+    NSMutableDictionary<NSString *, NSNumber *> *map = [NSMutableDictionary dictionaryWithCapacity:raw.count];
+    BOOL positive = NO;
+    for (id key in raw) {
+        id value = raw[key];
+        if (![key isKindOfClass:[NSString class]] || ![value isKindOfClass:[NSNumber class]]) continue;
+        double db = [value doubleValue];
+        db = db > 0 ? fmin(db, NAVIS_BOOST_MAX_DB) : 0;
+        map[key] = @(db);
+        positive = positive || db > 0;
+    }
+    NSDictionary *rawDurations = [request[@"durationMsByUri"] isKindOfClass:[NSDictionary class]] ? request[@"durationMsByUri"] : @{};
+    NSMutableDictionary<NSString *, NSNumber *> *durations = [NSMutableDictionary dictionaryWithCapacity:rawDurations.count];
+    for (id key in rawDurations) {
+        id value = rawDurations[key];
+        if ([key isKindOfClass:[NSString class]] && [value isKindOfClass:[NSNumber class]] && [value doubleValue] > 0) durations[key] = value;
+    }
+    _boostByUri = map;
+    _boostTagDurationMsByUri = durations;
+    _boostMapPositive = positive;
+    [self updateBoostObserver];
+    [self refreshReplayGainBoost];
+    result(@{});
+#else
+    result(FlutterMethodNotImplemented);
+#endif
+}
+
+#if TARGET_OS_IOS
+/// The map key of a queue entry: its URI, or its child's for a clip.
+- (NSString *)boostUriOfSource:(IndexedAudioSource *)source {
+    if ([source isKindOfClass:[ClippingAudioSource class]]) return ((ClippingAudioSource *)source).audioSource.uri;
+    if ([source isKindOfClass:[UriAudioSource class]]) return ((UriAudioSource *)source).uri;
+    return nil;
+}
+
+/// The boost the map gives queue entry `index`: 0 for an unknown entry or URI.
+- (double)boostOwnDbAtIndex:(int)index {
+    if (index < 0 || index >= (int)_indexedAudioSources.count) return 0;
+    NSString *uri = [self boostUriOfSource:_indexedAudioSources[index]];
+    double db = uri ? _boostByUri[uri].doubleValue : 0;
+    return db > 0 ? fmin(db, NAVIS_BOOST_MAX_DB) : 0;
+}
+
+/// The queue index after `index` in play order (the destination of a jump, which is
+/// not queued yet), or -1.
+- (int)boostIndexAfter:(int)index {
+    if (index < 0 || index >= (int)_orderInv.count) return -1;
+    if (_loopMode == lmLoopOne) return index;
+    NSUInteger position = (NSUInteger)[_orderInv[index] intValue];
+    if (position + 1 < _order.count) return [_order[position + 1] intValue];
+    return _loopMode == lmLoopAll && _order.count > 0 ? [_order[0] intValue] : -1;
+}
+
+/// The position of `source` for the guard in media ms, or NAN. A pending seek's target is the
+/// position; otherwise the source's own clock, which reads its `playerItem` and so is only right
+/// while that is the item being heard (not before a loop-all wrap has flipped it).
+- (double)boostPositionMsOfSource:(IndexedAudioSource *)source {
+    if (CMTIME_IS_VALID(_seekPos)) {
+        double seconds = CMTimeGetSeconds(_seekPos);
+        return isfinite(seconds) ? seconds * 1000 : NAN;
+    }
+    NSArray<AVPlayerItem *> *heard = _player.items;
+    if (heard.count == 0 || heard[0] != source.playerItem) return NAN;
+    return CMTimeGetSeconds(source.position) * 1000;
+}
+
+/// Runs the decision for song `index` followed by `nextIndex` (-1: none) and hands the target to the
+/// tap when it changed. `positionMs` is the position in the song (NAN: read the source's clock).
+/// `latch` stores the guard's latch; a jump (a seek, a queue edit) has no settled clock and never latches.
+- (void)applyBoostForIndex:(int)index next:(int)nextIndex position:(double)positionMs latch:(BOOL)latch {
+    NavisBoostInput in = {
+        .ownDb = [self boostOwnDbAtIndex:index],
+        .nextDb = nextIndex >= 0 ? [self boostOwnDbAtIndex:nextIndex] : NAN,
+        .positionMs = NAN, .playerDurationMs = NAN, .tagDurationMs = NAN, .speed = _speed,
+        .latched = _boostLatched, .held = _boostHeld, .previousDb = _boostTargetDb,
+    };
+    if (index >= 0 && index < (int)_indexedAudioSources.count) {
+        IndexedAudioSource *source = _indexedAudioSources[index];
+        in.playerDurationMs = CMTimeGetSeconds(source.duration) * 1000;
+        NSString *uri = [self boostUriOfSource:source];
+        in.tagDurationMs = uri ? _boostTagDurationMsByUri[uri].doubleValue : NAN;
+        in.positionMs = isnan(positionMs) ? [self boostPositionMsOfSource:source] : positionMs;
+    }
+    NavisBoostOutput out;
+    navis_boost_decide(&in, NAVIS_BOOST_GUARD_WINDOW_MS, &out);
+    if (latch) _boostLatched = out.latched;
+    if (out.targetDb != _boostTargetDb || out.guarded != _boostReportedGuarded) {
+        _boostTargetDb = out.targetDb;
+        _boostReportedGuarded = out.guarded;
+        [_equalizer setBoostDb:out.targetDb guarded:out.guarded];
+    }
+}
+
+/// A song event: the song's guard resets and a rise waits. The hold ends on its own timer
+/// unless a newer event replaced it.
+- (void)noteBoostSongEvent {
+    _boostLatched = NO;
+    _boostHeld = YES;
+    uint64_t generation = ++_boostEvents;
+    __weak __typeof__(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kBoostRaiseAfterMs * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf || strongSelf->_boostEvents != generation) return;
+        strongSelf->_boostHeld = NO;
+        [strongSelf refreshReplayGainBoost];
+    });
+}
+
+- (void)updateBoostObserver {
+    BOOL want = _equalizer && _player && _boostMapPositive;
+    if (want && !_boostObserver) {
+        __weak __typeof__(self) weakSelf = self;
+        _boostObserver = [_player addPeriodicTimeObserverForInterval:CMTimeMake(kBoostTickMs, 1000)
+                                                               queue:dispatch_get_main_queue()
+                                                          usingBlock:^(CMTime time) {
+            [weakSelf refreshReplayGainBoost];
+        }];
+    } else if (!want && _boostObserver) {
+        [_player removeTimeObserver:_boostObserver];
+        _boostObserver = nil;
+    }
+}
+#endif
+
+/// Recomputes the target for what the player plays now and what is queued behind it.
+- (void)refreshReplayGainBoost {
+#if TARGET_OS_IOS
+    if (!_equalizer || !_player) return;
+    NSArray<AVPlayerItem *> *items = _player.items;
+    int index = items.count > 0 ? [self indexForItem:(IndexedPlayerItem *)items[0]] : -1;
+    int next = items.count > 1 ? [self indexForItem:(IndexedPlayerItem *)items[1]] : -1;
+    [self applyBoostForIndex:index next:next position:NAN latch:YES];
+#endif
+}
+
+/// The current item or the queue behind it changed (the `currentItem` observer and the end of
+/// enqueueFrom:). A new current item is a song event.
+- (void)noteBoostQueueChanged {
+#if TARGET_OS_IOS
+    if (!_equalizer || !_player) return;
+    if (_player.currentItem != _boostItem) {
+        _boostItem = _player.currentItem;
+        [self noteBoostSongEvent];
+    }
+    [self refreshReplayGainBoost];
+#endif
+}
+
+/// A new queue is loading: its songs are not in the map yet, so the boost drops to 0 (held),
+/// before the flush so that the first block after it plays at 0.
+- (void)noteBoostLoad {
+#if TARGET_OS_IOS
+    if (!_equalizer) return;
+    _boostItem = nil;
+    [self noteBoostSongEvent];
+    [self applyBoostForIndex:-1 next:-1 position:NAN latch:NO];
+#endif
+}
+
+/// The playing song is about to change by a jump: a seek or skip, or a queue edit that removed the
+/// playing item (before the flush, so the first block after it plays at the destination's value). The
+/// destination is judged on its own and the song after it in play order, at `positionMs` (NAN:
+/// unknown, which guards without latching). A position and a known duration (the tag's, if the
+/// player has none yet) let a seek inside the playing song keep its own boost; the hold still keeps
+/// a rise back, and the decision never latches.
+- (void)noteBoostJumpToIndex:(int)destination positionMs:(double)positionMs {
+#if TARGET_OS_IOS
+    if (!_equalizer || !_player) return;
+    [self noteBoostSongEvent];
+    [self applyBoostForIndex:destination next:[self boostIndexAfter:destination] position:positionMs latch:NO];
+#endif
+}
+
+- (void)noteBoostSeekToIndex:(NSNumber *)newIndex position:(CMTime)position {
+#if TARGET_OS_IOS
+    int destination = (newIndex != nil && newIndex != (id)[NSNull null]) ? [newIndex intValue] : _index;
+    double seconds = CMTIME_IS_NUMERIC(position) ? CMTimeGetSeconds(position) : NAN;
+    [self noteBoostJumpToIndex:destination positionMs:isfinite(seconds) ? seconds * 1000 : NAN];
+#endif
+}
+
+// Every queued item gets the equalizer's shared tap and its ReplayGain cut in the same run-loop turn
+// as its insert (see enqueueFrom:). Attaching is synchronous and loads no tracks, so covering the
+// whole queue costs nothing. An item that already has its mix keeps it, except that the cut is
+// re-assigned if it moved (an item removed and re-inserted by a skip back or a reorder); `heard`,
+// the item that keeps playing through this rebuild, is never touched: its cut is frozen at its
+// start and only a live setReplayGainLevels moves it.
+- (void)attachEqualizerToQueueKeeping:(AVPlayerItem *)heard {
+#if TARGET_OS_IOS
+    for (AVPlayerItem *item in _player.items) {
+        float volume = [self replayGainCutVolumeForItem:item];
+        [_equalizer attachToItem:item volume:volume];
+        if (item != heard) [_equalizer setVolume:volume forItem:item];
+    }
+#endif
+}
+
+#if TARGET_OS_IOS
+/// The uri source whose stamp governs `item`: the item's own, or a clip's child.
+static UriAudioSource *uriSourceOf(IndexedAudioSource *source) {
+    if ([source isKindOfClass:[ClippingAudioSource class]]) return ((ClippingAudioSource *)source).audioSource;
+    if ([source isKindOfClass:[UriAudioSource class]]) return (UriAudioSource *)source;
+    return nil;
+}
+
+/// The volume of the item's ReplayGain cut (I26), from the dB stamped on its source: 1 for an
+/// unstamped item (radio, nil).
+- (float)replayGainCutVolumeForItem:(AVPlayerItem *)item {
+    UriAudioSource *source = uriSourceOf(((IndexedPlayerItem *)item).audioSource);
+    return navis_replaygain_cut_linear(source.replayGainDb ? source.replayGainDb.doubleValue : NAN);
+}
+#endif
+
+// MARK: Navis: ReplayGain cut in the item audio mix (iOS, I26)
+//
+// Each item's audio mix carries its own ReplayGain cut as the input volume, so the cut starts at
+// the item's first sample. The app stamps the signed dB on each source (`replayGainDb`, in the load
+// and insert messages) and sends later changes here by source id. Everything is on the main thread.
+// The heard item (items[0]) changes only for a `live` push, as the Dart handler freezes it at its start.
+
+- (void)setReplayGainLevels:(NSDictionary *)request result:(FlutterResult)result {
+#if TARGET_OS_IOS
+    NSDictionary *byId = [request[@"byId"] isKindOfClass:[NSDictionary class]] ? request[@"byId"] : @{};
+    BOOL live = [request[@"live"] respondsToSelector:@selector(boolValue)] && [request[@"live"] boolValue];
+    // One pass over the queue entries: a clip is keyed by its child, which holds the stamp.
+    // The heard entry's stored value updates too, so its next start uses it.
+    for (IndexedAudioSource *indexed in _indexedAudioSources) {
+        UriAudioSource *source = uriSourceOf(indexed);
+        id value = source.sourceId ? byId[source.sourceId] : nil;
+        if ([value isKindOfClass:[NSNumber class]]) source.replayGainDb = value;
+    }
+    if (_equalizer) {
+        NSArray<AVPlayerItem *> *items = _player.items;
+        for (NSUInteger i = 0; i < items.count; i++) {
+            if (i == 0 && !live) continue;
+            [_equalizer setVolume:[self replayGainCutVolumeForItem:items[i]] forItem:items[i]];
+        }
+    }
+#endif
+    result(@{});
+}
+
+// Navis: a seek, skip or new load; the equalizer drops its filter history at
+// the next block of audio.
+- (void)noteEqualizerFlush {
+#if TARGET_OS_IOS
+    [_equalizer noteFlush];
+#endif
+}
+
+// Navis: the transition gap meter samples only while playing.
+- (void)noteEqualizerPlaying:(BOOL)playing {
+#if TARGET_OS_IOS
+    [_equalizer setPlaying:playing];
+#endif
 }
 
 - (AVQueuePlayer *)player {
@@ -300,7 +726,21 @@
 - (void)checkForDiscontinuity {
     if (!_playing || CMTIME_IS_VALID(_seekPos) || _processingState == psCompleted) return;
     int position = [self getCurrentPosition];
-    if (_processingState == psBuffering) {
+    if (@available(macOS 10.12, iOS 10.0, *)) {
+        // I45 (#526): buffering is timeControlStatus's job here. Only re-stamp the
+        // position when the running clock drifted from the stamp; never enterBuffering.
+        if (_processingState == psReady && position > _lastPosition && _updateTime != 0L) {
+            long long now = (long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
+            long long expectedPosition = _updatePosition + (long long)((now - _updateTime) * _player.rate);
+            // At most once a second: a rate the item cannot really play (e.g. a stream above 2x)
+            // drifts on every tick, and re-stamping every 200 ms would flood the event channel.
+            if (llabs(position - expectedPosition) > kRestampDriftMs && now - _lastRestampTime >= 1000) {
+                _lastRestampTime = now;
+                [self updatePosition];
+                [self broadcastPlaybackEvent];
+            }
+        }
+    } else if (_processingState == psBuffering) {
         if (position > _lastPosition) {
             [self leaveBuffering:@"stall ended"];
             [self updatePosition];
@@ -470,12 +910,11 @@
 
 - (AudioSource *)decodeAudioSource:(NSDictionary *)data {
     NSString *type = data[@"type"];
-    if ([@"progressive" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
-    } else if ([@"dash" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
-    } else if ([@"hls" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
+    if ([@"progressive" isEqualToString:type] || [@"dash" isEqualToString:type] || [@"hls" isEqualToString:type]) {
+        UriAudioSource *source = [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
+        // Navis (I26): the app's ReplayGain stamp; a clip's child carries the clip's gain.
+        if ([data[@"replayGainDb"] isKindOfClass:[NSNumber class]]) source.replayGainDb = data[@"replayGainDb"];
+        return source;
     } else if ([@"concatenating" isEqualToString:type]) {
         return [[ConcatenatingAudioSource alloc] initWithId:data[@"id"]
                                                audioSources:[self decodeAudioSources:data[@"children"]]
@@ -511,14 +950,46 @@
     IndexedPlayerItem *oldItem = (IndexedPlayerItem *)_player.currentItem;
     IndexedPlayerItem *existingItem = nil;
     IndexedPlayerItem *newItem = _indexedAudioSources.count > 0 ? _indexedAudioSources[_index].playerItem : nil;
+#if TARGET_OS_IOS
+    // The playing item changes and no seek, skip or load flushed for it: a queue edit removed it (the
+    // next song takes over, neither a natural advance nor a seek). Decide the new song's boost and
+    // flush before the queue is rebuilt, so its first block does not ramp down from the old song's gain.
+    BOOL flushedByCommand = _commandFlushed;
+    _commandFlushed = NO;
+    if (_equalizer && oldItem && newItem && oldItem != newItem && !flushedByCommand) {
+        [self noteBoostJumpToIndex:_index positionMs:NAN];
+        [self noteEqualizerFlush];
+    }
+#endif
     NSArray *oldPlayerItems = [NSArray arrayWithArray:_player.items];
+    // Navis: queued items that are already in the right order stay as they are.
+    // Removing and re-inserting the prefetched next item (every append of a
+    // queue fill does) restarts its audio pipeline, which breaks the gapless
+    // join to it. Only while the playing item stays first and not looping.
+    NSMutableSet<AVPlayerItem *> *kept = [NSMutableSet set];
+#if TARGET_OS_IOS
+    if (_loopMode == lmLoopOff && newItem && oldPlayerItems.count > 0 && oldPlayerItems[0] == newItem) {
+        BOOL inOrder = NO;
+        NSUInteger matched = 0;
+        for (int i = 0; i < [_order count]; i++) {
+            int si = [_order[i] intValue];
+            if (si == _index) inOrder = YES;
+            if (!inOrder) continue;
+            AVPlayerItem *wanted = _indexedAudioSources[si].playerItem;
+            if (matched >= oldPlayerItems.count || oldPlayerItems[matched] != wanted) break;
+            [kept addObject:wanted];
+            matched++;
+        }
+    }
+#endif
     // In the first pass, preserve the old and new items.
-    // TODO: preserve as much of the treadmill as possible
     for (int i = 0; i < oldPlayerItems.count; i++) {
         if (oldPlayerItems[i] == newItem) {
             // Preserve and tag new item if it is already in the queue.
             existingItem = oldPlayerItems[i];
             //NSLog(@"Preserving existing item %d", [self indexForItem:existingItem]);
+        } else if ([kept containsObject:oldPlayerItems[i]]) {
+            // Navis: already queued in the right order.
         } else if (oldPlayerItems[i] == oldItem) {
             //NSLog(@"Preserving old item %d", [self indexForItem:oldItem]);
             // Temporarily preserve old item, just to avoid jumping to
@@ -546,14 +1017,15 @@
         for (int i = 0; i < [_order count]; i++) {
             int si = [_order[i] intValue];
             if (si == _index) include = YES;
-            if (include && _indexedAudioSources[si].playerItem != existingItem) {
+            if (include && _indexedAudioSources[si].playerItem != existingItem
+                && ![kept containsObject:_indexedAudioSources[si].playerItem]) {
                 if (_indexedAudioSources[si].lazyLoading && _player.items.count >= TREADMILL_SIZE) {
                     // Enqueue up until the first lazy item that does not fit on the treadmill.
                     _enqueuedAll = NO;
                     break;
                 }
                 //NSLog(@"inserting item %d", si);
-                [_player insertItem:_indexedAudioSources[si].playerItem afterItem:nil];
+                [self insertQueueItem:_indexedAudioSources[si].playerItem];
                 if (_loopMode == lmLoopOne) {
                     // We only want one item in the queue.
                     break;
@@ -571,19 +1043,21 @@
                 [_indexedAudioSources[si] preparePlayerItem2];
                 [self addItemObservers:_indexedAudioSources[si].playerItem2];
             }
-            [_player insertItem:_indexedAudioSources[si].playerItem2 afterItem:nil];
+            [self insertQueueItem:_indexedAudioSources[si].playerItem2];
         } else if (_loopMode == lmLoopOne) {
             //NSLog(@"### add loop item:%d", _index);
             if (!_indexedAudioSources[_index].playerItem2) {
                 [_indexedAudioSources[_index] preparePlayerItem2];
                 [self addItemObservers:_indexedAudioSources[_index].playerItem2];
             }
-            [_player insertItem:_indexedAudioSources[_index].playerItem2 afterItem:nil];
+            [self insertQueueItem:_indexedAudioSources[_index].playerItem2];
         }
     }
 
     /* NSLog(@"after reorder: _player.items.count: ", _player.items.count); */
     /* [self dumpQueue]; */
+    [self attachEqualizerToQueueKeeping:existingItem];
+    [self noteBoostQueueChanged];
 
     if (_processingState != psLoading && oldItem != newItem) {
         // || !_player.currentItem.playbackLikelyToKeepUp;
@@ -604,6 +1078,9 @@
 }
 
 - (void)load:(NSDictionary *)source initialPosition:(CMTime)initialPosition initialIndex:(NSNumber *)initialIndex result:(FlutterResult)result {
+    [self noteBoostLoad]; // before the flush
+    [self noteEqualizerFlush];
+    _commandFlushed = YES; // enqueueFrom: below need not flush again
     if (_playing) {
         [_player pause];
     }
@@ -687,15 +1164,13 @@
         //__weak __typeof__(self) weakSelf = self;
         //typeof(self) __weak weakSelf = self;
         __unsafe_unretained typeof(self) weakSelf = self;
-        if (@available(macOS 10.12, iOS 10.0, *)) {}
-        else {
-            _timeObserver = [_player addPeriodicTimeObserverForInterval:CMTimeMake(200, 1000)
-                                                                  queue:nil
-                                                             usingBlock:^(CMTime time) {
-                                                                 [weakSelf checkForDiscontinuity];
-                                                             }
-            ];
-        }
+        // ponytail: 200 ms polling; a boundary observer if battery shows it.
+        _timeObserver = [_player addPeriodicTimeObserverForInterval:CMTimeMake(200, 1000)
+                                                              queue:nil
+                                                         usingBlock:^(CMTime time) {
+                                                             [weakSelf checkForDiscontinuity];
+                                                         }
+        ];
     }
     // Initialise the AVQueuePlayer with items.
     [self enqueueFrom:_index];
@@ -710,6 +1185,9 @@
     [_player setVolume:_volume];
     [self broadcastPlaybackEvent];
 
+#if TARGET_OS_IOS
+    [self updateBoostObserver];
+#endif
     if (_loadResult && (_indexedAudioSources.count == 0 || !_player.currentItem ||
             _player.currentItem.status == AVPlayerItemStatusReadyToPlay)) {
         _processingState = psReady;
@@ -924,6 +1402,7 @@
         }
         //NSLog(@"currentItem changed. _index=%d", _index);
         _bufferUnconfirmed = YES;
+        [self noteBoostQueueChanged];
         // If we've skipped or transitioned to a new item and we're not
         // currently in the middle of a seek
         /* if (CMTIME_IS_INVALID(_seekPos) && playerItem.status == AVPlayerItemStatusReadyToPlay) { */
@@ -1046,6 +1525,7 @@
         _playResult = result;
     }
     _playing = YES;
+    [self noteEqualizerPlaying:YES];
     _player.rate = _speed;
     [self updatePosition];
     if (@available(macOS 10.12, iOS 10.0, *)) {}
@@ -1060,6 +1540,7 @@
 - (void)pause {
     if (!_playing) return;
     _playing = NO;
+    [self noteEqualizerPlaying:NO];
     [_player pause];
     [self updatePosition];
     [self broadcastPlaybackEvent];
@@ -1120,6 +1601,10 @@
         _player.rate = speed;
     }
     [self updatePosition];
+    [self refreshReplayGainBoost];
+#if TARGET_OS_IOS
+    [self scheduleRatePlan];
+#endif
 }
 
 - (void)setLoopMode:(int)loopMode {
@@ -1212,6 +1697,9 @@
         }
         return;
     }
+    // A user seek or skip (also the first half of a jump to another item).
+    [self noteBoostSeekToIndex:newIndex position:position]; // before the flush
+    [self noteEqualizerFlush];
     int index = _index;
     if (newIndex != (id)[NSNull null]) {
         index = [newIndex intValue];
@@ -1236,6 +1724,7 @@
             // The "currentItem" key observer will respect that a seek is already in progress
             _seekPos = position;
             [self updatePosition];
+            _commandFlushed = YES; // this jump flushed already
             [self enqueueFrom:index];
             IndexedAudioSource *source = _indexedAudioSources[_index];
             if (abs((int)(1000 * CMTimeGetSeconds(CMTimeSubtract(source.position, position)))) > 100) {
@@ -1365,6 +1854,11 @@
         [_player removeTimeObserver:_timeObserver];
         _timeObserver = 0;
     }
+#if TARGET_OS_IOS
+    _boostMapPositive = NO;
+    [self updateBoostObserver];
+    _boostEvents++; // cancels a pending rise
+#endif
     if (_indexedAudioSources) {
         for (int i = 0; i < [_indexedAudioSources count]; i++) {
             [self removeItemObservers:_indexedAudioSources[i].playerItem];
@@ -1383,6 +1877,10 @@
         _player = nil;
     }
     // Untested:
+#if TARGET_OS_IOS
+    [_equalizer dispose];
+    _equalizer = nil;
+#endif
     [_eventChannel dispose];
     [_dataEventChannel dispose];
     [_methodChannel setMethodCallHandler:nil];

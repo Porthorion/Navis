@@ -43,6 +43,14 @@ abstract final class AppConstants {
     defaultValue: true,
   );
 
+  /// Whether this is the unsigned iOS build attached to GitHub releases for
+  /// AltStore/SideStore. Only that build checks for updates, and it can only
+  /// link to the release page: iOS cannot install an update by itself.
+  ///
+  /// Set by `tool/release.sh` via `--dart-define=NAVIS_IOS_SIDELOAD=true`;
+  /// App Store, TestFlight, dev and simulator builds leave it `false`.
+  static const bool iosSideload = bool.fromEnvironment('NAVIS_IOS_SIDELOAD');
+
   /// Google Play listing for the stable Android package.
   static const String playStorePackageName = 'com.navis.app.navis';
 

@@ -208,21 +208,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       );
       // Network failures retain the station and its requested playback.
       if (_radioStation != null && _isTransientRadioFailure(error)) {
-        final station = _radioStation!;
-        final previous = _pendingRadioRecovery;
-        _pendingRadioRecovery = (
-          generation: _transportGeneration,
-          station: station,
-          // A repeated failure during one outage keeps its recovery budget.
-          since: _radioOutageStart(station, previous),
-        );
-        _radioMetadataService.stop();
-        AppLogger.startup(
-          StartupEvent.radioRecovery,
-          outcome: StartupOutcome.offline,
-        );
-        _scheduleNetworkPlaybackRetry();
-        unawaited(_recoverRadioAfterNetworkFailure());
+        _beginRadioRecovery(reason: 'playback event stream error');
       } else if (_radioStation != null) {
         unawaited(_stopUnavailableRadio());
       } else {
@@ -297,7 +283,12 @@ extension _NavisMediaSession on NavisAudioHandler {
       final processing = _player.processingState;
       final index = _player.currentIndex;
       if (processing == ProcessingState.completed) {
-        _continueIntoDeferredTail();
+        // A live station never legitimately completes: its connection ended.
+        if (_radioStation != null) {
+          _beginRadioRecovery(reason: 'station stream ended', onlyIfIdle: true);
+        } else {
+          _continueIntoDeferredTail();
+        }
       } else {
         _endedSeekEcho = null;
       }
@@ -348,7 +339,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       index,
     ) async {
       // Let a same-turn discontinuity claim a cut before publishing its successor.
-      if (_isDesktopRuntime) await Future<void>.value();
+      await Future<void>.value();
       if (_prematureTranscodeDeparture != null ||
           !identical(_player, wiredPlayer) ||
           index != wiredPlayer.currentIndex) {
@@ -717,13 +708,22 @@ extension _NavisMediaSession on NavisAudioHandler {
       ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.android
       : _isAndroidRuntime;
 
+  /// Whether the player is iOS's AVQueuePlayer with the equalizer's tap (same
+  /// injection rule). Its boost is a gain stage in that tap, which gets the
+  /// per-file map and owns the timing natively.
+  bool get _usesIos => _adjustmentCapabilities != null
+      ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.ios
+      : _isIosRuntime;
+
   /// The player volume for [item]: the user volume (ducked or not) scaled by
   /// its ReplayGain cut, which only ever turns the song down. Turning a song
   /// up is the platform's boost stage ([_applyReplayGainBoost]), which a
   /// 0..1 volume cannot do.
   ///
-  /// ExoPlayer's volume is linear, so the gain is `10^(dB/20)`. mpv's volume
-  /// is cubic (volume 50 is -18 dB), so the same dB needs `10^(dB/60)`.
+  /// The player volume is linear (ExoPlayer, AVQueuePlayer), so the gain is
+  /// `10^(dB/20)`. A backend with a stage (mpv's `@navis_rg` filter, Android's
+  /// processor, iOS's item audio mix) never gets here: its cut is applied in
+  /// the pipeline.
   /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
     final base = _baseVolumeFor();
@@ -735,8 +735,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       playOrder: _loadingPlayOrder(item),
     )?.cutDb;
     if (gainDb == null) return base;
-    return (math.pow(10, gainDb / (_usesMpv ? 60 : 20)).toDouble() * base)
-        .clamp(0.0, 1.0);
+    return (math.pow(10, gainDb / 20).toDouble() * base).clamp(0.0, 1.0);
   }
 
   /// While a replacement loads, the incoming play order around its start
@@ -831,7 +830,8 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// it without freezing.
   ///
   /// In the pipeline this is the update push of every queued song's level
-  /// ([_pushReplayGainLevels]); [live] is set only by a settings change.
+  /// ([_pushReplayGainLevels]); [live] is set only by a settings change. iOS
+  /// also sends the per-file boost map ([_sendReplayGainBoostTo]).
   void _applyReplayGainBoost({bool live = false}) {
     if (!replayGainBoostSupported && !replayGainInPipeline) return;
     unawaited(
@@ -849,25 +849,66 @@ extension _NavisMediaSession on NavisAudioHandler {
     AudioPlayer player, {
     bool live = false,
   }) async {
-    if (replayGainInPipeline) return _pushReplayGainLevels(player, live: live);
+    if (!replayGainInPipeline) return _sendReplayGainBoostTo(player);
+    // iOS carries the cut in each item's audio mix and the boost in the tap:
+    // both go out, and a failure of one must not stop the other.
+    if (!_usesIos) return _pushReplayGainLevels(player, live: live);
+    try {
+      await _pushReplayGainLevels(player, live: live);
+    } on Object catch (error) {
+      AppLogger.debug('ReplayGain levels could not be pushed: $error');
+    }
+    await _sendReplayGainBoostTo(player);
+  }
+
+  /// The per-file boost map of the iOS tap (and of a backend that boosts per
+  /// file without an in-pipeline stage).
+  Future<void> _sendReplayGainBoostTo(AudioPlayer player) async {
     final current = player.currentIndex;
     final bySource = <IndexedAudioSource, double>{};
+    final durationMsBySource = <IndexedAudioSource, int>{};
     final sequence = player.sequence;
+    final albumIds = _mirroredAlbumIds(player, sequence);
     for (var i = 0; i < sequence.length; i++) {
       final item = _mediaItemOfSource(sequence[i]);
       if (item == null) continue;
+      // Per entry, as in [_pushReplayGainLevels]: a song queued twice has two
+      // boosts. The heard entry on the main deck freezes the pair recorded
+      // for it; an entry the queue does not name that way reads the queue.
+      final heard = identical(player, _player) && i == current;
+      final entryOrder =
+          albumIds == null ||
+              heard ||
+              _canonicalSongId(_queueItems[i].id) != _canonicalSongId(item.id)
+          ? null
+          : (albumIds: albumIds, index: i);
       bySource[sequence[i]] =
           _replayGainDecisionFor(
             item,
-            freeze: identical(player, _player) && i == current,
+            freeze: heard,
+            heard: heard ? sequence[i] : null,
+            playOrder: entryOrder,
           )?.boostDb ??
           0;
+      // The tag's duration times the iOS guard along with the player's own.
+      final tagMs = item.duration?.inMilliseconds;
+      if (tagMs != null && tagMs > 0) durationMsBySource[sequence[i]] = tagMs;
     }
     await player.setReplayGainBoost(
       currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
       bySource: bySource,
+      durationMsBySource: durationMsBySource,
     );
   }
+
+  /// The queue's album ids when [player] is the main deck and mirrors the
+  /// queue entry for entry, else null.
+  List<String?>? _mirroredAlbumIds(
+    AudioPlayer player,
+    List<IndexedAudioSource> sequence,
+  ) => identical(player, _player) && sequence.length == _queueItems.length
+      ? [for (final item in _queueItems) item.extras?['albumId'] as String?]
+      : null;
 
   /// Updates one deck's in-pipeline level of every song it holds. Nothing
   /// freezes here: the heard song freezes at its start from the pair this push
@@ -882,10 +923,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     // The main deck mirrors the queue, so each entry reads its own neighbours
     // there (a song queued twice is two entries), as its seed did. The heard
     // entry keeps its frozen pair.
-    final albumIds =
-        identical(player, _player) && sequence.length == _queueItems.length
-        ? [for (final item in _queueItems) item.extras?['albumId'] as String?]
-        : null;
+    final albumIds = _mirroredAlbumIds(player, sequence);
     for (var i = 0; i < sequence.length; i++) {
       final source = sequence[i];
       final item = _mediaItemOfSource(source);
@@ -947,6 +985,18 @@ extension _NavisMediaSession on NavisAudioHandler {
           'currentKey': equalizerState.replayGainCurrentKey,
           'appliedDb': equalizerState.replayGainAppliedDb,
           'clipSamples': equalizerState.boostClipSamples,
+        }
+      : _usesIos && replayGainBoostSupported
+      // The iOS tap owns the guard, so what it reports is all there is.
+      ? <String, Object?>{
+          'requestedDb': equalizerState.boostRequestedDb,
+          'appliedDb': equalizerState.boostAppliedDb,
+          'guarded': equalizerState.boostGuarded,
+          'clipSamples': equalizerState.boostClipSamples,
+          // The cut in the item audio mix (I26): what native assigned to the
+          // playing item and to the one queued after it, in dB.
+          'cutDb': equalizerState.replayGainCutDb,
+          'nextCutDb': equalizerState.replayGainNextCutDb,
         }
       : null;
 
@@ -1091,6 +1141,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   EqualizerConfigurationMessage _equalizerMessage(EqConfiguration values) =>
       EqualizerConfigurationMessage(
+        diagnostics: diagnosticsBuildEnabled,
         enabled: values.enabled,
         preampDb: values.preampDb,
         autoHeadroom: values.autoHeadroom,
@@ -1120,7 +1171,37 @@ extension _NavisMediaSession on NavisAudioHandler {
         pending: native.pending,
         replayGainCurrentKey: native.replayGainCurrentKey,
         replayGainAppliedDb: native.replayGainAppliedDb,
+        boostRequestedDb: native.boostRequestedDb,
+        boostAppliedDb: native.boostAppliedDb,
         boostClipSamples: native.boostClipSamples,
+        boostGuarded: native.boostGuarded,
+        replayGainCutDb: native.replayGainCutDb,
+        replayGainNextCutDb: native.replayGainNextCutDb,
+        processedFrames: native.processedFrames,
+        levelDeltaDb: native.levelDeltaDb,
+        resetCount: native.resetCount,
+        tapPrepareCount: native.tapPrepareCount,
+        flushCount: native.flushCount,
+        transitionGapsMs: native.transitionGapsMs,
+        pitchCents: native.pitchCents,
+        timePitchAlgorithm: native.timePitchAlgorithm,
+        frequencyScale: native.frequencyScale,
+        pitchActive: native.pitchActive,
+        pitchLatencyFrames: native.pitchLatencyFrames,
+        pitchResetCount: native.pitchResetCount,
+        pitchInputHz: native.pitchInputHz,
+        pitchOutputHz: native.pitchOutputHz,
+        pitchPullMismatches: native.pitchPullMismatches,
+        pitchReason: native.pitchReason,
+        formatStreams: native.formatStreams
+            ?.map((stream) => stream.toJson())
+            .toList(growable: false),
+        unmatchedFrames: native.unmatchedFrames,
+        overlapBlocks: native.overlapBlocks,
+        livePipelines: native.livePipelines,
+        prepareCalls: native.prepareCalls,
+        unprepareCalls: native.unprepareCalls,
+        clampedUnprepares: native.clampedUnprepares,
       ),
     );
   }
@@ -1184,11 +1265,16 @@ extension _NavisMediaSession on NavisAudioHandler {
         : values;
     // Issued together so the desktop backend can apply both with one audio
     // filter rebuild; every failure is still observed.
-    await Future.wait(<Future<void>>[
-      player.setSpeed(effective.speed),
-      if (playbackAdjustmentCapabilities.pitchSupported)
-        player.setPitch(effective.pitchFactor),
-    ]);
+    try {
+      await Future.wait(<Future<void>>[
+        player.setSpeed(effective.speed),
+        if (playbackAdjustmentCapabilities.pitchSupported)
+          player.setPitch(effective.pitchFactor),
+      ]);
+    } on PlatformException catch (error) {
+      if (error.code == 'pitch_unavailable') _pitchUnavailable = true;
+      rethrow;
+    }
   }
 
   /// Re-applies the saved values after [_radioStation] changed. Runs on

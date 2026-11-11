@@ -470,6 +470,8 @@ class ServerDataResetService {
   }
 
   Future<_UserFolder?> _userOwnedDownloadFolder() async {
+    // iOS has no custom folder; an old persisted choice is ignored there.
+    if (Platform.isIOS) return null;
     final settings = await _database.appSettingsDao.getSettings();
     final path = settings?.customDownloadFolderPath?.trim();
     if (settings?.customDownloadFolderEnabled != true ||

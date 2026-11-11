@@ -1244,13 +1244,20 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     Duration duration = const Duration(milliseconds: 170),
     Curve curve = Curves.easeOutCubic,
   }) {
-    _artSwipeController.duration = duration;
+    // Reduce Motion: snap instead of animating; the swipe still works.
+    _artSwipeController.duration = MotionPolicy.of(context).reduceMotion
+        ? Duration.zero
+        : duration;
     return _artSwipeController.animateTo(target, curve: curve);
   }
 
   void _showTrackNavigationFeedback(_TrackNavigationFeedback feedback) {
     _trackNavigationFeedbackResetTimer?.cancel();
     setState(() => _trackNavigationFeedback = feedback);
+    _trackNavigationFeedbackController.duration =
+        MotionPolicy.of(context).reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 150);
     _trackNavigationFeedbackController.forward(from: 0);
     _trackNavigationFeedbackResetTimer = Timer(
       const Duration(milliseconds: 170),
@@ -1734,18 +1741,38 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     // Local factories for the pieces the three layouts (compact-wide,
     // standard and split) construct identically. Each layout still supplies
     // its own keys, geometry and animation wrappers.
-    Widget buildCurrentArt(double radioArtMaxSize) => hasCoverArtId
-        ? _CoverArt(
-            coverArtId: coverArtId,
-            semanticLabel: title,
-            isExternalSource: song?.isExternal ?? false,
+    // A song cover is a square of the slot it is given, so it fills the slot
+    // whatever the image's size (a 48 px cover stayed 48 px on an iPad Pro, a
+    // 600 px one filled the slot). [maxSize] only applies on an axis with no
+    // bound at all. The phone layout's tight SizedBox.square still wins.
+    Widget squareArt(double maxSize, Widget child) => LayoutBuilder(
+      builder: (context, constraints) {
+        final side = math.min(constraints.maxWidth, constraints.maxHeight);
+        return SizedBox.square(
+          dimension: side.isFinite ? side : maxSize,
+          child: child,
+        );
+      },
+    );
+
+    Widget buildCurrentArt(double maxSize) => hasCoverArtId
+        ? squareArt(
+            maxSize,
+            _CoverArt(
+              coverArtId: coverArtId,
+              semanticLabel: title,
+              isExternalSource: song?.isExternal ?? false,
+            ),
           )
         : (hasMediaArtUrl
-              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: radioArtMaxSize)
-              : _CoverArt(
-                  coverArtId: null,
-                  semanticLabel: title,
-                  isExternalSource: song?.isExternal ?? false,
+              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: maxSize)
+              : squareArt(
+                  maxSize,
+                  _CoverArt(
+                    coverArtId: null,
+                    semanticLabel: title,
+                    isExternalSource: song?.isExternal ?? false,
+                  ),
                 ));
 
     Widget buildTrackInfo({
@@ -2131,8 +2158,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 child: IgnorePointer(
                   ignoring: compactOverlayPage == null,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    reverseDuration: const Duration(milliseconds: 220),
+                    duration: artLyricsSwapDuration,
+                    reverseDuration: artLyricsSwapDuration,
                     switchInCurve: Curves.easeOut,
                     switchOutCurve: Curves.easeIn,
                     // _CompactWideOverlaySheet owns all its animation;
@@ -2868,8 +2895,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ),
                     Positioned.fill(
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        reverseDuration: const Duration(milliseconds: 220),
+                        duration: artLyricsSwapDuration,
+                        reverseDuration: artLyricsSwapDuration,
                         switchInCurve: Curves.easeOut,
                         switchOutCurve: Curves.easeIn,
                         layoutBuilder: (currentChild, previousChildren) {

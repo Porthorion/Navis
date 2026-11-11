@@ -158,17 +158,36 @@ void main() {
     expect(fallbacks, ['HapticFeedbackType.heavyImpact']);
   });
 
-  test(
-    'iOS uses the Flutter primitives and never the Android channel',
-    () async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      nativeAnswers(true);
-      NavisHaptics.toggle(c, true);
+  test('iOS asks the native channel for every kind, like Android', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    nativeAnswers(true);
+    for (final entry in vocabulary.entries) {
+      kinds.clear();
+      entry.value.fire();
       await settle();
-      expect(kinds, isEmpty);
-      expect(fallbacks, ['HapticFeedbackType.lightImpact']);
-    },
-  );
+      expect(kinds, [entry.key], reason: entry.key);
+    }
+    expect(fallbacks, isEmpty);
+  });
+
+  test('iOS falls back to the Flutter primitive without the channel', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    messenger.setMockMessageHandler(channel.name, (message) async => null);
+    NavisHaptics.toggle(c, true);
+    await settle();
+    expect(fallbacks, ['HapticFeedbackType.lightImpact']);
+    messenger.setMockMessageHandler(channel.name, null);
+  });
+
+  test('iOS honours the prefs gate before the channel', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    nativeAnswers(true);
+    NavisHaptics.prefs = const HapticsPrefs(enabled: false);
+    NavisHaptics.confirm(c);
+    await settle();
+    expect(kinds, isEmpty);
+    expect(fallbacks, isEmpty);
+  });
 
   for (final platform in [
     TargetPlatform.linux,

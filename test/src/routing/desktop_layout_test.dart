@@ -152,6 +152,22 @@ void main() {
       (Size(900, 620), EdgeInsets.zero, rail),
       (Size(1280, 720), EdgeInsets.zero, rail),
       (Size(1366, 955), EdgeInsets.zero, rail),
+      // I46 iPads (no side insets). 11 and 10th-gen portrait stay under the
+      // 840 rail breakpoint on purpose: they keep the bottom bar.
+      (Size(1032, 1376), EdgeInsets.zero, rail), // 13" portrait
+      (Size(1376, 1032), EdgeInsets.zero, rail), // 13" landscape
+      (Size(1024, 1366), EdgeInsets.zero, rail), // 12.9" portrait
+      (Size(834, 1194), EdgeInsets.zero, bottomNav), // 11" portrait
+      (Size(1194, 834), EdgeInsets.zero, rail), // 11" landscape
+      (Size(820, 1180), EdgeInsets.zero, bottomNav), // 10th gen portrait
+      (Size(756, 1158), EdgeInsets.zero, bottomNav), // mini portrait
+      (Size(1158, 756), EdgeInsets.zero, rail), // mini landscape
+      (Size(744, 1133), EdgeInsets.zero, bottomNav), // mini (older) portrait
+      (Size(1133, 744), EdgeInsets.zero, rail), // mini (older) landscape
+      (Size(981, 1032), EdgeInsets.zero, rail), // Split View 2/3 of 13"
+      (Size(678, 1024), EdgeInsets.zero, bottomNav), // Split View 1/2
+      (Size(507, 1032), EdgeInsets.zero, bottomNav), // Split View 1/3
+      (Size(320, 1376), EdgeInsets.zero, bottomNav), // Slide Over
     ];
 
     test('resolves the mode matrix by size and insets', () {

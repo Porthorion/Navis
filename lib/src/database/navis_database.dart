@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:drift/native.dart';
 import 'package:navis/src/utils/search_text.dart';
@@ -311,8 +312,49 @@ class NavisDatabase extends _$NavisDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
       await customStatement('PRAGMA journal_mode = WAL');
       await _createIndexes();
+      await _rebaseContainerPaths();
     },
   );
+
+  /// Reads the current iOS container root; replaced by tests.
+  @visibleForTesting
+  static Future<String?> Function() containerHomeReader = iosContainerHome;
+
+  /// True when this launch could not move stored iOS container paths. The
+  /// stored paths may then be stale, so the startup passes that delete records
+  /// or files because a path looks missing must not run.
+  bool containerRebaseFailed = false;
+
+  /// [containerRebaseFailed] once the database is open. The rebase runs in
+  /// `beforeOpen` on the first query, so a caller that has not queried yet
+  /// would read the flag too early; this opens the database first.
+  Future<bool> hasUnverifiedContainerPaths() async {
+    await customSelect('SELECT 1').get();
+    return containerRebaseFailed;
+  }
+
+  /// Runs inside beforeOpen, which Drift completes before any other query:
+  /// the audio handler's cache pruning and the download service's startup
+  /// recovery can only read paths already moved to the current iOS container.
+  Future<void> _rebaseContainerPaths() async {
+    try {
+      final home = await containerHomeReader();
+      if (home == null) return;
+      final rewritten = await cacheDao.rebaseContainerPaths(home);
+      if (rewritten > 0) {
+        AppLogger.info(
+          'Moved $rewritten stored file path(s) to this container.',
+        );
+      }
+    } on Object catch (error) {
+      // The database still opens; the destructive startup passes stay off.
+      containerRebaseFailed = true;
+      AppLogger.warning(
+        'Container path rebase failed, startup cleanup skipped: '
+        '${error.runtimeType}',
+      );
+    }
+  }
 
   Future<void> _createFreshDatabase(Migrator migrator) async {
     await migrator.createAll();

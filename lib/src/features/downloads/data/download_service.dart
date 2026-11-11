@@ -178,20 +178,28 @@ class DownloadService {
     AppLocalizations Function()? readLocalizations,
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
+    Future<Directory> Function()? readApplicationDocumentsDirectory,
     PermanentArtworkStore? artworkStore,
     Future<void> Function(Directory)? validateCustomRoot,
     this.folderRecheckInterval = const Duration(seconds: 5),
     this.playbackHoldLimit = const Duration(seconds: 15),
     Dio? dio,
     bool? isAndroid,
+    bool? isIOS,
     this._rejectsCustomFolder = cloneRejectsDownloadFolder,
     this._resolveLibraryIds,
   }) : _readIsOnline = readIsOnline ?? (() => true),
        _readFreeBytes = readFreeBytes ?? downloadStorageFreeBytes,
        _cacheDao = cacheDao,
        _libraryDao = libraryDao,
-       _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
-       _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
+       _isIOS = isIOS ?? Platform.isIOS,
+       // iOS has no custom folder: an old persisted choice is ignored.
+       _readCustomDownloadFolderEnabled = (isIOS ?? Platform.isIOS)
+           ? (() => false)
+           : readCustomDownloadFolderEnabled,
+       _readCustomDownloadFolderPath = (isIOS ?? Platform.isIOS)
+           ? (() => null)
+           : readCustomDownloadFolderPath,
        _readLyricsAllowed = readLyricsAllowed ?? (() => true),
        _readDeezerArtworkAllowed = readDeezerArtworkAllowed ?? (() => false),
        _allowsArtworkUri = allowsArtworkUri ?? ((_) => false),
@@ -210,6 +218,8 @@ class DownloadService {
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
          readCustomDownloadFolderPath: readCustomDownloadFolderPath,
          readApplicationSupportDirectory: readApplicationSupportDirectory,
+         readApplicationDocumentsDirectory: readApplicationDocumentsDirectory,
+         isIOS: isIOS,
        ),
        _permanentDownloadImportService = PermanentDownloadImportService(
          cacheDao: cacheDao,
@@ -235,6 +245,7 @@ class DownloadService {
   int _spaceRequired = 0;
   bool _providerSpaceExhausted = false;
   static const _spaceMargin = 16 * 1024 * 1024;
+  final bool _isIOS;
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
   final LrclibClient _lrclibClient;
@@ -634,9 +645,13 @@ class DownloadService {
             await _reconcileMissingDownloads(generation);
             _checkRecovery(generation);
             if (_folderProblem != null) return;
-            await _downloadQueueDao.requeueStuckDownloads();
+            await _downloadQueueDao.requeueStuckDownloads(
+              keepJournaled: await _cacheDao.attachedDatabase
+                  .hasUnverifiedContainerPaths(),
+            );
             _checkRecovery(generation);
-            if (!_readCustomDownloadFolderEnabled()) {
+            // Files shows the iOS root, so a file the user put there is theirs.
+            if (!_readCustomDownloadFolderEnabled() && !_isIOS) {
               await _cleanupOrphanedFiles(generation);
             }
             _checkRecovery(generation);
@@ -1667,14 +1682,7 @@ class DownloadService {
       // ignore: avoid_slow_async_io
       if (!await destination.exists() ||
           await destination.length() != await file.length()) {
-        final part = File('$newPath$downloadPartSuffix');
-        try {
-          await file.copy(part.path);
-          await renameWithRetry(part, destination.path);
-        } on FileSystemException {
-          await tryDeleteFile(part);
-          rethrow;
-        }
+        await _copyThroughPartFile(file, destination.path);
       }
     } on FileSystemException catch (e) {
       await _holdForFolderFailure(e);
@@ -1762,10 +1770,18 @@ class DownloadService {
     if (_playbackHoldTimer != null) return;
     final now = DateTime.now();
     DateTime? nextRetry;
+    bool? pathsUnverified;
     for (final item in queue) {
       if (_stopped || _maintenanceInProgress) return;
       if (_workers.length >= effectiveConcurrency) break;
       if (_workers.containsKey(item.id)) continue;
+      // A finished-download journal at a path that may be stale waits for a
+      // launch whose rebase succeeds; downloading again would overwrite it.
+      if (_hasFinishedJournal(item) &&
+          (pathsUnverified ??= await _cacheDao.attachedDatabase
+              .hasUnverifiedContainerPaths())) {
+        continue;
+      }
       final notBefore = _retryNotBefore[item.id];
       if (notBefore != null && notBefore.isAfter(now)) {
         if (nextRetry == null || notBefore.isBefore(nextRetry)) {
@@ -1787,6 +1803,17 @@ class DownloadService {
         : Timer(nextRetry.difference(now), () {
             if (!_stopped) unawaited(_processNext());
           });
+  }
+
+  static bool _hasFinishedJournal(DownloadQueueTableData item) {
+    final journal = item.finishJournal;
+    if (journal == null) return false;
+    try {
+      return (jsonDecode(journal) as Map<String, dynamic>)['phase'] !=
+          'transferring';
+    } on Object {
+      return true;
+    }
   }
 
   void _startWorker(DownloadQueueTableData item) {
@@ -2430,6 +2457,9 @@ class DownloadService {
   ///
   /// A part file is deliberately never resumed, even when it is complete.
   Future<void> _reconcileFinishedDownloads(int generation) async {
+    // Stale journal paths would read as missing files and requeue valid
+    // downloads; a launch whose rebase succeeds rewrites them first.
+    if (await _pathsUnverified()) return;
     for (final item in await _downloadQueueDao.watchQueue().first) {
       _checkRecovery(generation);
       if (item.finishJournal == null || item.songId == null) continue;
@@ -2562,10 +2592,25 @@ class DownloadService {
     }
   }
 
+  /// A failed iOS container path rebase leaves stored paths possibly stale:
+  /// startup recovery must not drop, requeue or delete anything for them.
+  Future<bool> _pathsUnverified() async {
+    if (!await _cacheDao.attachedDatabase.hasUnverifiedContainerPaths()) {
+      return false;
+    }
+    AppLogger.warning(
+      'Download recovery skipped: stored paths are unverified.',
+    );
+    return true;
+  }
+
   Future<void> _reconcileMissingDownloads(int generation) async {
+    if (await _pathsUnverified()) return;
     final entries = await _cacheDao.getPermanentEntries();
     if (entries.isEmpty) return;
-    final appAudio = _readCustomDownloadFolderEnabled()
+    // iOS has no user folder to disconnect, so every record is checked,
+    // including old ones that point into the former app-support location.
+    final appAudio = _readCustomDownloadFolderEnabled() || _isIOS
         ? null
         : await _appAudioIdentity();
     for (final entry in entries) {
@@ -2680,7 +2725,10 @@ class DownloadService {
     if (_isSafRoot(cached.filePath)
         ? !await _safStorage.exists(cached.filePath)
         : !await _filesystemDownloadExists(cached.filePath)) {
-      await _cacheDao.removeCachedTrack(songId);
+      // Stale, not missing, when the iOS path rebase failed this launch.
+      if (!await _cacheDao.attachedDatabase.hasUnverifiedContainerPaths()) {
+        await _cacheDao.removeCachedTrack(songId);
+      }
       return false;
     }
 
@@ -2860,6 +2908,7 @@ class DownloadService {
   /// This recovers disk space from files orphaned by the old CASCADE FK
   /// behavior (where sync would delete the DB record but leave the file).
   Future<void> _cleanupOrphanedFiles(int generation) async {
+    if (await _pathsUnverified()) return;
     try {
       final permDir = await _permanentDirectory();
       // Keep metadata access asynchronous so storage latency cannot stall UI.
@@ -3537,7 +3586,7 @@ class DownloadService {
             : File(entry.filePath).parent;
         if (sourceWasSaf) {
           await Directory(p.dirname(targetPath)).create(recursive: true);
-          await sourceFile.copy(targetPath);
+          await _copyThroughPartFile(sourceFile, targetPath);
         } else {
           await _movePermanentFileSet(entry.filePath, targetPath);
         }
@@ -3751,8 +3800,36 @@ class DownloadService {
     try {
       await source.rename(destination.path);
     } on FileSystemException {
-      await source.copy(destination.path);
+      await _copyThroughPartFile(source, destination.path);
       await source.delete();
+    }
+  }
+
+  /// Copies [source] to [destination] through a part file, so a crash or
+  /// failure mid-copy never leaves a truncated file at the final path. An
+  /// occupied part name is refused, never overwritten.
+  static Future<void> _copyThroughPartFile(
+    File source,
+    String destination,
+  ) async {
+    final part = File('$destination$downloadPartSuffix');
+    // A part name in a user folder is not proof of ownership: refuse it
+    // before the copy can truncate it or the cleanup can remove it.
+    // Keep storage latency off the UI isolate.
+    // ignore: avoid_slow_async_io
+    if (await FileSystemEntity.type(part.path, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      throw FileSystemException(
+        'The temporary copy name is occupied.',
+        part.path,
+      );
+    }
+    try {
+      await source.copy(part.path);
+      await renameWithRetry(part, destination);
+    } on Object {
+      await tryDeleteFile(part);
+      rethrow;
     }
   }
 

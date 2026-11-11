@@ -376,7 +376,35 @@ class EqApplicationState {
     this.pending = false,
     this.replayGainCurrentKey,
     this.replayGainAppliedDb = 0,
+    this.boostRequestedDb = 0,
+    this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.boostGuarded = false,
+    this.replayGainCutDb,
+    this.replayGainNextCutDb,
+    this.processedFrames,
+    this.levelDeltaDb,
+    this.resetCount,
+    this.tapPrepareCount,
+    this.flushCount,
+    this.transitionGapsMs,
+    this.pitchCents,
+    this.timePitchAlgorithm,
+    this.frequencyScale,
+    this.pitchActive,
+    this.pitchLatencyFrames,
+    this.pitchResetCount,
+    this.pitchInputHz,
+    this.pitchOutputHz,
+    this.pitchPullMismatches,
+    this.pitchReason,
+    this.formatStreams,
+    this.unmatchedFrames,
+    this.overlapBlocks,
+    this.livePipelines,
+    this.prepareCalls,
+    this.unprepareCalls,
+    this.clampedUnprepares,
   });
 
   final EqConfiguration desired;
@@ -387,9 +415,121 @@ class EqApplicationState {
   final String? reason;
   final bool pending;
 
-  /// The native ReplayGain stage (Android): the source id it is processing,
-  /// the signed gain it applies, and the samples it had to clamp.
+  /// The native ReplayGain stage. Android: the source id it is processing and
+  /// the signed gain it applies. iOS boost: what it was asked for ([boostRequestedDb]),
+  /// what it applies ([boostAppliedDb]) and whether the value is lowered for the
+  /// next song ([boostGuarded]). [boostClipSamples] counts the samples Android
+  /// clamped or that went beyond full scale on iOS.
   final String? replayGainCurrentKey;
   final double replayGainAppliedDb;
+  final double boostRequestedDb;
+  final double boostAppliedDb;
   final int boostClipSamples;
+  final bool boostGuarded;
+
+  /// The iOS cut in each item's audio mix (I26): the volume native assigned to
+  /// the current item and to the next queued one, in dB. Null when unreported.
+  final double? replayGainCutDb;
+  final double? replayGainNextCutDb;
+
+  /// Frames the native equalizer processed (iOS only), for diagnostics.
+  final int? processedFrames;
+
+  /// Output-minus-input level in dB over recently played audio (iOS only).
+  final double? levelDeltaDb;
+
+  /// Filter-history resets of the native equalizer (iOS only), for diagnostics.
+  final int? resetCount;
+
+  /// Times the native tap was prepared (iOS only), for diagnostics: once per
+  /// audio pipeline (a run of queued songs with the same source format).
+  final int? tapPrepareCount;
+
+  /// Seeks and skips the native equalizer was told about (iOS only), for
+  /// diagnostics.
+  final int? flushCount;
+
+  /// The last silences between songs in ms on the player's clock (iOS only),
+  /// for diagnostics; about 0 when playback is gapless.
+  final List<double>? transitionGapsMs;
+
+  /// The native pitch stage (iOS only), for diagnostics: the requested cents,
+  /// whether it is processing, its latency in frames, its resets (a seek or skip
+  /// the playing stream saw; none on a natural song change, pause or resume)
+  /// and the zero-crossing frequency of its input and output over the last
+  /// second.
+  final int? pitchCents;
+
+  /// The rate plan in force (iOS only), for diagnostics: the player's
+  /// time-pitch algorithm (`varispeed` or `timeDomain`) and the EQ frequency
+  /// scale.
+  final String? timePitchAlgorithm;
+  final double? frequencyScale;
+  final bool? pitchActive;
+  final int? pitchLatencyFrames;
+  final int? pitchResetCount;
+  final double? pitchInputHz;
+  final double? pitchOutputHz;
+
+  /// Pitch-unit input pulls that did not match the block (expected 0) and why
+  /// the tap cannot pitch its audio (iOS only).
+  final int? pitchPullMismatches;
+  final String? pitchReason;
+
+  /// One entry per audio format of the queue (iOS only), for diagnostics:
+  /// `{sampleRate, channels, processedFrames, levelDeltaDb}`.
+  final List<Map<String, Object?>>? formatStreams;
+
+  /// Audio no format took and blocks passed dry on a format clash (iOS only);
+  /// both 0 when healthy.
+  final int? unmatchedFrames;
+  final int? overlapBlocks;
+
+  /// The balance of the native tap's audio pipelines (iOS only), for
+  /// diagnostics: live now, prepare and unprepare calls, and unprepares that
+  /// matched nothing (0 when healthy).
+  final int? livePipelines;
+  final int? prepareCalls;
+  final int? unprepareCalls;
+  final int? clampedUnprepares;
+
+  /// The `application` object of the diagnostics API's `/v1/equalizer`.
+  Map<String, Object?> toDiagnosticsJson() => {
+    'configuration': applied.toJson(),
+    'enabled': applied.enabled,
+    'sampleRate': sampleRate,
+    'responseSampleRate': responseSampleRate,
+    'headroomDb': headroomDb,
+    'reason': reason,
+    'pending': pending,
+    'boostRequestedDb': boostRequestedDb,
+    'boostAppliedDb': boostAppliedDb,
+    'boostGuarded': boostGuarded,
+    'boostClipSamples': boostClipSamples,
+    'replayGainCutDb': replayGainCutDb,
+    'replayGainNextCutDb': replayGainNextCutDb,
+    'processedFrames': processedFrames,
+    'levelDeltaDb': levelDeltaDb,
+    'resetCount': resetCount,
+    'tapPrepareCount': tapPrepareCount,
+    'flushCount': flushCount,
+    'transitionGapsMs': transitionGapsMs,
+    'pitchCents': pitchCents,
+    'timePitchAlgorithm': timePitchAlgorithm,
+    'frequencyScale': frequencyScale,
+    'pitchActive': pitchActive,
+    'pitchLatencyFrames': pitchLatencyFrames,
+    'pitchResetCount': pitchResetCount,
+    'pitchInputHz': pitchInputHz,
+    'pitchOutputHz': pitchOutputHz,
+    'pitchPullMismatches': pitchPullMismatches,
+    'pitchReason': pitchReason,
+    'formatStreams': formatStreams,
+    'unmatchedFrames': unmatchedFrames,
+    'overlapBlocks': overlapBlocks,
+    'livePipelines': livePipelines,
+    'prepareCalls': prepareCalls,
+    'unprepareCalls': unprepareCalls,
+    'clampedUnprepares': clampedUnprepares,
+  };
 }

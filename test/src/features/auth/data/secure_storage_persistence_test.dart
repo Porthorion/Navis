@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,14 +17,23 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final values = <String, String>{};
+  final calls = <String>[];
+  Completer<void>? passwordReadGate;
   Completer<void>? readGate;
 
   setUp(() {
+    resetSecureStorageQueue();
     values.clear();
+    calls.clear();
+    passwordReadGate = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_secureStorageChannel, (call) async {
           final arguments = call.arguments! as Map<Object?, Object?>;
           final key = arguments['key']! as String;
+          calls.add('${call.method} $key');
+          if (call.method == 'read' && key.endsWith('.password')) {
+            await passwordReadGate?.future;
+          }
           return switch (call.method) {
             'write' => values[key] = arguments['value']! as String,
             'read' => await (readGate?.future ?? Future<void>.value()).then(
@@ -36,6 +46,7 @@ void main() {
   });
 
   tearDown(() {
+    resetSecureStorageQueue();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_secureStorageChannel, null);
   });
@@ -84,7 +95,7 @@ void main() {
     // Start the provider before waiting for asynchronous secure-storage
     // hydration to finish.
     restarted.read(desktopShortcutBindingsProvider);
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await pumpEventQueue();
 
     final restored = restarted.read(
       desktopShortcutBindingsProvider,
@@ -94,6 +105,43 @@ void main() {
     expect(restored.primaryModifier, isTrue);
     expect(restored.alt, isFalse);
     expect(restored.shift, isFalse);
+  });
+
+  test(
+    'macOS shortcut storage queues behind an earlier credential call',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      passwordReadGate = Completer<void>();
+      final pending = FlutterSecureCredentialStore().readPassword();
+      await pumpEventQueue();
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(desktopShortcutBindingsProvider);
+      await pumpEventQueue();
+      expect(calls, ['read navis.auth.active_server.password']);
+
+      passwordReadGate!.complete();
+      await pending;
+      await pumpEventQueue();
+      expect(calls.last, 'read navis.desktop.shortcut_bindings.v1');
+    },
+  );
+
+  test('other platforms call shortcut storage directly', () async {
+    passwordReadGate = Completer<void>();
+    final pending = FlutterSecureCredentialStore().readPassword();
+    await pumpEventQueue();
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(desktopShortcutBindingsProvider);
+    await pumpEventQueue();
+    expect(calls, contains('read navis.desktop.shortcut_bindings.v1'));
+
+    passwordReadGate!.complete();
+    await pending;
   });
 
   test(

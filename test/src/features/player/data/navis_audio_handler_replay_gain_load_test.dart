@@ -15,11 +15,13 @@ import 'package:audio_service_platform_interface/audio_service_platform_interfac
 import 'package:audio_service_platform_interface/no_op_audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
@@ -192,19 +194,41 @@ class _FakePlayer extends Fake implements AudioPlayer {
     EqualizerConfigurationMessage configuration,
   ) async => const EqualizerStateMessage(enabled: false);
 
+  /// Every in-pipeline level push and boost-map send, oldest first; the two
+  /// sends share one list so their order shows.
+  final List<String> rgCalls = [];
+
+  /// Fails the next levels push, as a native error would.
+  bool failLevels = false;
+
+  /// Every boost map sent, in order (a copy of the map).
+  final boostMaps = <Map<IndexedAudioSource, double>>[];
+
   /// Every update push of in-pipeline levels, in order (a copy of the map).
   final levelPushes = <Map<IndexedAudioSource, double>>[];
+
   @override
   Future<void> setReplayGainLevels({
     required Map<IndexedAudioSource, double> bySource,
     bool live = false,
-  }) async => levelPushes.add(Map.of(bySource));
+  }) async {
+    rgCalls.add(live ? 'levels-live' : 'levels');
+    levelPushes.add(Map.of(bySource));
+    if (failLevels) {
+      failLevels = false;
+      throw PlatformException(code: 'error');
+    }
+  }
+
   @override
   Future<void> setReplayGainBoost({
     required double currentDb,
     Map<IndexedAudioSource, double> bySource = const {},
     Map<IndexedAudioSource, int> durationMsBySource = const {},
-  }) async {}
+  }) async {
+    rgCalls.add('boost');
+    boostMaps.add(Map.of(bySource));
+  }
 
   @override
   ProcessingState get processingState => state;
@@ -384,7 +408,8 @@ void main() {
   const firstSongGainDb = -12.0;
 
   /// A handler on [caps] with the Dart cut through the player volume (no
-  /// in-pipeline ReplayGain unless [pipeline]), whose songs carry [trackGains]
+  /// in-pipeline ReplayGain unless [pipeline]; [tap] instead installs the iOS
+  /// equalizer tap and leaves the getter to decide), whose songs carry [trackGains]
   /// and [albumGains] (by index, default: the first song at
   /// [firstSongGainDb]) and [albums]. Phase 2 blocks on [blocked].
   Future<_Rig> create(
@@ -395,6 +420,8 @@ void main() {
     Map<int, double> albumGains = const {},
     Map<int, String> albums = const {},
     bool pipeline = false,
+    bool tap = false,
+    double? peak,
     String blocked = 'song-5',
   }) async {
     final directory = await Directory.systemTemp.createTemp('navis-479a-');
@@ -411,6 +438,8 @@ void main() {
           albumId: Value(albums[i]),
           replayGainTrackGain: Value(trackGains[i]),
           replayGainAlbumGain: Value(albumGains[i]),
+          replayGainTrackPeak: Value(peak),
+          replayGainAlbumPeak: Value(peak),
         ),
     ]);
     for (var i = 0; i < count; i++) {
@@ -480,9 +509,11 @@ void main() {
         matchFlowEnabled: false,
       ),
       adjustmentCapabilities: caps,
-      replayGainInPipelineOverride: pipeline,
+      replayGainInPipelineOverride: tap ? null : pipeline,
+      equalizerCapabilities: tap ? EqCapabilities.available : null,
       starSyncDao: database.starSyncDao,
       player: player,
+      iosRuntimeOverride: ios,
       desktopRuntimeOverride: !ios,
       shuffleRandom: Random(7),
     );
@@ -532,8 +563,8 @@ void main() {
   }
 
   for (final (name, caps, ios, curve) in [
-    // macOS mpv outside the pipeline: cubic volume.
-    ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
+    // AVQueuePlayer: linear volume.
+    ('iOS', PlaybackAdjustmentCapabilities.ios, true, 20.0),
   ]) {
     double cutOf(double db) => pow(10, db / curve).toDouble();
 
@@ -660,11 +691,35 @@ void main() {
     });
   }
 
+  test("iOS: a song change during the load applies the new song's cut, "
+      "not the start song's", () async {
+    final rig = await create(
+      PlaybackAdjustmentCapabilities.ios,
+      ios: true,
+      trackGains: const {0: -12, 1: -6},
+    );
+    final replaced = await startLoad(rig);
+    expect(
+      rig.player.audioSources.length,
+      greaterThan(1),
+      reason: 'iOS preloaded the next song in phase 1',
+    );
+    expect(rig.player.volume, closeTo(pow(10, -12 / 20), 0.00001));
+
+    // The player moves on to the preloaded song while phase 2 is still busy.
+    await rig.player.seek(Duration.zero, index: 1);
+    await pumpEventQueue();
+    expect(rig.handler.currentMediaItem?.id, 'song-1');
+    expect(rig.player.volume, closeTo(pow(10, -6 / 20), 0.00001));
+
+    await settle(rig, replaced);
+    expect(rig.player.volume, closeTo(pow(10, -6 / 20), 0.00001));
+  });
   // Issue #479 follow-up (I38): a manual skip that lands by seeking never goes
   // through the queue apply, so the player is already on the target while the
   // seek is pending. The target's cut applies then, not at the commit.
   for (final (name, caps, ios, curve) in [
-    ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
+    ('iOS', PlaybackAdjustmentCapabilities.ios, true, 20.0),
   ]) {
     double cutOf(double db) => pow(10, db / curve).toDouble();
     const gains = {0: -12.0, 1: -6.0, 2: -3.0, 3: -9.0, 4: -2.0};
@@ -873,12 +928,120 @@ void main() {
     });
   }
 
+  // I26 phase A: on iOS with the equalizer tap the cut moves into each item's
+  // audio mix, so the stamp, the pushes and a flat player volume all follow.
+  group('iOS tap: the cut rides the item audio mix (I26)', () {
+    const ios = PlaybackAdjustmentCapabilities.ios;
+    const gains = {0: -12.0, 1: -6.0, 2: -3.0, 3: -9.0, 4: -2.0};
+
+    double? stampOf(_FakePlayer player, int index) =>
+        (player.audioSources[index] as IndexedAudioSource).replayGainDb;
+
+    test('the start song and its iOS successor are stamped, the successor '
+        'with the incoming play order (Smart album run)', () async {
+      // Songs 1 and 2 share album A. The successor (song 2) is prepared before
+      // the queue holds the new list, so it only gets the album gain (-6)
+      // when it is stamped with the incoming play order.
+      final rig = await create(
+        ios,
+        ios: true,
+        tap: true,
+        mode: 'smart',
+        trackGains: const {1: -9, 2: -12},
+        albumGains: const {1: -5, 2: -6},
+        albums: const {1: 'A', 2: 'A'},
+      );
+      await startLoad(rig, startIndex: 1);
+      expect(rig.player.audioSources.length, 2, reason: 'phase 1 sent two');
+      expect(stampOf(rig.player, 0), -5);
+      expect(stampOf(rig.player, 1), -6);
+    });
+
+    test('the volume stays the base volume during and after the load, and '
+        'both the levels and the boost map are sent', () async {
+      final rig = await create(ios, ios: true, tap: true);
+      await rig.handler.setVolume(0.5);
+      expect(rig.handler.replayGainInPipeline, isTrue);
+      final replaced = await startLoad(rig);
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+      await settle(rig, replaced);
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+      expect(rig.player.rgCalls, contains('levels'));
+      expect(rig.player.rgCalls, contains('boost'));
+    });
+
+    test('a pending skip (I38) leaves the volume at the base volume', () async {
+      final rig = await create(ios, ios: true, tap: true, trackGains: gains);
+      await rig.handler.setVolume(0.5);
+      await settle(rig, await startLoad(rig, startIndex: 2));
+      rig.player.seekGate = Completer<void>();
+      final skip = rig.handler.skipToNext();
+      await pumpEventQueue();
+      expect(rig.player.currentIndex, 3);
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+      rig.player.seekGate!.complete();
+      await skip;
+      await pumpEventQueue();
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+    });
+
+    test('a failing levels push still sends the boost map', () async {
+      final rig = await create(ios, ios: true, tap: true, trackGains: gains);
+      await settle(rig, await startLoad(rig, startIndex: 2));
+      rig.player.rgCalls.clear();
+      rig.player.failLevels = true;
+      await rig.handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(rig.player.rgCalls, ['levels-live', 'boost']);
+    });
+
+    test(
+      'the boost map gives each copy of a song its own boost (#479c)',
+      () async {
+        // Song 1 is boosted +4 (track) or +2 (album, with song 0 next to it).
+        final rig = await create(
+          ios,
+          ios: true,
+          tap: true,
+          mode: 'smart',
+          trackGains: const {1: 4},
+          albumGains: const {1: 2},
+          albums: const {0: 'A', 1: 'A', 3: 'B'},
+          peak: 0.1,
+          blocked: 'song-3',
+        );
+        await settle(
+          rig,
+          await startLoad(
+            rig,
+            songs: ['song-0', 'song-1', 'song-3', 'song-1', 'song-3'],
+          ),
+        );
+        await rig.handler.skipToQueueItem(3);
+        await pumpEventQueue();
+        final seq = rig.player.sequence;
+        final map = rig.player.boostMaps.last;
+        expect(map[seq[1]], 2, reason: 'next to song-0 (album A): album gain');
+        expect(map[seq[3]], 4, reason: 'between B songs: track gain');
+      },
+    );
+
+    test('without the tap the iOS rows keep the Dart volume cut', () async {
+      final rig = await create(ios, ios: true, trackGains: gains);
+      expect(rig.handler.replayGainInPipeline, isFalse);
+      await settle(rig, await startLoad(rig, startIndex: 2));
+      expect(rig.player.volume, closeTo(pow(10, -3 / 20), 0.00001));
+      expect(rig.player.rgCalls, isNot(contains('levels')));
+    });
+  });
+
   // Issue #479 (c): in the pipeline Smart decides per queue entry. A song
   // queued twice has two entries with their own neighbours, so each copy must
   // get its own level, its own stamp and its own display.
   for (final (name, caps, ios) in [
     ('mpv', PlaybackAdjustmentCapabilities.mediaKit, false),
     ('android', PlaybackAdjustmentCapabilities.android, false),
+    ('ios', PlaybackAdjustmentCapabilities.ios, true),
   ]) {
     const albums = {0: 'A', 1: 'A', 2: 'A', 3: 'B', 5: 'C'};
 

@@ -245,11 +245,6 @@ const List<ChangelogVersion> changelogs = [
         'Volume normalization now turns quiet songs up when their tags show '
         "room, stopping 1 dB below the song's peak so nothing distorts. Songs "
         'without ReplayGain data are only ever turned down',
-        platforms: {
-          ChangelogPlatform.android,
-          ChangelogPlatform.windows,
-          ChangelogPlatform.linux,
-        },
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -267,8 +262,59 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'You can now change the pitch without changing the speed, or '
+        'lock the pitch to the speed, in the speed and pitch controls. Pitch '
+        'works with the equalizer on or off and does not break gapless '
+        'playback',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'GitHub releases now include an unsigned IPA for AltStore and '
+        'SideStore, which tells you when a newer version is out and links to '
+        'its release page',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Closing the window keeps music playing; click the Dock icon '
+        'to reopen. The Dock menu shows the current track with Play/Pause, '
+        'Next and Previous',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'A Controls menu in the menu bar plays, pauses and skips',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The equalizer now works, with the same presets, filters and '
+        'headroom protection as Android',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloads now appear in the Files app under On My iPhone › '
+        'Navis, and downloads stay out of iCloud and computer backups',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The equalizer and fast seeking now work, and stream '
+        "connections use the system's trusted certificates",
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Hold the Speed & Pitch or Queue line in Now Playing to open its '
         'controls, like Quality and ReplayGain',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Turning a loud song down for ReplayGain now starts with the '
+        "song's first note instead of a moment later",
+        platforms: {ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -292,6 +338,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The Now Playing cover fills its space on tablets, in landscape and '
+        'in split-screen windows, instead of showing small',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Settings › Haptics turns vibration off entirely or per kind, such '
         'as Player Gestures, Sliders & Rulers or Notifications, so you can '
         'keep the ones you like',
@@ -303,6 +354,13 @@ const List<ChangelogVersion> changelogs = [
         'skipping, reordering and long presses each have their own feel. '
         "Your phone's touch feedback setting still applies",
         platforms: {ChangelogPlatform.android},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Taps and gestures now feel like what they do: liking confirms, '
+        'refusing buzzes, and switches, Play and Pause, pull to refresh, '
+        'reordering and long presses each have their own feel',
+        platforms: {ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -347,6 +405,37 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Now Playing, the mini player and Settings stay usable at the largest '
+        'accessibility text size, with bigger buttons and dropdowns that no '
+        'longer overflow; the Appearance blinking icon stops with Reduce '
+        'Motion',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'App updates now restore the previous version if the new one '
+        'fails to start',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Navis now explains why it asks for local network '
+        'access when your server is on your home network',
+        platforms: {ChangelogPlatform.ios, ChangelogPlatform.macos},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The licences screen lists the bundled libmpv and FFmpeg '
+        'libraries',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Dynamic Album Colour fades smoothly between albums instead of '
+        "stepping partway through, and the next track's colour is prepared "
+        'while the current one plays so the change starts sooner',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Downloads are steadier: downloads at a chosen quality no longer fail '
         'partway, liked songs download from your library, the queue buttons '
         'no longer wrap on phones, and a failed download can be long-pressed '
@@ -355,6 +444,42 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Synced lyrics no longer jump around at the start of a song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Gapless playback works again with the equalizer; songs no '
+        'longer pause for almost a second between each other',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A launch where the app cannot update its saved download '
+        'locations no longer re-downloads finished songs, and moving a '
+        'download between volumes no longer leaves a half-written file in '
+        'the Downloads folder',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Pausing from Control Center no longer shows the old '
+        'position for a moment',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Control Center shows the right time when playing faster or '
+        'slower than normal',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Navis keeps you signed in across restarts',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A song that fails to load no longer shows as playing',
+        platforms: {ChangelogPlatform.macos},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -468,6 +593,24 @@ const List<ChangelogVersion> changelogs = [
         'longer stops playback and reloads the whole queue, which briefly '
         'went silent and could start the new song at the wrong volume',
         platforms: ChangelogPlatform.desktop,
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A radio station that stalls or whose stream ends now reconnects by '
+        'itself. Before, it could stay silent, ignoring Play, until you '
+        'picked the station again',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A transcoded song whose connection is cut partway now carries on from '
+        'where it was cut, instead of stopping or skipping to the next song',
+        platforms: {ChangelogPlatform.ios, ChangelogPlatform.android},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A song that cannot be loaded no longer empties the queue when it is '
+        'the only or last song; it stays queued and Play tries it again',
+        platforms: {ChangelogPlatform.ios, ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
     ],

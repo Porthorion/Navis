@@ -24,8 +24,149 @@ workspace built from the existing theme, typography, and adaptive shell; see
 | Android Media3 | Native PCM processing on both playback decks; emulator bridge/lifecycle checks and APK builds are covered |
 | Linux media-kit/libmpv | Native floating-point filter chain; actual captured output and clean restart are covered |
 | Windows media-kit/libmpv | The Linux filter chain, on the full libmpv Navis pins and bundles (see [Releasing for Windows](../release/release-windows.md#bundled-libmpv)); a build without the filters falls back to EQ unavailable |
-| macOS media-kit | UI disabled pending platform-specific validation |
-| Default Apple backend and web | UI disabled; processing is unavailable |
+| macOS media-kit/libmpv | The same filter chain, on the Navis-built universal libmpv the macOS app bundles (see [Releasing for macOS](../release/release-macos.md#bundled-libmpv)); a build without the filters falls back to EQ unavailable |
+| iOS AVFoundation | One `MTAudioProcessingTap` per player, shared by its queued `AVPlayerItem`s, runs the same biquads and auto-headroom in C (`NavisEqualizerDsp.c`); see [iOS](#ios) |
+| macOS debug (AVFoundation) and web | UI disabled; processing is unavailable. The Darwin tap is compiled only for iOS (`TARGET_OS_IOS`), so macOS playback is unchanged |
+
+### iOS
+
+AVFoundation hands no PCM to just_audio, so the vendored Darwin player
+(`third_party/just_audio/darwin`) gives each `AVPlayer` one `MTAudioProcessingTap`
+(pre-effects, so the DSP sees the source sample rate before speed changes),
+shared by every queued item, using the config map Android receives
+(`equalizerConfiguration`, `setEqualizer`, `getEqualizerState`). One shared tap
+matters for gapless playback: `AVQueuePlayer` runs an item that has its own tap
+through its own audio pipeline and starts the next item's only after the
+previous one drained (0.4 to 1.2 s of silence at every song change), while
+items sharing one tap share one pipeline and join sample-continuously (I23).
+Every item gets an audio mix naming the shared tap and the first audio track
+(its real ID when the asset's tracks are already loaded, which is checked without
+blocking; otherwise track 1; no track loading) in the same run-loop turn as its
+insert into the queue, never later: changing
+the mix of an item that is already queued rebuilds the pipeline and stalls
+playback for about 0.5 s. The tap stays installed with EQ off and bypasses inside
+the DSP. Banks are built off the audio thread and swapped at a block boundary
+with the same 20 ms crossfade as Android; the render callback has no locks,
+allocation, Objective-C or `log`/`pow`. Only non-interleaved 32-bit float PCM of
+one to eight channels is processed; any other format plays unchanged and
+`reason` says so, as it does for a file whose audio track ID is not the one the
+mix named. Limit: the tracks are almost never loaded when an item is queued, so
+the mix names track 1 and a file whose first audio track has another ID (rare
+for mp3, flac, m4a and wav; possible in multi-track mp4) plays unchanged with
+that reason; it is not re-mixed, because that stalls playback. This was not
+tested with a real file. The tap runs before the player's own effects (speed,
+volume), so gapless advance and 1.5× speed use the same path; each crossfade
+deck owns its own equalizer instance and tap (a tap is never shared between two
+players). `AVQueuePlayer` runs one audio pipeline per run of queued songs with
+the same source format (rate, channels, int or float samples, codec, bit depth)
+and prepares and unprepares the one shared tap for each of them, on other threads
+than the render thread, so the tap keeps one EQ stream and one pitch stage per
+audio format (`NavisTapFormats.c`, I25). Prepare adds the format's slot or
+reuses the one it has; unprepare frees nothing, so a pause, seek or song change
+never rebuilds a stage. Each block picks the slot of its channel count whose rate
+is nearest to the block's own (frames over the source-range duration, within 4 %
+or inside the rounding of the range's clock; when that admits several rates the
+slot that played the last block, then the slot of the latest prepare, wins); with
+only one slot that slot takes every block. A block with no usable rate (the first
+block of every pipeline) goes to the slot of the latest prepare, and a block no slot
+matches plays unchanged and is counted. Slots
+live until the player is disposed, up to 16 formats; a 17th format is started over
+(all slots freed) only when no pipeline is live, and otherwise that song plays
+unchanged with a `reason`. Edits and pitch reach every slot. Known limit: the
+pipeline switch itself leaves 0.4 to 0.9 s of silence at every change of source
+format (measured on the simulator, 0.43 to 0.47 s for rates, about 0.85 s for
+mono, stereo and float WAVs at one rate), with a tap installed or not; it is
+AVQueuePlayer's, not the tap's. The filter history is dropped on a seek or skip, which the
+player reports with a flush counter that the render thread compares at each
+block with audio (like Android's onFlush), and on the first block of a new
+stream. The source time range is not used: with a shared tap it re-bases
+mid-song whenever an item is queued behind the playing one, without any jump in
+the audio. Pause and resume no longer reset the history (the 21 ms that
+AVFoundation re-reads on resume are not an audible discontinuity). While paused,
+seeking or right after prepare the tap is called with empty or invalid source
+ranges, which are not audio. `resetCount` in the diagnostics `application`
+counts the histories dropped: 0 over steady playback and gapless song changes,
+and 0 or 1 per seek or skip. AVFoundation re-prepares the tap on a seek or
+skip (measured on every one); the new stream starts with an empty history and
+counts nothing, so the history is dropped either by a counted reset (the old
+stream saw the flush first) or by that re-prepare, never kept. A re-prepare of a
+format the tap already holds (every pause, seek and skip) reuses its slot, and
+the StartOfStream of that pipeline resets it, counted, when its first audio
+arrives. The
+reported `reason` names why the current item is not processed: still attaching,
+the tap could not be created, an unsupported format, or an audio track that is
+not the one mixed.
+
+State adds iOS-only fields, surfaced in `/v1/equalizer` `application`:
+`sampleRate`, `levelDeltaDb` and the pitch fields describe the format that
+processed the last block of audio (the song playing, to about 0.1 s);
+`formatStreams` lists every format of the queue (`sampleRate`, `channels`,
+`processedFrames`, `levelDeltaDb`), and `unmatchedFrames` (audio no format took)
+and `overlapBlocks` (blocks passed dry because another render thread held their
+format) are 0 in a healthy run, as is `clampedUnprepares`, an unprepare that matched
+no live pipeline (`livePipelines`, `prepareCalls` and `unprepareCalls` give the
+balance; starting over at the format cap is only safe while it holds); `processedFrames` (frames processed by this
+platform player, summed over its formats, which grows while
+audio plays and restarts from zero when the app swaps decks or rebuilds the
+player) and `levelDeltaDb` (output minus input level in dB over about the last
+second of played audio, restarted when an edit takes effect; `null` before audio has played). The audio thread
+only accumulates sums of squares; the dB conversion runs on the main thread.
+Counters per native player (every queue replacement stops the player, which
+disposes the native player and its equalizer, so they cover the current queue):
+`tapPrepareCount` (audio pipelines prepared: 1 per queue of one source format,
+3 for 22.05, 48 and 96 kHz songs, plus one per pause, seek or skip), `flushCount` (seeks and skips noted since the player was created) and
+`transitionGapsMs`, the last 8 silences between songs measured on the player's
+own clock (about 0 when gapless; a seek, skip or load clears them; the meter
+runs only in builds that can run the diagnostics API, `diagnosticsBuildEnabled`,
+which the app tells the player at creation, so a release build has no timer and
+reports an empty list). The gap from
+song n to n+1 is `startOffset(n+1) - endOffset(n) - duration(n)` with
+`offset = wall time - item time`, as a median of five samples at 50 Hz from a
+main-thread timer that runs only while playing. A song change now and then
+reads a few tens of milliseconds early (a negative gap) when the main thread is
+busy; that is a clock reading, not an overlap in the audio (the transport trace
+intervals stay at the song length). `tool/ios_gapless_diagnostics.sh` plays the
+fixture queues and checks these values.
+Pitch Lock on iOS (#528) is one resample, not two. When pitch equals speed (and is
+not 1x) the plan (`NavisRatePlan.c`, applied by `AudioPlayer.m`) puts every item on
+`AVAudioTimePitchAlgorithmVarispeed` (AVPlayer's own rate resample, which moves pitch
+with speed), sets the tap's pitch to 0 and moves each EQ band to `f / speed` (the EQ
+runs in the tap, before the rate, so the band is then heard where it was set; a band
+that lands above 20 kHz is disabled, one below 20 Hz clamps to 20 Hz). Otherwise
+items keep the time-domain stretch and an unlocked pitch stays the tap's
+independent pitch. `setSpeed` and `setPitch` both queue one plan run, so the pair
+that Dart sends back to back is planned once. The rate is immediate, but the EQ retune
+and any tap cents land about 0.4 s late (the tap renders ahead). The algorithm is
+also set on every queued, not-yet-inserted and loop item, and the rate is set again
+right after a switch (AVPlayer may read the algorithm only on a rate set; device check
+owed). State adds `frequencyScale` (the EQ scale in effect) and, from
+`getEqualizerState`, `timePitchAlgorithm` (`varispeed` or `timeDomain`); both reach
+the diagnostics `application` object (null when the backend sends none).
+The ReplayGain boost (I24) is the last step of each format slot, after pitch and EQ
+(`NavisBoost.c`): a gain with a 20 ms linear ramp, independent of `enabled`, so quiet
+songs are turned up with the EQ off or on. The cut (I26) is each item's own audio-mix
+volume, set when the item is queued (`setReplayGainLevels` moves it later), and one song
+never gets both. With the EQ pipeline off the cut falls back to `AVPlayer.volume`. Dart sends the per-URI boost map (`setReplayGainBoost`) and
+`AudioPlayer.m` decides the target on the main thread (`navis_boost_decide`): the
+song's own boost, or in the last 3 s of wall-clock time (and for songs shorter than 4 s
+or of unknown length) the lower of its and the next song's, latched until the next
+song event. A drop applies at once, a rise waits 500 ms after a song event, so a song
+head can be under-boosted for about 0.5 s but its tail is never over-boosted. The
+target reaches the tap as one atomic gain; a slot snaps to it on its first block and
+on a reset (StartOfStream or a flush), else it ramps. Blocks that pass unchanged (no
+slot, another render thread in the slot) get no boost. The tap has no limiter: the
+1 dB margin under the tagged peak is Dart's, and samples beyond full scale after the
+gain are only counted. State adds `boostRequestedDb`, `boostAppliedDb` (the gain the
+last block ended on), `boostGuarded` and `boostClipSamples` (0 in a healthy run).
+Without the tap (after the EQ pipeline was rebuilt away) the capability is false and
+nothing is sent.
+The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
+run from `tool/equalizer_native_test.sh` (it needs only a C compiler), as are
+`navis_pitch_stage_test.c`, `navis_rate_plan_test.c` (the Pitch Lock plan, the
+scaled EQ config and where a scaled band is heard), `navis_boost_test.c` (the boost decision table and
+ramp) and `navis_tap_formats_test.c` (the format slots with a fake pitch unit,
+including concurrent pipelines, the boost and the layout checks the tap glue uses to
+pass an unsupported format or buffer list unchanged; under ThreadSanitizer too on macOS).
 
 The Android processor currently receives 16-bit PCM. Coefficients and filter
 history use doubles internally; this is not a bit-perfect high-resolution path.
@@ -209,7 +350,7 @@ limiter and does not promise protection against every transient.
 ReplayGain, volume, mute, ducking, and crossfade deck gains remain separate.
 The Android processor also applies ReplayGain (one signed level per queue entry,
 cuts and boosts), after the EQ bank and outside its preamp and automatic
-headroom, so quiet songs are turned up with the EQ off or on.
+headroom, so quiet songs are turned up with the EQ off or on. The iOS tap does the same ([iOS](#ios)).
 The level switches to the next song at the first flush after Media3 reports the new
 stream, or, when Media3 reports it late (opus: the new song's first decoded buffer is
 the one that crosses the old song's last input), after the renderer hands that first

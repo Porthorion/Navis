@@ -427,70 +427,88 @@ void main() {
   });
 
   group('replayGainBoostPlatformSupported', () {
-    test('mpv boosts except on macOS, whose libmpv 0.36 is not verified', () {
-      expect(
-        navisReplayGainBoostSupported(usesMpv: true, isMacOS: false),
-        isTrue,
-      );
-      expect(
-        navisReplayGainBoostSupported(usesMpv: true, isMacOS: true),
-        isFalse,
-      );
-      expect(
-        navisReplayGainBoostSupported(usesMpv: false, isMacOS: false),
-        isFalse,
-      );
+    test('mpv boosts on every desktop, macOS included (#490)', () {
+      expect(navisReplayGainBoostSupported(usesMpv: true), isTrue);
+      expect(navisReplayGainBoostSupported(usesMpv: false), isFalse);
     });
 
-    test('the filter stage is on Linux and Windows mpv, off on macOS', () {
-      expect(navisReplayGainInPipeline(usesMpv: true, isMacOS: false), isTrue);
-      expect(navisReplayGainInPipeline(usesMpv: true, isMacOS: true), isFalse);
-      expect(
-        navisReplayGainInPipeline(usesMpv: false, isMacOS: false),
-        isFalse,
-      );
+    test('the filter stage is on mpv, which covers macOS (#490)', () {
+      expect(navisReplayGainInPipeline(usesMpv: true), isTrue);
+      expect(navisReplayGainInPipeline(usesMpv: false), isFalse);
     });
 
     test('the Android processor turns the stage on without mpv', () {
       expect(
-        navisReplayGainInPipeline(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: true,
-        ),
+        navisReplayGainInPipeline(usesMpv: false, androidProcessor: true),
         isTrue,
       );
+      // A rebuilt Android player (no processor) keeps the Dart cut.
       expect(
-        navisReplayGainInPipeline(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: false,
-        ),
+        navisReplayGainInPipeline(usesMpv: false, androidProcessor: false),
         isFalse,
       );
-      // iOS and a rebuilt Android player (no processor) keep the Dart cut.
-      expect(navisReplayGainInPipeline(usesMpv: false, isMacOS: true), isFalse);
+    });
+
+    test('the iOS tap carries the cut in the item audio mix (I26)', () {
+      expect(navisReplayGainInPipeline(usesMpv: false, iosTap: true), isTrue);
+      // No tap (the EQ pipeline is gone): the Dart cut through volume stays.
+      expect(navisReplayGainInPipeline(usesMpv: false, iosTap: false), isFalse);
     });
 
     test('Android boosts while its EQ processor pipeline is installed', () {
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: true,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, androidProcessor: true),
         isTrue,
       );
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: false,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, androidProcessor: false),
         isFalse,
         reason: 'the player was rebuilt without the processor',
       );
     });
+
+    test('iOS boosts while the tap pipeline is installed (I24)', () {
+      expect(
+        navisReplayGainBoostSupported(usesMpv: false, iosTap: true),
+        isTrue,
+      );
+      expect(
+        navisReplayGainBoostSupported(usesMpv: false, iosTap: false),
+        isFalse,
+        reason: 'the player was rebuilt without the tap',
+      );
+    });
+  });
+
+  test('no song is ever both cut and boosted, so no gain applies twice', () {
+    // iOS applies the cut on AVPlayer.volume and the boost in the tap.
+    for (final mode in ['track', 'album']) {
+      for (final gain in [-20.0, -6.0, -0.5, 0.0, 0.5, 3.0, 9.0, 14.4]) {
+        for (final peak in [null, 0.05, 0.3, 0.5, 0.9, 1.0, 1.5]) {
+          for (final preamp in [-6.0, 0.0, 6.0]) {
+            for (final untagged in [-8.0, 0.0]) {
+              final levels = replayGainLevels(
+                mode: mode,
+                trackGain: mode == 'track' ? gain : null,
+                albumGain: mode == 'album' ? gain : null,
+                trackPeak: mode == 'track' ? peak : null,
+                albumPeak: mode == 'album' ? peak : null,
+                preampDb: preamp,
+                untaggedDb: untagged,
+                boostSupported: true,
+              )!;
+              final reason =
+                  '$mode gain $gain peak $peak preamp $preamp untagged $untagged';
+              expect(levels.cutDb, lessThanOrEqualTo(0), reason: reason);
+              expect(levels.boostDb, inInclusiveRange(0, 12), reason: reason);
+              if (levels.boostDb > 0) {
+                expect(levels.cutDb, 0, reason: reason);
+              }
+            }
+          }
+        }
+      }
+    }
   });
 
   group('automaticUntaggedGainDb', () {

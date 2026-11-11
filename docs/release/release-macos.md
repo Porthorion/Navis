@@ -21,7 +21,7 @@ Linux or Windows and no `--macos-ssh` flag. Run `tool/release.sh` directly on th
 ### 1. Flutter SDK
 
 ```bash
-flutter --version          # Flutter 3.x stable
+flutter --version          # Flutter 3.47.5 or newer (Swift Package Manager on)
 flutter doctor -v
 ```
 
@@ -39,6 +39,11 @@ sudo xcodebuild -runFirstLaunch
 ```bash
 brew install cocoapods
 ```
+
+Flutter builds the plugins that ship a Swift package with Swift Package Manager, and the committed
+`macos/Runner.xcodeproj` already carries that integration, so a build leaves the
+tree clean. CocoaPods is still needed because `media_kit_libs_macos_audio` has no
+Swift package yet.
 
 ### 4. Run the preflight script
 
@@ -67,13 +72,63 @@ Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
 
 ---
 
-## Known security gap: stream certificates
+## Bundled libmpv
 
-The bundled macOS libmpv (mpv 0.36, Mbed TLS) does not verify HTTPS server
-certificates, and Navis leaves `tls-verify` off there because that build's
-certificate source has not been verified. Linux and Windows verify. Resolve
-this together with replacing the macOS libmpv (see
-`docs/audits/dependency-audit-2026-10-01.md`) before a public macOS release.
+macOS bundles Navis's own audio-only LGPL libmpv (universal arm64 + x86_64,
+deployment target 12.0) through the vendored
+`third_party/media_kit_libs_macos_audio` package (see its `NAVIS.md`), not
+media-kit's libmpv-darwin-build. It is mpv `eb0ee1031590b3f369a5b783e8aa91eeaaded7e6`
+(`-Dgpl=false`) and FFmpeg `151814650`, the same commits as Linux and Windows,
+with FFmpeg's `volume`, `biquad` and `equalizer` filters for the equalizer,
+mpv's internal `scaletempo` for tempo and Apple SecureTransport for TLS. The
+framework links only macOS system libraries.
+
+- **Pin**: `libmpv-macos-universal-lgpl-20261104.tar.gz`, SHA-256
+  `088d49672ebd06db2f41059fca0e02dcee94ea1499ff4ef0079890f4e11e9d9d`, is pinned in
+  `third_party/media_kit_libs_macos_audio/macos/fetch_libmpv.sh`; `pod install`
+  downloads it from
+  `https://downloads.porthorion.com/navis/third-party/libmpv-macos-universal-lgpl-20261104/`,
+  verifies the SHA-256 and fails the build otherwise. There is no upstream
+  fallback.
+- **Local build or rebuild**: run `tool/libmpv/build_macos_lgpl.sh` (see
+  [the recipe README](../../tool/libmpv/README.md#macos)) and build with
+  `NAVIS_LIBMPV_MACOS_ARCHIVE=<path to the tarball>`; the archive must still
+  match the pinned SHA-256. CocoaPods runs the fetch script only on
+  `pod install`; after a pin or archive change, delete `macos/Pods/Manifest.lock`
+  (or `flutter clean`) so the next build re-runs it. A podspec build phase runs
+  `fetch_libmpv.sh --check` (offline) before every compile and fails the build
+  with that instruction when the extracted framework's stamp does not match the
+  pin, so a stale `Pods` directory cannot keep an old libmpv.
+- **Release operator**: before the first release that pins it (a build without
+  the upload cannot fetch libmpv), upload these from
+  `~/Library/Caches/navis-libmpv-build/out/libmpv-macos-universal-lgpl-20261104/`
+  to R2 `navis/third-party/libmpv-macos-universal-lgpl-20261104/` (no flat copy
+  elsewhere):
+  - `libmpv-macos-universal-lgpl-20261104.tar.gz`
+  - `SOURCES.md` and `BUILDINFO.txt`
+  - `patches/` (`mpv-macos-coreaudio-channelmap.patch`)
+  - the seven source archives from `src/` (`ffmpeg-151814650.tar.gz`,
+    `mpv-eb0ee1031590b3f369a5b783e8aa91eeaaded7e6.tar.gz`,
+    `libplacebo-v7.360.1.tar.gz`, `libass-0.17.5.tar.xz`,
+    `freetype-2.13.3.tar.xz`, `fribidi-1.0.16.tar.xz`, `harfbuzz-10.2.0.tar.xz`),
+    next to `SOURCES.md` (it says they are "in this folder").
+
+  Then check `shasum -a 256` of the downloaded tarball against the pin. The in-app
+  notice (`assets/licenses/libmpv-macos-NOTICE.txt`) links that `SOURCES.md`.
+
+## Stream certificates
+
+Navis sets `tls-verify=yes` on every desktop player. On macOS the libmpv's
+SecureTransport verifies stream servers against the system trust store (the
+keychain and the system roots) with no CA file: public certificates play, and
+self-signed, wrong-host, expired and untrusted-root certificates are refused.
+For IP-literal hosts the host name is not matched, but the certificate chain
+is still verified.
+
+The macOS backend (SecureTransport) supports TLS up to 1.2. A server that
+accepts only TLS 1.3 therefore cannot stream on macOS even though sign-in
+(Dart's own TLS stack) works; keep TLS 1.2 enabled on the Navidrome reverse
+proxy.
 
 ## Code Signing
 
@@ -223,24 +278,79 @@ Once installed, the auto-updater handles all future updates.
 
 When a new version is detected:
 
-1. **Write-access check:** verifies that `/Applications` (or wherever the `.app` lives) is
+1. **Location check:** verifies that `/Applications` (or wherever the `.app` lives) is
    writable. If not, shows "Download Manually" and links to the release notes page (or
-   the download page on the Navis website).
+   the download page on the Navis website). An app running from a disk image
+   (`/Volumes/...`) or from App Translocation (`/AppTranslocation/...`, what macOS does to
+   a quarantined app opened from Downloads) is read-only: the dialog then says "Move Navis
+   to the Applications folder to update it."
 2. Downloads `navis-vX.Y.Z-macos.zip` to the system temp directory.
 3. Checks its size and SHA-256 against the signed manifest. A mismatch deletes the file
    and shows "The update download was damaged"; nothing is extracted.
 4. Extracts using `ditto -xk`, which preserves the code signature.
-5. Resolves the current `.app` bundle path by walking up from the running executable.
+5. Checks that the extracted `<App>.app` exists and passes
+   `codesign --verify --deep --strict`. If not, the update is refused with the same
+   "damaged" message **while the old app keeps running**.
 6. Writes a bash updater script to temp and launches it detached, then exits.
 
-The updater script:
-- Waits 2 seconds for the app to exit.
-- Backs up the current `.app` as `.app.backup`.
-- Moves the new `.app` into place.
-- Launches using `open Navis.app`.
-- Removes the backup and self-deletes.
-- If moving the new version fails, **automatically restores the backup** so the user's app
-  remains functional.
+The updater script (`UpdateScripts.writeMacosScript`; Linux portable and Windows use
+their own scripts, unchanged):
+- Waits for the old process (by pid, up to 20 s) to exit. If it never does, nothing is
+  touched and the existing app is reopened.
+- Moves the current `.app` to `<App>.app.backup`, then the new `.app` into place.
+- Writes `pending` to `~/Library/Application Support/<bundle id>/navis-update-handshake`
+  and opens the new app.
+- The new app rewrites that file as `started` once it has rendered its first frame
+  (`UpdateService.confirmMacosLaunch` → `MacosUpdate.confirmLaunch`, a post-frame callback in `main.dart`). The script waits up
+  to 30 s for it.
+- Seen: deletes the backup. Not seen and no process runs from the new bundle (the new app
+  crashed or never started), or `open`, a move or the handshake write failed: writes
+  `rollback` to the handshake, moves the new app aside, restores the backup and opens the
+  old app, so the user is never left without Navis. If the restore move itself fails,
+  both apps are kept. A leftover that cannot be removed before a move aborts the update
+  instead of nesting one app inside another.
+- Not seen but a process still runs from the new bundle: the new app is alive, so nothing
+  is moved or deleted and the backup stays; the next launch removes it.
+- Appends every step to `~/Library/Logs/Navis/update.log` (trimmed past ~100 KB).
+
+At every launch, with no update script waiting (no fresh `pending` or `rollback`
+handshake file), the app deletes a leftover `<App>.app.backup` next to its bundle. A
+handshake file more than 5 minutes old (or dated that far in the future) is treated as
+left by a killed script. A sync-diagnostics clone skips this cleanup.
+
+### Operator checks
+
+- **Before publishing**: `codesign --verify --deep --strict --verbose=2 Navis.app`
+  on the built app, and `spctl --assess --type execute --verbose=4 Navis.app`
+  after notarization. The updater runs the same `codesign --verify --deep --strict`
+  on the extracted app and refuses a zip that fails it, so a bad signature
+  shows up for users as "The update download was damaged. Try again." with the
+  old app still running.
+- **"Move Navis to the Applications folder to update it."**: the app runs from the
+  zip's Downloads copy (App Translocation) or a disk image. The user drags it to
+  `/Applications`, opens it from there and checks again; nothing is wrong with the
+  release.
+- **An update fails or reverts to the old version**: read
+  `~/Library/Logs/Navis/update.log` (every step is timestamped; `restored previous app`
+  marks a rollback, `restore FAILED` and `backup kept` mean `Navis.app.backup`
+  next to the app is the good copy). Then
+  `~/Library/Application Support/com.navis.app.navis/navis-update-handshake` (`pending`,
+  `started` or `rollback`) and, for a refused zip, the app log lines
+  `Staged app failed codesign`. A crash on first start is the usual cause of a rollback,
+  so check the new build launches on a clean machine before publishing.
+
+Limits: the launch marker is written after the first frame, so it proves the new app got
+past startup, not that it stays up afterwards. A new app that is running but has not
+written the marker (for example a slow first launch) is never rolled back; only an app
+that is not running is. Ad-hoc (non-notarized) zips can still
+be published under the `macosBundle` key by running `tool/release.sh` without
+`--macos-notarize`; the updater only checks the manifest hash and that the bundle's
+signature is intact, not that it is notarized.
+
+`tool/macos_notarize.sh` signs inside-out: nested frameworks, dylibs, XPC services and
+helper apps first, then the app, all with `--options runtime --timestamp` and no `--deep`.
+Only the app gets `--entitlements macos/Runner/Release.entitlements`. Verification still
+uses `--deep --strict`.
 
 ---
 

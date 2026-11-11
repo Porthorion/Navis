@@ -152,6 +152,8 @@ class PlaybackAdjustmentController
       } on Object {
         values = handler.playbackAdjustments;
         applicationFailed = true;
+        // The apply may have downgraded the capabilities (pitch_unavailable).
+        ref.invalidate(playbackAdjustmentCapabilitiesProvider);
       }
     }
     final selected = unsupported || applicationFailed
@@ -280,6 +282,9 @@ class PlaybackAdjustmentController
         _scheduleSave();
         applied = true;
       } on Object {
+        // A failed apply may have downgraded the handler's capabilities (iOS
+        // answered pitch_unavailable); the provider is a one-shot read of them.
+        if (ref.mounted) ref.invalidate(playbackAdjustmentCapabilitiesProvider);
         if (!ref.mounted || generation != _generation) return;
         final confirmed = _confirmed!;
         final actual =

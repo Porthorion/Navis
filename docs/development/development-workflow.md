@@ -15,11 +15,25 @@ What it does:
 - checks the Flutter 3.47.5 minimum and active 3.47.x baseline
 - resolves root and owned Flutter packages plus CargoKit development dependencies
 
+The local quality gate also requires Python 3.11+ and NumPy for the playback
+PCM/oracle self-checks (`tool/bootstrap.sh` warns with the install hint when NumPy
+does not import; check.sh itself fails loudly). Install NumPy using your system package manager, or use
+an ignored virtual environment before running `./tool/check.sh`:
+
+```bash
+python3 -m venv build/validation-venv
+. build/validation-venv/bin/activate
+python3 -m pip install numpy
+```
+
+Bootstrap resolves Dart packages; it does not install Python packages. Keep the
+same Python environment active for the final gate and evidence verification.
+
 ## Bundled licence notices
 
 `registerBundledLicenses` in `lib/src/app_licenses.dart` owns notices for
 non-Dart assets and native libraries. Its tests cover platform filtering and
-the enabled Windows/Linux LGPL notices and optional system-library flag
+the enabled Windows, Linux and macOS LGPL notices and optional system-library flag
 without starting the application. Regenerate Windows Rust notices with `python3 tool/generate_rust_notices.py`; fetch the
 locked dependencies first, then commit `assets/licenses/windows-smtc-crates.txt`.
 The generator matches licence filenames case-insensitively and uses tracked
@@ -34,7 +48,9 @@ checks (downloads are simulated). Linux retains its verified cache/fallback
 approach; check it with
 `cmake -DDOWNLOAD_SOURCE="$PWD/linux/CMakeLists.txt" -P tool/libmpv_download_test.cmake`.
 Run `cmake -P tool/libmpv_bundle_test.cmake` for offline extraction/installation
-and opt-out checks. See the Windows/Linux release guides for pin updates.
+and opt-out checks. Run `tool/libmpv_fetch_macos_test.sh` (macOS hosts) for the offline
+SHA-256, cache and local-override checks of the macOS libmpv fetch script. See the
+Windows/Linux release guides for pin updates.
 The Linux and Windows LGPL recipes under `tool/libmpv/` build separately;
 normal app builds consume the published archive and do not invoke Docker.
 
@@ -196,7 +212,8 @@ Checks performed:
 - Windows SQLite asset verification (`tool/sqlite3_windows_asset_test.py`)
 - Diagnostics profile preparation (`tool/diagnostics_profile_test.py`): an
   isolated clone, including one from a profile older than schema 91, starts
-  with Online services off
+  with Online services off; the default primary database is the Linux or
+  macOS application-support path
 - Dart formatting (`./tool/dart_format.sh --check`): `lib/`, `test/`,
   `tool/` and the vendored `third_party/` path dependencies, which the root
   package config resolves to their own language versions; CargoKit is
@@ -463,7 +480,8 @@ behavior under test:
 | Linux media-session integration | Linux app API plus MPRIS |
 | Android or Android Auto | Linux startup smoke plus the Android media-session/MediaBrowser API on a device, emulator, or DHU as appropriate |
 | Windows media integration | Linux startup smoke plus `tool/windows_smtc_diagnostics.ps1` on Windows and GMTC |
-| macOS or iOS integration | Deferred by the project owner while Apple development is unavailable; record unverified Apple status |
+| macOS app behavior | macOS profile clone launched on a Mac host through the shared diagnostics launchers (`flutter run -d macos`, selected automatically on Darwin) plus the app API and an inspected screenshot; Now Playing and media keys also need a manual check on the Mac until an app-owned probe exists |
+| iOS app behavior | iOS simulator debug clone through the shared launchers (`NAVIS_DIAGNOSTICS_DEVICE=ios`) plus the app API and an inspected screenshot; device-only behavior (background audio, lock screen, real hardware) stays unverified until a physical-device check |
 
 ### Temporary Android emulators
 
@@ -716,7 +734,8 @@ frames, so frame timings alone cannot show a freeze. The report also counts
 native player operations) and `tableUpdates` (Drift change notifications per
 table) since the last reset. `GET /v1/playback/status` includes `playerSequenceLength`, `playerVolume` (the
 active player's volume: runtime checks of the Dart ReplayGain cut read it on
-every row, including `queueSettled=false` ones),
+every row, including `queueSettled=false` ones; on mpv, macOS included, the
+cut rides the `@navis_rg` filter, so `playerVolume` stays at the user volume),
 `materializedLength`, `deferredLength`, `queueFill` stage timings, and
 persistence-lane counts. Read-only
 `GET /v1/diagnostics/local-search?query=` times the production local artist,
@@ -830,8 +849,53 @@ Retain package version, old/new pid, root-temp cleanup, screenshots and installe
 stderr evidence. Cancellation, no-agent, swap and lock-error UI checks still
 require the owner; static/script checks are not runtime acceptance.
 
-Linux and Windows profile diagnostics share the authenticated control-plane
-contract. Android production builds remain observation-only. The planned SAF
+Linux, Windows, macOS and iOS-simulator diagnostics share the authenticated
+control-plane contract. `diagnostics_device` in `tool/lib/diagnostics.sh`
+selects `-d macos` on Darwin for its launchers, `tool/sync_diagnostics.sh` and
+`tool/presentation_diagnostics.sh`; other single-site scripts still launch
+`-d linux`. macOS builds are unsandboxed (`macos/Runner/*.entitlements` omit
+`app-sandbox`, like the notarized app), so the clone root and handshake under
+`build/` are writable. The PulseAudio capture launcher (`launch_audio_app`)
+exits 69 on Darwin. On a Mac, set `NAVIS_DIAGNOSTICS_PRIMARY_DB` for
+`sync_diagnostics.sh` and `presentation_diagnostics.sh` only to use a database
+other than the default `~/Library/Application Support/com.navis.app.navis/navis.sqlite.sqlite`
+(`tool/diagnostics_profile.py` picks it on Darwin), pass a mode-600 `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH`
+file to sign the clone in (the clone keeps credentials in memory, so it never
+reads the keychain), run the scripts with Homebrew bash 4+ rather than the
+system bash 3.2, and expect the first cold `flutter run -d macos` build to
+outlast the 180-second handshake wait; build once first.
+
+**iOS simulator loop.** The simulator cannot run profile or release builds, so
+the diagnostics API is also available in *debug* builds on the iOS simulator,
+and only there (`diagnosticsBuildEnabled` in
+`lib/src/utils/diagnostics_build_gate.dart`: profile, or debug with the
+executable under `CoreSimulator/Devices`). Release builds and debug builds on a
+physical iPhone or on any other platform stay off; a physical iPhone needs a
+profile build like the other platforms. iOS plays through just_audio and
+AVFoundation in debug and release alike, so debug evidence on the simulator is
+valid for playback logic, but timing and performance numbers are not. Boot a
+simulator, then run a launcher that uses `diagnostics_device`
+(`tool/sync_diagnostics.sh`, `tool/presentation_diagnostics.sh`) with
+`NAVIS_DIAGNOSTICS_DEVICE=ios`; scripts that hard-code `-d linux` do not
+support iOS:
+`diagnostics_device` resolves the booted simulator's UDID (`xcrun simctl list
+devices booted`) and `diagnostics_build_mode` passes `--debug`. Audio capture
+(`launch_audio_app`) stays Linux-only. A simulator app is a host process that
+shares the host's file system and loopback network, so the handshake, database
+and artifacts live under the run root like a desktop clone (including the
+redirected `path_provider` directories) and the host script reads the port and
+token from the handshake file as usual. The clone has no separate bundle id on
+iOS (the Xcode project has one); a fresh simulator install is isolated from the
+user's data, and the scripts clone the *host* primary database into the run
+root. The scripts do not discover the simulator app's own database; to clone it,
+set `NAVIS_DIAGNOSTICS_PRIMARY_DB="$(xcrun simctl get_app_container booted com.navis.app.navis data)/Library/Application Support/navis.sqlite.sqlite"`
+(iOS keeps the file directly in Application Support, with no bundle-id
+subdirectory, per `lib/src/database/database_location.dart`). The first cold `flutter run` to a simulator can take 7 minutes; the
+`launch_app` in `tool/lib/diagnostics.sh` waits 600 seconds and, for iOS,
+fails fast when the app throws before the handshake instead of waiting out
+`flutter run`, which stays alive on a white screen; the older `launch()` helper
+still waits only 180 seconds, so build once first. Android production
+builds remain observation-only. The planned SAF
 download-folder diagnostics must be sidecar-only, restricted to an emulator
 fixture tree, reject arbitrary paths, and never be enabled by the stable
 package.
@@ -1488,6 +1552,153 @@ final invocation so the sanitized runtime-validation record captures the gate.
 
 ### Playback runtime harness
 
+
+#### Final fixture gate and ownership
+
+The final invocation extends the existing harness. Before, an owner assembled
+these three independent commands (and retained their logs manually):
+
+```bash
+./tool/check.sh
+python3 tool/playback_harness.py ab --all --full --platform linux --base github/release/1.5
+python3 tool/playback_harness.py ab --all --full --platform android --base github/release/1.5
+```
+
+After, run one gate invocation from the repository root:
+
+```bash
+python3 tool/playback_harness.py gate --base github/release/1.5
+```
+
+An agent shell cannot run this in the foreground (up to a 32-hour command budget
+against a 10-minute foreground and 2-hour background cap). Launch it detached in
+its own session, keep the existing memory-capped scope (the harness re-execs
+itself under `systemd-run --user --scope`, MemoryMax 8G, and the launching shell's
+environment is preserved), and end the turn:
+
+```bash
+stamp=$(date -u +%Y%m%dT%H%M%S); mkdir -p build/harness
+setsid bash -c 'trap : TERM; echo $$ > build/harness/launch-'$stamp'.pid
+  python3 tool/playback_harness.py gate --base github/release/1.5
+  echo $? > build/harness/launch-'$stamp'.exit' </dev/null > build/harness/launch-$stamp.log 2>&1 &
+```
+
+- **Completion:** the gate is finished only when `build/harness/launch-<stamp>.exit`
+  exists (it holds the gate exit code); `gate.json` reads `blocked` while the
+  gate is still running. Do not poll in a loop: schedule one wake-up after the
+  expected duration, then read `gate.json` / `gate-summary.md` from the
+  `gate-*` directory named in `launch-<stamp>.log`. If the pid file's process is
+  gone and no `.exit` file exists, the gate was killed: inspect the lock holder
+  (`lslocks | grep navis`) and any surviving cleanup owner before relaunching.
+- **Cancel:** send TERM to the launch process group, `kill -TERM -- -$(cat
+  build/harness/launch-<stamp>.pid)`, and wait for the `.exit` file; the bounded
+  owners then clean up their descendants and release the locks (`trap : TERM` keeps the
+  wrapper alive so it still writes the `.exit` file, 143). Never SIGKILL
+  the group.
+
+It runs check.sh, Linux, then Android serially; Android is required by this
+fixture gate. A missing SDK/AVD is blocked, never successful or silently skipped.
+It preserves all **124 Linux + 88 Android cells per variant (424 A/B cells)**,
+assertions and tolerances. `--map`, quick runs and repetition overrides remain
+iteration tools, not substitutes. No calibration/threshold work is included.
+See the [coverage map](playback-validation-coverage.md) for requirements beyond
+these fixtures. The gate always reports whole playback acceptance as outstanding;
+its exit 0 certifies only check.sh plus both verified full fixture matrices.
+
+Each invocation creates `build/harness/gate-<UTC-microsecond-stamp>/`, containing
+`gate.json`, `gate-summary.md`, `check.log`, a `linux.log` / `android.log` only for a
+step that ran or was reused (skipped steps create none), and new platform evidence
+directories. The JSON stores each exact argument vector,
+command exit (null for not executed), gate step exit, elapsed time and
+passed/failed/blocked/not-run status. A check.sh that did not pass (failed, timed out or blocked) skips the matrices
+(not-run, "skipped: check <status>"; the gate keeps check's mapping: failed/1, blocked/2). A timeout is blocked with step exit 124;
+the actual terminated command exit is retained when available. Not-run steps
+have no command exit. Reused steps identify their existing evidence directory.
+check.sh retains every step log under its own unique `build/check/run-*` directory,
+prints that pointer, and fails on either command or tee failure, preferring the
+original command exit when both fail. It removes no captured logs.
+
+The gate holds `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`
+(plus `NAVIS_HARNESS_CACHE/lock` when configured elsewhere) for the entire invocation. Direct
+check.sh and A/B callers take the same pair (direct `ab` passes the descriptors to
+its build, engine, bootstrap, KWin and emulator children, as the gate does). Busy jobs fail fast with the lock
+owner PID and evidence pointer when written by these tools. The recorded PID may be
+dead while a child (KWin, emulator, cleanup owner) still holds the lock, so every
+busy message points at `lslocks | grep navis` to find the real holder. Never poll or launch replacements while an owner is active.
+Children inherit descriptors; nesting verifies inode/device identity, exclusive
+flock ownership and contention on an independently opened descriptor. No
+environment flag grants lock ownership. An inherited outer `flock` is supported
+where its descriptor survives exec. Prefer the gate without an outer flock:
+`systemd-run` scope transitions may close outer descriptors. Do not delete lock
+files to bypass an owner; that creates different lock inodes.
+
+The harness retains the systemd MemoryMax=8G / MemorySwapMax=3G scope. It bounds
+check.sh to 2 hours, Linux to 18 hours and Android to 12 hours (32 hours total
+command budget, plus bounded preflight and cleanup). Builds have a 1-hour
+limit; base bootstrap 20 minutes; engine scenarios retain their existing
+budget×4+10-minute limits. Each bounded command runs under a private Linux
+child-subreaper, which retains inherited lock descriptors until all its children
+and adopted descendants have exited and been reaped, including separate sessions
+and descendants whose original parent already exited. Timeout/interrupt requests
+TERM cleanup; after 60 seconds the owner sends KILL only to verified descendants.
+Nested cleanup owners may be terminated, but the outer subreaper adopts and drains
+their children before returning or starting another platform. PID handles (pidfds)
+and live parent checks prevent signalling a reused PID. Engine SIGTERM still
+unwinds its existing app/proxy cleanup. Repeated cancellation cannot interrupt the
+caller's cleanup wait or replace its original timeout/cancellation error.
+This requires Linux `/proc`, child-subreaper and Python/kernel pidfd support;
+unsupported hosts fail closed before launching the command. The deadline bounds
+graceful cleanup, not kernel exit/reaping latency: an uninterruptible kernel task
+can keep ownership held past the deadline. Do not SIGKILL the outermost cleanup
+owner or its caller; external owner death, host failure and processes delegated
+to an existing service (rather than fork descendants) are outside this guarantee.
+Partial emulator acquisition removes only its own
+AVD and process. This safety fix does not close P4's ordering/calibration or
+other lifecycle acceptance work. Host/device timing still requires task C.
+
+One builder, one validation owner, one independent reviewer:
+
+1. **Builder:** finish edits and focused checks; hand over the exact candidate,
+   resolved base, Flutter/configuration, test results, evidence paths and known
+   gaps. Freeze source during validation. Do not start a parallel full gate.
+2. **Validation owner:** run the final command once, retain its unique directory,
+   exact exit and summary, and hand over all external/native/device/manual gaps
+   with applicability. Before replacing an owner, cancel its predecessor and
+   confirm its process/task is terminal, including any automatic resume. Use a
+   fresh directory for the replacement; never share a review scratch directory.
+3. **Reviewer:** inspect source and retained artifacts; independently verify
+   exact-state evidence and challenge concrete gaps. Reuse evidence instead of
+   executing merely to possess another copy. Request a rerun for changed source,
+   base, Flutter/configuration/environment, missing/corrupt artifacts, incomplete
+   cells, timeout, a concrete coverage hole or a new regression probe. Cite the
+   reason and smallest necessary scope; changed playback source invalidates the
+   previous full candidate certificate.
+
+Explicit reuse still runs check.sh and verifies each supplied matrix against the
+current exact candidate, resolved base, Flutter, stable environment and complete
+platform configuration before accepting it:
+
+```bash
+python3 tool/playback_harness.py gate --base github/release/1.5 \
+  --reuse-linux build/harness/<previous-gate>/linux \
+  --reuse-android build/harness/<previous-gate>/android
+```
+
+There is no automatic discovery/reuse or fallback rerun on invalid reuse evidence.
+Source identity includes all tracked and nonignored untracked files, including
+tooling/docs; no playback-affecting path is ignored to enable reuse. The only
+exception is `docs/project/progress.md`, where evidence is recorded after the run. Reuse applies
+only to the attested state. Relevant environment values are hashed, never printed;
+see the coverage map for the stable selection and attestation limits.
+
+The local orchestrator at **2026-10-26 15:41:55 UTC** reported that a rate-limited
+r2 predecessor resumed automatically after its replacement started, sharing a
+review scratch directory. The replacement was cancelled only after the
+predecessor finished. This establishes overlapping ownership, not that all work
+was redundant. Existing r2/r3 briefs already prohibited heavy jobs and reused
+probes. No token, quota or cost saving is certified by this change.
+
+
 `tool/playback_harness.py` is the one command for playback runtime checks. It
 builds a base commit (cached) and the working tree, runs the same fixture
 scenarios on both with identical configuration, and prints one
@@ -1529,7 +1740,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
   | `memory-soak` | PSS + SwapPss slope and post-GC total, plus Dart heap over 20 drags and an idle window |
   | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; gated on Linux and Android) |
-  | `crossfade` | hand-off under a 4 s cross-fade, skips |
+  | `crossfade` | hand-off under a 4 s cross-fade, skips, long-song swap (`crossfade_long_end`, `crossfade_long_noseek`) |
   | `cut-recovery` | origin cuts, dead sources, cold seeks; on Android also the Ogg cut splice (`cut40`, `cut40x2`, `cut5`: only the first body is cut, then no reload or player error, one continuation request per cut, final cache file decodes clean within the join rms and 20 ms length bounds; `cut5` is Android-only) |
   | `local-seek` | seeks in a downloaded or fully cached file |
   | `queue-edit` | queue edits during a fill |
@@ -1544,8 +1755,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
 
-  Android cut-splice comparisons require at least one base `reloadsAfterCut`;
-  a missing or zero count fails `baseCutObserved` as a vacuous comparison. The
+  Android cut-splice comparisons require at least one base `cutsObserved` in
+  every cut cell (continuation requests, splice events or reloads inside the cut
+  window: a splicing base has no reloads); a missing or zero count fails `baseCutObserved` as a vacuous comparison. The
   one-second frozen-median limit uses only cells containing `spliceCheck`, so
   unrelated scenario cases cannot dilute a stalled splice. File validation
   gates both RMS (0.005) and absolute decoded length difference (20 ms).
@@ -1597,20 +1809,42 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   Repeat-wrap counting compares ready samples across a transient loading
   cursor when the handler replaces an offset stream with its completed file.
 
-- **Exit codes.** 0 pass (or `RESULT NONE` when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
+- **Exit codes.** 0 pass (or `RESULT NONE`, evidence status `none`, when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
   error (build or emulator failure, missing base or AVD, a base that predates
   the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds
   the lock). An infrastructure error is never reported as a FAIL.
 - **Safety.** The tool re-runs itself in a `systemd-run --user --scope`
-  (MemoryMax 8G), takes `~/.cache/navis-harness/lock`, snapshots the sha256 of
+  (MemoryMax 8G), takes both `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`, snapshots the sha256 of
   the downloads folder before and after, starts a headless `kwin_wayland
   --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
   `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per scenario and variant), and
-  stops only the processes it started. Android runs `stress-drag`,
-  `memory-soak`, `repeat` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
+  stops only the processes it started. The boot wait polls `adb get-state` as well as `sys.boot_completed`: a guest
+  whose adb stays `unauthorized`/`offline` gets one `adb -s <serial> reconnect` after 40 s
+  and an `InfraError` naming the state 90 s after the first bad poll (a completed boot, or 10 s of an uninterrupted `device` state, clears that clock; a failed `adb -s <serial> reconnect` is an `InfraError`, never a serial-less reconnect). A guest that fails to boot is removed with its clone and replaced once;
+  each boot attempt keeps its own `attempt-N/emulator.log`. Android runs `stress-drag`,
+  `memory-soak`, `repeat`, `cut-recovery` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
   software-rendered guest and are noisier, hence the wider Android tolerances
-  recorded in the PR. Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
-  (engine `report.json`, traces, app logs), `comparison.json`, `summary.md`.
+  recorded in the PR. On Linux base and fix repetitions alternate (base r1, fix r1, fix r2, base r2, ...); on Android, where a guest boot costs minutes, each variant runs all its repetitions on one guest and the first variant alternates per scenario (base, then fix, ...), so run order cannot bias every comparison the same way.
+  Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
+  (Linux: per-repetition `rep-R/attempt-N/` engine reports, traces, app logs, merged `attempt-1/report.json`; Android: `attempt-N/`), `comparison.json`, `summary.md`.
+- **Real server (`--real`).** Signs in to the live server with the mode-600
+  `~/.config/navis/perf-credentials.json` (a disposable account; never
+  printed or logged) instead of the fixture: engine runs get `--server live
+  --credentials`. The catalog is synced from the live server once per base
+  (Linux and Android both start from that seed, cached apart from the fixture
+  seed and keyed by server and account; Linux runs `--keep-profile`), and base
+  and fix replay one another's random song picks per case
+  and cell (`picks/` in the output folder; whichever variant runs first records) so the A/B compares code, not songs; a pick
+  that differs between the variants is a case error, never other songs. The
+  fix variant starts from the base's synced seed, so a fix that bumps the
+  schema or triggers the library reset re-syncs on its own. Only scenarios that need no fixture library or
+  transcoder run: `seek`, `stress-drag`, `memory-soak`, `local-seek`
+  (`FIXTURE_ONLY` names the rest and why). Naming a fixture-only scenario
+  exits 2 before any build; `--all`/`--map` skip them (`SKIP <scenario>:
+  fixture-only`) and exit 2 if none is left. Each engine report's `server`
+  must be `live` (`fixture` without `--real`), else the run is an
+  infrastructure error. Real runs are `iteration` evidence, never the gate's.
+  The clone profile and its downloads stay under `~/.cache/navis-harness/run/root`.
 - **Self-check.** `python3 tool/playback_harness_test.py` covers the threshold
   evaluation, the code-area map, the cache key and the exit-2 paths without
   building anything. Production hooks (the `transportTrace` ring and the
@@ -1646,7 +1880,8 @@ Every diagnostic or agent-control surface must:
 
 - Be unavailable in production release builds, bind only to loopback on an
   ephemeral port, and require a random bearer token communicated through a
-  handshake file. Linux/macOS profiles apply mode `0600`; Windows profiles use
+  handshake file. Linux/macOS profiles apply mode `0600`; the iOS simulator
+  cannot spawn `chmod` and relies on the mode-700 run root; Windows profiles use
   their isolated per-user diagnostics directory and must not wait for a POSIX
   permission command before serving requests. Android publishes the same
   bounded handshake through an app-owned native bridge to its external-files
@@ -2397,6 +2632,38 @@ preview/cancel against captured audio, and captures compact/wide graph and
 inline-editor app-owned EQ screenshots. Graph drag/Undo/cancel checks and a
 32-band sustained-drag profile expose measured frame timings and bounded queues.
 It never installs over or edits the primary profile.
+
+`./tool/ios_gapless_diagnostics.sh` (iOS simulator, one heavy job) plays four
+phase-continuous 440 Hz songs through `POST /v1/playback/queue` from the
+loopback fixture server (`--song-count 21`, songs 5 and 6 at 48 and 96 kHz through
+`--song-rate`, songs 14 and 15 as a stereo 16-bit and a mono float WAV through
+`--song-wav`), proxied and as permanent downloads, with the equalizer off and
+on at a flat -12 dB. It reads the iOS-only `transitionGapsMs` (silence between
+songs on the player's clock), `tapPrepareCount`, `flushCount`, `resetCount`,
+`processedFrames` and `levelDeltaDb` from `GET /v1/equalizer` `application`
+and fails when a gap exceeds `GAP_TOLERANCE_MS` (20), when a queue prepares the
+tap more than once, when the history resets during steady playback, or when
+`levelDeltaDb` is not -12 (0 off). Further phases (`GAPLESS_PHASES`): `rates`
+(a 22.05, 48 and 96 kHz queue: each song's EQ runs at its own rate, -12 dB, and
+`formatStreams`, `unmatchedFrames` and `overlapBlocks` are checked), `formats`
+(four source formats at 22.05 kHz: mono 16-bit, stereo 16-bit, mono float, mono
+16-bit), `seek` (one flush per seek and per skip, and
+seeking to 0 after the queue ended stays under 2 s), `insert` (a mid-song "play
+next"; its known 0.8 s stall is reported), `loop` (repeat one) and `crossfade`
+(relaunches the profile with crossfade on) and `boost` (I24, the ReplayGain boost: fixture
+songs 16 to 20 are 12 s sines, Q at -30 dBFS tagged +10 dB with its peak and H at 0.98 of full
+scale tagged -3 dB, made with `--song-tone ...:AMPLITUDE` and `--song-gain ID=GAIN:PEAK`; the
+queue Q H Q Q48 H is sampled every 250 ms with the EQ off, so any boost leaking onto H crosses
+full scale and shows in `boostClipSamples`; also ReplayGain off, per-song level with the EQ at
+-12 dB, skip, seek, play next 2 s before the end, a loop-all wrap, a jump back to a finished song and
+a seek back out of the guard window (Q must return to 10 dB), a pre-amp change, and a positive
+control for the counter (song 21, a 0.5 full-scale sine wrongly tagged like Q, must count about
+54 % of its samples); `BOOST_ON_RUNS` repeats the
+boost-on queue; assertions in `tool/ios_boost_check.py`). The transport trace in
+`GET /v1/playback/status` (`songCurrent` event times) is an independent check of
+the song-change timing; the first song change includes the player start
+latency (about 0.8 s on the simulator), so compare the later ones with the song
+length.
 
 The Android driver validates a running isolated sidecar via its owned API:
 

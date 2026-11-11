@@ -31,6 +31,7 @@ fi
 FLUTTER_PID=0
 FIXTURE_PID=0
 FIXTURE_PORT=''
+FIXTURE_HOST='127.0.0.1'
 PORT=''
 TOKEN=''
 BASE_URL=''
@@ -76,20 +77,25 @@ import json, sys
 print(json.load(open(sys.argv[1], encoding="utf-8"))["port"])
 PY
 )"
+  FIXTURE_HOST="$(python3 - "$FIXTURE_HANDSHAKE" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding="utf-8")).get("host", "127.0.0.1"))
+PY
+)"
 }
 
 clone_database() {
   local target_db="$1"
   local cache_root="$2"
   mkdir -p "$cache_root"
-  python3 - "$SOURCE_DB" "$target_db" "$cache_root" "$FIXTURE_PORT" <<'PY'
+  python3 - "$SOURCE_DB" "$target_db" "$cache_root" "$FIXTURE_PORT" "$FIXTURE_HOST" <<'PY'
 import hashlib, os, sqlite3, sys
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
 source.backup(target)
 source.close()
 cache_root = os.path.realpath(sys.argv[3])
-fixture_url = f"http://127.0.0.1:{sys.argv[4]}"
+fixture_url = f"http://{sys.argv[5]}:{sys.argv[4]}"
 for song_id, source_path in target.execute(
     "SELECT song_id, file_path FROM cached_tracks"
 ).fetchall():
@@ -338,10 +344,10 @@ latest_request_id() {
 
 connect_fixture() {
   local body
-  body="$(python3 - "$FIXTURE_PORT" "$CREDENTIAL_FILE" <<'PY'
+  body="$(python3 - "$FIXTURE_PORT" "$CREDENTIAL_FILE" "$FIXTURE_HOST" <<'PY'
 import json, sys
 print(json.dumps({
-    "url": f"http://127.0.0.1:{sys.argv[1]}",
+    "url": f"http://{sys.argv[3]}:{sys.argv[1]}",
     "username": "diagnostics",
     "password": open(sys.argv[2], encoding="utf-8").read().strip(),
 }))

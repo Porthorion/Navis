@@ -40,6 +40,7 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/data/desktop_transport_actions.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
@@ -72,6 +73,7 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_screen.dart';
 import 'package:navis/src/features/player/presentation/deferred_queue_restore_provider.dart';
+import 'package:navis/src/features/player/presentation/macos_dock_menu_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/server_mix_seed_provider.dart';
@@ -772,6 +774,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(artistQueueDropRetentionProvider);
     ref.watch(artistTopTrackMatchSyncBridgeProvider);
     ref.watch(deferredQueueRestoreControllerProvider);
+    ref.watch(macosDockMenuProvider);
 
     // Wire the preferred-mix-mode callbacks for Android Auto More-tab actions
     // (Instant Mix / Instant Radio). Registered here because app_shell has
@@ -1472,33 +1475,18 @@ class _AppShellState extends ConsumerState<AppShell> {
           return;
         case DesktopCommandAction.playPause:
           final handler = ref.read(audioHandlerProvider);
-          final playbackSnapshot = ref.read(playerStateProvider);
-          if (handler == null) {
-            return;
-          }
-          if (playbackSnapshot.playing) {
-            await handler.pause();
-          } else {
-            await handler.play();
-          }
+          if (handler == null) return;
+          await desktopPlayPause(handler, ref.read(playerStateProvider));
           return;
         case DesktopCommandAction.nextTrack:
           final handler = ref.read(audioHandlerProvider);
-          final playbackSnapshot = ref.read(playerStateProvider);
-          if (handler == null) {
-            return;
-          }
-          if (playbackSnapshot.isRadioMode) {
-            await handler.stopRadio();
-          } else {
-            await handler.skipToNext();
-          }
+          if (handler == null) return;
+          await desktopNextTrack(handler, ref.read(playerStateProvider));
           return;
         case DesktopCommandAction.previousTrack:
-          if (ref.read(playerStateProvider).isRadioMode) {
-            return;
-          }
-          await ref.read(audioHandlerProvider)?.skipToPrevious();
+          final handler = ref.read(audioHandlerProvider);
+          if (handler == null) return;
+          await desktopPreviousTrack(handler, ref.read(playerStateProvider));
           return;
         case DesktopCommandAction.refreshLibrary:
           unawaited(ref.read(librarySyncControllerProvider.notifier).syncNow());
@@ -2370,6 +2358,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                           progress: _playerSheetProgress,
                           enabled: showPlayer,
                           child: NavigationBar(
+                            // A native iPhone tab bar is 49 pt; the Material
+                            // 80 pt default looks oversized there. The widget
+                            // still adds the home-indicator inset itself.
+                            height:
+                                Theme.of(context).platform == TargetPlatform.iOS
+                                ? 64
+                                : null,
                             selectedIndex: selectedIndex,
                             labelBehavior: NavigationDestinationLabelBehavior
                                 .onlyShowSelected,

@@ -34,7 +34,7 @@ then an `af` write, since mpv rebuilds the chain from `af` on any seek; if
 `af-command` fails the `af` write alone lands the value (logged). Without the
 EQ pipeline at 1x the chain is the stage alone (no tempo). The global
 `volume-gain` is never set. `commandSync` and `setPropertySync` are injectable
-like `positionReader`. macOS (`replayGainFilter` false, the default there)
-keeps the pre-phase-2 adapter: no stage in `af`, no hook, levels ignored, and
-media_kit's own `setRate`/`setPitch` while the EQ pipeline is off, until
-`af-command` and lavfi `volume` are verified on libmpv 0.36.
+like `positionReader`. The stage is on for every platform, macOS included (#490:
+libmpv 0.41 verified); `replayGainFilter: false` is injectable for tests and
+keeps the pre-phase-2 adapter (no stage in `af`, no hook, levels ignored,
+media_kit's own `setRate`/`setPitch` while the EQ pipeline is off).

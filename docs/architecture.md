@@ -85,6 +85,10 @@ Located in `lib/src/providers/app_providers.dart`:
   - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses
     `WindowsSmtcBridge` backed by the local `navis_windows_smtc` Rust/WinRT
     manual-SMTC adapter; Android, iOS, and macOS use `audio_service`
+    (vendored in `third_party/audio_service`: the Darwin plugin republishes
+    Now Playing while playing only when the system's extrapolated clock is
+    more than 100 ms out, and sets the elapsed time before the paused
+    state; see its `NAVIS_CHANGES.md`)
   - `AudioBootstrapController` owns one handler construction. Its five-second
     presentation deadline exposes slow-start recovery but never retires the
     pending session future or starts a competing handler. Completed failures
@@ -386,10 +390,11 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   and batches already announce their tables; raw SQL cannot be inferred by
   this mechanism. Target artist/album hydration retains its explicit library
   announcements and page re-read fallback as additional protection.
-- Linux and Windows profile diagnostics use the bearer-authenticated loopback
-  control plane. The Linux launcher is `tool/sync_diagnostics.sh`; Windows
+- Linux, Windows and macOS profile diagnostics, and iOS simulator debug diagnostics
+  (the gate is `diagnosticsBuildEnabled`; never release or on-device debug), use the
+  bearer-authenticated loopback control plane. The Linux/macOS launcher is `tool/sync_diagnostics.sh`; Windows
   launchers must use the same clone-only, isolated database/cache contract.
-  A desktop clone resolves all `path_provider` directories inside
+  A desktop or iOS-simulator clone resolves all `path_provider` directories inside
   `NAVIS_SYNC_DIAGNOSTICS_ROOT`.
   API, isolates cloned database/cache paths for fault testing, and permits only
   non-fault-injected operations during backed-up primary certification. The
@@ -572,15 +577,24 @@ build their own containers keep Riverpod's default unless they pass it.
 
 Credential redaction treats URL user info as a credential: request logging and
 free-text error redaction strip it, and OS media URL guards reject it. The server password and URL user info use separate keys in the existing secure
-credential store, with a memory-only fallback when platform storage is unavailable.
+credential store, with a memory-only fallback on desktop when platform storage is unavailable (Android and iOS fail the login instead).
+On macOS every `FlutterSecureStorage` uses the login keychain (`macOsLoginKeychain`: `usesDataProtectionKeychain: false` and the service name `com.navis.app.navis`): the plugin's default data-protection keychain needs a `keychain-access-groups` entitlement no build has, so writes fail with -34018, and its default service name is shared with every other Flutter app using the plugin. Login-keychain items are readable while the login keychain is unlocked; the plugin's accessibility attribute does not apply there. Another process of the same user needs a user prompt to read the secret but can overwrite it without one. After an ad-hoc dev rebuild (the signature changes, and legacy items are bound to it), each of up to four items (password, user info, ListenBrainz token, shortcuts) can prompt separately, a read that waits on a prompt surfaces as the temporary credential-read failure, and sign-out from a rebuilt dev binary can fail with -25244 and leave the item in place. Choosing "Always Allow" or deleting the items in Keychain Access recovers. Developer ID builds signed by `tool/macos_notarize.sh` keep a stable identity, so release users do not hit this. On macOS, desktop shortcut storage goes through the same serialized native queue and 5-second deadline as the credential stores; other platforms call the plugin directly. On iOS every `FlutterSecureStorage` (password, user info, ListenBrainz token, and the shortcut bindings the shell still hydrates) passes `iosKeychain` (`IOSOptions`: accessibility `first_unlock_this_device`, so the items stay on this device, as on Android where backup and device transfer are excluded, service name `com.navis.app.navis`) as `iOptions`: the plugin's default `unlocked` accessibility would make background playback on a locked phone fail to read the session or scrobble keys. A failed iOS keychain write fails the login as on Android (`mustPersistDurableCredentialsOn`) instead of degrading to a session-only login. There is no migration code because Navis has never shipped on iOS; dev installs with older `first_unlock` items still read them (the plugin falls back across accessibility levels) and rewrite them as this-device on the next write. `test/src/architecture/secure_storage_macos_keychain_test.dart` pins both options.
 Drift stores the credential-free URL; active configs merge user info back in memory
 for HTTP and media Basic authentication, including Android background sync. Loads
 scrub legacy URLs once; signed-out profiles are scrubbed without restoring secrets.
 Both sign-out modes delete both keys. A full wipe also clears the ListenBrainz
 secure token, username, token-valid flag and scrobbling enablement through the
 existing store and targeted settings writer; keep-data sign-out retains them.
-Credential deletion failures reach teardown warning reporting. Profile identity
-excludes URL credentials.
+The auth store logs credential deletion failures and never throws, so sign-out
+always completes; the ListenBrainz token clear throws into teardown warning
+reporting only when the overwrite also fails. When a delete fails (for example
+-25244 on a rebuilt macOS binary) both stores overwrite the key with an empty
+value, which reads as absent. If the overwrite fails too, the key is remembered
+as cleared in memory until a later save succeeds, so the previous account's user
+info, password or token is never read back in the same session. After a restart
+the empty overwrite still covers it when it succeeded; when both failed the old
+value can return, a known gap that mainly affects ad-hoc rebuilt dev binaries.
+Profile identity excludes URL credentials.
 
 Credential read failures are transient and must never sign the user out or
 delete secure data. Auth and external scrobble storage disable Android's
@@ -755,7 +769,7 @@ real Navis process. It complements automated tests; it does not replace the UI
 or introduce a second implementation of feature behavior.
 
 The current implementation starts `SyncDiagnosticsServer` on Linux, Windows,
-and Android profile builds:
+macOS and Android profile builds:
 
 1. `main.dart` accepts diagnostics only in a supported profile build with a
    valid mode and a desktop handshake path when applicable. Android supports
@@ -1621,6 +1635,15 @@ target-selection rules.
   scaling can truncate an edge to zero. Extremely thin artwork keeps the default
   tint/theme seed; loading retains its five-second timeout and extraction errors
   stay best-effort. Caption tints use the separate `CoverColourWorker` path.
+  `DynamicAccentColorCache` shares one in-flight extraction per source, and
+  `dynamicAccentNextPrefetchProvider` (watched by the app root) resolves the
+  next queue item's cover into it once the current seed is ready (same
+  offline/metered rule as the audio next-song prefetch; none for the last item
+  of a shuffled repeat-all queue), so a normal track change starts the theme
+  fade from a cached seed. The Now Playing tint
+  is a separate extraction (768px image, current brightness, tonal-spot
+  variant) and is not derived from this seed. `NavisColorStyleData.lerp` fades
+  `accentHue` along the shortest hue arc; its discrete fields switch at 0.5.
 - Custom accent labels use `settings/domain/color_namer.dart`: nearest CIE76
   colour in CIELAB (sRGB D65), ignoring alpha, with lazily cached table Lab
   values. The MIT meodai/color-names table is generated from the pinned
@@ -1634,8 +1657,10 @@ target-selection rules.
   Rust notice generator matches upstream licence files without case sensitivity
   and supplies tracked SPDX full-text templates for missing files, preserving
   Cargo authors for MIT attribution. Every crate references full licence text.
-  Windows and Linux register the bundled libmpv/FFmpeg source offer and full
-  LGPL-2.1 text. Both release bundles use LGPL builds. About supplies the
+  Windows, Linux and macOS register the bundled libmpv/FFmpeg source offer and
+  full LGPL-2.1 text (macOS has its own notice,
+  `assets/licenses/libmpv-macos-NOTICE.txt`, which links the SOURCES.md on R2).
+  All three release bundles use LGPL builds. About supplies the
   Porthorion copyright line.
 - Guard: `test/src/theme/design_token_guard_test.dart` ratchets literal radii,
   font sizes and colours per file outside `lib/src/theme/`.
@@ -1954,8 +1979,14 @@ Every kind of action has one named haptic in `NavisHaptics`
 through `View.performHapticFeedback` (`HapticKinds.kt`, channel
 `com.navis.app/haptics`, which honours the system touch-feedback setting); a
 device without the constant, or a missing channel (cached after one failed
-call), gets the Flutter primitive in the last column. iOS always uses the
-primitive. Desktop is silent, so shared widgets call the helper without
+call), gets the Flutter primitive in the last column. iOS plays a native
+feedback per kind through the same channel (`ios/Runner/HapticKinds.swift`,
+registered in `AppDelegate.swift`; the pure `HapticKinds.spec(for:)` maps a
+kind to a `UIImpactFeedbackGenerator` style and intensity, the
+`UISelectionFeedbackGenerator` (`tick`) or a `UINotificationFeedbackGenerator`
+(`confirm` success, `reject` error), and an unknown kind is a light impact;
+`ios/RunnerTests/HapticKindsTests.swift` covers it). The Settings → Haptics
+gate stays in Dart, before the call. Desktop is silent, so shared widgets call the helper without
 platform checks, and mouse-only controls get no haptics.
 `AdjustmentRuler` and `RulerStepButton` keep their own tuned primitives, the
 reference feel for `tick` and `firm`, but check `NavisHaptics.allows` first.
@@ -2362,9 +2393,10 @@ all display paths find them and pruning retains them. Empty cover IDs remain
 missing; there is no synthetic display key or cover provenance. A Deezer cover
 therefore persists even if server art is added later.
 
-Apple runners remain unreleased scaffolds. Their native configuration floors
-are iOS 16 and macOS 12; Linux validation does not certify either runner. This
-upgrade reconciles Podfile/project settings without adding Apple media features.
+Neither iOS nor macOS is released yet; iOS status is in the [iOS testing playbook](platforms/ios-testing-playbook.md).
+Their native configuration floors are iOS 16 and macOS 12; Linux validation does
+not certify either runner. macOS status and open work are in the
+[macOS parity plan](plans/macOS_Parity_Plan.md).
 
 ## UI libraries and localization
 
@@ -3011,6 +3043,51 @@ Normal native close is intercepted until the controller has finished writing
 the current state record, then released through `window_manager`; a resize
 immediately followed by close must therefore retain the latest valid Desktop
 bounds rather than relying on an unawaited callback.
+On macOS, closing the window hides it instead (Apple Music and Spotify
+behaviour): `onWindowClose` persists the same state record, then calls
+`WindowManagerAdapter.hide()`, while `setPreventClose(true)` stays on and
+`_isClosing` is never set, so every later close hides again, in Mini Player as
+well. A full-screen window leaves full screen first (`setFullScreen(false)`,
+then `onWindowLeaveFullScreen`, bounded at 3 s), so no empty Space remains and
+full-screen bounds are not persisted, unless the exit wait times out (3 s) or
+fails, in which case Navis persists and hides anyway. A failing `hide()` is logged. Playback
+and the audio handler keep running. Cmd+Q and Dock > Quit still terminate.
+`AppDelegate` returns `false` from `applicationShouldTerminateAfterLastWindowClosed`
+(AppKit also applies it to a merely hidden window, so `true` would quit on every
+close-button hide) while `MainFlutterWindow.close()`, reached only by a real
+close, terminates the app so a close that `setPreventClose` does not catch
+leaves no windowless process. `applicationShouldHandleReopen` shows,
+un-minimizes and focuses the main window whenever that window is not visible,
+even if another panel is open. The gate is
+`_hidesOnClose` (tests set it with the `hideOnClose` constructor argument), true
+only for the real `window_manager` adapter on macOS; Linux and Windows still persist, release the close
+prevention, then close.
+
+The Dock menu (`AppDelegate.applicationDockMenu`) lists the current track as a
+disabled "Title — Artist" item when something is loaded, then Play or Pause,
+Next and Previous. `MacosDockMenuBridge`
+(`lib/src/features/player/data/macos_dock_menu_bridge.dart`, started by
+`macosDockMenuProvider` from the app shell, macOS only) uses the
+`com.navis.app/dock_menu` method channel created in `MainFlutterWindow.swift`.
+Dart calls `update` with `{hasItem, title, artist, playing, playPauseLabel,
+nextLabel, previousLabel}` whenever the shown state changes (identical states
+are dropped; labels are localized in Dart from the existing `nowPlaying*`
+strings) and Swift keeps only the last one and shows the stock Dock menu until the first
+`update` arrives. Swift calls `command` with
+`{action: playPause | next | previous}`; the bridge runs it through
+`desktopPlayPause`, `desktopNextTrack` and `desktopPreviousTrack`
+(`desktop_transport_actions.dart`), the same functions the desktop keyboard
+commands use, so radio mode behaves identically: Next leaves the station and
+Previous does nothing. Disposing the bridge pushes an empty state.
+The same `update` also feeds a menu-bar "Controls" menu (Play or Pause, Next,
+Previous) that `AppDelegate.installControlsMenu` adds to `NSApp.mainMenu` before the
+Window menu, once, after launch. The payload carries a `controlsMenuLabel`;
+until the first `update` the menu reads "Controls" with its items disabled, and
+items are disabled whenever `hasItem` is false. Choosing an item sends the same
+`command` call, so it works with the window hidden. It is native rather than
+Flutter `PlatformMenuBar` because that replaces the whole menu bar and would
+drop the stock Edit menu. It has no key equivalents: the in-window transport keys
+(bare Space and arrows, Option+punctuation) would steal keys from text fields.
 The isolated Desktop-layout diagnostics deliberately shuts down from Mini
 Player and verifies the following launch starts in Desktop View at the last
 validated Desktop bounds.
@@ -3075,11 +3152,14 @@ for the session (known limit).
 
 ## Database file location
 
-Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
-directory; Android and iOS use application documents. `database_location.dart`
+Linux, Windows, macOS and iOS store `navis.sqlite.sqlite` in the application
+support directory; Android uses application documents. (iOS moved because the
+Files app shows the whole `Documents` folder; see **iOS downloads in the Files
+app** below.) `database_location.dart`
 resolves both through path_provider, preserving clone diagnostics overrides.
-Before opening on desktop, a missing support database is migrated from documents
-along with any `-wal`, `-shm` and `-journal` files.
+Before opening off Android, a missing support database is migrated from
+documents along with any `-wal`, `-shm` and `-journal` files; desktop and iOS
+share one code path and the same safety properties.
 The sidecars move first and the main file last, so the main file at the target
 marks a finished move; a kill midway leaves the main file in documents and the
 next launch resumes, counting a sidecar already at the target (its legacy
@@ -3087,14 +3167,17 @@ source gone, or an identical byte copy whose original was not yet deleted) as
 moved. A cross-device move copies to `<name>.navis-part`, checks the size and
 renames the part file into place, so a final name never holds a partial copy;
 stale `*.navis-part` files in both directories are deleted at every launch.
-Rollback renames files back and copies (via a part file) only across volumes.
+After a copy-fallback move the legacy originals are deleted sidecars first and
+the main file last. Rollback renames files back and copies (via a part file)
+only across volumes.
 A target main file with sidecars still in documents and no legacy main file
-(a kill under the earlier main-first order) never attaches them, since the
-WAL may predate later changes to the target: they are renamed `*.orphaned`.
+(a kill under the earlier main-first order, which iOS test builds may also have
+hit; Navis never shipped on iOS) never attaches them, since the WAL may predate
+later changes to the target: they are renamed `*.orphaned`.
 Failure restores transferred files and falls back to documents; a rollback
 failure preserves the remaining copy and fails opening rather than choosing an
-incomplete database. An existing support
-database wins and leaves legacy files untouched. No schema changes are involved.
+incomplete database. An existing support database wins and leaves legacy files
+untouched. No schema changes are involved.
 
 ## External integration policy
 
@@ -3419,15 +3502,15 @@ and Subsonic delivery continues independently.
   the Integrations feature never imports Home. A saved Last.fm key is written
   with `updateLastFmApiKey`. A locked service switch's semantics label carries
   its lock reason. The Updates section is hidden where About hides
-  update controls (iOS, web); `updateProvider` also returns null there
-  (`selfUpdateSupported`), so no iOS path contacts the update host. Playback and About hold no copies of these
+  update controls (web, and iOS except the sideload build); `updateProvider` also returns null there
+  (`updateUiAvailable`), so no non-sideload iOS path contacts the update host. Playback and About hold no copies of these
   switches; About keeps "Check now", disabled while the master or `updates`
   service switch is off. Its service names, the line about what each service
   sends and the lock reasons come from `integration_copy.dart`, shared with
   onboarding.
 - **Onboarding Integrations step** (step 4 of `OnboardingScreen`). The master
   switch, then one switch per service (Deezer, Last.fm, ListenBrainz, LRCLIB,
-  and Updates except on iOS and web) with the same one-line description, and
+  and Updates, except on web and on iOS outside the sideload build) with the same one-line description, and
   "Fine-tune per feature in Settings › Integrations". The choices live in the
   onboarding draft (`externalIntegrationsEnabled`, `disabledIntegrations`) and
   are written only when changed on Finish, through
@@ -4315,11 +4398,28 @@ unsigned derived fields.
   - **Linux AUR/unknown package owner:** `linuxPackageManaged` shows the system
     package-manager instructions without downloading. Its offer uses `linuxPortable`
     for version/notes. See [release-linux.md](release/release-linux.md).
-  - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
+  - **Linux portable / Windows portable:** extracts the archive to a staging
     subdirectory of the downloaded artifact's private work directory, writes a
     self-deleting shell/batch script inside that same work directory, launches it
     detached, and exits. The script replaces the running bundle, relaunches the app, and
     cleans up automatically.
+  - **macOS (`macosBundle`):** an app running from `/Volumes/...` or App
+    Translocation is read-only, so the dialog asks the user to move Navis to
+    Applications instead. Otherwise the zip is extracted with `ditto` and the staged
+    `.app` must pass `codesign --verify --deep --strict` before Navis exits (else the
+    update is refused and the old app keeps running). `UpdateScripts.writeMacosScript`
+    then waits up to 20 s for the old pid to exit, moves the app to
+    `<App>.app.backup`, moves the new app in, writes `pending` to
+    `~/Library/Application Support/<bundle id>/navis-update-handshake` and opens it.
+    The new app writes `started` to that file after its first frame
+    (`MacosUpdate.confirmLaunch`, via `UpdateService.confirmMacosLaunch` from `main.dart`); the script waits up to
+    30 s. If the marker never comes and no process runs from the new bundle (or
+    `open`, a move or the handshake write failed) it writes `rollback`, moves the new
+    app aside, restores the backup and reopens the old app; a new app that is still
+    running is never rolled back. Every step is appended to
+    `~/Library/Logs/Navis/update.log` (trimmed past about 100 KB). At each launch with
+    no fresh `pending`/`rollback` handshake, `MacosUpdate.startupHandshake` deletes a
+    leftover `.app.backup`. Operator view: [release-macos.md](release/release-macos.md#auto-updater-behavior).
   - **Windows installer:** launches the Inno Setup installer with `/SILENT /CLOSEAPPLICATIONS`.
     Its silent relaunch uses `runasoriginaluser` so Navis resumes without installer elevation.
 - `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
@@ -4620,8 +4720,8 @@ use the plugin's media session. After `super.onCreate()`, the subclass restores
 a missing static listener only if the plugin retains its handler interface.
 One guarded reflection method owns the two private listener accesses; a JVM
 contract test checks their names, static modifiers and listener types. The `setState`
-override releases the plugin's partial wakelock (one more guarded reflective
-read of its `wakeLock` field) whenever playback is not playing, because the
+override releases the plugin's partial wakelock (through the vendored plugin's
+package-private `releaseWakeLock()`) whenever playback is not playing, because the
 plugin releases it on pause only when `androidStopForegroundOnPause` is true;
 the lock is held only while playing. The
 recovery custom action forces the Dart projection to republish metadata, the windowed
@@ -4752,8 +4852,8 @@ rewrite and not a chained stream. Each non-cancelled attempt reports an
 `oggSplice` transport trace event. Other formats, known-length responses and desktop (mpv reads the
 origin directly) keep exact-position recovery.
 
-On desktop, a native auto-advance (including Repeat One) or final-item
-completion can hide a cut transcode as a clean EOF. Navis compares the departed
+A native auto-advance (including Repeat One) or final-item
+completion can hide a cut transcode as a clean EOF, on every platform (#527). Navis compares the departed
 occurrence's last backend position with its authoritative `MediaItem.duration`.
 A remote transcode or offset continuation ending more than 10 seconds early,
 with known metadata duration and server `transcodeOffset` support, consumes
@@ -4763,7 +4863,25 @@ sidecar's re-download has already finished (it usually has, since mpv drains
 the cut stream after the sidecar restarts the whole transcode). Healthy play
 before the cut does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
-not establish the departure position. Position/index events capture the native
+not establish the departure position. On mobile the stamp the retry reads is
+stale (on iOS the advance event keeps the old stamp; on Android the previous
+event's stamp is the stale one), so capture samples the player clock (at most
+about 200 ms old, from the position sampler) and the retry's invalidation
+guards compare that sample's Dart time; the successor-publish yield is
+unconditional so the discontinuity claims the cut first. A queue replacement is
+not a cut: while a counted source apply is in flight, or the native item is
+idle or loading, mobile capture records nothing (an index event also clears the
+held occurrence) and the retry is refused, because the player still reports the
+previous item's position under the new sequence. On mobile the cut
+response of a lock-cached stream has no length and is committed to the rolling
+cache as a complete file, which the resolver would prefer to any stream; before
+reopening, the retry therefore evicts that song's rolling entry
+(`RollingCacheManager.evictRollingTrack`, never a permanent download; it first
+awaits that song's pending registration so a late one cannot add the file back) so the
+reopen streams at the cut offset, and defers its pause by a microtask because it
+runs inside the player's synchronous event dispatch. The just_audio fork treats
+a zero platform duration (iOS, for an unknown-length stream) as unknown, so the
+position is not clamped to the offset. Position/index events capture the native
 source occurrence, its source metadata and last backend position. Artwork
 refreshes can replace `MediaItem` copies without changing that occurrence;
 duplicated songs remain distinct native sources. Queue edits, replacements and
@@ -4850,7 +4968,15 @@ still stops while one that mostly plays on a flaky network keeps going. A
 permanent failure or an exhausted budget stops the station, restores the previous queue paused and shows one
 "Radio stream unavailable" notice, since only the user can pick another
 station. A new Play during an older
-reconciliation re-arms its own recovery after that check finishes. Verified
+reconciliation re-arms its own recovery after that check finishes. A station
+stream that stalls or ends raises no error, so two more triggers feed the same
+entry point, `_beginRadioRecovery`: a `completed` event (a live station never
+legitimately completes) and a radio stall watchdog (the song watchdog's timer
+fields and `remoteStall`; it fires when a playing station shows no position or
+buffer progress). Both are dropped while a reconnect is running or waiting for
+the network, share the outage's budget, and trace a `radioReconnect` decision.
+Play on a station whose player is idle or completed reconnects it; a
+stuck-buffering station is left to the watchdog. Verified
 reachability also re-arms exhausted personal-radio refills without replacing
 recommendation-session
 ownership. Automatic recovery records identity-free events in the private
@@ -5035,6 +5161,20 @@ Linux startup uses `bootstrap/bundled_libmpv.dart` to select
 `lib/libmpv.so.2` beside the resolved executable when present, otherwise it
 leaves media_kit system lookup in place. CMake bundles the verified x86_64 pin
 by default; `NAVIS_BUNDLE_LIBMPV=OFF` supports system-mpv development builds.
+macOS bundles a Navis-built, audio-only LGPL libmpv (`tool/libmpv/build_macos_lgpl.sh`:
+universal arm64 + x86_64, deployment target 12.0, the same mpv and FFmpeg commits
+as Linux and Windows, FFmpeg's `volume`, `biquad` and `equalizer` filters,
+SecureTransport TLS, CoreAudio output, system libraries only) through the vendored
+`third_party/media_kit_libs_macos_audio`. Its podspec runs
+`macos/fetch_libmpv.sh` on `pod install`, which takes a verified cached archive,
+then `NAVIS_LIBMPV_MACOS_ARCHIVE`, then the per-build R2 URL, and fails unless
+the archive's SHA-256 equals the pin (there is no upstream fallback). A podspec
+build phase runs `fetch_libmpv.sh --check` (offline) before every compile and
+fails the build when the extracted `Mpv.xcframework`'s stamp does not match the
+pin, so a stale `macos/Pods` cannot keep an old libmpv; see
+[release-macos.md](release/release-macos.md#bundled-libmpv). Debug macOS builds
+skip media_kit and use just_audio's AVFoundation player unless
+`NAVIS_ENABLE_MEDIA_KIT_DEBUG=true`, so they have no equalizer or Fast Seeking.
 `navisEqualizerSupported()` decides availability for both the controller and the
 handler; unsupported backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
 headroom, migration, and validation limits are maintained in
@@ -5269,7 +5409,7 @@ Desktop volume follows a parallel local-settings path:
    (`_replayGainLivePending`) goes out live with the next push; a tag refresh
    never does.
 
-   - Desktop mpv (Linux, Windows): `MediaKitPlayer._applyAudio` composes `af`
+   - Desktop mpv (Linux, Windows, macOS): `MediaKitPlayer._applyAudio` composes `af`
      as `@navis_rg:lavfi=[volume=<dB>dB:precision=float],@navis_tempo...,
      @navis_eq...` (`EqualizerChain.withReplayGain`), the float volume filter
      first so a boost cannot clip before the output converts. Speed, pitch and
@@ -5296,13 +5436,60 @@ Desktop volume follows a parallel local-settings path:
      `currentKey`, `appliedDb`, `clipSamples`), read from the processor when
      asked, not polled. Rolling-cache sources carry no tag, so a song is found
      by the id in its stream URL (`_mediaItemOfSource`).
-   - macOS has no boost yet: it keeps the cut-only path until `af-command` and
-     lavfi `volume` are verified on its libmpv 0.36 (design D5, pending).
-   - Fallback: with no stage (macOS; Android after
-     `_rebuildPlayerWithoutEqualizer`) nothing is stamped or pushed, boost is
+   - iOS (I24, I26): in-pipeline while the equalizer tap is installed
+     (`navisReplayGainInPipeline(iosTap:)` and `navisReplayGainBoostSupported(iosTap:)`,
+     both true while `_equalizerPipelineEnabled`). The cut is the volume of each
+     item's own audio mix: `AVMutableAudioMixInputParameters setVolume:atTime:` at time
+     zero, on the same mix object that names the shared tap (`NavisEqualizer.m`
+     `mixFor`), so it starts with the item's first sample and `AVPlayer.volume` stays
+     user volume x ducking x ramp. The dB is stamped on the source
+     (`UriAudioSource.replayGainDb`, from the load and insert messages; a clip's child
+     carries it) and the mix is made in the same run-loop turn as the item's insert
+     (`attachEqualizerToQueueKeeping:`, `attachToItem:volume:`) with
+     `navis_replaygain_cut_linear` (`NavisBoost.c`: the cut half of the dB, never above 1, floor
+     -60 dB, unstamped or radio is 1). A later change is `setReplayGainLevels` (native
+     `AudioPlayer.m`, on the main thread): it updates the stamps by source id and then
+     `setVolume:forItem:` gives each queued item a new mix object (same tap and track)
+     when its value moved; the playing item is skipped unless the push is `live` (a
+     settings change), and a rebuild that keeps the playing item never re-assigns it. An
+     item removed and re-inserted (skip back, reorder) gets its current value the same
+     way. If the tap cannot be created the item still gets a mix with no tap
+     (`NavisEqItemVolumeOnly`) so the cut works and a later change is a re-assign; it is
+     never retried. A file whose audio track is not track 1 plays without the mix (no
+     cut, EQ or boost: an existing limit, reported in the state). The state reports the
+     cut that was assigned to the current and the next queued item
+     (`replayGainCutDb`, `replayGainNextCutDb`; status `replayGainBoost.cutDb` and
+     `nextCutDb`), read from the item records. Both cross-fade decks have their own tap
+     and records, so each deck's items carry their own cut and the ramps never
+     multiply it. The boost sends the same Smart pair as the cut (it reads the pair
+     last pushed). The tap boosts per file: `AVPlayer.volume` stops at 1.0, so the boost is a
+     gain step (`NavisBoost.c`, a 20 ms linear ramp per format slot) on the output of
+     pitch and EQ in the shared tap, working with the EQ off and on. A song never gets
+     both. Dart sends a per-URI map
+     (`AudioPlayer.setReplayGainBoost`, `SetReplayGainBoostRequest.byUri` and
+     `durationMsByUri`, no lower-before-command) and the timing is native, on the main thread
+     (`AudioPlayer.m`, `navis_boost_decide`): native knows the real next item and
+     changes the queue in the same run-loop turn, so there is no Dart round trip to
+     race. In the last 3 s of a song (the
+     same window, read from the item's position and duration, with the speed) the
+     target is the lower of the two songs' and a guarded song is latched until the next
+     song event; a 250 ms observer moves it in and out of the window, only while the
+     map has a positive value. A drop applies at once; a rise waits 500 ms after the
+     last song event (a `currentItem` change, a seek or skip, a load, a queue edit that
+     changes the playing item) and a newer event cancels the pending rise. A seek or
+     load stores the destination's value before the flush, and the first block after a
+     flush or a new pipeline snaps to the target (no ramp). The render thread reads one
+     lock-free atomic gain per block; it does no `pow`, locking or Objective-C. The tap
+     has no limiter: samples beyond full scale after the gain are only counted
+     (`boostClipSamples`, 0 for tagged songs because of the 1 dB margin). Status
+     (`replayGainBoost`, and `boostRequestedDb`, `boostAppliedDb`, `boostGuarded`,
+     `boostClipSamples` in `/v1/equalizer` `application`) is read back from the tap.
+     A song's head can be under-boosted for about 0.5 s after a join, skip or seek;
+     its tail is never over-boosted. Details: `docs/plans/iOS_I24_ReplayGain_Boost_Plan.md`.
+   - Fallback: with no stage (Android or iOS after
+     `_rebuildPlayerWithoutEqualizer`, so iOS without a tap) nothing is stamped or pushed, boost is
      unsupported and the Dart cut applies through `setVolume` (late by the IPC
-     time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`, mpv's is
-     cubic, `10^(dB/60)`). During a queue replacement the cut is written as
+     time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`). During a queue replacement the cut is written as
      soon as the selected source is in the player (`_loadingSourceInPlayer`, in
      `_restoreActivePlayerVolume` and `_applyReplayGainVolume`), not at the
      commit; before that the old song may still be audible and nothing
@@ -5315,7 +5502,7 @@ Desktop volume follows a parallel local-settings path:
      (`_loadingPlayOrder`), since `_queueItems` holds only the start song.
      The older per-URI boost message
      (`AudioPlayer.setReplayGainBoost`, `byUri`) is kept for a backend that
-     boosts per file but has no in-pipeline stage (dev's iOS tap).
+     boosts per file but has no in-pipeline stage; the iOS tap still uses it for the boost.
 
    Smart picks its album or track gain from the play-order neighbours and is
    frozen per heard song (below). A push, and a source stamped for a list that
@@ -5328,6 +5515,8 @@ Desktop volume follows a parallel local-settings path:
    heard entry instead of re-reading the queue, so the display equals what
    native holds for that copy. A stamp without a play order (a queue fill
    still in progress) is corrected by the push that follows the fill.
+   The iOS per-file boost map reads each entry's own neighbours the same
+   way, so a song queued twice can have two boosts.
 
    A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
@@ -5382,7 +5571,7 @@ Desktop volume follows a parallel local-settings path:
    nothing published. It never applies a volume and skips the audible songs
    (the current one, and the incoming one during a cross-fade), because every
    later volume write re-reads a song's extras: the playing song's level never
-   jumps. On Android a refresh inside the last-3 s clip guard can still lower
+   jumps. On iOS a refresh inside the last-3 s clip guard can still lower
    (never raise) the playing song's boost to the next song's refreshed value.
    The next song plays at the new gain (cut and boost;
    `_mediaItemOfSource` prefers the queue's copy over the source tag, and the
@@ -5494,7 +5683,8 @@ the current or next song, including when the budget is lowered in Cache &
 Storage (`rollingCacheProtectedSongIds`). Startup maintenance reads the saved
 queue in play order to protect its current and next song before restoration.
 
-On Linux and Windows, **Fast Seeking** (on by default) can bridge a remote
+On Linux, Windows and macOS (only when media_kit drives playback, so not in
+debug builds, which use AVFoundation), **Fast Seeking** (on by default) can bridge a remote
 lossless original with an Opus 256 kbps stream opened at the requested
 `timeOffset`. It requires server offset support and is disabled for radio,
 external catalog songs, existing transcodes and lossy originals. A seek more
@@ -5534,13 +5724,19 @@ vendored adapter sets `ytdl=no` on every player beside `force-seekable`; a
 libmpv built without Lua has no hook and ignores the property.
 mpv releases up to 0.41 also open https streams without checking the server
 certificate (`tls-verify` defaults to off), so a man in the middle could read
-the token. `main.dart` sets `JustAudioMediaKit.tlsVerify` on Linux and
-Windows and the adapter then sets `tls-verify=yes` on every player; libmpv
-uses the system certificate store, and Navis's own API client already
-refuses certificates the system does not trust. macOS's bundled mpv 0.36
-(Mbed TLS) is left as before until that build is replaced, because its
-certificate source has not been verified.
-`tool/stream_open_diagnostics.py` guards both at runtime.
+the token. `main.dart` calls `configureDesktopStreamTls`, which sets
+`JustAudioMediaKit.tlsVerify` on Linux, Windows and macOS, and the adapter then
+sets `tls-verify=yes` on every player. All three bundles are Navis's own
+libmpv builds (`tool/libmpv/`) whose FFmpeg TLS reads the system certificate
+store (GnuTLS on Linux, Schannel on Windows, SecureTransport on macOS), so no
+CA file is passed; Navis's own API client already refuses certificates the
+system does not trust. macOS's trust evaluation also covers certificates the
+user trusted in the keychain (a private CA); that case is not covered by a
+runtime check. SecureTransport supports TLS up to 1.2, so a TLS 1.3-only server
+cannot stream on macOS although sign-in (Dart's own TLS stack) works. For IP-literal hosts the host name is not matched but the
+certificate chain is still verified. `tool/stream_open_diagnostics.py` guards
+the self-signed refusal at runtime on Linux and macOS (its HTTPS fixture is
+`https://127.0.0.1`).
 
 The vendored desktop adapter observes libmpv's `metadata`
 property through media_kit 1.2.6's `NativePlayer.observeProperty`. It reads
@@ -6215,7 +6411,8 @@ Permanent-download pruning and orphan rolling-file cleanup still run before
 readiness because they guard partial-file ownership.
 
 On Android and Apple platforms audio_service is given
-`RealTimeProjectionAudioHandler`, a `CompositeAudioHandler` around the real
+`RealTimeProjectionAudioHandler` (real-time projection on Android and iOS;
+macOS below), a `CompositeAudioHandler` around the real
 handler; the app itself keeps the unwrapped handler. The app, lyrics and
 seeking use track time with a separate speed, but Bluetooth AVRCP has no rate
 field and many head units, headphones and lock screens tick at 1×. The
@@ -6234,6 +6431,14 @@ descriptors generate MPRIS introspection and individual/bulk reads; method and
 property-write dispatch remain separate. Windows SMTC has no rate,
 so `WindowsSmtcBridge` publishes its timeline in real listening time and
 converts SMTC seek and skip requests back to track time.
+
+On macOS the projection is constructed with `projectTime: false`:
+MediaPlayer's Now Playing info has a native playback rate and extrapolates the
+elapsed time itself, so position, buffered position, duration and seeks stay
+in track time and the real speed is published (the vendored audio_service
+plugin sends `PlaybackRate` as the speed while playing and 0 when paused, and
+`DefaultPlaybackRate` as 1.0). The queue window, system art and the
+`navisServiceRecreated` republish behave the same with either value.
 
 A scrobble and play-history session belongs to the playing queue entry: songs
 inserted, released, or moved before it shift its index without starting a new
@@ -7444,6 +7649,24 @@ contract.
 
 ### Cache Flow
 
+On Android, iOS and macOS the cache index is sqflite. `NavisCacheObjectProvider`
+(`cover_art_cache_repository.dart`) replaces `flutter_cache_manager` 3.4.5's
+`CacheObjectProvider`, keeping its database path. `CacheStore` calls `open()`
+once and chains its lookups without an error handler, so neither `open()` nor
+any query or write may throw. After opening, `PRAGMA quick_check` runs; a
+damaged index (SQLite NOTADB or CORRUPT by primary result code, or a failed
+check) is deleted with the image files under the cache's file directory and
+reopened. A NOTADB file is deleted only when it is readable and lacks the
+SQLite header, because iOS data protection can make a healthy file unreadable
+before first unlock. Any other failure leaves the file untouched and serves the
+session from an empty in-memory index, so lookups miss and refetch. The cover
+manager's `emptyCache` (sign-out, clear cache, library reset) always removes the
+image directory too on these platforms, because the index may be locked,
+fallback or missing files an earlier fallback session wrote. Queries return empty results instead of throwing, and a
+corrupt-coded query error moves the repository to the in-memory index until the
+next open. A close waits for an open in flight, and repositories of one name
+share a single physical close. Linux and Windows keep `JsonCacheInfoRepository`.
+
 The shared cover-art manager strips URL user info and Subsonic authentication
 parameters before passing URLs and default URL keys to `flutter_cache_manager`.
 Its guarded HTTP service signs only the active server's exact cover endpoint
@@ -7728,6 +7951,50 @@ download naming throws when all 100 collision candidates are occupied.
    keys and cannot cascade on catalog reset (Match Flow entries cascade only
    when their own `match_flows` parent is deleted). Lyrics retain their existing
    cache/garbage-collection policy; this reset adds no cleanup.
+
+### iOS downloads in the Files app
+
+On iOS the permanent download root is `<Documents>/Downloads`
+(`PermanentDownloadPathResolver.resolveDefaultRoot`), and `Info.plist` sets
+`UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, so the folder
+shows in Files under On My iPhone > Navis. There is no custom folder on iOS (no
+security-scoped bookmarks): the resolver and `DownloadService` ignore a
+persisted custom-folder setting, and Settings shows a note instead of the
+switch. Because Files exposes all of `Documents`, nothing else lives there: the
+database moved to application support (migration above). The startup sweep that
+deletes unreferenced files in the default root does not run on iOS, so a file
+the user puts into the folder stays. A file deleted in Files is noticed at the
+next launch, not live: `RollingCacheManager` prunes the stale record (the
+song stops showing as downloaded; observed on the simulator), and
+`DownloadService` startup recovery, which checks every record on iOS, re-queues
+it when it sees the record first, as for a missing file on any platform. Downloads and the permanent artwork
+store (`<support>/artwork/permanent`) are marked excluded from iCloud and iTunes
+backup (`excludeFromBackup` on the `com.navis.app/storage_capacity` channel,
+`BackupExclusion`): when the directory is created and once per process
+otherwise, because deleting and recreating a directory drops the attribute. The
+rolling cache and cover caches live in the temporary directory and are never
+backed up.
+
+iOS can give the app a new container path (a new UUID) when it is updated or
+reinstalled, and Navis stores absolute paths. `NavisDatabase.beforeOpen` calls
+`CacheDao.rebaseContainerPaths`, which rewrites the container prefix
+(`.../Containers/Data/Application/<uuid>`) of every `cached_tracks.file_path`
+and of the `path`, `partPath` and `publicationLocator` fields of
+`download_queue.finish_journal` to the current container (the parent of
+Documents) in one transaction. Drift completes `beforeOpen` before any other
+query, so the audio handler's cache pruning and the download service's startup
+recovery only see paths in the current container. It is a no-op off iOS, when
+the home is not an app container (diagnostics clones) and when nothing differs. The container segment is matched non-greedily (the first one is the app's), and rows already under the current home are skipped in SQL. If the rebase fails, `NavisDatabase.containerRebaseFailed` is set and, for that launch, the rolling/permanent cache prunes, the orphan sweeps and the download service's missing-file reconcile and finish-journal recovery are skipped (each guard opens the database first, because the rebase runs on the first query), so no record or file is dropped over a stale path. The on-access repairs obey the same flag: the playback source resolver and the download queue's compatible-cache check still treat a missing-looking file as unusable (playback streams where allowed) but no longer delete the cache record or the local-only song.
+No other table or index stores an absolute container path: the artwork index and
+the download folder index are rebuilt from directory listings and relative
+paths, and the cover-art caches store paths relative to their base directory.
+
+Files shows the download folder read-write (`UIFileSharingEnabled` cannot
+expose it read-only), so the user can delete, rename or add files. Downloads are
+best removed inside Navis. A file deleted in Files is not downloaded again
+automatically: the record is dropped at the next launch. Downloads made by
+earlier iOS test builds under `<support>/audio/permanent` are left where they
+are and keep playing in place (those builds were never released).
 
 ### Download quality, concurrency and artwork
 

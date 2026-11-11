@@ -15,6 +15,8 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart' show MediaKitPlayer;
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -58,6 +60,7 @@ import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/genre_key.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -139,6 +142,7 @@ class NavisAudioHandler extends BaseAudioHandler
     this._queueWindow = const NavisQueueWindow(),
     this._timeouts = const NavisPlaybackTimeouts(),
     @visibleForTesting this.desktopRuntimeOverride,
+    @visibleForTesting this.iosRuntimeOverride,
     math.Random? shuffleRandom,
   }) : _sidecarDownloader =
            sidecarDownloader ?? RollingCacheSidecarDownloader(),
@@ -225,6 +229,9 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   final bool? desktopRuntimeOverride;
   bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
+  @visibleForTesting
+  final bool? iosRuntimeOverride;
+  bool get _isIosRuntime => iosRuntimeOverride ?? _isIosPlatform;
 
   /// Whether the latest seek request carries a trace callback (tests).
   /// The registered lock-cache source of [songId] (tests assert it is the one
@@ -577,6 +584,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, int> _cacheReceivedBytes = <String, int>{};
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
+  // The registration of a finished lock-cache download, by song: a cut
+  // recovery waits for it before evicting the file (#527).
+  final Map<String, Future<void>> _pendingRollingRegistrations =
+      <String, Future<void>>{};
   final Map<String, RollingCacheActivity> _rollingCacheActivities =
       <String, RollingCacheActivity>{};
   // When each song's cache download last received bytes.
@@ -821,27 +832,26 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Whether the backend applies each song's ReplayGain on that song's own
   /// samples (the level travels with the source and later updates are
   /// [setReplayGainLevels] pushes), so the player volume carries none of it.
-  /// True on Linux and Windows mpv. On Android it follows the EQ processor,
+  /// True on mpv (Linux, Windows and macOS). On Android it follows the EQ processor,
   /// which both decks are built with (every player build sets
   /// [_equalizerPipelineEnabled]), so a rebuild without the processor drops it
-  /// for the new players. False on iOS, whose tap carries the boost only: the
-  /// cut rides the player volume (the per-song cut is tracked in #392). False
-  /// on macOS, where mpv is off the pipeline until `af-command` is wired
-  /// (#490).
+  /// for the new players. On iOS it follows the equalizer tap the same way: the
+  /// cut is each item's audio-mix volume and the tap carries the boost; a
+  /// rebuild without the tap goes back to the Dart cut through the volume.
   @override
   bool get replayGainInPipeline =>
       _replayGainInPipelineOverride ??
       navisReplayGainInPipeline(
         usesMpv: _usesMpv,
-        isMacOS: !kIsWeb && Platform.isMacOS,
         androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
+        iosTap: _usesIos && _equalizerPipelineEnabled,
       );
 
   @override
   bool get replayGainBoostSupported => navisReplayGainBoostSupported(
     usesMpv: _usesMpv,
-    isMacOS: !kIsWeb && Platform.isMacOS,
     androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
+    iosTap: _usesIos && _equalizerPipelineEnabled,
   );
 
   @override
@@ -1587,7 +1597,12 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueFillResolveMs = 0;
     _queueFillNativeMs = 0;
     _queueFillBatches = 0;
-    final preparedByIndex = <int, _PreparedQueueItem>{clampedIndex: startItem};
+    // The song after the start one may already be in the native player (iOS).
+    final preloadedNext = afterStart.isEmpty ? null : startItem.gaplessNext;
+    final preparedByIndex = <int, _PreparedQueueItem>{
+      clampedIndex: startItem,
+      if (preloadedNext != null) clampedIndex + 1: preloadedNext,
+    };
     final skippedSongIds = <String>[];
 
     AppLogger.debug(
@@ -1605,16 +1620,18 @@ class NavisAudioHandler extends BaseAudioHandler
     // playbackEventStream fires position ticks on every event loop turn, and
     // any _emitSnapshot() call between _queueItems.insert() and the player
     // acknowledging the new currentIndex would produce a stale snapshot.
-    // Keeping _queueItems=[startSong] throughout Phase 2 lets the metadata
-    // anchor keep the display on the tapped song until _queueItems is rebuilt
-    // atomically from allPrepared at the very end.
+    // Keeping _queueItems as phase 1 left it (the start song, plus the next
+    // song on iOS) throughout Phase 2 lets the metadata anchor keep the display
+    // on the tapped song until _queueItems is rebuilt atomically from
+    // allPrepared at the very end.
     //
     // Songs after the start are appended first so the next track is queued
     // before the (possibly long) prefix is inserted behind the current item.
-    var appended = 0;
+    final alreadyAppended = preloadedNext == null ? 0 : 1;
+    var appended = alreadyAppended;
     while (appended < afterStart.length) {
       final batchEnd = math.min(
-        appended + _queueFillBatchSize(appended),
+        appended + _queueFillBatchSize(appended - alreadyAppended),
         afterStart.length,
       );
       await _fillQueueBatch(
@@ -2398,8 +2415,10 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
+    // A stuck-buffering station is left to the stall watchdog.
     if (_radioStation != null &&
-        _player.processingState == ProcessingState.idle) {
+        (_player.processingState == ProcessingState.idle ||
+            _player.processingState == ProcessingState.completed)) {
       _pendingRadioRecovery = (
         generation: transportGeneration,
         station: _radioStation!,
@@ -3117,6 +3136,9 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   PlaybackAdjustments _appliedAdjustments = const PlaybackAdjustments();
+  // A native player without a tap answered `pitch_unavailable`: no pitch for
+  // the rest of the session, so no adjustment is rolled back forever.
+  bool _pitchUnavailable = false;
   EqConfiguration _desiredEqualizer = EqConfiguration.flat();
   Future<void> _equalizerLane = Future<void>.value();
   final _equalizerController = BehaviorSubject<EqApplicationState>.seeded(
@@ -3174,6 +3196,10 @@ class NavisAudioHandler extends BaseAudioHandler
       return PlaybackAdjustmentCapabilities.mediaKit;
     }
     if (_isAndroidRuntime) return PlaybackAdjustmentCapabilities.android;
+    // iOS pitch lives in the equalizer's tap, so it exists with the pipeline.
+    if (_isIosRuntime && _equalizerPipelineEnabled && !_pitchUnavailable) {
+      return PlaybackAdjustmentCapabilities.ios;
+    }
     return const PlaybackAdjustmentCapabilities();
   }
 
@@ -3416,7 +3442,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) {
-    if (kProfileMode &&
+    if (diagnosticsBuildEnabled &&
         const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
         const String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') ==
             'clone' &&
@@ -3558,6 +3584,9 @@ class NavisAudioHandler extends BaseAudioHandler
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
     _supersedeTransportIntent(shouldPlay: true);
+    // A stall timer armed for the previous connection must not reconnect
+    // over this new selection.
+    _cancelRemotePlaybackStallWatchdog();
     final generation = _supersedeQueueWork(isLoading: true);
     return _queueLane.run((token) async {
       try {

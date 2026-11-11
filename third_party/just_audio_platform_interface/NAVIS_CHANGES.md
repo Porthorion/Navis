@@ -15,12 +15,31 @@ policy. It defaults to false; other platform adapters ignore the option.
 
 `AudioPlayerPlatform.setReplayGainBoost` carries Navis's ReplayGain boost
 (positive gain): the playing song's boost and a per-URI map for backends that
-switch gain per file without an in-pipeline stage (an iOS-style tap). The
+switch gain per file without an in-pipeline stage (the iOS tap). The
 default throws
 `UnimplementedError`, which the app reads as "no boost stage here".
 
 `EqualizerStateMessage` adds `replayGainCurrentKey`, `replayGainAppliedDb` and
 `boostClipSamples` (default null/0/0), read from the Android processor's state.
+It also adds `boostRequestedDb`, `boostAppliedDb` (default 0) and `boostGuarded`
+(default false), read from the iOS tap's state. It also adds the optional
+`replayGainCutDb` and `replayGainNextCutDb` (dB of the cut the iOS player
+assigned to the current and the next queued item's audio mix; null when absent).
+
+`EqualizerStateMessage` also carries the optional Darwin-only `processedFrames`
+and `levelDeltaDb` diagnostics.
+
+`EqualizerStateMessage` also carries the optional Darwin-only pitch stage
+diagnostics `pitchCents`, `pitchActive`, `pitchLatencyFrames`,
+`pitchResetCount`, `pitchInputHz`, `pitchOutputHz`, `pitchPullMismatches` and `pitchReason` (I21). `setPitch` itself
+is unchanged.
+
+`EqualizerStateMessage` also carries the optional Darwin-only `formatStreams`
+(a list of the new `EqualizerFormatStreamMessage`: `sampleRate`, `channels`,
+`processedFrames`, `levelDeltaDb`), `unmatchedFrames` and `overlapBlocks` (I25):
+the tap keeps one equalizer stream per audio format of the queue; and
+`livePipelines`, `prepareCalls`, `unprepareCalls` and `clampedUnprepares`, the
+balance of the pipelines that prepared the tap.
 
 `UriAudioSourceMessage.replayGainDb` (progressive, DASH, HLS) is a song's
 signed in-pipeline ReplayGain. `AudioPlayerPlatform.setReplayGainLevels`

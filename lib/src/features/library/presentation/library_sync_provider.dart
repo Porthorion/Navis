@@ -29,6 +29,7 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 import 'package:navis/src/utils/notifications/notification_localizations.dart';
+import 'package:navis/src/utils/run_outside_widget_build.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
@@ -318,6 +319,7 @@ Future<void> triggerLibrarySyncFromPull(WidgetRef ref) async {
 const Duration librarySyncProgressPublishInterval = Duration(milliseconds: 250);
 
 class LibrarySyncController extends Notifier<LibrarySyncState> {
+  final _configGate = DeferredListenerGate();
   bool _startupSyncSuppressed = false;
   int _startupSyncEpoch = 0;
 
@@ -438,7 +440,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ref.listen<AsyncValue<ServerConfigModel?>>(
       serverConfigStateProvider,
       Zone.current.bindBinaryCallback(
-        (_, next) => _onServerConfigChanged(next),
+        (_, next) => runOutsideWidgetBuild(
+          ref,
+          _configGate,
+          () => _onServerConfigChanged(next),
+        ),
       ),
     );
     ref.listen<ServerReachabilityState>(

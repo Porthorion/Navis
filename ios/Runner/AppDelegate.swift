@@ -27,17 +27,45 @@ import UIKit
       name: "com.navis.app/storage_capacity",
       binaryMessenger: messenger
     ).setMethodCallHandler { call, result in
-      guard call.method == "freeBytes",
-            let arguments = call.arguments as? [String: Any],
+      guard let arguments = call.arguments as? [String: Any],
             let path = arguments["path"] as? String else {
         result(FlutterMethodNotImplemented)
         return
       }
-      DispatchQueue.global(qos: .utility).async {
-        let attributes = try? FileManager.default.attributesOfFileSystem(forPath: path)
-        let bytes = attributes?[.systemFreeSize] as? NSNumber
-        DispatchQueue.main.async { result(bytes ?? NSNull()) }
+      switch call.method {
+      case "freeBytes":
+        DispatchQueue.global(qos: .utility).async {
+          let attributes = try? FileManager.default.attributesOfFileSystem(forPath: path)
+          let bytes = attributes?[.systemFreeSize] as? NSNumber
+          DispatchQueue.main.async { result(bytes ?? NSNull()) }
+        }
+      case "excludeFromBackup":
+        // Re-downloadable media must stay out of iCloud and iTunes backups; the
+        // flag on a directory covers its contents.
+        DispatchQueue.global(qos: .utility).async {
+          var url = URL(fileURLWithPath: path)
+          var values = URLResourceValues()
+          values.isExcludedFromBackup = true
+          let excluded = (try? url.setResourceValues(values)) != nil
+          DispatchQueue.main.async { result(excluded) }
+        }
+      default:
+        result(FlutterMethodNotImplemented)
       }
+    }
+
+    // Same channel and call as Android's `MainActivity.kt`; Dart gates by the
+    // Settings › Haptics preferences before it calls.
+    FlutterMethodChannel(
+      name: "com.navis.app/haptics",
+      binaryMessenger: messenger
+    ).setMethodCallHandler { call, result in
+      guard call.method == "perform" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      HapticKinds.play(HapticKinds.spec(for: call.arguments as? String ?? ""))
+      result(true)
     }
 
     FlutterMethodChannel(

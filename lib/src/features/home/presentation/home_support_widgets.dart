@@ -192,12 +192,14 @@ class _UpdateTile extends ConsumerWidget {
         final actionLabel = switch (info.delivery) {
           UpdateDelivery.storeRedirect => l10n.updateOpenPlayStore,
           UpdateDelivery.selfUpdate => l10n.updateInstall,
+          UpdateDelivery.releasePage => l10n.updateDownload,
           UpdateDelivery.desktopSelfUpdate =>
             info.downloadUrl != null ? l10n.updateInstall : l10n.updateDownload,
         };
         final body = switch (info.delivery) {
           UpdateDelivery.storeRedirect => l10n.updatePlayStoreTitle,
           UpdateDelivery.selfUpdate => l10n.updateReadyBodyInstall,
+          UpdateDelivery.releasePage => l10n.updateReadyBodyDownload,
           UpdateDelivery.desktopSelfUpdate =>
             info.downloadUrl != null
                 ? l10n.updateReadyBodyInstall
@@ -218,7 +220,9 @@ class _UpdateTile extends ConsumerWidget {
                 );
             if (context.mounted) ref.invalidate(dismissedUpdateProvider);
           },
-          secondaryAction: info.htmlUrl.isEmpty
+          secondaryAction:
+              info.htmlUrl.isEmpty ||
+                  info.delivery == UpdateDelivery.releasePage
               ? null
               : NoticeAction(
                   key: const ValueKey<String>('updateTileReleaseNotes'),

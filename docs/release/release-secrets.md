@@ -17,6 +17,7 @@ This document defines the recommended secret handling model for Navis multi-OS r
 5. Apple signing identity + notarization credentials
 6. Optional Linux package metadata (maintainer identity)
 7. Last.fm API key bundled into release builds
+8. App Store Connect API key (iOS TestFlight upload)
 
 ## Storage policy
 
@@ -145,6 +146,25 @@ Then export:
 ```bash
 export MACOS_NOTARY_PROFILE="navis-notary-profile"
 ```
+
+## App Store Connect API key
+
+Needed only for `release.sh --ios-upload`; setup is in
+[release-ios.md](release-ios.md). The team key (App Manager role) is a `.p8`
+file saved once at `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` (mode
+600), which is where `altool` looks. `tool/release.env` holds only the
+identifiers:
+
+```bash
+ASC_KEY_ID="<key-id>"
+ASC_ISSUER_ID="<issuer-id>"
+# ASC_KEY_PATH="/absolute/path/AuthKey_<key-id>.p8"   # optional override
+```
+
+`release.sh` fails before building when a variable or the key file is missing,
+names the variable and never prints values. The key file never enters the
+repository or a remote builder. Revoke the key in App Store Connect if the file
+leaks or the release host changes.
 
 ## Recommended release-host checklist
 

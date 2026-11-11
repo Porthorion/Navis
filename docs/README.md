@@ -21,9 +21,10 @@ product contracts.
 | Quality gates, releases, signing, CI-equivalent workflow | [development/ci-cd.md](development/ci-cd.md), [release/release-secrets.md](release/release-secrets.md) and [release/release-r2.md](release/release-r2.md) (update channel) |
 | Side-by-side/dev builds | [development/dev-testing-builds.md](development/dev-testing-builds.md) |
 | Production symptom recovery | [development/troubleshooting.md](development/troubleshooting.md) |
+| iOS TestFlight and App Store releases | [release/release-ios.md](release/release-ios.md) |
 | Linux, macOS, Windows, or multi-host releases | [release/release-from-linux.md](release/release-from-linux.md), [release/release-linux.md](release/release-linux.md), [release/release-macos.md](release/release-macos.md), [release/release-windows.md](release/release-windows.md), [release/multi-os-build-from-mac.md](release/multi-os-build-from-mac.md) |
 | Android Auto | [platforms/android-auto-testing.md](platforms/android-auto-testing.md) and [platforms/android-auto-real-car-testing.md](platforms/android-auto-real-car-testing.md) |
-| Platform certification and readiness | [platforms/android-certification-checklist.md](platforms/android-certification-checklist.md), [platforms/flathub-readiness.md](platforms/flathub-readiness.md), [platforms/google-play-readiness.md](platforms/google-play-readiness.md) and [platforms/macos-testing-playbook.md](platforms/macos-testing-playbook.md) |
+| Platform certification and readiness | [platforms/android-certification-checklist.md](platforms/android-certification-checklist.md), [platforms/flathub-readiness.md](platforms/flathub-readiness.md), [platforms/google-play-readiness.md](platforms/google-play-readiness.md), [platforms/macos-testing-playbook.md](platforms/macos-testing-playbook.md) and [platforms/ios-testing-playbook.md](platforms/ios-testing-playbook.md) |
 | Equalizer, AutoEQ, presets, DSP, and platform limits | [features/equalizer.md](features/equalizer.md) and [features/equalizer-phone-checklist.md](features/equalizer-phone-checklist.md) |
 | Current sync design, recovery boundaries, and certification evidence | [features/sync-reliability-recovery-plan.md](features/sync-reliability-recovery-plan.md), [features/sync-stability-validation.md](features/sync-stability-validation.md) and [features/android-background-sync-recovery-plan.md](features/android-background-sync-recovery-plan.md) |
 | Project backlog and progress evidence | [project/development-plan.md](project/development-plan.md) and [project/progress.md](project/progress.md) |
@@ -50,6 +51,10 @@ required validation or acceptance is open:
 - [Stale-cache recovery](plans/Fix_Stale_Cache_Plan.md) and its
   [execution plan](plans/Fix_Stale_Cache_Execution_Plan.md) — Android certification
   and release-acceptance evidence remain open.
+- [macOS parity](plans/macOS_Parity_Plan.md) — gap table and risk-ordered work
+  items for a complete macOS client.
+- [iOS parity](plans/iOS_Parity_Plan.md) — inventory and triaged items for the
+  first iOS release (TestFlight and App Store).
 - [Remote song handling](plans/Remote_Song_Handling_Plan.md) — cold remote
   playback and Android runtime validation remain unresolved.
 - [Sync audit remediation](plans/Sync_Audit_Remediation_Plan.md) — consolidated

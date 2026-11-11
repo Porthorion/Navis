@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 /// Named command actions supported by the desktop shell.
@@ -192,15 +193,29 @@ defaultDesktopShortcutBindings() {
 bool get _isApplePlatform => defaultTargetPlatform == TargetPlatform.macOS;
 
 const String _desktopShortcutStorageKey = 'navis.desktop.shortcut_bindings.v1';
-const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage();
+const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage(
+  mOptions: macOsLoginKeychain,
+  // The shell hydrates bindings on every platform, iOS included.
+  iOptions: iosKeychain,
+);
 String? _desktopShortcutSessionFallback;
 bool _didLogShortcutReadFallbackWarning = false;
 bool _didLogShortcutWriteFallbackWarning = false;
 
+const Duration _desktopShortcutStorageDeadline = Duration(seconds: 5);
+
+/// On macOS a shortcut keychain call can wait on a system prompt, so it joins
+/// the credential stores' serialized native queue (never overlapping theirs)
+/// with the same deadline. Other platforms call the plugin directly.
+Future<T> _shortcutStorageCall<T>(Future<T> Function() operation) =>
+    _isApplePlatform
+    ? runSerializedSecureStorage(operation, _desktopShortcutStorageDeadline)
+    : operation();
+
 Future<String?> _readPersistedDesktopShortcutBindings() async {
   try {
-    final stored = await _desktopShortcutStorage.read(
-      key: _desktopShortcutStorageKey,
+    final stored = await _shortcutStorageCall(
+      () => _desktopShortcutStorage.read(key: _desktopShortcutStorageKey),
     );
     return stored ?? _desktopShortcutSessionFallback;
   } on Object catch (error) {
@@ -218,12 +233,16 @@ Future<void> _writePersistedDesktopShortcutBindings(String? raw) async {
   _desktopShortcutSessionFallback = raw;
   try {
     if (raw == null || raw.trim().isEmpty) {
-      await _desktopShortcutStorage.delete(key: _desktopShortcutStorageKey);
+      await _shortcutStorageCall(
+        () => _desktopShortcutStorage.delete(key: _desktopShortcutStorageKey),
+      );
       return;
     }
-    await _desktopShortcutStorage.write(
-      key: _desktopShortcutStorageKey,
-      value: raw,
+    await _shortcutStorageCall(
+      () => _desktopShortcutStorage.write(
+        key: _desktopShortcutStorageKey,
+        value: raw,
+      ),
     );
   } on Object catch (error) {
     if (!_didLogShortcutWriteFallbackWarning) {

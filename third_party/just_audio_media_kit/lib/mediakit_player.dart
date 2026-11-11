@@ -7,13 +7,13 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:universal_platform/universal_platform.dart';
 import 'src/audio_request_batch.dart';
 import 'src/deferred_seek.dart';
 import 'src/icy_metadata.dart';
 import 'src/icy_property_source.dart';
 import 'src/mpv_errors.dart';
 import 'src/set_property.dart';
+import 'src/tls_options.dart';
 import 'src/equalizer_chain.dart';
 import 'src/replay_gain_boost.dart';
 
@@ -28,10 +28,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       bool Function(String, String)? setPropertySync,
       bool? replayGainFilter})
       : _positionReader = positionReader ?? nativePosition,
-        // ponytail: macOS stays off until `af-command` and lavfi `volume` are
-        // verified on libmpv 0.36 (design D5; the same switch is
-        // `navisReplayGainInPipeline`'s isMacOS): drop the platform test then.
-        _replayGainFilter = replayGainFilter ?? !UniversalPlatform.isMacOS {
+        _replayGainFilter = replayGainFilter ?? true {
     _commandSync = commandSync ?? ((line) => nativeCommandSync(_player, line));
     _setPropertySync = setPropertySync ??
         ((name, value) => nativeSetPropertySync(_player, name, value));
@@ -75,9 +72,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
     // Navis: stream URLs carry the account's salt and token, so the server
     // certificate must be checked before they are sent.
-    if (JustAudioMediaKit.tlsVerify) {
-      unawaited(setProperty(_player, 'tls-verify', 'yes'));
-    }
+    tlsProperties(verify: JustAudioMediaKit.tlsVerify).forEach(
+      (name, value) => unawaited(setProperty(_player, name, value)),
+    );
 
     if (JustAudioMediaKit.prefetchPlaylist) {
       setProperty(_player, 'prefetch-playlist', 'yes');
@@ -310,9 +307,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   late final bool Function(String) _commandSync;
   late final bool Function(String, String) _setPropertySync;
 
-  /// Whether the `@navis_rg` stage is in `af`. Off (macOS), the adapter keeps
-  /// its pre-#392 behaviour: no stage, media_kit's own speed and pitch setters
-  /// while the EQ pipeline is off, and levels are ignored.
+  /// Whether the `@navis_rg` stage is in `af`. Always on in the app; off (tests
+  /// only), the adapter keeps its pre-#392 behaviour: no stage, media_kit's own
+  /// speed and pitch setters while the EQ pipeline is off, and levels are
+  /// ignored.
   final bool _replayGainFilter;
 
   /// The entry and position mpv starts the next load of that entry at.

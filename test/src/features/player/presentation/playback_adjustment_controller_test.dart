@@ -60,6 +60,37 @@ void main() {
   });
   tearDown(() => container.dispose());
 
+  test('a failed apply re-reads the handler capabilities (pitch downgrade)', () async {
+    expect(
+      container.read(playbackAdjustmentCapabilitiesProvider).pitchSupported,
+      isTrue,
+    );
+    // The handler downgrades itself while the apply fails (pitch_unavailable).
+    when(() => handler.playbackAdjustmentCapabilities)
+        .thenReturn(const PlaybackAdjustmentCapabilities());
+    when(() => handler.setPlaybackAdjustments(any()))
+        .thenAnswer((_) async => throw StateError('pitch_unavailable'));
+    expect(
+      await controller.setValues(const PlaybackAdjustments(pitchSemitones: 3)),
+      isFalse,
+    );
+    expect(
+      container.read(playbackAdjustmentCapabilitiesProvider).pitchSupported,
+      isFalse,
+    );
+    // The next attempt is refused as unsupported, not sent to the engine again.
+    clearInteractions(handler);
+    expect(
+      await controller.setValues(const PlaybackAdjustments(pitchSemitones: 4)),
+      isFalse,
+    );
+    verifyNever(() => handler.setPlaybackAdjustments(any()));
+    expect(
+      container.read(playbackAdjustmentsProvider).requireValue.failure,
+      PlaybackAdjustmentFailure.unsupported,
+    );
+  });
+
   test('lock, presets, and None retain exact mode and unlock sound', () async {
     await controller.setValues(const PlaybackAdjustments(speed: 1.25));
     expect(await controller.setPitchLock(enabled: true), isTrue);

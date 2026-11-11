@@ -13,6 +13,7 @@ import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -129,7 +130,7 @@ class _IntegrationsSettingsScreenState
     final horizontal = desktopMode ? NavisSpace.xl : NavisSpace.md;
     // Matches About, which hides update controls where Navis cannot update
     // itself.
-    final updatesAvailable = selfUpdateSupported;
+    final updatesAvailable = updateUiAvailable;
 
     return Align(
       alignment: Alignment.topCenter,

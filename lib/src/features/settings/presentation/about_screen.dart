@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -51,7 +52,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     );
     final packageInfo = ref.watch(packageInfoProvider).asData?.value;
     final version = packageInfo?.version ?? '';
-    final showUpdateControls = selfUpdateSupported;
+    final showUpdateControls = updateUiAvailable;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     // Show a snackbar when a user-triggered check resolves as up to date,
@@ -670,17 +671,16 @@ class _AboutUpdates extends StatelessWidget {
               : updateInfo != null
               ? FilledButton.icon(
                   onPressed: onInstall,
-                  icon: Icon(
-                    updateInfo.delivery == UpdateDelivery.storeRedirect
-                        ? Icons.shop_2_outlined
-                        : Icons.install_mobile,
-                    size: 18,
-                  ),
-                  label: Text(
-                    updateInfo.delivery == UpdateDelivery.storeRedirect
-                        ? l10n.updateOpenPlayStore
-                        : l10n.updateInstall,
-                  ),
+                  icon: Icon(switch (updateInfo.delivery) {
+                    UpdateDelivery.storeRedirect => Icons.shop_2_outlined,
+                    UpdateDelivery.releasePage => Icons.open_in_new,
+                    _ => Icons.install_mobile,
+                  }, size: 18),
+                  label: Text(switch (updateInfo.delivery) {
+                    UpdateDelivery.storeRedirect => l10n.updateOpenPlayStore,
+                    UpdateDelivery.releasePage => l10n.updateDownload,
+                    _ => l10n.updateInstall,
+                  }),
                 )
               : const Icon(Icons.refresh),
           onTap: onCheckNow,

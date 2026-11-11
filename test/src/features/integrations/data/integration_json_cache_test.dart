@@ -73,10 +73,13 @@ void main() {
   test('sweeps only legacy root files once', () async {
     final legacy = File('${root.path}/lastfm_top_0123456789abcdef.json');
     await legacy.writeAsString('{}');
+    const upperCase = 'lastfm_top_0123456789ABCDEF.json';
+    // A case-insensitive volume (macOS APFS) sees the legacy file under this name.
+    final caseSensitive = !File('${root.path}/$upperCase').existsSync();
     final keep = [
       'lastfm_top_0123456789abcdeg.json',
       'lastfm_top_123.json',
-      'lastfm_top_0123456789ABCDEF.json',
+      if (caseSensitive) upperCase,
       'other.json',
     ];
     for (final name in keep) {

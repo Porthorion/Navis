@@ -143,6 +143,30 @@ void main() {
     expect(player.duration, _offset + const Duration(seconds: 60));
   });
 
+  for (final offset in [Duration.zero, const Duration(seconds: 12)]) {
+    test('a zero platform duration is unknown, so the position keeps '
+        'advancing: offset=$offset', () async {
+      final player = newPlayer();
+      await player.setAudioSource(offsetSource(offset));
+      unawaited(player.play());
+      await pumpEventQueue();
+      // iOS reports 0 for an unknown-length (cut or chunked) transcode.
+      native.player.emit(
+        position: const Duration(milliseconds: 200),
+        duration: Duration.zero,
+        at: DateTime.now().subtract(const Duration(seconds: 2)),
+      );
+      await pumpEventQueue();
+      expect(player.processingState, ProcessingState.ready);
+      expect(player.playing, isTrue);
+      expect(player.duration, isNull);
+      expect(
+        player.position,
+        greaterThan(offset + const Duration(milliseconds: 1500)),
+      );
+    });
+  }
+
   test(
     'the idle platform does not add the offset to the duration twice',
     () async {
@@ -438,6 +462,24 @@ void main() {
       native.player.emit(position: Duration.zero, at: later);
       await pumpEventQueue();
       expect(player.playbackEvent.updateTime, later);
+    });
+
+    // I45 (#526): the iOS native observer re-stamps a drifted clock. The
+    // event keeps the index and carries a newer stamp, so the guard above
+    // must hand it over and the position must step back.
+    test('a newer stamp with a lower position replaces the stamp and moves '
+        'the position back', () async {
+      final player = await playingAt(const Duration(seconds: 10));
+      expect(
+        player.position,
+        greaterThanOrEqualTo(const Duration(seconds: 10)),
+      );
+      final restamp = DateTime.now();
+      native.player.emit(position: const Duration(seconds: 4), at: restamp);
+      await pumpEventQueue();
+      expect(player.playbackEvent.updateTime, restamp);
+      expect(player.position, lessThan(const Duration(seconds: 5)));
+      expect(player.position, greaterThanOrEqualTo(const Duration(seconds: 4)));
     });
   });
 

@@ -13,7 +13,9 @@ pass() { echo "ok - $1"; }
 [[ -f "${INSTALL}" ]] || fail "linux/install.sh does not exist"
 for t in jq openssl base64 tar sha256sum; do command -v "${t}" >/dev/null || fail "${t} is required"; done
 
+# Canonical path: macOS TMPDIR ends in "/" and lives under the /var -> /private/var symlink.
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/navis-install-test-XXXXXX")"
+tmp="$(cd "${tmp}" && pwd -P)"
 trap 'chmod -R u+w "${tmp}" 2>/dev/null; rm -rf "${tmp}"' EXIT
 unset XDG_DATA_HOME XDG_CACHE_HOME XDG_CONFIG_HOME XDG_STATE_HOME
 HOME_DIR="${tmp}/home dir"   # a space on purpose
