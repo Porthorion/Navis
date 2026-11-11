@@ -2098,7 +2098,7 @@ void main() {
                   await directory.delete(recursive: true);
                   break;
                 } on FileSystemException {
-                  if (attempt == 20) rethrow;
+                  if (attempt == 100) rethrow;
                   await Future<void>.delayed(const Duration(milliseconds: 50));
                 }
               }

@@ -538,21 +538,27 @@ void main() {
         scope: 'a',
         worker: InlineCoverColourWorker(
           core: CoverColourWorkerCore(
-            persistDelay: const Duration(milliseconds: 30),
+            persistDelay: const Duration(milliseconds: 200),
           ),
         ),
         readRootDirectory: () async => dir,
       );
       await store.warm(1);
       store.add('x', _field(1));
-      expect(File(path).existsSync(), isFalse);
+      // Let an undebounced write land before checking it did not.
+      await pumpEventQueue();
+      expect(
+        File(path).existsSync(),
+        isFalse,
+        reason: 'written before the debounce',
+      );
       // Slow CI can run the debounce timer late: poll, do not guess a delay.
       final waited = Stopwatch()..start();
       while (!File(path).existsSync() &&
           waited.elapsed < const Duration(seconds: 5)) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
-      expect(File(path).existsSync(), isTrue);
+      expect(File(path).existsSync(), isTrue, reason: 'not written within 5 s');
     });
 
     test('a truncated file keeps the entries before the damage', () {
