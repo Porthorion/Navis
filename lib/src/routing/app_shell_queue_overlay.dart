@@ -20,7 +20,6 @@ class _QueueOverlayState extends State<_QueueOverlay>
     with SingleTickerProviderStateMixin {
   static const double _sheetHeightFactor = 0.95;
   static const Duration _openDuration = Duration(milliseconds: 230);
-  static const Duration _closeDuration = Duration(milliseconds: 220);
   static const double _flingVelocityThreshold = 300;
   // Minimum spring speed (sheet heights per second) for settling open or closed.
   static const double _minSettleVelocity = 2.5;
@@ -55,20 +54,14 @@ class _QueueOverlayState extends State<_QueueOverlay>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _openDuration,
-      reverseDuration: _closeDuration,
-    );
+    _controller = AnimationController(vsync: this, duration: _openDuration);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final duration = MotionPolicy.of(context).surface;
-    _controller
-      ..duration = duration
-      ..reverseDuration = duration;
+    _controller.duration = duration;
     if (!_opened) {
       _opened = true;
       if (duration == Duration.zero) {
