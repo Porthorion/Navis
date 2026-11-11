@@ -876,6 +876,7 @@ class SyncDiagnosticsServer {
           final controlColor = body['controlColor'];
           final shade = body['albumArtShade'];
           final coloredShade = body['albumArtColoredShade'];
+          final keepVersion = body['keepTitleVersionVisible'];
           final corners = body['cornerStyle'];
           final background = body['nowPlayingBackground'];
           final sheetStyle = body['sheetStyle'];
@@ -905,6 +906,7 @@ class SyncDiagnosticsServer {
             'flatSurfaces',
             'albumArtShade',
             'albumArtColoredShade',
+            'keepTitleVersionVisible',
           ]) {
             if (body.containsKey(key) && body[key] is! bool) {
               throw const FormatException();
@@ -1010,6 +1012,7 @@ class SyncDiagnosticsServer {
                   'controlColor',
                   'albumArtShade',
                   'albumArtColoredShade',
+                  'keepTitleVersionVisible',
                   'cornerStyle',
                   'nowPlayingBackground',
                   'sheetStyle',
@@ -1106,6 +1109,9 @@ class SyncDiagnosticsServer {
           if (coloredShade is bool) {
             await dao.updateAlbumArtColoredShade(enabled: coloredShade);
           }
+          if (keepVersion is bool) {
+            await dao.updateKeepTitleVersionVisible(enabled: keepVersion);
+          }
           if (corners is String) await dao.updateCornerStyle(corners);
           if (background is String) {
             await dao.updateNowPlayingBackground(background);
@@ -1179,6 +1185,7 @@ class SyncDiagnosticsServer {
           'appearanceLookCount': model.appearanceLooks.length,
           'albumArtShade': settings?.albumArtShade ?? false,
           'albumArtColoredShade': settings?.albumArtColoredShade ?? false,
+          'keepTitleVersionVisible': settings?.keepTitleVersionVisible ?? true,
           'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',
           'showArtistsPage': settings?.showArtistsPage ?? true,
           'showRadioPage': settings?.showRadioPage ?? true,

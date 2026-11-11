@@ -292,6 +292,15 @@ void main() {
       expect((await dao.getSettings())!.sheetStyle, 'match_now_playing');
     }, skip: !sqliteAvailable);
 
+    test('keep title versions visible defaults on and toggles', () async {
+      final dao = database.appSettingsDao;
+      expect((await dao.getSettings())!.keepTitleVersionVisible, isTrue);
+      await dao.updateKeepTitleVersionVisible(enabled: false);
+      expect((await dao.getSettings())!.keepTitleVersionVisible, isFalse);
+      await dao.updateKeepTitleVersionVisible(enabled: true);
+      expect((await dao.getSettings())!.keepTitleVersionVisible, isTrue);
+    }, skip: !sqliteAvailable);
+
     test('background writes leave the legacy migration source alone', () async {
       await database.customStatement(
         'UPDATE app_settings SET art_tinted_now_playing = 0',

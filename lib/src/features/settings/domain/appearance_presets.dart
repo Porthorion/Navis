@@ -38,6 +38,7 @@ class AppearanceSnapshot {
     this.artistViewMode,
     this.nowPlayingBackground,
     this.sheetStyle,
+    this.keepTitleVersionVisible,
     this.clearColorSchemeSeed = false,
     this.clearAlbumGridDensity = false,
   });
@@ -71,6 +72,7 @@ class AppearanceSnapshot {
     artistViewMode: s.artistViewMode,
     nowPlayingBackground: s.nowPlayingBackground.storageKey,
     sheetStyle: s.sheetStyle.storageKey,
+    keepTitleVersionVisible: s.keepTitleVersionVisible,
     clearColorSchemeSeed: s.colorSchemeSeed == null,
     clearAlbumGridDensity: s.albumGridDensity == null,
   );
@@ -147,6 +149,7 @@ class AppearanceSnapshot {
       'album_color',
       'theme',
     ]),
+    keepTitleVersionVisible: _boolean(raw['keepTitleVersionVisible']),
     clearColorSchemeSeed:
         raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
     clearAlbumGridDensity:
@@ -181,6 +184,7 @@ class AppearanceSnapshot {
   final String? artistViewMode;
   final String? nowPlayingBackground;
   final String? sheetStyle;
+  final bool? keepTitleVersionVisible;
   final bool clearColorSchemeSeed;
   final bool clearAlbumGridDensity;
 
@@ -221,6 +225,8 @@ class AppearanceSnapshot {
     if (nowPlayingBackground != null)
       'nowPlayingBackground': nowPlayingBackground,
     if (sheetStyle != null) 'sheetStyle': sheetStyle,
+    if (keepTitleVersionVisible != null)
+      'keepTitleVersionVisible': keepTitleVersionVisible,
   };
 
   @override

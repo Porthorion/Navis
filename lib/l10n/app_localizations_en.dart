@@ -4936,6 +4936,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceDensityCompact => 'Compact';
 
   @override
+  String get appearanceKeepTitleVersionLabel => 'Keep Song Versions Visible';
+
+  @override
+  String get appearanceKeepTitleVersionSub =>
+      'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.';
+
+  @override
   String get desktopNavbarSectionLabel => 'Desktop Navigation';
 
   @override

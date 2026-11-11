@@ -87,6 +87,7 @@ class AppSettingsModel {
     required this.crossfadeType,
     this.nowPlayingBackground = NowPlayingBackground.tinted,
     this.sheetStyle = SheetStyle.matchNowPlaying,
+    this.keepTitleVersionVisible = true,
     this.cornerStyle = NavisCornerStyle.rounded,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
@@ -193,6 +194,7 @@ class AppSettingsModel {
       crossfadeType = 'normal',
       nowPlayingBackground = NowPlayingBackground.tinted,
       sheetStyle = SheetStyle.matchNowPlaying,
+      keepTitleVersionVisible = true,
       cornerStyle = NavisCornerStyle.rounded,
       dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
@@ -310,6 +312,7 @@ class AppSettingsModel {
   final String crossfadeType;
   final NowPlayingBackground nowPlayingBackground;
   final SheetStyle sheetStyle;
+  final bool keepTitleVersionVisible;
   final NavisCornerStyle cornerStyle;
 
   final bool dynamicAlbumColorEnabled;
@@ -502,6 +505,7 @@ class AppSettingsModel {
     String? crossfadeType,
     NowPlayingBackground? nowPlayingBackground,
     SheetStyle? sheetStyle,
+    bool? keepTitleVersionVisible,
     NavisCornerStyle? cornerStyle,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
@@ -644,6 +648,8 @@ class AppSettingsModel {
       crossfadeType: crossfadeType ?? this.crossfadeType,
       nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
       sheetStyle: sheetStyle ?? this.sheetStyle,
+      keepTitleVersionVisible:
+          keepTitleVersionVisible ?? this.keepTitleVersionVisible,
       cornerStyle: cornerStyle ?? this.cornerStyle,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
