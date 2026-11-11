@@ -4757,6 +4757,156 @@ void main() {
       },
     );
 
+    // I41c (#527): a queue replacement whose load times out with no song
+    // left to fail over to keeps the failed song queued, in the snapshot and
+    // in the published audio_service queue, and Play reloads it.
+    Future<void> expectFailedFinalSongKept(
+      NavisAudioHandler handler, {
+      required List<String> queue,
+      required String current,
+      required Set<String> hung,
+      required List<ControllableAudioPlayer> rebuilt,
+    }) async {
+      expect(handler.snapshot.currentSongId, current);
+      expect(handler.snapshot.queueSongIds, queue);
+      // Only the failed song is materialised, like the load's own publish;
+      // the rest of the queue is deferred until the song loads.
+      expect([for (final item in handler.queue.value) item.id], [current]);
+      expect(handler.snapshot.playing, isFalse);
+      expect(handler.snapshot.isLoading, isFalse);
+      hung.clear();
+      await handler.play();
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, current);
+      expect(handler.snapshot.queueSongIds, queue);
+      expect([for (final item in handler.queue.value) item.id], queue);
+      expect(handler.snapshot.playing, isTrue);
+      expect(rebuilt.last.processingState, ProcessingState.ready);
+    }
+
+    for (final (platform, mobile) in [
+      (TargetPlatform.iOS, true),
+      (TargetPlatform.android, true),
+      (TargetPlatform.macOS, false),
+    ]) {
+      for (final shape in ['one song', 'last of three', 'shuffled last']) {
+        test('a timed-out load of the final song keeps it queued and Play '
+            'reloads it ($shape, ${platform.name})', () async {
+          debugDefaultTargetPlatformOverride = platform;
+          addTearDown(() => debugDefaultTargetPlatformOverride = null);
+          final rebuilt = <ControllableAudioPlayer>[];
+          final hung = <String>{};
+          final (handler, _, _) = await fixture(
+            timeouts: quick,
+            count: 3,
+            rebuiltPlayers: rebuilt,
+            hungLoadSongs: hung,
+            desktopRuntimeOverride: !mobile,
+          );
+          final List<String> ids;
+          final String failing;
+          switch (shape) {
+            case 'one song':
+              ids = ['song-0'];
+              failing = 'song-0';
+              hung.add(failing);
+              await handler.replaceQueue(ids, expandMatchFlows: false);
+            case 'last of three':
+              ids = songIds(3);
+              failing = 'song-2';
+              hung.add(failing);
+              await handler.replaceQueue(
+                ids,
+                startIndex: 2,
+                expandMatchFlows: false,
+              );
+            default:
+              // Play order [1, 2, 0]; song-0 is last in play order.
+              ids = ['song-1', 'song-2', 'song-0'];
+              failing = 'song-0';
+              hung.add(failing);
+              await handler.replaceQueue(
+                ids,
+                startIndex: 2,
+                originalOrder: songIds(3),
+                expandMatchFlows: false,
+              );
+          }
+          await idle(handler);
+          await expectFailedFinalSongKept(
+            handler,
+            queue: ids,
+            current: failing,
+            hung: hung,
+            rebuilt: rebuilt,
+          );
+        });
+      }
+    }
+
+    for (final (platform, mobile) in [
+      (TargetPlatform.iOS, true),
+      (TargetPlatform.macOS, false),
+    ]) {
+      test('a timed-out replacement publishes the failed queue over the '
+          'previous one (${platform.name})', () async {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final rebuilt = <ControllableAudioPlayer>[];
+        final hung = <String>{};
+        final (handler, _, _) = await fixture(
+          timeouts: quick,
+          count: 4,
+          rebuiltPlayers: rebuilt,
+          hungLoadSongs: hung,
+          desktopRuntimeOverride: !mobile,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await idle(handler);
+        expect(
+          [for (final item in handler.queue.value) item.id],
+          ['song-0', 'song-1'],
+        );
+        hung.add('song-3');
+        await handler.replaceQueue(['song-3'], expandMatchFlows: false);
+        await idle(handler);
+        await expectFailedFinalSongKept(
+          handler,
+          queue: ['song-3'],
+          current: 'song-3',
+          hung: hung,
+          rebuilt: rebuilt,
+        );
+      });
+    }
+
+    test(
+      'a newer tap during the timeout wins over the failed song (iOS)',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final hung = <String>{'song-0'};
+        final (handler, _, _) = await fixture(
+          timeouts: quick,
+          count: 2,
+          hungLoadSongs: hung,
+          desktopRuntimeOverride: false,
+        );
+        final first = handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await handler.replaceQueue(['song-1'], expandMatchFlows: false);
+        await first;
+        await idle(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.snapshot.queueSongIds, ['song-1']);
+        expect([for (final item in handler.queue.value) item.id], ['song-1']);
+        expect(handler.snapshot.playing, isTrue);
+      },
+    );
+
     test('a failover that already moved the queue is not repeated', () async {
       final rebuilt = <ControllableAudioPlayer>[];
       final hungSongs = <String>{};

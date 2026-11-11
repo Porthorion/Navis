@@ -586,6 +586,12 @@ const List<ChangelogVersion> changelogs = [
         platforms: {ChangelogPlatform.ios, ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'A song that cannot be loaded no longer empties the queue when it is '
+        'the only or last song; it stays queued and Play tries it again',
+        platforms: {ChangelogPlatform.ios, ChangelogPlatform.android},
+        type: ChangelogEntryType.fix,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
