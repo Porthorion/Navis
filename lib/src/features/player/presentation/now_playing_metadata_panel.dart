@@ -176,7 +176,8 @@ class _TrackInfo extends StatelessWidget {
             title,
             style: titleStyle!,
             strutStyle: titleStrut,
-            passes: 3,
+            // Repeats for as long as Now Playing is shown (#569); the artist
+            // and album lines below rest after a few passes.
             textAlign: TextAlign.center,
           ),
         ),
