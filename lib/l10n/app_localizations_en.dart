@@ -4231,6 +4231,30 @@ class AppLocalizationsEn extends AppLocalizations {
       'The plain background of your theme, with no album color.';
 
   @override
+  String get appearanceSheetStyleLabel => 'Sheets & Menus';
+
+  @override
+  String get appearanceSheetStyleMatchNowPlaying => 'Match Now Playing';
+
+  @override
+  String get appearanceSheetStyleAlbumColor => 'Album Color';
+
+  @override
+  String get appearanceSheetStyleTheme => 'Theme';
+
+  @override
+  String get appearanceSheetStyleMatchNowPlayingSub =>
+      'The queue shows the Now Playing background. Menus and sheets use your theme.';
+
+  @override
+  String get appearanceSheetStyleAlbumColorSub =>
+      'The queue, menus and sheets take on the color of the playing album. Dialogs keep your theme.';
+
+  @override
+  String get appearanceSheetStyleThemeSub =>
+      'Plain theme colors everywhere, including the queue.';
+
+  @override
   String get appearanceOledForAutoLabel => 'Use OLED When Dark';
 
   @override

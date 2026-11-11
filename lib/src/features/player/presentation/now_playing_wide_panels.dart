@@ -20,7 +20,7 @@ class _NowPlayingSplitMetrics {
   final double artSize;
 }
 
-class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
+class _EmbeddedRightPaneBottomSheet extends ConsumerWidget {
   const new({
     required this.heightFactor,
     required this.useHeader,
@@ -39,7 +39,7 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
   final String? subtitle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -66,8 +66,9 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
                 }
               },
               child: Material(
-                color: nowPlayingArtworkPanelFill(
+                color: queuePanelFill(
                   context,
+                  ref.watch(sheetStyleProvider),
                   colorScheme.surfaceContainerHigh,
                 ),
                 elevation: 14,

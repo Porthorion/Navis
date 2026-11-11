@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// Alpha of the translucent fill Now Playing panels use while the Artwork
@@ -16,6 +17,7 @@ class NowPlayingArtworkLayerScope extends InheritedWidget {
     required this.active,
     required super.child,
     this.accent,
+    this.tinted = false,
     super.key,
   });
 
@@ -25,6 +27,17 @@ class NowPlayingArtworkLayerScope extends InheritedWidget {
   /// The accent-coloured title's colour over the veiled cover (see
   /// `nowPlayingArtworkAccent`), or null to keep the theme's primary.
   final Color? accent;
+
+  /// The Art-Tinted gradient is painted behind this subtree (the phone queue
+  /// overlay), so panels go fully transparent rather than veiled.
+  final bool tinted;
+
+  static bool tintedOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<NowPlayingArtworkLayerScope>()
+            ?.tinted ??
+        false;
+  }
 
   static bool of(BuildContext context) {
     return context
@@ -44,16 +57,34 @@ class NowPlayingArtworkLayerScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(NowPlayingArtworkLayerScope oldWidget) =>
-      active != oldWidget.active || accent != oldWidget.accent;
+      active != oldWidget.active ||
+      accent != oldWidget.accent ||
+      tinted != oldWidget.tinted;
 }
 
 /// The translucent fill for a Now Playing panel while the Artwork layer is
 /// shown, or null when the panel should keep its opaque [fallback] surface.
 Color nowPlayingArtworkPanelFill(BuildContext context, Color fallback) {
   if (!NowPlayingArtworkLayerScope.of(context)) return fallback;
+  if (NowPlayingArtworkLayerScope.tintedOf(context)) return Colors.transparent;
   final style = NavisColorStyleData.of(context);
   if (style.flatNowPlaying) return fallback;
   return style
       .nowPlayingArtworkVeilBase(Theme.of(context).colorScheme.surface)
       .withValues(alpha: kNowPlayingArtworkPanelAlpha);
 }
+
+/// The fill of a queue panel under the Sheets & Menus [style].
+///
+/// Theme: the opaque [fallback]. Album Color: the album tint that
+/// `AlbumSurfaceScope` publishes through `PopupMenuTheme`, or [fallback]
+/// without one. Match Now Playing: follows the Now Playing layer.
+Color queuePanelFill(BuildContext context, SheetStyle style, Color fallback) =>
+    switch (style) {
+      SheetStyle.theme => fallback,
+      SheetStyle.albumColor => PopupMenuTheme.of(context).color ?? fallback,
+      SheetStyle.matchNowPlaying => nowPlayingArtworkPanelFill(
+        context,
+        fallback,
+      ),
+    };

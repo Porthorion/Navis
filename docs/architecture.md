@@ -987,6 +987,14 @@ target-selection rules.
   Now Playing subtree reuses that same prepared blur through the shared cache in
   `NowPlayingArtworkBackground` beneath its own active artwork scope. A queue
   opened from Home with Now Playing collapsed, or under Flat, stays opaque.
+  Sheets & Menus (`sheetStyleProvider`) decides what the queue draws: Match
+  Now Playing follows the published background, which for a chosen Art-Tinted
+  background (not Flat, not an Artwork fallback) is the extracted `tintColor`, painted by
+  `nowPlayingSurfaceDecoration` with `NowPlayingArtworkLayerScope.tinted` making
+  panel fills transparent; Theme keeps `surface` opaque; Album Color uses the
+  album tint that `AlbumSurfaceScope` publishes on `PopupMenuTheme`. The queue
+  panels pick their fill with `queuePanelFill`. The setting sits under Now
+  Playing in Settings > Appearance and has no setup step.
   The adaptive veil keeps `onSurface`,
   `onSurfaceVariant` and the accent title at 5.0:1 within its range. When the
   cap is hit and the title is under 3.0:1, `nowPlayingArtworkAccent` shifts the
