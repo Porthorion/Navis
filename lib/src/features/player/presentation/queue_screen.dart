@@ -74,10 +74,14 @@ class QueueScreen extends ConsumerWidget {
                       index,
                     ),
                     actionsDisabled: actionsDisabled,
-                    onRemove: () async {
-                      if (actionsDisabled) return;
-                      await ref.read(queueProvider.notifier).removeAt(index);
-                    },
+                    onRemove: () => actionsDisabled
+                        ? Future.value(false)
+                        : removeQueueRowWithUndo(
+                            context,
+                            ref,
+                            index,
+                            queueIds[index],
+                          ),
                     onTap: () async {
                       if (actionsDisabled) return;
                       await ref

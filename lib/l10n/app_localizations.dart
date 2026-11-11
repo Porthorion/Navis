@@ -4377,6 +4377,18 @@ abstract class AppLocalizations {
   /// **'Unknown track'**
   String get queueUnknownTrack;
 
+  /// Label revealed behind a Queue row as it is swiped left, and the screen-reader action that removes the row.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Queue'**
+  String get queueSwipeRemoveLabel;
+
+  /// Notice after a song is removed from the Queue; has an Undo action.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed “{title}”'**
+  String queueRemovedNotice(String title);
+
   /// No description provided for @queueUnavailableTrackDescription.
   ///
   /// In en, this message translates to:

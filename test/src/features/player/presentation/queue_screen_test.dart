@@ -27,8 +27,9 @@ class _QueueSpyController extends QueueController {
   }
 
   @override
-  Future<void> removeAt(int index) async {
+  Future<QueueRemoval?> removeForUndo(int index, String songId) async {
     removeCalls++;
+    return null;
   }
 }
 

@@ -2782,6 +2782,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueUnknownTrack => 'Unknown track';
 
   @override
+  String get queueSwipeRemoveLabel => 'Remove from Queue';
+
+  @override
+  String queueRemovedNotice(String title) {
+    return 'Removed “$title”';
+  }
+
+  @override
   String get queueUnavailableTrackDescription =>
       'This track is no longer available in your library.';
 
