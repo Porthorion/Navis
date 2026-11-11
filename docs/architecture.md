@@ -1048,7 +1048,7 @@ target-selection rules.
   - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
     `app_settings.sheet_style` (`match_now_playing` default, `album_color` or
     `theme`): the fill of Now Playing sheets and menus (#560). It is a Look
-    field: `SheetStyle`, `sheetStyleProvider`, `updateSheetStyle` and the
+    field: `SheetStyle`, `updateSheetStyle` and the
     `sheetStyle` diagnostics key mirror `NowPlayingBackground`; an older Look
     or export without the key leaves the setting unchanged.
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
