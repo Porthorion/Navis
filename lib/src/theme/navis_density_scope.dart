@@ -29,12 +29,28 @@ class NavisDensityData {
       EdgeInsets.symmetric(horizontal: 12, vertical: trackRowVerticalPadding);
 }
 
-/// Provides the app-wide Density to list rows without threading flags through
-/// constructors. Absent (tests, isolated widgets) means comfortable.
+/// Provides the app-wide Density, and the Keep Song Versions Visible setting
+/// that title text reads, to list rows without threading flags through
+/// constructors. Absent (tests, isolated widgets) means comfortable and
+/// versions kept.
 class NavisDensityScope extends InheritedWidget {
-  const new({required this.density, required super.child, super.key});
+  const new({
+    required this.density,
+    this.keepTitleVersion = true,
+    required super.child,
+    super.key,
+  });
 
   final NavisDensity density;
+
+  /// Whether a truncated title keeps its version tag whole.
+  final bool keepTitleVersion;
+
+  static bool keepTitleVersionOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<NavisDensityScope>()
+          ?.keepTitleVersion ??
+      true;
 
   static NavisDensityData of(BuildContext context) {
     final scope = context
@@ -46,5 +62,6 @@ class NavisDensityScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(NavisDensityScope oldWidget) =>
-      oldWidget.density != density;
+      oldWidget.density != density ||
+      oldWidget.keepTitleVersion != keepTitleVersion;
 }

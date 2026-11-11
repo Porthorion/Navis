@@ -780,6 +780,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             sheetStyle: snapshot.sheetStyle == null
                 ? const Value.absent()
                 : Value(snapshot.sheetStyle!),
+            keepTitleVersionVisible: snapshot.keepTitleVersionVisible == null
+                ? const Value.absent()
+                : Value(snapshot.keepTitleVersionVisible!),
             updatedAt: Value(DateTime.now()),
           ),
         );
@@ -963,6 +966,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       AppSettingsTableCompanion(
         sheetStyle: Value(SheetStyle.parse(value).storageKey),
       ),
+    );
+  }
+
+  /// Targeted update for Keep Song Versions Visible.
+  Future<void> updateKeepTitleVersionVisible({required bool enabled}) {
+    return _writeSettings(
+      AppSettingsTableCompanion(keepTitleVersionVisible: Value(enabled)),
     );
   }
 

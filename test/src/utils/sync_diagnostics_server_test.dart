@@ -590,6 +590,7 @@ void main() {
         'appearanceLookCount': 0,
         'albumArtShade': false,
         'albumArtColoredShade': false,
+        'keepTitleVersionVisible': true,
       });
       final observed = await fixture.get('/v1/presentation/appearance');
       expect(observed.body, changed.body);
@@ -734,6 +735,7 @@ void main() {
       'controlColor': 'white',
       'albumArtShade': true,
       'albumArtColoredShade': true,
+      'keepTitleVersionVisible': false,
       'cornerStyle': 'square',
       'nowPlayingBackground': 'artwork',
       'sheetStyle': 'theme',
@@ -770,6 +772,7 @@ void main() {
     expect(persisted.controlColor, 'white');
     expect(persisted.albumArtShade, isTrue);
     expect(persisted.albumArtColoredShade, isTrue);
+    expect(persisted.keepTitleVersionVisible, isFalse);
     expect(persisted.sheetStyle, 'theme');
     final observed = await fixture.get(path);
     expect(observed.body, changed.body);
@@ -829,6 +832,9 @@ void main() {
       {'albumArtShade': 'true'},
       {'albumArtColoredShade': 1},
       {'albumArtColoredShade': null},
+      {'keepTitleVersionVisible': 1},
+      {'keepTitleVersionVisible': null},
+      {'keepTitleVersionVisible': 'false'},
       {'cornerStyle': 'circle'},
       {'nowPlayingBackground': 'blur'},
       {'sheetStyle': 'blur'},

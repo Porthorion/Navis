@@ -7779,6 +7779,18 @@ abstract class AppLocalizations {
   /// **'Compact'**
   String get appearanceDensityCompact;
 
+  /// No description provided for @appearanceKeepTitleVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep Song Versions Visible'**
+  String get appearanceKeepTitleVersionLabel;
+
+  /// No description provided for @appearanceKeepTitleVersionSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.'**
+  String get appearanceKeepTitleVersionSub;
+
   /// No description provided for @desktopNavbarSectionLabel.
   ///
   /// In en, this message translates to:
