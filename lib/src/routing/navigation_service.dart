@@ -105,7 +105,7 @@ abstract final class NavService {
     _drillIn(context, ref, AppRoutes.genre(genreKey));
   }
 
-  /// An action that opens Appearance settings on the Library pages group.
+  /// An action that opens Interface settings on the Library pages group.
   ///
   /// For notices: the action can run after the widget that offered it (a
   /// closed sheet) is gone, so it keeps the router and container, not
@@ -115,7 +115,7 @@ abstract final class NavService {
     final container = ProviderScope.containerOf(context);
     return () {
       container.read(playerOverlayStackProvider.notifier).clear();
-      unawaited(router.push<void>(AppRoutes.appearanceLibraryPages));
+      unawaited(router.push<void>(AppRoutes.interfaceLibraryPages));
     };
   }
 
@@ -296,10 +296,10 @@ abstract final class NavService {
     openSettingsPage(context, ref, SettingsPage.unavailableItems);
   }
 
-  /// Open Appearance settings, e.g. from a recovery state.
-  static void openAppearanceSettings(BuildContext context, WidgetRef ref) {
-    openSettingsPage(context, ref, SettingsPage.appearance);
-  }
+  /// Open Interface settings on the Library pages group, e.g. from the
+  /// "no pages enabled" recovery state.
+  static void openLibraryPagesSettings(BuildContext context, WidgetRef ref) =>
+      _drillIn(context, ref, AppRoutes.interfaceLibraryPages);
 
   /// Open the Match Flow list from Playback settings.
   static void openMatchFlow(BuildContext context, WidgetRef ref) {

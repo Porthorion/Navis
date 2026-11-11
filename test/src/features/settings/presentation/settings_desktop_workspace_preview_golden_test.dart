@@ -86,8 +86,13 @@ class _Preview extends StatelessWidget {
               ),
               (
                 icon: Icons.palette_outlined,
-                title: 'Appearance',
-                subtitle: 'Theme and interface',
+                title: 'Themes',
+                subtitle: 'Looks, colors, shapes and layout.',
+              ),
+              (
+                icon: Icons.dashboard_customize_outlined,
+                title: 'Interface',
+                subtitle: 'Home sections, library pages and navigation.',
               ),
             ],
           ),

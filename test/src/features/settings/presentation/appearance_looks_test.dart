@@ -15,7 +15,7 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_pickers.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -97,7 +97,7 @@ void main() {
         style: NavisColorStyle.pastel,
       ),
       home: screen
-          ? const AppearanceSettingsScreen()
+          ? const ThemesSettingsScreen()
           : Scaffold(
               body: Align(
                 alignment: Alignment.topCenter,
@@ -721,10 +721,10 @@ void main() {
   });
 
   group('on the Appearance screen', () {
-    testWidgets('sits at the top, above the Theme section', (tester) async {
+    testWidgets('sits at the top, above the Mode section', (tester) async {
       await pump(tester, screen: true);
       double top(String text) => tester.getTopLeft(find.text(text)).dy;
-      expect(top('Looks'), lessThan(top('Theme')));
+      expect(top('Looks'), lessThan(top('Mode')));
       expect(find.byType(AppearanceLooksOption), findsOneWidget);
     });
 

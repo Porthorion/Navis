@@ -60,7 +60,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         l10n.settingsGroupLibrarySynchronization;
     final groupOther = l10n.settingsGroupOther;
     final groupDesktop = l10n.settingsGroupDesktop;
-    final hasNewOptions = ref.watch(settingsHasNewOptionsProvider);
+    final themesHasNewOptions = ref.watch(themesHasNewOptionsProvider);
+    final interfaceHasNewOptions = ref.watch(interfaceHasNewOptionsProvider);
     final quickHasNewOptions = ref.watch(
       quickCustomizationHasNewOptionsProvider,
     );
@@ -122,12 +123,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       _SettingsEntry(
         icon: Icons.palette_outlined,
-        title: l10n.settingsAppearanceTitle,
-        subtitle: l10n.settingsAppearanceSubtitle,
-        page: SettingsPage.appearance,
+        title: l10n.settingsThemesTitle,
+        subtitle: l10n.settingsThemesSubtitle,
+        page: SettingsPage.themes,
         group: groupOther,
-        // Every setup highlight is an Appearance option.
-        adornment: hasNewOptions ? newOptionsTag : null,
+        adornment: themesHasNewOptions ? newOptionsTag : null,
+      ),
+      _SettingsEntry(
+        icon: Icons.dashboard_customize_outlined,
+        title: l10n.settingsInterfaceTitle,
+        subtitle: l10n.settingsInterfaceSubtitle,
+        page: SettingsPage.interface,
+        group: groupOther,
+        adornment: interfaceHasNewOptions ? newOptionsTag : null,
       ),
       // Desktop haptics are silent, so there is nothing to set there.
       if (!adaptiveContext.desktopRuntime)

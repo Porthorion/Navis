@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-11-10
+Last updated: 2026-11-12
 
 ---
 
@@ -13,6 +13,7 @@ Last updated: 2026-11-10
 - ACP task ID format: `ACP-M{milestone}-{nn}`.
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
+- [x] G2 (1.5.2), Appearance split into Themes and Interface: Settings home lists Themes (Looks, Mode, Color, Shape & Layout, Now Playing) and Interface (Language, Home Sections, Page Visibility, Desktop Navigation); `/settings/appearance` redirects to Themes, genre Show and the library empty state open Interface; New tags split per page; page rule (Themes = `AppearanceSnapshot` fields + Looks + Auto sub-options) enforced by `appearance_controls_audit_test.dart` — 2026-11-12 (branch `feat/g2-themes-interface`; evidence: `themes_settings_screen_test.dart`, `interface_settings_screen_test.dart`, `app_router_test.dart`, `settings_accessibility_test.dart`, goldens `themes_settings_desktop_workspace.png` and `interface_settings_desktop_workspace.png`, `tool/check.sh`). Runtime pass still to do on desktop and phone
 - [x] F5 (1.5.2), Keep Song Versions Visible setting: Settings > Appearance > Shape & Layout switch (default on) stored in `app_settings.keep_title_version_visible` (schema 115, `from114To115`, a Look field); off makes `MarqueeText`'s still form one plain ellipsis via `NavisDensityScope.keepTitleVersion` — 2026-11-11 (branch `feat/keep-title-versions-setting`; evidence: `marquee_text_test.dart`, `navis_migration_test.dart`, `appearance_controls_audit_test.dart`)
 - [x] F5 P5b (1.5.2), swipe a queue song left to remove it with Undo; the phone trash button is gone — 2026-11-11 (branch `f5/p5b-queue-swipe`; evidence: `queue_sheet_test.dart`, `queue_haptics_test.dart`, `queue_current_row_centering_test.dart`, `queue_screen_test.dart`; playback fixture gate skipped, see #209)
 - [x] F5 P2 (1.5.2), two-line song titles with an even row height on phones: `AdaptiveTrackRow` compact touch rows take up to two title lines (`MarqueeText(maxLines: 2)`, binary-searched cut keeps a long version whole on line 2) and reserve them (`trackRowReservedHeight`: 72 at scale 1, Comfortable), always put the duration on line 2 and use a 4 dp end inset next to the more button; skeleton rows share the height (`trackRowSkeletonHeight`); Home shelves/hero and the weekly hero list opt out with `twoLineTitle: false` — 2026-11-11 (branch `f5/p2-two-line-rows`; evidence: `adaptive_track_row_mobile_test.dart` "two-line phone rows", `marquee_text_test.dart` "two lines"). Runtime checks still to do on an Android emulator at text scale 1.0 and 1.3

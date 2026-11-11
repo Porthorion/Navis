@@ -692,7 +692,8 @@ Uses `go_router` with a `ShellRoute` for the main app scaffold (bottom Navigatio
 | `/settings/server` | Server settings | Edit server, reconnect |
 | `/settings/cache` | Cache management | Rolling cache, permanent cache, cover art stats |
 | `/settings/playback` | Playback settings | Wi-Fi / cellular quality, transcoding |
-| `/settings/appearance` | Appearance | Theme mode, color scheme |
+| `/settings/themes` | Themes | Looks, mode, color, shape and layout, Now Playing (`/settings/appearance` redirects here) |
+| `/settings/interface` | Interface | Language, Home sections, page visibility, desktop navigation |
 | `/downloads` | Download Queue | Queue, downloaded, storage overview |
 | `/now-playing` | Now Playing | Full-screen player |
 

@@ -934,7 +934,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       icon: Icons.visibility_off_outlined,
       action: FilledButton.tonalIcon(
         style: NavisColorStyleData.tonalStyleOf(context),
-        onPressed: () => NavService.openAppearanceSettings(context, ref),
+        onPressed: () => NavService.openLibraryPagesSettings(context, ref),
         icon: const Icon(Icons.tune_outlined),
         label: Text(l10n.libraryNoPagesEnabledAction),
       ),

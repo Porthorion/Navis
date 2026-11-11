@@ -201,7 +201,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
-        'New Sheets & Menus setting in Settings › Appearance: Album Color '
+        'Appearance is now two pages: Themes holds everything a Look saves, '
+        'with Looks at the top, and Interface holds Home sections, page '
+        'visibility and desktop navigation',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'New Sheets & Menus setting in Settings › Themes: Album Color '
         'tints the queue, menus and sheets with the playing album, Theme '
         'keeps them plain, and the default follows Now Playing. The queue '
         'now also takes on the Art-Tinted background',
@@ -215,7 +221,7 @@ const List<ChangelogVersion> changelogs = [
         'of splitting it',
       ),
       ChangelogEntry(
-        'Settings › Appearance › Keep Song Versions Visible: turn off to '
+        'Settings › Themes › Keep Song Versions Visible: turn off to '
         'shorten long titles at the end instead',
         type: ChangelogEntryType.newFeature,
       ),
@@ -242,13 +248,13 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Auto theme can now follow a schedule instead of your device: in '
-        'Settings › Appearance, choose Scheduled under Auto and set when '
+        'Settings › Themes, choose Scheduled under Auto and set when '
         'dark starts and ends. Outside that window the app is light',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Auto can use a different saved preset for light and dark: in '
-        'Settings › Appearance, turn on Use Different Presets for Auto and '
+        'Settings › Themes, turn on Use Different Presets for Auto and '
         'pick a Light Mode and a Dark Mode preset',
         type: ChangelogEntryType.newFeature,
       ),
