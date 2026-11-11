@@ -5049,6 +5049,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get songStatusDownloading => 'Downloading…';
 
   @override
+  String get songStatusDownloaded => 'Downloaded';
+
+  @override
   String get songStatusCachedTooltip => 'Cached — tap to download';
 
   @override

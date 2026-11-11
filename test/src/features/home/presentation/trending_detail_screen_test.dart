@@ -19,6 +19,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
+import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/queue_replace_spy.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
@@ -37,6 +38,7 @@ void main() {
     WidgetTester tester,
     Stream<List<ResolvedArtistTopTrack>> Function(Ref ref) tracks, {
     bool albumQueue = true,
+    SongDownloadState downloadState = SongDownloadState.none,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -57,7 +59,7 @@ void main() {
             }),
             homeTrendingProvider.overrideWith(tracks),
             songDownloadStateProvider.overrideWith(
-              (ref, songId) => SongDownloadState.none,
+              (ref, songId) => downloadState,
             ),
           ],
         ),
@@ -255,6 +257,35 @@ void main() {
       expect(dropped, 0);
     },
   );
+
+  for (final desktop in <bool>[false, true]) {
+    testWidgets(
+      'chart rows ${desktop ? 'keep the download button on desktop' : 'show the download glyph, not a button, on touch'}',
+      (tester) async {
+        setAdaptiveTestViewport(
+          tester,
+          desktop ? const Size(1366, 900) : const Size(390, 900),
+        );
+        await pump(
+          tester,
+          (ref) => Stream.value(chart),
+          downloadState: const SongDownloadState(
+            status: SongDownloadStatus.downloaded,
+          ),
+        );
+
+        // Two resolved rows; the unresolved one has neither.
+        expect(
+          find.byType(SongDownloadStatusIcon),
+          desktop ? findsNWidgets(2) : findsNothing,
+        );
+        expect(
+          find.byType(SongDownloadStatusGlyph),
+          desktop ? findsNothing : findsNWidgets(2),
+        );
+      },
+    );
+  }
 
   testWidgets('says when there is no chart to show', (tester) async {
     await pump(tester, (ref) => Stream.value(const <ResolvedArtistTopTrack>[]));

@@ -2392,6 +2392,7 @@
   "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data? Clearing local data permanently deletes your downloads, caches, library metadata, and history, including playlists and radio stations saved on this device.",
   "songStatusQueued": "Queued for download",
   "songStatusDownloading": "Downloading…",
+  "songStatusDownloaded": "Downloaded",
   "songStatusCachedTooltip": "Cached — tap to download",
   "downloadsRemoveConfirmTitle": "Remove Download?",
   "downloadsRemoveConfirmContent": "The downloaded file will be permanently deleted.",

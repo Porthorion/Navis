@@ -74,6 +74,7 @@ Future<_QueueSpyController> _pumpTopTracksSection(
   PlaybackSnapshot? playbackSnapshot,
   bool phone = false,
   bool loading = false,
+  SongDownloadState downloadState = SongDownloadState.none,
 }) async {
   if (phone) {
     tester.view
@@ -95,9 +96,7 @@ Future<_QueueSpyController> _pumpTopTracksSection(
         ),
         queueProvider.overrideWith(_QueueSpyController.new),
         songByIdProvider.overrideWith((ref, songId) => Stream.value(null)),
-        songDownloadStateProvider.overrideWith(
-          (ref, songId) => SongDownloadState.none,
-        ),
+        songDownloadStateProvider.overrideWith((ref, songId) => downloadState),
         subsonicApiProvider.overrideWithValue(null),
         if (playbackSnapshot != null)
           playerStateProvider.overrideWithValue(playbackSnapshot),
@@ -229,6 +228,25 @@ void main() {
     ];
     expect(heights[1], heights[0]);
     expect(heights[2], heights[0]);
+  });
+
+  testWidgets('phone rows show the download glyph, not a button', (
+    tester,
+  ) async {
+    await _pumpTopTracksSection(
+      tester,
+      albumQueueEnabled: false,
+      phone: true,
+      downloadState: const SongDownloadState(
+        status: SongDownloadStatus.downloaded,
+      ),
+      tracks: [
+        _track(rank: 1, id: 'song-1', title: 'First Song'),
+        _track(rank: 2, id: 'song-2', title: 'Second Song'),
+      ],
+    );
+    expect(find.byType(SongDownloadStatusGlyph), findsNWidgets(2));
+    expect(find.byType(SongDownloadStatusIcon), findsNothing);
   });
 
   testWidgets('the phone skeleton is as tall as a row with a badge', (

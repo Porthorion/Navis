@@ -37,6 +37,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
@@ -1564,6 +1565,55 @@ void main() {
         }
       },
     );
+
+    testWidgets('mobile album rows show the download state, not a button', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(360, 1200));
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _mobileContext,
+        overrides: [
+          songDownloadStateProvider('done-song').overrideWithValue(
+            const SongDownloadState(status: SongDownloadStatus.downloaded),
+          ),
+          songDownloadStateProvider('plain-song')
+              .overrideWithValue(SongDownloadState.none),
+        ],
+        album: _albumWithSongs(const [
+          SongsTableData(
+            id: 'done-song',
+            title: 'Done song',
+            artistName: 'Artist',
+            albumName: 'Album',
+            duration: 223,
+            track: 1,
+            isExternal: false,
+            isProvisional: false,
+          ),
+          SongsTableData(
+            id: 'plain-song',
+            title: 'Plain song',
+            artistName: 'Artist',
+            albumName: 'Album',
+            duration: 223,
+            track: 2,
+            isExternal: false,
+            isProvisional: false,
+          ),
+        ]),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(AdaptiveTrackRow), findsNWidgets(2));
+      Finder inRows(IconData icon) => find.descendant(
+        of: find.byType(AdaptiveTrackRow),
+        matching: find.byIcon(icon),
+      );
+      expect(inRows(Icons.check_circle), findsOneWidget);
+      expect(inRows(Icons.download_outlined), findsNothing);
+      expect(inRows(Icons.more_vert), findsNWidgets(2));
+    });
 
     testWidgets('mobile album keeps numbered controls beside 64 px tracks', (
       tester,
