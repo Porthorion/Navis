@@ -341,6 +341,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final song = track.resolvedSong;
     final colorScheme = Theme.of(context).colorScheme;
+    final desktopRuntime = resolveAdaptiveContextFor(context).desktopRuntime;
     final matching = song == null && track.isMatching;
     final unavailable = song == null && !track.isMatching;
     final playbackState = song == null
@@ -409,6 +410,10 @@ class _RankedTopTrackRow extends ConsumerWidget {
           : (details) => unawaited(
               _showMenu(context, ref, song, anchor: details.globalPosition),
             ),
+      // Desktop keeps the download button: this row has no desktop branch.
+      trailingStatus: song == null || desktopRuntime
+          ? null
+          : SongDownloadStatusGlyph(songId: song.id),
       actions: song == null
           ? Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -433,15 +438,16 @@ class _RankedTopTrackRow extends ConsumerWidget {
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: SongDownloadStatusIcon(
-                    songId: song.id,
-                    onDownload: () =>
-                        unawaited(_downloadSong(context, ref, song.id)),
+                if (desktopRuntime)
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: SongDownloadStatusIcon(
+                      songId: song.id,
+                      onDownload: () =>
+                          unawaited(_downloadSong(context, ref, song.id)),
+                    ),
                   ),
-                ),
                 Builder(
                   builder: (buttonContext) => IconButton(
                     tooltip: MaterialLocalizations.of(buttonContext)

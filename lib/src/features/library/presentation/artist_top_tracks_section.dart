@@ -17,7 +17,6 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
-import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
@@ -415,6 +414,7 @@ class _TopTrackTile extends ConsumerWidget {
 
     // ── Trailing: download status + 3-dot menu (resolved tracks only) ───
     Widget? trailing;
+    Widget? trailingStatus;
     if (desktopRuntime && dbSong != null) {
       trailing = DesktopSongActions(
         song: dbSong,
@@ -437,47 +437,28 @@ class _TopTrackTile extends ConsumerWidget {
       // row's columns left.
       trailing = const SizedBox.shrink();
     } else if (resolvedId != null) {
-      trailing = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: SongDownloadStatusIcon(
-              songId: resolvedId,
-              onDownload: () => _downloadSong(context, ref, resolvedId),
-              size: 20,
-            ),
-          ),
-          Builder(
-            builder: (buttonContext) => IconButton(
-              tooltip: MaterialLocalizations.of(buttonContext).showMenuTooltip,
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-              padding: const EdgeInsets.all(8),
-              onPressed: dbSong == null
-                  ? null
-                  : () {
-                      final renderObject = buttonContext.findRenderObject();
-                      final anchor =
-                          !desktopRuntime || renderObject is! RenderBox
-                          ? null
-                          : renderObject.localToGlobal(
-                              renderObject.size.center(Offset.zero),
-                            );
-                      unawaited(
-                        showSongContextMenu(
-                          context,
-                          ref,
-                          dbSong,
-                          anchor: anchor,
-                        ),
-                      );
-                    },
-            ),
-          ),
-        ],
+      trailingStatus = SongDownloadStatusGlyph(songId: resolvedId);
+      trailing = Builder(
+        builder: (buttonContext) => IconButton(
+          tooltip: MaterialLocalizations.of(buttonContext).showMenuTooltip,
+          icon: const Icon(Icons.more_vert),
+          iconSize: 20,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          padding: const EdgeInsets.all(8),
+          onPressed: dbSong == null
+              ? null
+              : () {
+                  final renderObject = buttonContext.findRenderObject();
+                  final anchor = !desktopRuntime || renderObject is! RenderBox
+                      ? null
+                      : renderObject.localToGlobal(
+                          renderObject.size.center(Offset.zero),
+                        );
+                  unawaited(
+                    showSongContextMenu(context, ref, dbSong, anchor: anchor),
+                  );
+                },
+        ),
       );
     }
 
@@ -513,6 +494,7 @@ class _TopTrackTile extends ConsumerWidget {
             }
           : null,
       leading: leading,
+      trailingStatus: trailingStatus,
       actions: trailing,
     );
 
@@ -532,10 +514,6 @@ class _TopTrackTile extends ConsumerWidget {
             child: tile,
           );
     return SongPlaybackSemantics(state: playbackState, child: interactiveTile);
-  }
-
-  void _downloadSong(BuildContext context, WidgetRef ref, String songId) {
-    unawaited(downloadSongWithQualityPrompt(context, ref, songId));
   }
 
   String _formatListeners(int count, BuildContext context) {

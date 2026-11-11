@@ -7953,6 +7953,12 @@ abstract class AppLocalizations {
   /// **'Downloading…'**
   String get songStatusDownloading;
 
+  /// No description provided for @songStatusDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get songStatusDownloaded;
+
   /// No description provided for @songStatusCachedTooltip.
   ///
   /// In en, this message translates to:

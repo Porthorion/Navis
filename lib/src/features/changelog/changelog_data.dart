@@ -219,6 +219,10 @@ const List<ChangelogVersion> changelogs = [
         'even height',
       ),
       ChangelogEntry(
+        'Phone song rows show download progress and a ✓ next to ⋯; download or '
+        'remove a download from ⋯',
+      ),
+      ChangelogEntry(
         'Swipe a queue song left to remove it, with Undo; the trash button is '
         'gone on phones',
       ),
