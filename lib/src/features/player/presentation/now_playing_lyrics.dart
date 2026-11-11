@@ -42,12 +42,11 @@ class _FullscreenLyricsPage extends ConsumerWidget {
           preferredSize: const Size.fromHeight(20),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Text(
+            child: MarqueeText(
               shownTitle,
               textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              passes: 2,
+              style: Theme.of(context).textTheme.bodySmall!.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),

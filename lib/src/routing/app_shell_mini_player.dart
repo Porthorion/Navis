@@ -82,24 +82,22 @@ Widget _miniPlayerTrackText(
     crossAxisAlignment: CrossAxisAlignment.start,
     mainAxisSize: large ? MainAxisSize.max : MainAxisSize.min,
     children: <Widget>[
-      Text(
+      MarqueeText(
         (title == null || title.trim().isEmpty)
             ? l10n.miniPlayerUnknownTrack
             : title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
+        passes: 2,
+        style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)!.copyWith(
           fontWeight: FontWeight.w600,
         ),
       ),
       SizedBox(height: large ? 3 : 2),
-      Text(
+      MarqueeText(
         (artist == null || artist.trim().isEmpty)
             ? l10n.miniPlayerUnknownArtist
             : artist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: (large ? textTheme.bodyMedium : textTheme.bodySmall)?.copyWith(
+        active: false,
+        style: (large ? textTheme.bodyMedium : textTheme.bodySmall)!.copyWith(
           color: cs.onSurface.withValues(alpha: large ? 0.58 : 0.6),
         ),
       ),
@@ -350,15 +348,13 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                           ),
                                           child: MouseRegion(
                                             cursor: SystemMouseCursors.click,
-                                            child: Text(
+                                            child: MarqueeText(
                                               widget.songTitle!,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              softWrap: false,
+                                              passes: 2,
                                               style: Theme.of(context)
                                                   .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
+                                                  .bodyMedium!
+                                                  .copyWith(
                                                     color: cs.primary,
                                                     fontWeight: FontWeight.w700,
                                                     fontSize: 17,
@@ -368,20 +364,18 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                           ),
                                         )
                                       else
-                                        Text(
+                                        MarqueeText(
                                           (widget.songTitle == null ||
                                                   widget.songTitle!
                                                       .trim()
                                                       .isEmpty)
                                               ? l10n.miniPlayerUnknownTrack
                                               : widget.songTitle!,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          softWrap: false,
+                                          passes: 2,
                                           style: Theme.of(context)
                                               .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(
+                                              .bodyMedium!
+                                              .copyWith(
                                                 fontWeight: FontWeight.w700,
                                                 fontSize: 17,
                                                 height: 1.15,

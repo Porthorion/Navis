@@ -656,11 +656,10 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
                           icon: const Icon(Icons.arrow_back),
                         ),
                         Expanded(
-                          child: Text(
+                          child: MarqueeText(
                             widget.title,
-                            style: theme.textTheme.titleMedium,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium!,
+                            passes: 2,
                           ),
                         ),
                       ],
