@@ -1977,7 +1977,7 @@
   "appearanceSheetStyleMatchNowPlaying": "Match Now Playing",
   "appearanceSheetStyleAlbumColor": "Album Color",
   "appearanceSheetStyleTheme": "Theme",
-  "appearanceSheetStyleMatchNowPlayingSub": "The queue shows the Now Playing background. Menus and sheets use your theme.",
+  "appearanceSheetStyleMatchNowPlayingSub": "Sheets over Now Playing follow it; menus use your theme.",
   "appearanceSheetStyleAlbumColorSub": "The queue, menus and sheets take on the color of the playing album. Dialogs keep your theme.",
   "appearanceSheetStyleThemeSub": "Plain theme colors everywhere, including the queue.",
   "appearanceOledForAutoLabel": "Use OLED When Dark",

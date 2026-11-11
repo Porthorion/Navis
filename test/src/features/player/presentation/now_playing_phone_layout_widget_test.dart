@@ -141,7 +141,12 @@ Future<void> _pump(
     ),
   );
   if (settle) {
-    await tester.pumpAndSettle();
+    // A title wider than its line now scrolls forever (#569), so
+    // `pumpAndSettle` would never return; stop inside the marquee's 1.75 s
+    // start pause, where it still shows its resting form.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
   } else {
     await tester.pump();
   }
@@ -574,9 +579,8 @@ void main() {
       matching: find.byType(Transform),
     );
 
-    testWidgets('a long title keeps its version, scrolls 3 times, then rests', (
-      tester,
-    ) async {
+    testWidgets('a long title keeps its version and scrolls for as long as '
+        'Now Playing is shown (#569)', (tester) async {
       await _pump(
         tester,
         const Size(390, 844),
@@ -584,14 +588,29 @@ void main() {
         settle: false,
       );
       expect(find.text(' (Radio Edit)'), findsOneWidget);
-      expect(scrolling, findsNothing);
+      final titleTravel = find.descendant(
+        of: titleMarquee(),
+        matching: find.byType(Transform),
+      );
+      expect(titleTravel, findsNothing);
 
       await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
-      expect(scrolling, findsWidgets);
+      expect(titleTravel, findsWidgets);
 
-      await tester.pumpAndSettle();
-      expect(scrolling, findsNothing);
-      expect(find.text(' (Radio Edit)'), findsOneWidget);
+      // Far past the old 3 passes: it rests, travels and rests again.
+      await tester.pump(const Duration(minutes: 2));
+      var moving = false;
+      var resting = false;
+      for (var i = 0; i < 400; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (titleTravel.evaluate().isNotEmpty) {
+          moving = true;
+        } else {
+          resting = true;
+        }
+      }
+      expect(moving, isTrue);
+      expect(resting, isTrue);
       expect(tester.takeException(), isNull);
     }, skip: !sqliteAvailable);
 

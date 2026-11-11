@@ -1,5 +1,6 @@
 import 'dart:io' show Directory;
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:audio_service/audio_service.dart';
@@ -2711,6 +2712,30 @@ void main() {
       expect(tester.getSize(mini).height, lessThan(72));
     });
 
+    testWidgets('the title keeps a 12 dp gap before the play button', (
+      tester,
+    ) async {
+      await pumpMini(tester);
+      final mini = strip();
+      final title = find.descendant(
+        of: mini,
+        matching: find.byWidgetPredicate(
+          (w) => w is MarqueeText && w.text == remoteSong.title,
+        ),
+      );
+      final play = find.descendant(
+        of: mini,
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is IconButton && (w.tooltip == 'Play' || w.tooltip == 'Pause'),
+        ),
+      );
+      expect(
+        tester.getRect(play).left - tester.getRect(title).right,
+        greaterThanOrEqualTo(12),
+      );
+    });
+
     testWidgets('swipe left skips to next, swipe right to previous', (
       tester,
     ) async {
@@ -5186,6 +5211,230 @@ void main() {
     expect(container.read(queueOverlayVisibleProvider), isFalse);
   });
 
+  // F2 (owner, 2026-11-11): dismissing the queue over Now Playing, the dim
+  // "remembers it has to go, then goes". Records sheet travel and scrim alpha
+  // per 16 ms frame during an animated dismiss (close button).
+  testWidgets('F2: queue scrim fades with the sheet during dismiss', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 860);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).showQueue();
+    await tester.pumpAndSettle();
+
+    final translation = find.byKey(
+      const ValueKey<String>('queueOverlayTranslation'),
+    );
+    final overlayStack = find
+        .ancestor(of: translation, matching: find.byType(Stack))
+        .first;
+    final scrim = find
+        .descendant(of: overlayStack, matching: find.byType(ColoredBox))
+        .first;
+    double scrimAlpha() => tester.widget<ColoredBox>(scrim).color.a;
+    double travel() =>
+        tester.widget<FractionalTranslation>(translation).translation.dy;
+    final openAlpha = scrimAlpha();
+    expect(travel(), 0);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(QueueSheet),
+        matching: find.byIcon(Icons.close),
+      ),
+    );
+    var worstLag = 0.0;
+    var worstStep = 0.0;
+    var previous = 1.0;
+    for (var ms = 0; ms <= 320; ms += 16) {
+      await tester.pump(
+        ms == 0 ? Duration.zero : const Duration(milliseconds: 16),
+      );
+      if (translation.evaluate().isEmpty) {
+        break;
+      }
+      final t = travel();
+      final f = scrimAlpha() / openAlpha;
+      // Scrim fraction left vs. sheet fraction still on screen.
+      worstLag = math.max(worstLag, f - (1 - t));
+      worstStep = math.max(worstStep, previous - f);
+      previous = f;
+    }
+    expect(
+      worstLag,
+      lessThan(0.15),
+      reason: 'the scrim stays dark while the sheet has already left',
+    );
+    expect(
+      worstStep,
+      lessThan(0.2),
+      reason: 'the scrim drops in a few large late steps',
+    );
+  });
+
+  testWidgets('F2: a swipe-down release continues the sheet without a stall', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 860);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).showQueue();
+    await tester.pumpAndSettle();
+
+    final translation = find.byKey(
+      const ValueKey<String>('queueOverlayTranslation'),
+    );
+    double travel() =>
+        tester.widget<FractionalTranslation>(translation).translation.dy;
+
+    final start = tester.getCenter(
+      find.descendant(
+        of: find.byType(QueueSheet),
+        matching: find.text('Queue'),
+      ),
+    );
+    final gesture = await tester.startGesture(start);
+    // Finger moves 24 px per 16 ms frame (1.5 px/ms), 10 frames = 240 px.
+    var y = start.dy;
+    final dragTravel = <double>[];
+    for (var i = 1; i <= 10; i++) {
+      y += 24;
+      await gesture.moveTo(
+        Offset(start.dx, y),
+        timeStamp: Duration(milliseconds: 16 * i),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+      dragTravel.add(travel());
+    }
+    await gesture.up(timeStamp: const Duration(milliseconds: 176));
+    final afterTravel = <double>[];
+    for (var ms = 16; ms <= 320; ms += 16) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (translation.evaluate().isEmpty) {
+        break;
+      }
+      afterTravel.add(travel());
+    }
+    final dragSpeed = dragTravel.last - dragTravel[dragTravel.length - 2];
+    // Frame 1 after release is the ticker's zero-elapsed start; use 2-4.
+    final releaseSpeed = (afterTravel[3] - afterTravel[0]) / 3;
+    expect(
+      releaseSpeed,
+      greaterThan(dragSpeed * 0.5),
+      reason: 'the sheet nearly stops after release before accelerating away',
+    );
+  });
+
+  // F2 edge cases: a slow short drag settles open; an upward flick re-opens.
+  for (final flick in <({String name, double dy, int stepMs, bool open})>[
+    (name: 'slow short drag settles open', dy: 6, stepMs: 64, open: true),
+    (
+      name: 'upward flick after a pull re-opens',
+      dy: -24,
+      stepMs: 16,
+      open: true,
+    ),
+  ]) {
+    testWidgets('F2: queue ${flick.name}', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(400, 860);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await tester.pumpAndSettle();
+
+      final translation = find.byKey(
+        const ValueKey<String>('queueOverlayTranslation'),
+      );
+      final start = tester.getCenter(
+        find.descendant(
+          of: find.byType(QueueSheet),
+          matching: find.text('Queue'),
+        ),
+      );
+      final gesture = await tester.startGesture(start);
+      var y = start.dy;
+      var ms = 0;
+      // Pull down 150 px first (value ~0.82, above the 0.7 dismiss line) when
+      // flicking up afterwards; the slow case just drags a few small steps.
+      if (flick.dy < 0) {
+        for (var i = 0; i < 6; i++) {
+          y += 25;
+          ms += 16;
+          await gesture.moveTo(
+            Offset(start.dx, y),
+            timeStamp: Duration(milliseconds: ms),
+          );
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        // Drop the pull below 0.7 so only the upward flick can save it.
+        for (var i = 0; i < 12; i++) {
+          y += 25;
+          ms += 16;
+          await gesture.moveTo(
+            Offset(start.dx, y),
+            timeStamp: Duration(milliseconds: ms),
+          );
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+      }
+      for (var i = 0; i < 4; i++) {
+        y += flick.dy;
+        ms += flick.stepMs;
+        await gesture.moveTo(
+          Offset(start.dx, y),
+          timeStamp: Duration(milliseconds: ms),
+        );
+        await tester.pump(Duration(milliseconds: flick.stepMs));
+      }
+      await gesture.up(timeStamp: Duration(milliseconds: ms));
+      await tester.pumpAndSettle();
+
+      expect(translation, findsOneWidget);
+      expect(
+        tester.widget<FractionalTranslation>(translation).translation.dy,
+        0,
+      );
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+    });
+  }
+
   testWidgets(
     'final queue item teardown keeps exit visual and releases back immediately',
     (tester) async {
@@ -6381,6 +6630,14 @@ void main() {
     const desktopBackdropKey = ValueKey<String>('nowPlayingArtworkBackground');
     final coverSong = _longMetadataSong.copyWith(coverArt: const Value('c-1'));
 
+    // The long title on Now Playing scrolls forever (#569), so
+    // `pumpAndSettle` would never return: run two seconds of frames instead.
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
     Future<ImageProvider<Object>> solidCover() async {
       final recorder = ui.PictureRecorder();
       Canvas(recorder).drawRect(
@@ -6465,7 +6722,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: testNavisApp),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       return container;
     }
 
@@ -6476,7 +6733,7 @@ void main() {
         );
         await tester.pump();
       }
-      await tester.pumpAndSettle();
+      await settle(tester);
     }
 
     Future<void> unmountShell(
@@ -6520,7 +6777,7 @@ void main() {
         final cache = container.read(nowPlayingArtworkCacheProvider);
         expect(cache.debugRenderCount, 0);
         background.value = NowPlayingBackground.artwork;
-        await tester.pumpAndSettle();
+        await settle(tester);
         await settleImages(tester);
         expect(container.read(playerSheetExpandedProvider), isFalse);
         expect(cache.debugRenderCount, 1);
@@ -6528,12 +6785,12 @@ void main() {
           currentSongId: 'song-2',
           currentIndex: 1,
         );
-        await tester.pumpAndSettle();
+        await settle(tester);
         await settleImages(tester);
         expect(container.read(playerSheetExpandedProvider), isFalse);
         expect(cache.debugRenderCount, 2);
         container.read(playerOverlayStackProvider.notifier).expand();
-        await tester.pumpAndSettle();
+        await settle(tester);
         await settleImages(tester);
         final body = find.byWidgetPredicate(
           (widget) => widget.runtimeType.toString() == '_NowPlayingBody',
@@ -6545,7 +6802,7 @@ void main() {
           NowPlayingBackground.artwork,
         ]) {
           background.value = mode;
-          await tester.pumpAndSettle();
+          await settle(tester);
           await settleImages(tester);
           expect(tester.state(body), same(state));
           expect(cache.debugRenderCount, 2);
@@ -6566,10 +6823,10 @@ void main() {
       expect(container.read(playerSheetExpandedProvider), isFalse);
       expect(cache.debugRenderCount, 1);
       container.read(playerOverlayStackProvider.notifier).expand();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
       container.read(playerOverlayStackProvider.notifier).showQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(queueBackdropKey), findsOneWidget);
@@ -6609,13 +6866,13 @@ void main() {
       );
 
       container.read(playerOverlayStackProvider.notifier).hideQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       container.read(playerOverlayStackProvider.notifier).collapse();
-      await tester.pumpAndSettle();
-      await tester.pumpAndSettle();
+      await settle(tester);
+      await settle(tester);
       expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
       container.read(playerOverlayStackProvider.notifier).showQueueOnly();
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.byKey(queueBackdropKey), findsNothing);
       expect(queuePanelFill(tester).a, 1);
       await unmountShell(tester, container);
@@ -6627,10 +6884,10 @@ void main() {
       ProviderContainer container,
     ) async {
       container.read(playerOverlayStackProvider.notifier).expand();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
       container.read(playerOverlayStackProvider.notifier).showQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
     }
 
@@ -6710,7 +6967,7 @@ void main() {
         background: NowPlayingBackground.artwork,
       );
       container.read(playerOverlayStackProvider.notifier).showQueueOnly();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(container.read(playerSheetExpandedProvider), isFalse);
@@ -6729,7 +6986,7 @@ void main() {
         background: NowPlayingBackground.tinted,
       );
       container.read(playerOverlayStackProvider.notifier).showQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(queueBackdropKey), findsNothing);
@@ -6786,7 +7043,7 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(desktopBackdropKey), findsOneWidget);
@@ -6822,7 +7079,7 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(desktopBackdropKey), findsNothing);
@@ -6854,7 +7111,7 @@ void main() {
           await tester.tap(
             find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
           );
-          await tester.pumpAndSettle();
+          await settle(tester);
           await settleImages(tester);
           final surface = tester.widget<AnimatedContainer>(
             find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),

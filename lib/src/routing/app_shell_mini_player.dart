@@ -835,6 +835,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final compactControls = viewportWidth < 380;
     final isPlaying = playback.playing;
+    // Without Previous before it, Play sits right against the text.
+    final playFollowsText = !widget.showSkipButtons || isRadio;
 
     return Semantics(
       key: const ValueKey<String>('miniPlayerSwipeSemantics'),
@@ -921,6 +923,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               ),
                             ),
                           ),
+                          if (playFollowsText) const SizedBox(width: 12),
                           if (widget.showSkipButtons && !isRadio)
                             IconButton(
                               tooltip: l10n.nowPlayingPrevious,
@@ -1045,6 +1048,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   ),
                                 ),
                               ),
+                              if (playFollowsText) const SizedBox(width: 12),
                               if (widget.showSkipButtons && !isRadio)
                                 IconButton(
                                   tooltip: l10n.nowPlayingPrevious,
