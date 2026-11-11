@@ -9,6 +9,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_anchored_popover.dart';
 import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
+import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -122,9 +124,14 @@ Future<void> _pump(
   _Cache? cache,
 }) async {
   final theme = _theme(mode);
+  // Mounted like lib/main.dart (UncontrolledProviderScope), not ProviderScope.
+  final container = ProviderContainer(
+    overrides: _overrides(style, cache ?? _Cache()),
+  );
+  addTearDown(container.dispose);
   await tester.pumpWidget(
-    ProviderScope(
-      overrides: _overrides(style, cache ?? _Cache()),
+    UncontrolledProviderScope(
+      container: container,
       child: MaterialApp(
         theme: theme,
         darkTheme: theme,
@@ -624,5 +631,214 @@ void main() {
       expect(cache.resolved, containsAll(['id:a', 'id:b']));
       expect(probeBuilds, before);
     });
+  });
+
+  // #560 F1 (owner, 2026-11-11): with Match Now Playing, a sheet opened over
+  // expanded Now Playing (settings sheet, song menu, speed panel) takes the
+  // published Now Playing background, as the queue does.
+  const tintColor = Color(0xFFCC3300);
+  const coverAverage = Color(0xFF225588);
+  NowPlayingPublishedBackdrop tinted([Color color = tintColor]) =>
+      NowPlayingPublishedBackdrop(
+        owner: 'np',
+        imageKey: null,
+        image: null,
+        coverAverage: null,
+        useCoverAverage: false,
+        tintColor: color,
+      );
+  const artwork = NowPlayingPublishedBackdrop(
+    owner: 'np',
+    imageKey: 'k',
+    image: null,
+    coverAverage: coverAverage,
+    useCoverAverage: true,
+  );
+
+  /// Expands Now Playing (unless [expand] is false), publishes [backdrop]
+  /// and opens a sheet or, with [dialog], a confirm dialog.
+  Future<void> openOverNowPlaying(
+    WidgetTester tester, {
+    required SheetStyle style,
+    required NowPlayingPublishedBackdrop? backdrop,
+    String mode = 'dark',
+    bool expand = true,
+    bool dialog = false,
+  }) async {
+    await _pump(
+      tester,
+      mode: mode,
+      style: style,
+      home: Consumer(
+        builder: (context, ref, _) => TextButton(
+          onPressed: () {
+            if (expand) ref.read(playerOverlayStackProvider.notifier).expand();
+            if (backdrop != null) {
+              ref
+                  .read(nowPlayingPublishedBackdropProvider.notifier)
+                  .publish(backdrop);
+            }
+            if (dialog) {
+              showDialog<void>(
+                context: context,
+                builder: (_) => const AlertDialog(title: Text('dialog')),
+              );
+            } else {
+              unawaited(
+                showNavisModalSheet<void>(
+                  context: context,
+                  builder: (_) => const SizedBox(height: 100),
+                ),
+              );
+            }
+          },
+          child: const Text('open'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.text('open')),
+    );
+    expect(container.read(playerSheetExpandedProvider), expand);
+  }
+
+  Color plainSheet(ThemeData theme) =>
+      theme.bottomSheetTheme.backgroundColor ??
+      theme.colorScheme.surfaceContainerLow;
+
+  for (final mode in ['light', 'dark', 'oled']) {
+    testWidgets('Match Now Playing sheet over expanded Art-Tinted Now '
+        'Playing takes the tint ($mode)', (tester) async {
+      final theme = _theme(mode);
+      await openOverNowPlaying(
+        tester,
+        style: SheetStyle.matchNowPlaying,
+        backdrop: tinted(),
+        mode: mode,
+      );
+      final fill = _materialColor(tester, find.byType(BottomSheet));
+      expect(fill, _tintFor(theme, tintColor.toARGB32()));
+      expect(fill, isNot(plainSheet(theme)));
+      // OLED stays near black.
+      if (mode == 'oled') expect(fill.computeLuminance(), lessThan(0.05));
+    });
+  }
+
+  testWidgets('Match Now Playing sheet over an Artwork backdrop is seeded '
+      'from the cover average', (tester) async {
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.matchNowPlaying,
+      backdrop: artwork,
+    );
+    expect(
+      _materialColor(tester, find.byType(BottomSheet)),
+      _tintFor(_theme('dark'), coverAverage.toARGB32()),
+    );
+  });
+
+  testWidgets('Match Now Playing sheet keeps the theme fill while Now '
+      'Playing is collapsed', (tester) async {
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.matchNowPlaying,
+      backdrop: tinted(), // a stale publish must not leak
+      expand: false,
+    );
+    expect(
+      _materialColor(tester, find.byType(BottomSheet)),
+      plainSheet(_theme('dark')),
+    );
+  });
+
+  testWidgets('Match Now Playing sheet keeps the theme fill when nothing is '
+      'published (Plain/Flat, radio without art)', (tester) async {
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.matchNowPlaying,
+      backdrop: null,
+    );
+    expect(
+      _materialColor(tester, find.byType(BottomSheet)),
+      plainSheet(_theme('dark')),
+    );
+  });
+
+  testWidgets('Match Now Playing Artwork backdrop without a cover average '
+      'keeps the theme fill', (tester) async {
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.matchNowPlaying,
+      backdrop: const NowPlayingPublishedBackdrop(
+        owner: 'np',
+        imageKey: 'k',
+        image: null,
+        coverAverage: null,
+        useCoverAverage: true,
+      ),
+    );
+    expect(
+      _materialColor(tester, find.byType(BottomSheet)),
+      plainSheet(_theme('dark')),
+    );
+  });
+
+  testWidgets('Theme mode ignores the Now Playing backdrop', (tester) async {
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.theme,
+      backdrop: tinted(),
+    );
+    expect(
+      _materialColor(tester, find.byType(BottomSheet)),
+      plainSheet(_theme('dark')),
+    );
+  });
+
+  testWidgets('Album Color keeps the album tint over Now Playing', (
+    tester,
+  ) async {
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.albumColor,
+      backdrop: tinted(),
+    );
+    expect(
+      _materialColor(tester, find.byType(BottomSheet)),
+      _tintFor(_theme('dark'), _seedA),
+    );
+  });
+
+  testWidgets('an open Match Now Playing sheet keeps its fill across a '
+      'background change', (tester) async {
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.matchNowPlaying,
+      backdrop: tinted(),
+    );
+    final opened = _materialColor(tester, find.byType(BottomSheet));
+    ProviderScope.containerOf(tester.element(find.byType(BottomSheet)))
+        .read(nowPlayingPublishedBackdropProvider.notifier)
+        .publish(tinted(const Color(0xFF0033BB)));
+    await tester.pumpAndSettle();
+    expect(_materialColor(tester, find.byType(BottomSheet)), opened);
+  });
+
+  testWidgets('a confirm dialog over Now Playing stays theme-coloured in '
+      'Match Now Playing', (tester) async {
+    final theme = _theme('dark');
+    await openOverNowPlaying(
+      tester,
+      style: SheetStyle.matchNowPlaying,
+      backdrop: tinted(),
+      dialog: true,
+    );
+    expect(
+      _materialColor(tester, find.byType(Dialog)),
+      theme.dialogTheme.backgroundColor ??
+          theme.colorScheme.surfaceContainerHigh,
+    );
   });
 }

@@ -1086,7 +1086,11 @@ target-selection rules.
     `PopupMenuTheme` and `MenuTheme`, varying only the colour. The sheet helper
     `showNavisModalSheet` and the popover read the fill back from
     `PopupMenuTheme.of(context).color` once, at open, so an open sheet keeps
-    its fill across a track change and theme change. Every modal sheet opens
+    its fill across a track change and theme change. In Match Now Playing,
+    `showNavisModalSheet` (sheets only) falls back to `albumSheetSurface`
+    seeded from `nowPlayingPublishedBackdropProvider` (`tintColor`, else
+    `coverAverage`) when `playerSheetExpandedProvider` is true; nothing
+    published (Plain/Flat, no art) or Now Playing collapsed keeps the theme. Every modal sheet opens
     through that helper (`navis_modal_sheet_audit_test.dart`).
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
     theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
