@@ -22,6 +22,8 @@ class _QueueOverlayState extends State<_QueueOverlay>
   static const Duration _openDuration = Duration(milliseconds: 230);
   static const Duration _closeDuration = Duration(milliseconds: 220);
   static const double _flingVelocityThreshold = 300;
+  // Minimum spring speed (sheet heights per second) for settling open or closed.
+  static const double _minSettleVelocity = 2.5;
   static const double _scrollDismissDistance = 96;
   static const Duration _scrollPullSettleDelay = Duration(milliseconds: 150);
 
@@ -87,7 +89,11 @@ class _QueueOverlayState extends State<_QueueOverlay>
     super.dispose();
   }
 
-  void _dismiss() {
+  double get _sheetHeight =>
+      MediaQuery.of(context).size.height *
+      (widget.fullscreen ? 1.0 : _sheetHeightFactor);
+
+  void _dismiss({double velocity = 0}) {
     if (_dismissing) return;
     _scrollPullSettleTimer?.cancel();
     _dismissing = true;
@@ -98,7 +104,9 @@ class _QueueOverlayState extends State<_QueueOverlay>
     }
     unawaited(
       _controller
-          .animateBack(0, duration: _closeDuration, curve: Curves.easeInCubic)
+          .fling(
+            velocity: -math.max(_minSettleVelocity, velocity / _sheetHeight),
+          )
           .whenComplete(widget.onDismiss),
     );
   }
@@ -185,9 +193,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
       return;
     }
 
-    final effectiveHeightFactor = widget.fullscreen ? 1.0 : _sheetHeightFactor;
-    final sheetHeight =
-        MediaQuery.of(context).size.height * effectiveHeightFactor;
+    final sheetHeight = _sheetHeight;
     final dragDistance = -dy;
     _scrollPullDistance += dragDistance;
     _controller.value = (_controller.value - dragDistance / sheetHeight).clamp(
@@ -266,9 +272,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
       _setDraggingSheet(true);
     }
 
-    final effectiveHeightFactor = widget.fullscreen ? 1.0 : _sheetHeightFactor;
-    final sheetHeight =
-        MediaQuery.of(context).size.height * effectiveHeightFactor;
+    final sheetHeight = _sheetHeight;
     _controller.value = (_controller.value - dy / sheetHeight).clamp(0.0, 1.0);
   }
 
@@ -282,8 +286,11 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (_dismissing || !wasDragging) return;
 
     final velocity = _velocityTracker?.getVelocity().pixelsPerSecond.dy ?? 0.0;
-    if (velocity > _flingVelocityThreshold || _controller.value < 0.7) {
-      _dismiss();
+    // A fast upward flick re-opens, however far the sheet was pulled down.
+    final flickedUp = velocity < -_flingVelocityThreshold;
+    if (!flickedUp &&
+        (velocity > _flingVelocityThreshold || _controller.value < 0.7)) {
+      _dismiss(velocity: velocity);
     } else {
       _settleOpen();
     }
@@ -310,7 +317,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
       _controller.value = 1;
       return;
     }
-    _controller.fling(velocity: 2.5);
+    _controller.fling(velocity: _minSettleVelocity);
   }
 
   // -------------------------------------------------------------------------
@@ -321,7 +328,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
       animation: _controller,
       builder: (context, _) {
         final progress = _controller.value;
-        final scrimOpacity = Curves.easeOutCubic.transform(progress) * 0.45;
+        final scrimOpacity = progress * 0.45;
         final useFloatingWindow = widget.floatingWindow && !widget.fullscreen;
         final heightFactor = widget.fullscreen
             ? 1.0
