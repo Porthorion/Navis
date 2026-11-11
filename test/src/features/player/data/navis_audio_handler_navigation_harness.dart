@@ -1872,6 +1872,7 @@ createHandler(
   NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
   List<ControllableAudioPlayer>? rebuiltPlayers,
   List<ControllableAudioPlayer>? players,
+  PlaybackTransportTrace? transportTrace,
   FakeAsync? clock,
   Set<String>? hungLoadSongs,
   ScrobbleService? scrobbleService,
@@ -1969,6 +1970,7 @@ createHandler(
     readCanStream: readCanStream,
     readUsesSidecarRollingCache: () => sidecarStreams,
     readSupportsTranscodeOffset: () => supportsTranscodeOffset,
+    transportTrace: transportTrace,
   );
   final resolver = wrapResolver?.call(baseResolver) ?? baseResolver;
   NavisAudioHandler buildHandler() => NavisAudioHandler(

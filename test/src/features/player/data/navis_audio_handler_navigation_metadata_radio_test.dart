@@ -41,6 +41,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -4472,27 +4473,23 @@ void main() {
   }
 
   for (final streamFailure in [false, true]) {
-    // The restore timeout retires the gated player first; the native load
-    // deadline of that abandoned load then fires while a newer queue is
-    // playing. It must neither rebuild the player again nor touch the queue.
-    test('the native load deadline after a restore timeout leaves a newer '
-        'queue alone (failure=$streamFailure)', () async {
-      const restoreTimeout = Duration(seconds: 1);
-      const loadDeadline = Duration(seconds: 2);
-      // The load check polls every 250 ms, so the deadline can land that
-      // late; the window then keeps 150 ms of margin beyond it.
-      const window = Duration(milliseconds: 2400);
+    // The restore timeout retires the gated player and supersedes its load;
+    // the abandoned load then ends on its own and must not rebuild the
+    // player a second time (its player is already retired).
+    test('the abandoned load after a restore timeout does not rebuild the '
+        'player again (failure=$streamFailure)', () async {
       final directory = await Directory.systemTemp.createTemp(
         'navis-radio-restore-race-',
       );
       final rebuilt = <ControllableAudioPlayer>[];
+      final trace = PlaybackTransportTrace(enabled: true);
       final (handler, player, database) = await createHandler(
         directory,
         3,
         rebuiltPlayers: rebuilt,
+        transportTrace: trace,
         timeouts: const NavisPlaybackTimeouts(
-          queueRestore: restoreTimeout,
-          load: loadDeadline,
+          queueRestore: Duration(seconds: 1),
         ),
       );
       final gate = Completer<void>();
@@ -4518,6 +4515,7 @@ void main() {
         ..loadGate = gate
         ..loadEntered = entered
         ..keepStreamsAfterDispose = true;
+      final rebuiltBefore = rebuilt.length;
       if (streamFailure) {
         player.playbackEvents.addError(
           StateError('fixture radio failure'),
@@ -4527,31 +4525,28 @@ void main() {
         await handler.stopRadio();
       }
       await entered.future.timeout(const Duration(seconds: 2));
-      // Started after the load deadline timer, so the window below always
-      // reaches past the deadline.
-      final sinceLoad = Stopwatch()..start();
+      // The gate stays closed. The restore timeout supersedes the gated load,
+      // which then ends by itself (a stale 'current: false' timeout).
       await until(
         () =>
             handler.collectPlaybackDiagnostics()['queueRestoreOutcome'] ==
                 'timeout' &&
-            handler.debugQueueLaneIdle,
-        // Below the native load deadline, which would end in 'failed'.
-        cap: const Duration(milliseconds: 1800),
-        reason: 'the restore timeout fires first and its recovery finishes',
+            handler.debugQueueLaneIdle &&
+            trace.entries.any(
+              (entry) =>
+                  entry['decision'] == 'playerOperationTimedOut' &&
+                  entry['current'] == false,
+            ),
+        // Far above the 1 s restore timeout; the native load deadline is 12 s.
+        cap: const Duration(seconds: 5),
+        reason: 'the restore timeout fires and the abandoned load ends',
       );
-      expect(sinceLoad.elapsed, lessThan(loadDeadline));
+      final newPlayer = handler.debugActivePlayer;
       await handler.replaceQueue(['song-2'], expandMatchFlows: false);
       await settleQueue(handler);
-      final rebuiltBefore = rebuilt.length;
-      final newPlayer = handler.debugActivePlayer;
-
-      // The gate stays closed: the abandoned load still runs into its deadline.
-      await Future<void>.delayed(
-        window - sinceLoad.elapsed + const Duration(milliseconds: 20),
-      );
-      expect(sinceLoad.elapsed, greaterThanOrEqualTo(window));
-      await settleQueue(handler);
-      expect(rebuilt, hasLength(rebuiltBefore));
+      await pumpEventQueue();
+      // Exactly the restore recovery's rebuild; the abandoned load adds none.
+      expect(rebuilt, hasLength(rebuiltBefore + 1));
       expect(handler.debugActivePlayer, same(newPlayer));
       expect(
         handler.collectPlaybackDiagnostics()['queueRestoreOutcome'],
