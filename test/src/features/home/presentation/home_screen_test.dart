@@ -13,6 +13,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -66,6 +67,20 @@ import '../../../../helpers/test_theme.dart';
 
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/routing/app_routes.dart';
+
+/// An empty artwork cache. The real manager opens a sqflite repository on
+/// macOS that cannot be closed before its open completes, and fake-time
+/// pumps never let that open finish.
+class _EmptyCacheManager extends Fake implements CacheManager {
+  @override
+  Future<FileInfo?> getFileFromCache(
+    String key, {
+    bool ignoreMemCache = false,
+  }) async => null;
+
+  @override
+  Future<void> dispose() async {}
+}
 
 class _StaticLibrarySyncController extends LibrarySyncController {
   @override
@@ -2548,6 +2563,9 @@ void main() {
         tester,
         database: database,
         nativeTouch: true,
+        overrides: <Override>[
+          coverArtCacheManagerProvider.overrideWithValue(_EmptyCacheManager()),
+        ],
         randomAlbums: <HomeRandomShowcaseItem>[
           const HomeRandomShowcaseAlbum(
             id: 'flow-1',

@@ -160,6 +160,13 @@ class PlaybackAdjustmentCapabilities {
     minimumPitchFactor: 0.1,
     maximumPitchFactor: 8,
   );
+  // iOS: an AUNewTimePitch in the equalizer's tap, +-2400 cents (factor 0.25 to
+  // 4). Speed is AVPlayer's own, so its limits stay open.
+  static const ios = PlaybackAdjustmentCapabilities(
+    pitchSupported: true,
+    minimumPitchFactor: 0.25,
+    maximumPitchFactor: 4,
+  );
   static const mediaKit = PlaybackAdjustmentCapabilities(
     pitchSupported: true,
     minimumPitchFactor: 0.01,

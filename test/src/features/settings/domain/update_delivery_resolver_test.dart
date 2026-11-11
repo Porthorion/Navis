@@ -1,8 +1,44 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
 
 void main() {
+  group('updateUiAvailableFor', () {
+    test('shows on iOS only in the sideload build', () {
+      expect(
+        updateUiAvailableFor(platform: TargetPlatform.iOS, iosSideload: false),
+        isFalse,
+      );
+      expect(
+        updateUiAvailableFor(platform: TargetPlatform.iOS, iosSideload: true),
+        isTrue,
+      );
+    });
+
+    test('is unchanged elsewhere and never shows on the web', () {
+      for (final platform in [
+        TargetPlatform.android,
+        TargetPlatform.macOS,
+        TargetPlatform.linux,
+        TargetPlatform.windows,
+      ]) {
+        expect(
+          updateUiAvailableFor(platform: platform, iosSideload: false),
+          isTrue,
+        );
+      }
+      expect(
+        updateUiAvailableFor(
+          isWeb: true,
+          platform: TargetPlatform.iOS,
+          iosSideload: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('resolveUpdateDelivery', () {
     test('uses desktop self-update off Android', () {
       expect(
@@ -12,6 +48,17 @@ void main() {
           installerPackage: null,
         ),
         UpdateDelivery.desktopSelfUpdate,
+      );
+    });
+
+    test('links to the release page on the iOS sideload build', () {
+      expect(
+        resolveUpdateDelivery(
+          isAndroid: false,
+          isIOS: true,
+          selfUpdateBuildEnabled: true,
+        ),
+        UpdateDelivery.releasePage,
       );
     });
 

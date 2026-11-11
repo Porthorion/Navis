@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -150,10 +151,9 @@ void main() {
     await store.saveUserInfo('proxy:fixture');
     expect(await store.readUserInfo(), 'proxy:fixture');
     await store.clearUserInfo();
-    await expectLater(
-      store.readUserInfo(),
-      throwsA(isA<CredentialReadException>()),
-    );
+    // Neither the delete nor the empty overwrite worked, so the clear is
+    // remembered instead of reporting the unreadable keychain.
+    expect(await store.readUserInfo(), isNull);
     verify(
       () => storage.write(
         key: 'navis.auth.active_server.user_info',
@@ -168,6 +168,7 @@ void main() {
     late ServerConfigRepository repository;
 
     setUp(() {
+      resetUnclearableSecureKeys();
       database = createTestDatabase();
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);
@@ -373,6 +374,43 @@ void main() {
           'https://example.com/music',
         );
         expect(credentials.userInfo, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a failed user-info delete never leaks the old account into a new URL',
+      () async {
+        final backing = <String, String>{};
+        final storage = _MockSecureStorage();
+        when(() => storage.delete(key: any(named: 'key')))
+            .thenThrow(PlatformException(code: '-25244'));
+        when(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((invocation) async {
+          backing[invocation.namedArguments[#key]! as String] =
+              invocation.namedArguments[#value]! as String;
+        });
+        when(() => storage.read(key: any(named: 'key'))).thenAnswer(
+          (invocation) async =>
+              backing[invocation.namedArguments[#key]! as String],
+        );
+        final store = FlutterSecureCredentialStore(storage: storage);
+        repository = ServerConfigRepository(database, credentials: store);
+
+        await repository.save(proxyConfig);
+        await repository.save(
+          proxyConfig.copyWith(url: 'https://example.com/music'),
+        );
+
+        expect(await store.readUserInfo(), isNull);
+        expect(
+          (await repository.getActiveServer())?.url,
+          'https://example.com/music',
+        );
       },
       skip: !sqliteAvailable,
     );

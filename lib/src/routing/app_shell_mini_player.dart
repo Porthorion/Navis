@@ -567,7 +567,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                       Positioned.fill(
                         child: IgnorePointer(
                           child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 120),
+                            duration: MotionPolicy.of(context).feedback,
                             curve: Curves.easeOut,
                             opacity: _isSeeking && canSeek ? 1 : 0,
                             child: ClipRRect(
@@ -692,6 +692,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     );
   }
 }
+
+// iOS minimum hit target for the phone strip buttons (Android's 48 dp is deferred).
+const double _miniTapTarget = 44;
 
 class _MiniPlayerStrip extends ConsumerStatefulWidget {
   const new({
@@ -906,11 +909,16 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                           ),
                           const SizedBox(width: 14),
                           Expanded(
-                            child: _miniPlayerTrackText(
-                              context,
-                              title: songTitle,
-                              artist: songArtist,
-                              large: true,
+                            // ponytail: the 90 dp strip holds two lines up to
+                            // about 1.5x text; above that they overflow.
+                            child: MediaQuery.withClampedTextScaling(
+                              maxScaleFactor: 1.5,
+                              child: _miniPlayerTrackText(
+                                context,
+                                title: songTitle,
+                                artist: songArtist,
+                                large: true,
+                              ),
                             ),
                           ),
                           if (widget.showSkipButtons && !isRadio)
@@ -1024,19 +1032,25 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _miniPlayerTrackText(
-                                  context,
-                                  title: songTitle,
-                                  artist: songArtist,
-                                  large: false,
+                                // ponytail: this strip is two fixed lines; at 3x text one
+                                // ellipsis-only word fits, so cap at 1.6x. Wider
+                                // layouts and Now Playing keep full scaling.
+                                child: MediaQuery.withClampedTextScaling(
+                                  maxScaleFactor: 1.6,
+                                  child: _miniPlayerTrackText(
+                                    context,
+                                    title: songTitle,
+                                    artist: songArtist,
+                                    large: false,
+                                  ),
                                 ),
                               ),
                               if (widget.showSkipButtons && !isRadio)
                                 IconButton(
                                   tooltip: l10n.nowPlayingPrevious,
                                   constraints: const BoxConstraints(
-                                    minWidth: 36,
-                                    minHeight: 36,
+                                    minWidth: _miniTapTarget,
+                                    minHeight: _miniTapTarget,
                                   ),
                                   padding: EdgeInsets.zero,
                                   onPressed: () => _miniSkipPrevious(ref),
@@ -1055,8 +1069,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   side: colorStyle.controlEdgeSide,
                                   shape: const CircleBorder(),
                                   minimumSize: Size(
-                                    compactControls ? 40 : 46,
-                                    compactControls ? 40 : 46,
+                                    compactControls ? _miniTapTarget : 46,
+                                    compactControls ? _miniTapTarget : 46,
                                   ),
                                   padding: const EdgeInsets.all(6),
                                 ),
@@ -1074,8 +1088,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 IconButton(
                                   tooltip: l10n.miniPlayerSkipNext,
                                   constraints: const BoxConstraints(
-                                    minWidth: 36,
-                                    minHeight: 36,
+                                    minWidth: _miniTapTarget,
+                                    minHeight: _miniTapTarget,
                                   ),
                                   padding: EdgeInsets.zero,
                                   onPressed: () => _miniSkipNext(ref),
@@ -1087,7 +1101,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               if (isRadio)
                                 IconButton(
                                   tooltip: l10n.radioStopStation,
-                                  constraints: const BoxConstraints(),
+                                  constraints: const BoxConstraints(
+                                    minWidth: _miniTapTarget,
+                                    minHeight: _miniTapTarget,
+                                  ),
                                   padding: const EdgeInsets.fromLTRB(
                                     4,
                                     6,
@@ -1115,8 +1132,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                         ? l10n.actionLiked
                                         : l10n.actionLike,
                                     constraints: const BoxConstraints(
-                                      minWidth: 36,
-                                      minHeight: 36,
+                                      minWidth: _miniTapTarget,
+                                      minHeight: _miniTapTarget,
                                     ),
                                     padding: EdgeInsets.zero,
                                     onPressed: () => _miniToggleLike(

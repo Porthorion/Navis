@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Exercise seeks against synthetic streams in a muted disposable profile.
 
-Requires Flutter and ffmpeg. Android requires an already running emulator; a
+Requires Flutter and ffmpeg. Linux and macOS run the profile build of this
+checkout (macOS: on a Mac, set NAVIS_LIBMPV_MACOS_ARCHIVE until the libmpv
+archive is published). Android requires an already running emulator; a
 unique application ID is installed, without clearing another application's data.
 All requests go through the authenticated Navis diagnostics API.
 """
@@ -381,7 +383,7 @@ def start_transcoding_server(library: TranscodeLibrary, **options):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--platform', choices=['linux', 'android'], default='linux')
+    parser.add_argument('--platform', choices=['linux', 'macos', 'android'], default='linux')
     parser.add_argument('--android-serial')
     parser.add_argument('--codecs', nargs='+', choices=['wav', 'mp3', 'flac', 'opus'], default=['wav', 'mp3', 'flac', 'opus'])
     parser.add_argument('--restarts', type=int, default=2)
@@ -496,9 +498,9 @@ def main() -> int:
     package = f'com.navis.app.navis.seekdiag{stamp.lower()}'
     metadata = root / 'build.json'
     remote = f'/data/user/0/{package}/files/seek-diagnostics'
-    if args.platform == 'linux':
+    if args.platform in ('linux', 'macos'):
         defines.update(NAVIS_APP_ID_SUFFIX='.seekdiag', NAVIS_SYNC_DIAGNOSTICS_ROOT=str(root), NAVIS_SYNC_DIAGNOSTICS_DB_PATH=str(root / 'navis.sqlite'), NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=str(handshake))
-        command = ['flutter', 'build', 'linux', '--profile', '--no-pub']
+        command = ['flutter', 'build', args.platform, '--profile', '--no-pub']
     else:
         defines.update(NAVIS_SYNC_DIAGNOSTICS_ROOT=remote, NAVIS_SYNC_DIAGNOSTICS_DB_PATH=remote + '/navis.sqlite')
         command = ['flutter', 'build', 'apk', '--profile', '--flavor', 'sideload', '--target-platform', 'android-x64', '--no-pub']
@@ -528,7 +530,7 @@ def main() -> int:
 
     def native_position(state):
         native = state.get('native', {}).get('mediaKitTransport')
-        if args.platform == 'linux' and native:
+        if args.platform in ('linux', 'macos') and native:
             return native[0]['positionMs']
         return state['playerPositionMs']
 
@@ -608,6 +610,10 @@ def main() -> int:
         subprocess.run(command + [f'--dart-define={key}={value}' for key, value in defines.items()], cwd=PROJECT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
         if args.platform == 'linux':
             shutil.copytree(PROJECT / 'build/linux/x64/profile/bundle', root / 'bundle', dirs_exist_ok=True)
+            executable = root / 'bundle/navis'
+        elif args.platform == 'macos':
+            # The app bundle is run in place: copying it would double the disk use.
+            executable = PROJECT / 'build/macos/Build/Products/Profile/Navis.app/Contents/MacOS/Navis'
         else:
             shutil.copyfile(PROJECT / 'build/app/outputs/flutter-apk/app-sideload-profile.apk', root / 'app.apk')
         metadata.write_text(json.dumps({'platform': args.platform, 'package': package}))
@@ -618,8 +624,8 @@ def main() -> int:
             shell('reverse', f'tcp:{server.server_port}', f'tcp:{server.server_port}')
         for restart in range(args.restarts):
             handshake.unlink(missing_ok=True)
-            if args.platform == 'linux':
-                proc = subprocess.Popen([str(root / 'bundle/navis')], cwd=PROJECT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            if args.platform in ('linux', 'macos'):
+                proc = subprocess.Popen([str(executable)], cwd=PROJECT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                 wait(lambda: handshake.exists() and handshake.stat().st_size, 90)
                 client.update(json.loads(handshake.read_text()))
             else:

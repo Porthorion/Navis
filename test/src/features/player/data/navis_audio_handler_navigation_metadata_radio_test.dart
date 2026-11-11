@@ -10,6 +10,9 @@ import 'package:flutter/foundation.dart'
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_service_platform_interface/audio_service_platform_interface.dart'
+    show AudioServicePlatform;
+import 'package:audio_service_platform_interface/no_op_audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 
 import 'dart:async';
@@ -47,7 +50,12 @@ import 'navis_audio_handler_navigation_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(() => registerFallbackValue(const RadioFilters()));
+  setUpAll(() {
+    registerFallbackValue(const RadioFilters());
+    // Linux and Windows default to the no-op platform; other hosts would talk
+    // to unmocked audio_service plugin channels.
+    AudioServicePlatform.instance = NoOpAudioService();
+  });
 
   group('audio metadata invariants', () {
     const tiny = NavisQueueWindow(
@@ -1907,6 +1915,7 @@ void main() {
       expect(last.artUri?.scheme, 'content');
       expect(last.extras?['artCacheFile'], file.path);
     },
+    skip: noSystemArtCacheOnMacOS,
   );
 
   test(

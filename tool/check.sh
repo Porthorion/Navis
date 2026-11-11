@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Re-exec with inherited, verified ownership; direct callers and the full gate coordinate.
+if [[ "${1:-}" != --locked-check ]]; then
+  mkdir -p build/check
+  check_evidence="$(mktemp -d build/check/run-XXXXXXXX)"
+  echo "[check] retained logs: ${check_evidence}"
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/heavy_lock.py" --owner "${check_evidence}" bash "$0" --locked-check "${check_evidence}"
+fi
+shift
+tmp_log_dir="${1:?missing check evidence directory}"
+shift
+# The marker only prevents recursion; this wrapper verifies the actual inherited locks.
+python3 "$(dirname "${BASH_SOURCE[0]}")/heavy_lock.py" --verify
+
 # shellcheck source=tool/lib/check_test_log.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/check_test_log.sh"
 
@@ -17,33 +30,16 @@ if [[ "${tmp_available_kb}" -lt "${min_tmp_kb}" ]]; then
   exit 1
 fi
 
+step_number=0
 run_step() {
   local label="$1"
   shift
-  local start_seconds="${SECONDS}"
-  echo "[check] $label"
-  "$@"
-  local elapsed=$((SECONDS - start_seconds))
-  echo "[check] $label completed in ${elapsed}s"
+  step_number=$((step_number + 1))
+  run_step_capture "$label" "${tmp_log_dir}/step-${step_number}.log" "$@"
 }
 
-run_step_capture() {
-  local label="$1"
-  local log_file="$2"
-  shift 2
-  local start_seconds="${SECONDS}"
-  echo "[check] $label"
-  set +e
-  "$@" 2>&1 | tee "$log_file"
-  local status="${PIPESTATUS[0]}"
-  set -e
-  local elapsed=$((SECONDS - start_seconds))
-  echo "[check] $label completed in ${elapsed}s"
-  if [[ "${status}" -ne 0 ]]; then
-    echo "[check] $label failed. See ${log_file} for details." >&2
-    exit "${status}"
-  fi
-}
+# shellcheck source=tool/lib/check_capture.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/check_capture.sh"
 
 # cmake -P writes fixtures under the current directory; keep them out of the repo.
 run_cmake_script() {
@@ -74,18 +70,32 @@ assert_no_blocking_warnings() {
   done
 }
 
+run_step "playback harness tooling" python3 tool/playback_harness_test.py
+# The gate's process cleanup needs Linux pidfd and child-subreaper support.
+if [[ "$(uname -s)" == Linux ]]; then
+  run_step "heavy ownership and capture" python3 tool/validation_gate_test.py
+else
+  echo "[check] Skipping heavy ownership and capture: Linux-only (pidfd, child-subreaper)."
+fi
 run_step "test log guard" ./tool/check_test_log_test.sh
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "linux install script" ./tool/linux_install_test.sh
+run_step "macOS libmpv fetch script" ./tool/libmpv_fetch_macos_test.sh
 run_step "release tag guard" ./tool/release_tag_guard_test.sh
 run_step "dev release and R2 publishing" ./tool/dev_release_test.sh
 run_step "GitHub update publication" ./tool/github_release_test.sh
+run_step "iOS release path" ./tool/ios_release_test.sh
 run_step "Last.fm key masking" ./tool/lastfm_key_defines_test.sh
 run_step "artifact secret scan" ./tool/scan_artifact_secret_test.sh
 run_step "release notes failure guard" ./tool/release_notes_test.sh
 run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "Android repeat runner contract" ./tool/android_repeat_runner_test.sh
-run_step "Android repeat bridge JVM" ./tool/android_repeat_native_test.sh
+# Gradle compiles the Android app module; macOS hosts run no Android builds.
+if [[ "$(uname -s)" != Darwin ]]; then
+  run_step "Android repeat bridge JVM" ./tool/android_repeat_native_test.sh
+else
+  echo "[check] Skipping Android repeat bridge JVM: no Android builds on macOS hosts."
+fi
 run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_test.py
 run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test.py
 run_step "live seek app identity guard" python3 tool/live_seek_stress_test.py
@@ -103,9 +113,6 @@ run_step "dead code" dart run tool/dead_code_check.dart
 
 # A missing native SQLite must fail the database suites, not skip them.
 export NAVIS_REQUIRE_SQLITE=1
-
-tmp_log_dir="$(mktemp -d)"
-trap 'rm -rf "${tmp_log_dir}"' EXIT
 
 run_step_capture \
   "migration tests (expanded)" \

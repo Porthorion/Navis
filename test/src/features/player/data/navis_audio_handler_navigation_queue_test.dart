@@ -5,18 +5,23 @@ import 'dart:math';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_service_platform_interface/audio_service_platform_interface.dart'
+    show AudioServicePlatform;
+import 'package:audio_service_platform_interface/no_op_audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 
 import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:mocktail/mocktail.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -40,7 +45,12 @@ import 'navis_audio_handler_navigation_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(() => registerFallbackValue(const RadioFilters()));
+  setUpAll(() {
+    registerFallbackValue(const RadioFilters());
+    // Linux and Windows default to the no-op platform; other hosts would talk
+    // to unmocked audio_service plugin channels.
+    AudioServicePlatform.instance = NoOpAudioService();
+  });
 
   // Issue #383: a replacement that cancels the running edit before the edit
   // reaches its requeue check must not leave that edit marked as waiting, or
@@ -797,6 +807,227 @@ void main() {
         expect(notices, hasLength(1));
       },
     );
+
+    // Issue #527: a stalled or ended station stream never reports an error.
+    void endStation(ControllableAudioPlayer player) {
+      player
+        ..state = ProcessingState.completed
+        ..isPlaying = true;
+      player.playbackEvents.add(player.playbackEvent);
+    }
+
+    void stallStation(ControllableAudioPlayer player) {
+      player
+        ..state = ProcessingState.buffering
+        ..isPlaying = true;
+      player.playbackEvents.add(player.playbackEvent);
+    }
+
+    Future<(NavisAudioHandler, ControllableAudioPlayer)> playStation({
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+      Future<NetworkReconciliation> Function()? reconcile,
+    }) async {
+      final (handler, player, _) = await setup(
+        reconcile: reconcile ?? () async => net(online: true),
+        timeouts: timeouts,
+      );
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      return (handler, player);
+    }
+
+    String stationUrl(ControllableAudioPlayer player) =>
+        (player.sequence.single as UriAudioSource).uri.toString();
+
+    test('a station whose stream ends reconnects once', () async {
+      final (handler, player) = await playStation();
+      final loads = player.sourceLoads;
+      final stops = player.stopCalls;
+      endStation(player);
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.stopCalls, stops + 1);
+      expect(stationUrl(player), 'https://radio.example.invalid/live');
+      expect(player.playing, isTrue);
+      expect(handler.snapshot.radioStation?.stationId, 'fixture');
+    });
+
+    test('Play on an ended station reconnects instead of replaying', () async {
+      final (handler, player) = await playStation();
+      final loads = player.sourceLoads;
+      // The end was never reported as an event (a dropped one).
+      player
+        ..state = ProcessingState.completed
+        ..isPlaying = false;
+      await handler.play();
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.state, ProcessingState.ready);
+      expect(player.playing, isTrue);
+    });
+
+    test('an error then an end in one outage reconnect once', () async {
+      final (handler, player) = await playStation();
+      final loads = player.sourceLoads;
+      final reconnect = Completer<void>();
+      player.loadGate = reconnect;
+      await dropStation(player);
+      endStation(player);
+      await pumpEventQueue(times: 50);
+      reconnect.complete();
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(handler.snapshot.isRadioMode, isTrue);
+    });
+
+    test('a station that keeps ending stops after the budget', () async {
+      final (handler, player) = await playStation(
+        timeouts: const NavisPlaybackTimeouts(
+          radioRecovery: Duration(milliseconds: 600),
+          radioHealthyPlay: Duration(seconds: 30),
+        ),
+      );
+      final notices = <void>[];
+      final subscription = handler.radioStreamErrorStream.listen(notices.add);
+      addTearDown(subscription.cancel);
+      for (var i = 0; i < 12 && handler.snapshot.isRadioMode; i++) {
+        final reconnect = Completer<void>();
+        player.loadGate = reconnect;
+        endStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        reconnect.complete();
+        await pumpEventQueue(times: 50);
+      }
+      expect(handler.snapshot.isRadioMode, isFalse);
+      expect(notices, hasLength(1));
+    });
+
+    for (final cancel in ['stop', 'replace']) {
+      test('an ended station reconnect is abandoned on $cancel', () async {
+        var online = false;
+        final recovered = StreamController<void>.broadcast();
+        addTearDown(recovered.close);
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: online),
+          recovered: recovered.stream,
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        endStation(player);
+        await pumpEventQueue();
+        if (cancel == 'stop') {
+          await handler.stopRadio();
+        } else {
+          await handler.replaceQueue(
+            ['song-2'],
+            autoPlay: false,
+            expandMatchFlows: false,
+          );
+        }
+        final loadsAfterCommand = player.sourceLoads;
+        online = true;
+        recovered.add(null);
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loadsAfterCommand);
+        expect(player.playing, isFalse);
+      });
+    }
+
+    const stall = NavisPlaybackTimeouts(
+      remoteStall: Duration(milliseconds: 300),
+    );
+
+    test(
+      'a station stuck buffering reconnects after the stall timeout',
+      () async {
+        final (_, player) = await playStation(timeouts: stall);
+        final loads = player.sourceLoads;
+        stallStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(player.sourceLoads, loads);
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loads + 1);
+        expect(stationUrl(player), 'https://radio.example.invalid/live');
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test(
+      'a metadata update during a stall still reconnects the station',
+      () async {
+        final (handler, player) = await playStation(timeouts: stall);
+        final loads = player.sourceLoads;
+        stallStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        handler.updateRadioMetadata(title: 'Next song');
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loads + 1);
+      },
+    );
+
+    test(
+      're-selecting a stalled station does not add a stale reconnect',
+      () async {
+        final (handler, player) = await playStation(timeouts: stall);
+        final loads = player.sourceLoads;
+        stallStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        final gate = player.loadGate = Completer<void>();
+        final reselect = handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        gate.complete();
+        await reselect;
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loads + 1);
+      },
+    );
+
+    test('a station buffering with progress is left alone', () async {
+      final (_, player) = await playStation(timeouts: stall);
+      final loads = player.sourceLoads;
+      stallStation(player);
+      for (var i = 1; i <= 8; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        player.simulatedBuffered = Duration(seconds: i);
+        player.playbackEvents.add(player.playbackEvent);
+      }
+      expect(player.sourceLoads, loads);
+    });
+
+    test('a ready station that keeps advancing is left alone', () async {
+      final (_, player) = await playStation(timeouts: stall);
+      final loads = player.sourceLoads;
+      player
+        ..simulateProgress = true
+        ..state = ProcessingState.ready
+        ..isPlaying = true;
+      player.playbackEvents.add(player.playbackEvent);
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      expect(player.sourceLoads, loads);
+    });
+
+    test('a paused station is not watched for a stall', () async {
+      final (_, player) = await playStation(timeouts: stall);
+      final loads = player.sourceLoads;
+      player
+        ..state = ProcessingState.buffering
+        ..isPlaying = false;
+      player.playbackEvents.add(player.playbackEvent);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(player.sourceLoads, loads);
+    });
 
     test(
       'a station that played healthily gets a fresh recovery budget',
@@ -2420,6 +2651,98 @@ void main() {
     },
   );
 
+  group('iOS independent pitch (I21)', () {
+    Future<(NavisAudioHandler, ControllableAudioPlayer)> iosHandler({
+      bool? ios = true,
+      PlaybackAdjustmentCapabilities? injected,
+      EqCapabilities? equalizer = EqCapabilities.available,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-ios-pitch-',
+      );
+      final (handler, player, database) = await createHandler(
+        directory,
+        1,
+        iosRuntimeOverride: ios,
+        adjustmentCapabilities: injected,
+        equalizerCapabilities: equalizer,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      return (handler, player);
+    }
+
+    test('iOS with the equalizer pipeline on reports the iOS limits', () async {
+      final (handler, _) = await iosHandler();
+      expect(
+        handler.playbackAdjustmentCapabilities,
+        PlaybackAdjustmentCapabilities.ios,
+      );
+    });
+
+    // One handler (and database) per test: drift warns when two are open at once.
+    test('iOS without the equalizer pipeline reports no pitch', () async {
+      final (off, _) = await iosHandler(equalizer: EqCapabilities.unavailable);
+      expect(off.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+    });
+
+    test('a non-iOS platform reports no pitch', () async {
+      final (notIos, _) = await iosHandler(ios: false);
+      expect(notIos.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+    });
+
+    test('an unset platform reports no pitch', () async {
+      final (unset, _) = await iosHandler(ios: null);
+      expect(unset.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+    });
+
+    test(
+      'locked to speed 1.25 sends pitch 1.25 and a speed change re-sends it',
+      () async {
+        final (handler, player) = await iosHandler();
+        await handler.setPlaybackAdjustments(
+          const PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true),
+        );
+        expect(player.appliedSpeed, 1.25);
+        expect(player.appliedPitch, 1.25);
+        await handler.setPlaybackSpeed(1.5);
+        expect(player.appliedPitch, 1.5);
+      },
+    );
+
+    test('independent +5 semitones sends the pitch factor', () async {
+      final (handler, player) = await iosHandler();
+      await handler.setPlaybackAdjustments(
+        const PlaybackAdjustments(speed: 1.5, pitchSemitones: 5),
+      );
+      expect(player.appliedSpeed, 1.5);
+      expect(player.appliedPitch, closeTo(pow(2, 5 / 12), 1e-12));
+    });
+
+    test('pitch_unavailable downgrades the capabilities once and does not loop', () async {
+      final (handler, player) = await iosHandler();
+      final before = player.pitchCalls;
+      player.pitchError = PlatformException(code: 'pitch_unavailable');
+      await expectLater(
+        handler.setPlaybackAdjustments(
+          const PlaybackAdjustments(pitchSemitones: 2),
+        ),
+        throwsA(isA<PlatformException>()),
+      );
+      // One failing call; the rollback does not ask the player for pitch again.
+      expect(player.pitchCalls, before + 1);
+      expect(handler.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+      expect(handler.playbackAdjustments, const PlaybackAdjustments());
+      // Speed still works for the rest of the session without touching pitch.
+      await handler.setPlaybackSpeed(1.2);
+      expect(player.appliedSpeed, 1.2);
+      expect(player.pitchCalls, before + 1);
+    });
+  });
+
   test(
     'ignored seek during loading reloads the full queue at target',
     () async {
@@ -2456,6 +2779,265 @@ void main() {
       expect(player.audioSources.length, 3);
     },
   );
+
+  group('iOS queue start (gapless)', () {
+    // AVQueuePlayer joins songs gaplessly only when the queue did not start
+    // with a single item, so on iOS the first load carries the start song and
+    // the one after it. Phase 2 then fills in the rest around them.
+    Future<(NavisAudioHandler, ControllableAudioPlayer, List<SongsTableData>)>
+    replaceFour({
+      required bool ios,
+      required int startIndex,
+      required Directory directory,
+    }) async {
+      final (handler, player, database) = await createHandler(
+        directory,
+        4,
+        iosRuntimeOverride: ios,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final songs = await database.libraryDao.getSongsByIds(<String>[
+        'song-0',
+        'song-1',
+        'song-2',
+        'song-3',
+      ]);
+      await handler.replaceQueueWithData(songs, startIndex: startIndex);
+      return (handler, player, songs);
+    }
+
+    const allSongs = <String>['song-0', 'song-1', 'song-2', 'song-3'];
+
+    test('the first load holds the start song and the next one', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-');
+      final (handler, player, _) = await replaceFour(
+        ios: true,
+        startIndex: 0,
+        directory: directory,
+      );
+      expect(player.setAudioSourcesCounts.first, 2);
+      expect(player.setAudioSourcesCounts, hasLength(1));
+      expect(player.sourceIds, allSongs);
+      expect(handler.queue.value.map((item) => item.id), allSongs);
+      expect(player.currentIndex, 0);
+    });
+
+    test(
+      'a start in the middle loads it with the next, then both sides',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-ios-');
+        final (handler, player, _) = await replaceFour(
+          ios: true,
+          startIndex: 2,
+          directory: directory,
+        );
+        expect(player.setAudioSourcesCounts.first, 2);
+        expect(player.sourceIds, allSongs);
+        expect(handler.queue.value.map((item) => item.id), allSongs);
+        expect(player.currentIndex, 2);
+      },
+    );
+
+    test('the last song has no next one to load with it', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-');
+      final (_, player, _) = await replaceFour(
+        ios: true,
+        startIndex: 3,
+        directory: directory,
+      );
+      expect(player.setAudioSourcesCounts.first, 1);
+      expect(player.sourceIds, allSongs);
+    });
+
+    // The next song's resolve is gated (or fails) to exercise phase 1's wait.
+    Future<
+      (
+        NavisAudioHandler,
+        ControllableAudioPlayer,
+        GatedSourceResolver,
+        List<SongsTableData>,
+      )
+    >
+    gatedFour({
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+      bool hold = true,
+      StateError? failure,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-');
+      late GatedSourceResolver resolver;
+      final (handler, player, database) = await createHandler(
+        directory,
+        4,
+        iosRuntimeOverride: true,
+        timeouts: timeouts,
+        wrapResolver: (base) => resolver = GatedSourceResolver(base)
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = hold ? Completer<void>() : (Completer<void>()..complete())
+          ..failure = failure,
+      );
+      addTearDown(() async {
+        if (!resolver.release!.isCompleted) resolver.release!.complete();
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final songs = await database.libraryDao.getSongsByIds(<String>[
+        'song-0',
+        'song-1',
+        'song-2',
+        'song-3',
+      ]);
+      return (handler, player, resolver, songs);
+    }
+
+    test('a next song that cannot resolve starts with one source', () async {
+      final (handler, player, _, songs) = await gatedFour(
+        hold: false,
+        failure: StateError('unavailable'),
+      );
+      await handler.replaceQueueWithData(songs);
+      expect(player.setAudioSourcesCounts.first, 1);
+      // Phase 2 cannot resolve it either: the player and Dart agree without it.
+      expect(player.sourceIds, ['song-0', 'song-2', 'song-3']);
+      expect(handler.queue.value.map((item) => item.id), player.sourceIds);
+    });
+
+    test('a slow next song does not delay the start song', () async {
+      final (handler, player, resolver, songs) = await gatedFour(
+        timeouts: const NavisPlaybackTimeouts(
+          nextSongPreload: Duration(milliseconds: 100),
+        ),
+      );
+      final replace = handler.replaceQueueWithData(songs);
+      await resolver.entered!.future.timeout(const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(player.setAudioSourcesCounts, [1], reason: 'start song alone');
+      expect(player.isPlaying || player.sourceIds.isNotEmpty, isTrue);
+      resolver.release!.complete();
+      await replace;
+      expect(player.sourceIds, allSongs, reason: 'phase 2 appends song-1');
+      expect(handler.queue.value.map((item) => item.id), allSongs);
+    });
+
+    test('a newer queue command while the next song resolves wins', () async {
+      final (handler, player, resolver, songs) = await gatedFour();
+      final older = handler.replaceQueueWithData(songs);
+      await resolver.entered!.future.timeout(const Duration(seconds: 1));
+      final newer = handler.replaceQueue([
+        'song-2',
+        'song-3',
+      ], expandMatchFlows: false);
+      resolver.release!.complete();
+      await Future.wait([older.catchError((Object _) {}), newer]);
+      await settleQueue(handler);
+      expect(handler.queue.value.map((item) => item.id), ['song-2', 'song-3']);
+      expect(player.sourceIds, ['song-2', 'song-3']);
+    });
+
+    test(
+      'a fill that does not land leaves the queue listing the player',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-ios-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          4,
+          iosRuntimeOverride: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final songs = await database.libraryDao.getSongsByIds(allSongs);
+        // Every append fails: only the start song and the preloaded next one land.
+        player.failAppendSongId = 'song-2';
+        await handler.replaceQueueWithData(songs);
+        expect(player.sourceIds, ['song-0', 'song-1']);
+        expect(handler.queue.value.map((item) => item.id), player.sourceIds);
+      },
+    );
+
+    test(
+      'an apply that fails does not leave the preloaded song in the queue',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-ios-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          4,
+          iosRuntimeOverride: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final songs = await database.libraryDao.getSongsByIds(allSongs);
+        player.failLoadSongId = 'song-0';
+        await handler.replaceQueueWithData(songs).catchError((Object _) {});
+        await pumpEventQueue(times: 50);
+        // The player holds nothing; the queue must not list the next song it
+        // never received (a restore would take it for a loaded single song).
+        expect(player.sourceIds, isEmpty);
+        expect(handler.snapshot.queueSongIds, isNot(contains('song-1')));
+        expect(handler.snapshot.queueSongIds.length, lessThanOrEqualTo(1));
+      },
+    );
+
+    test(
+      'an advance to the preloaded song before phase 2 lands is listed',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-ios-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          4,
+          iosRuntimeOverride: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final songs = await database.libraryDao.getSongsByIds(allSongs);
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..appendGate = gate
+          ..appendEntered = entered;
+        final replace = handler.replaceQueueWithData(songs);
+        await entered.future.timeout(const Duration(seconds: 2));
+        // Phase 2 is inside its first append: the player holds [song-0, song-1]
+        // and Dart lists the same two. The player advances to song-1 now.
+        expect(player.sourceIds, ['song-0', 'song-1']);
+        player.moveTo(1);
+        await pumpEventQueue(times: 50);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        gate.complete();
+        await replace;
+        await settleQueue(handler);
+        expect(player.sourceIds, allSongs);
+        expect(handler.queue.value.map((item) => item.id), allSongs);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+      },
+    );
+
+    test('other platforms keep loading only the start song first', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-');
+      final (handler, player, _) = await replaceFour(
+        ios: false,
+        startIndex: 0,
+        directory: directory,
+      );
+      expect(player.setAudioSourcesCounts.first, 1);
+      expect(player.sourceIds, allSongs);
+      expect(handler.queue.value.map((item) => item.id), allSongs);
+    });
+  });
 
   test('large queue fill applies sources in batches, in order', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');

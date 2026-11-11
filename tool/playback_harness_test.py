@@ -3,6 +3,7 @@
 
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -11,7 +12,13 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 os.environ['NAVIS_HARNESS_CAPPED'] = '1'
+# Hermetic: never touch the real heavy-job locks or harness cache, whatever HOME is.
+_ISOLATED = tempfile.TemporaryDirectory(prefix='navis-selfcheck-')
+os.environ['NAVIS_HARNESS_CACHE'] = str(Path(_ISOLATED.name) / 'cache')
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import heavy_lock as _locks  # noqa: E402
+_locks.HEAVY_LOCK = Path(_ISOLATED.name) / 'heavy.lock'
+_locks.LEGACY_LOCK = Path(_ISOLATED.name) / 'legacy' / 'lock'
 import playback_harness as h  # noqa: E402
 import live_seek_stress as engine  # noqa: E402
 
@@ -79,7 +86,7 @@ class Thresholds(unittest.TestCase):
 
     def test_cut_recovery_splice_checks_are_android_only(self):
         base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'progressLoss': 0, 'recoveryMedianS': 5.0, 'frozenMedianS': 6.0,
-                'reloadsAfterCut': 3}
+                'reloadsAfterCut': 0, 'cutsObserved': 3}  # the current base splices instead of reloading
         fix = {**base, 'frozenMedianS': 0.0, 'spliceFrozenMedianS': 0.0, 'recoveryMedianS': 0.0, 'reloadsAfterCut': 0, 'playerErrorsAfterCut': 0,
                'spliceRequestsOk': True, 'spliceFileOk': True, 'joinRmsMax': 0.001}
         self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', base, fix, 'android')))
@@ -89,10 +96,56 @@ class Thresholds(unittest.TestCase):
         # Linux has no splice: those metrics are neither required nor checked.
         self.assertEqual(len(h.evaluate('cut-recovery', base, fix)), len(h.evaluate('cut-recovery', base, fix, 'android')) - 7)
 
-    def test_cut_base_without_reload_is_a_failed_comparison(self):
-        for reloads in (None, 0):
-            lines = h.evaluate('cut-recovery', {'reloadsAfterCut': reloads}, {}, 'android')
-            self.assertTrue(any(not ok and 'baseCutObserved' in line for ok, line in lines))
+    def test_cut_base_without_an_observed_cut_is_a_failed_comparison(self):
+        for observed in (None, 0):
+            lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': observed}, {}, 'android')
+            self.assertTrue(any(not ok and 'baseCutObserved' in line for ok, line in lines), observed)
+        # A base that splices has no reloads, but its continuation requests/events prove the cut bit.
+        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 2}, {}, 'android')
+        self.assertTrue(all(ok for ok, line in lines if 'baseCutObserved' in line))
+
+    def test_cuts_observed_must_hold_for_every_cut_row_not_the_pool(self):
+        def row(requests):
+            return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
+                'reloads': [], 'playerErrors': [], 'requestsOk': True, 'timeOffsetRequests': requests, 'spliceEvents': [],
+                'file': {'ok': True, 'maxWindowRms': 0.001}}}}
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([])])['cutsObserved'], 0)  # one row missed its cut
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([5, 6])])['cutsObserved'], 1)
+
+    def test_splice_events_outside_the_cut_window_are_not_evidence(self):
+        trace = [{'atMs': 500, 'kind': 'oggSplice', 'timeOffset': 1, 'attempt': 0},       # before the cut
+                 {'atMs': 1500, 'kind': 'oggSplice', 'timeOffset': 2, 'attempt': 0}]       # inside the window
+        run = Mock(trace=trace, proxy_mark=0, quality='opus128')
+        run.app.run = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__('shutil').rmtree(run.app.run, ignore_errors=True))
+        env = Mock()
+        env.proxy.log = []
+        with patch.object(engine, 'oracle_cache_integrity', return_value=[]):
+            info = engine.splice_check(run, env, 's', 5.0, 1000, 1, set())
+        self.assertEqual([e['timeOffset'] for e in info['spliceEvents']], [2])
+
+    def test_real_android_cut_row_yields_every_gated_splice_metric(self):
+        # Trimmed from the fix run build/harness/20261028T004939.200516Z (cut40 opus128 slow1500 rep 0): that run reported
+        # playerErrorsAfterCut=None because a comment swallowed it inside metrics().
+        row = {'case': 'cut40', 'quality': 'opus128', 'throttle': 'slow1500', 'rep': 0, 'passed': True, 'violations': [], 'latencyS': None,
+               'metrics': {'maxFrozenS': 0.28, 'spliceCheck': {
+                   'reloads': [], 'playerErrors': [], 'timeOffsetRequests': ['94'],
+                   'spliceEvents': [{'timeOffset': 94, 'dropped': 100, 'attempt': 1, 'result': 'ok'}], 'requestsOk': True,
+                   'cacheViolations': [], 'file': {'decodeExit': 0, 'decodeStderr': '', 'lenDiffS': 0.0, 'maxWindowRms': 0.0, 'ok': True}}}}
+        metrics = h.metrics('cut-recovery', [row])
+        for check in h.ANDROID_CHECKS['cut-recovery']:
+            self.assertIsNotNone(metrics.get(check[0]), check[0])
+        self.assertEqual((metrics['playerErrorsAfterCut'], metrics['cutsObserved']), (0, 2))
+        self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', metrics, metrics, 'android')))
+
+    def test_cuts_observed_counts_continuation_requests_events_and_reloads(self):
+        def row(**check):
+            return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
+                'reloads': [], 'playerErrors': [], 'requestsOk': True, 'timeOffsetRequests': [], 'spliceEvents': [],
+                'file': {'ok': True, 'maxWindowRms': 0.001}, **check}}}
+        self.assertEqual(h.metrics('cut-recovery', [row(timeOffsetRequests=[120], spliceEvents=[{}])])['cutsObserved'], 2)
+        self.assertEqual(h.metrics('cut-recovery', [row(reloads=['setAudioSources'])])['cutsObserved'], 1)
+        self.assertEqual(h.metrics('cut-recovery', [row(), row()])['cutsObserved'], 0)
 
     def test_splice_frozen_median_uses_only_cut_rows(self):
         rows = [{'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0}} for _ in range(7)]
@@ -101,7 +154,7 @@ class Thresholds(unittest.TestCase):
                                           'file': {'ok': True, 'maxWindowRms': 0.001, 'lenDiffS': 0}}}})
         metrics = h.metrics('cut-recovery', rows)
         self.assertEqual(metrics['spliceFrozenMedianS'], 5)
-        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 1}, metrics, 'android')
+        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 1}, metrics, 'android')
         self.assertTrue(any(not ok and 'spliceFrozenMedianS' in line for ok, line in lines))
 
     def test_cut5_is_android_full_only(self):
@@ -363,6 +416,181 @@ class PositionBlip(unittest.TestCase):
                 self.assertEqual([v['oracle'] for v in engine.oracle_progress_loss(run)], ['progressLoss'])
 
 
+class CrossfadeLongOracle(unittest.TestCase):
+    """P5 oracles (synthetic samples): a clean swap passes, each defect is reported by name."""
+    IDS = ['a', 'b']
+    FADE = 4000
+
+    @staticmethod
+    def swap(mutate=None):
+        rows = []
+        for i in range(160):  # 16 s at 10 Hz: the last 10 s of song a (0..99), then song b from 0 (100..)
+            song, pos = ('a', 290000 + i * 100) if i < 100 else ('b', (i - 100) * 100 + 4000)
+            rows.append({'t': 10 + i * 0.1, 'songId': song, 'idx': 0 if song == 'a' else 1, 'pos': pos, 'uiPos': pos,
+                         'playing': True, 'proc': 'ready', 'dur': 300000, 'off': 0, 'cf': {}})
+        if mutate:
+            mutate(rows)
+        return rows
+
+    def names(self, rows, saved=None):
+        run = type('R', (), {'samples': rows, 'actions': [], 'trace': [], 'metrics': {}})()
+        return [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE, saved, rows[-1])]
+
+    def test_clean_swap_passes(self):
+        self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': 9800}), [])
+
+    def test_jump_and_backstep(self):
+        def jump(rows):
+            for r in rows[50:]:
+                r['uiPos'] += 3000
+        def back(rows):
+            for r in rows[50:]:
+                r['pos'] -= 1000
+        self.assertEqual(self.names(self.swap(jump)), ['xfadeJump'])
+        self.assertEqual(self.names(self.swap(back)), ['xfadeJump'])
+
+    def test_a_sampling_gap_is_not_a_jump(self):
+        """The API poll can stall (adb, UI isolate): a 2 s gap with a matching 2 s position step is real-time playback."""
+        def gap(rows):
+            for r in rows[120:]:
+                r['t'] += 1.9
+                r['pos'] += 1900
+                r['uiPos'] += 1900
+        self.assertEqual(self.names(self.swap(gap)), [])
+        def gap_jump(rows):
+            gap(rows)
+            for r in rows[140:]:
+                r['pos'] += 2000
+        self.assertIn('xfadeJump', self.names(self.swap(gap_jump)))
+
+    def test_freeze(self):
+        def freeze(rows):
+            for r in rows[60:90]:
+                r['pos'] = rows[60]['pos']
+        self.assertEqual(self.names(self.swap(freeze)), ['xfadeFrozen', 'xfadeJump'])  # the unfreeze is a 3 s step
+        def short_freeze(rows):
+            for r in rows[60:70]:
+                r['pos'] = rows[60]['pos']
+        self.assertNotIn('xfadeFrozen', self.names(self.swap(short_freeze)))
+
+    @staticmethod
+    def real_freeze(rows):
+        """Real rows, fix r0 @13.22-14.62: the song flips to B, the display holds 0 for 1.5 s with proc=buffering, playing=True, cf active."""
+        for r in rows[100:156]:
+            r.update(proc='buffering', pos=0, uiPos=0, cf={'active': True})
+        for r in rows[156:]:
+            r.update(cf={'active': True})
+        for i, r in enumerate(rows[100:], 0):
+            r['t'] = 13.222 + i * 0.03  # dense enough: > 1.5 s of buffering
+
+    def test_buffering_during_the_fade_counts_as_frozen(self):
+        run = type('R', (), {'samples': self.swap(self.real_freeze), 'actions': [], 'trace': [], 'metrics': {}})()
+        found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
+        self.assertTrue(found)
+
+    def test_start_action_does_not_mask_the_freeze(self):
+        """A 'start' never gets a 'ret' (start_queue sets one only for issue_seek), so its 15 s window hid the whole
+        swap window; only seeks and navigations may mask."""
+        run = type('R', (), {'samples': self.swap(self.real_freeze), 'actions': [{'kind': 'start', 't': 0.5}],
+                             'trace': [], 'metrics': {}})()
+        found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
+        self.assertTrue(found)
+
+    def test_start_up_before_first_audio_is_not_a_freeze(self):
+        """'start' no longer masks, so a position pinned at 0 while the app already reports playing must not count."""
+        rows = self.swap()
+        pre = [dict(rows[0], t=round(rows[0]['t'] - 3 + i * 0.1, 3), pos=0, uiPos=0) for i in range(30)]
+        run = type('R', (), {'samples': pre + rows, 'actions': [{'kind': 'start', 't': pre[0]['t']}],
+                             'trace': [], 'metrics': {}})()
+        self.assertNotIn('xfadeFrozen', [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE)])
+
+    def test_buffering_outside_a_fade_is_not_a_freeze(self):
+        def stall(rows):
+            for r in rows[100:156]:
+                r.update(proc='buffering', pos=0, uiPos=0)
+            for i, r in enumerate(rows[100:], 0):
+                r['t'] = 13.222 + i * 0.03
+        run = type('R', (), {'samples': self.swap(stall), 'actions': [], 'trace': [], 'metrics': {}})()
+        self.assertNotIn('xfadeFrozen', [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE)])
+
+    def test_late_incoming_start(self):
+        def late(rows):
+            for r in rows[100:]:
+                r['pos'] += 20000
+                r['uiPos'] += 20000
+        self.assertIn('xfadeLateStart', self.names(self.swap(late)))
+
+    def test_persisted_position_follows_the_save_design(self):
+        """Saves are events (the handoff 250 ms after the swap) plus a 15 s timer. Real P5 rows: saved 4366-4370 ms read 5.5 s
+        after the swap while 9546 ms was shown is correct; a wrong index or another song's position is not."""
+        end = self.swap()[-1]['pos']
+        for saved in ({'index': 1, 'positionMs': 4368}, {'index': 1, 'positionMs': end - 2500}, {'index': 1, 'positionMs': end}):
+            self.assertEqual(self.names(self.swap(), saved), [], saved)
+        for saved in ({'index': 0, 'positionMs': 4975},               # base r1: saved the outgoing song's index
+                      {'index': 1, 'positionMs': 299000},             # outgoing song's position under the incoming index
+                      {'index': 1, 'positionMs': 2000},               # older than the swap
+                      {'index': 1, 'positionMs': end + 5000}):        # ahead of the display
+            self.assertEqual(self.names(self.swap(), saved), ['xfadePersistMismatch'], saved)
+
+    def test_a_save_older_than_the_timer_period_must_have_been_refreshed(self):
+        rows = self.swap()  # the swap is at t=20 s; the read at t=40 s, so a save from the swap (4100 ms) is 20 s old
+        run = type('R', (), {'samples': rows, 'actions': [], 'trace': [], 'metrics': {}})()
+        after = dict(rows[-1], t=40.0)
+        stale = engine.oracle_crossfade_long(run, self.IDS, self.FADE, {'index': 1, 'positionMs': 4100}, after)
+        self.assertEqual([v['oracle'] for v in stale], ['xfadePersistMismatch'])
+
+    def test_seek_in_flight_is_not_a_jump(self):
+        rows = self.swap(lambda r: [x.update(uiPos=x['uiPos'] + 5000) for x in r[30:]])
+        run = type('R', (), {'samples': rows, 'actions': [{'kind': 'seek', 't': 12.9, 'ret': 13.1}], 'trace': [], 'metrics': {}})()
+        self.assertEqual(engine.oracle_crossfade_long(run, self.IDS, self.FADE), [])
+
+
+class AndroidCrossfadeSeed(unittest.TestCase):
+    """An Android crossfade run seeds crossfade_enabled and the duration into the emulator profile (not crossfadeOff)."""
+    def seeded(self, fade_s):
+        import sqlite3
+        db = sqlite3.connect(':memory:')
+        db.executescript("CREATE TABLE server_config(url TEXT); INSERT INTO server_config VALUES('x');"
+                         "CREATE TABLE app_settings(rolling_cache_budget_mb INT, crossfade_enabled INT DEFAULT 0, "
+                         "crossfade_duration_seconds INT DEFAULT 5, gapless_enabled INT DEFAULT 0); INSERT INTO app_settings(rolling_cache_budget_mb) VALUES(1);"
+                         "CREATE TABLE play_queue(id INT); CREATE TABLE play_queue_items(id INT);")
+        with patch.object(engine, 'CROSSFADE_S', fade_s):
+            engine.android_seed_edits(db, 'http://127.0.0.1:1')
+        return db.execute('SELECT crossfade_enabled, crossfade_duration_seconds, gapless_enabled, rolling_cache_budget_mb FROM app_settings').fetchone()
+
+    def test_crossfade_run_seeds_enabled_and_duration(self):
+        self.assertEqual(self.seeded(4), (1, 4, 1, 160))
+
+    def test_other_runs_keep_the_seed_settings(self):
+        self.assertEqual(self.seeded(0), (0, 5, 0, 160))
+
+    def test_crossfade_is_an_android_scenario(self):
+        self.assertIn('crossfade', h.ANDROID_SCENARIOS)
+
+
+class ActivePlayerPosition(unittest.TestCase):
+    """Artefact 1: mediaKitTransport lists every native player in no fixed order; `pos` must follow the active one.
+    Numbers are real rows of the 2026-10-28 repro (fix rep 0 and rep 2); the transport list order is reconstructed."""
+    @staticmethod
+    def ingest(transport, pp, offset=0):
+        import time
+        run = object.__new__(engine.Run)
+        run.t0, run.w0, run.samples, run.trace, run._trace_seq = time.monotonic(), time.time(), [], [], 0
+        run.ingest({'songId': 's', 'currentIndex': 1, 'playerPositionMs': pp, 'positionOffsetMs': offset, 'processingState': 'ready',
+                    'native': {'mediaKitTransport': [{'positionMs': t} for t in transport]}})
+        return run.samples[0]['pos']
+
+    def test_retired_outgoing_player_listed_first(self):  # fix r0 @15.12: pos stuck 416 while the active player is at 4085
+        self.assertEqual(self.ingest([416, 4085], 4085), 4085)
+
+    def test_fresh_incoming_deck_listed_first_with_offset(self):  # fix r2 @7.82: pos 290000 (= 0 + offset) while the song is at 294315
+        self.assertEqual(self.ingest([0, 4315], 294315, 290000), 294315)
+
+    def test_single_player_and_missing_player_position_unchanged(self):
+        self.assertEqual(self.ingest([1200], 1190), 1200)
+        self.assertEqual(self.ingest([416, 4085], None), 416)
+
+
 class RepeatFillOracle(unittest.TestCase):
     def test_loading_cursor_between_end_and_restart_does_not_hide_wrap(self):
         first = {'songId': 'a', 'dur': 300000}
@@ -371,12 +599,13 @@ class RepeatFillOracle(unittest.TestCase):
                    for t, pos, proc in [(10.9, 299541, 'ready'), (11.0, 292001, 'loading'),
                                         (11.1, 0, 'ready'), (11.2, 100, 'ready')]]
         run = Mock(metrics={}, samples=samples, checks=[])
+        run.now.return_value = 0.0
         env = Mock()
         env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
             stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
-            stack.enter_context(patch.object(engine, 'landed'))
+            stack.enter_context(patch.object(engine, 'landed', return_value={'t': 0.0}))
             stack.enter_context(patch.object(engine, 'finish_futures'))
             stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
             engine.case_repeat_one_fill(run, env)
@@ -392,6 +621,103 @@ class RepeatFillOracle(unittest.TestCase):
                 run.samples = variant
                 self.assertEqual(run.checks[0](), [{'oracle': 'repeatOneRestartCount'}])
                 self.assertEqual(len(run.metrics['wraps']), count)
+
+
+class FixtureRepetitionSeed(unittest.TestCase):
+    """M1: a repetition run as its own engine invocation (--rep-start) must not replay the previous repetition's songs."""
+
+    @staticmethod
+    def draw(rep_start):
+        songs = [{'id': f's{i}', 'duration': 200, 'track': 2} for i in range(60)]
+        library = Mock(duplicates={})
+        library.sorted_songs.return_value = songs
+        backend = engine.FixtureBackend('http://x', library, Mock(), rep_start=rep_start)
+        return [s['id'] for s in backend.fresh_songs(5)]
+
+    def test_reps_draw_different_songs_and_the_same_rep_draws_the_same_for_both_variants(self):
+        draws = [self.draw(rep) for rep in range(3)]
+        self.assertEqual(len({tuple(d) for d in draws}), 3)
+        self.assertEqual(self.draw(1), self.draw(1))  # base and fix each start their own backend at the same rep
+        self.assertEqual(self.draw(0), [s for s in self.draw(0)])
+        library = Mock(duplicates={})
+        library.sorted_songs.return_value = [{'id': f's{i}', 'duration': 200, 'track': 2} for i in range(60)]
+        legacy = engine.FixtureBackend('http://x', library, Mock())  # one invocation (Android) keeps its seed
+        self.assertEqual([s['id'] for s in legacy.fresh_songs(5)], self.draw(0))
+
+
+class RepeatFillDuration(unittest.TestCase):
+    """Row 26: repeat_one_fill needs a known duration, disjoint wrap windows and exactly one intended loop."""
+
+    @staticmethod
+    def sample(t, pos, dur):
+        return {'t': t, 'pos': pos, 'proc': 'ready', 'songId': 'a', 'idx': 0, 'mat': 1, 'deferred': 0, 'qlen': 15, 'dur': dur}
+
+    def play(self, first_dur, samples, known=None, land_t=0.0, now=0.0):
+        """Runs case_repeat_one_fill; returns (run, issue_seek mock, violations of the check)."""
+        first = {'songId': 'a', 'dur': first_dur}
+        run = self.run = Mock(metrics={}, samples=samples, checks=[], violations=[])
+        run.last.return_value = {'dur': first_dur}
+        run.until.return_value = known
+        run.now.return_value = now
+        env = Mock()
+        env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
+            seek = stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
+            stack.enter_context(patch.object(engine, 'landed', return_value=None if land_t is None else {'t': land_t}))
+            stack.enter_context(patch.object(engine, 'finish_futures'))
+            stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
+            engine.case_repeat_one_fill(run, env)
+            return run, seek, run.checks[0]()
+
+    def test_zero_duration_at_start_waits_for_the_known_duration(self):
+        run, seek, out = self.play(0, [self.sample(10.9, 299541, 300000), self.sample(11.1, 0, 300000), self.sample(11.2, 100, 300000)],
+                                   known={'dur': 300000})
+        self.assertEqual(seek.call_args[0][2], 292000)  # never a seek to 0 because the duration was not known yet
+        self.assertEqual(run.observe.call_args[0][0], 25.0)
+        self.assertEqual(out, [])
+        with self.assertRaises(engine.CaseAbort):
+            self.play(0, [], known=None)  # the duration never became known: no verdict from a made-up 0
+        self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])  # and the aborted cell is a recorded failure, not a pass
+
+    def test_true_five_second_loop_counts_exactly_one_restart(self):
+        positions = lambda end: [self.sample(round(i * 0.1, 1), (i * 100) % 5000, 5000) for i in range(int(end * 10))]
+        run, seek, out = self.play(5000, positions(7.5))
+        self.assertEqual(seek.call_args[0][2], 0)
+        self.assertEqual(run.observe.call_args[0][0], 7.5)  # a second loop would start at 10 s
+        self.assertEqual(out, [])
+        self.assertEqual(len(run.metrics['wraps']), 1)
+        run, _, out = self.play(5000, positions(12.0))  # a window that holds two loops must not pass as one
+        self.assertEqual(out, [{'oracle': 'repeatOneRestartCount'}])
+        self.assertEqual(len(run.metrics['wraps']), 2)
+        run, _, out = self.play(5000, positions(4.9))  # and a real missing restart still fails
+        self.assertEqual(out, [{'oracle': 'repeatOneRestartCount'}])
+
+    def test_observation_is_measured_from_the_observed_landing(self):
+        # the second loop of a 5 s song starts 10 s after the landing: a slow landing/API return must not push the window past it
+        run, _, _ = self.play(5000, [], land_t=1.0, now=3.0)
+        self.assertEqual(run.observe.call_args[0][0], 5.5)  # lands at 1.0 s, window ends 7.5 s later, 3.0 s are already spent
+        run, _, _ = self.play(5000, [], land_t=None, now=3.0)  # never observed landing: the full window from now
+        self.assertEqual(run.observe.call_args[0][0], 7.5)
+
+    def test_wrap_windows_are_disjoint_per_duration_and_clips_too_short_to_loop_abort(self):
+        self.assertEqual(engine.repeat_wrap_bounds(300000), (296000, 3000))
+        self.assertEqual(engine.repeat_wrap_bounds(5000), (2500, 2500))
+        for dur in (3000, 5000, 8000, 300000):
+            end_from, start_to = engine.repeat_wrap_bounds(dur)
+            self.assertLessEqual(start_to, end_from)
+        with self.assertRaises(engine.CaseAbort):
+            self.play(2000, [])
+        self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])
+
+    def test_a_three_second_fixture_song_reported_as_2_99_s_is_still_observable(self):
+        self.assertEqual(engine.REPEAT_FILL_MIN_MS, 2500)
+        for dur in (2990, 2500):
+            run, _, _ = self.play(dur, [])  # no abort, no caseError
+            self.assertEqual(run.violations, [], dur)
+            self.assertLess(run.observe.call_args[0][0], 2 * dur / 1000)  # still before a second loop
+        with self.assertRaises(engine.CaseAbort):
+            self.play(2400, [])
 
 
 class RepeatClockBlip(unittest.TestCase):
@@ -439,6 +765,187 @@ class RepeatClockBlip(unittest.TestCase):
         self.assertEqual(run.violations, [{'oracle': 'baselineNoLoop'}])
 
 
+class PairedRepetitions(unittest.TestCase):
+    """Rows 24/29: base and fix alternate rep by rep (first variant swapping on every other pair), one merged
+    evidence record per variant and scenario, thresholds and cell counts unchanged."""
+
+    def test_schedule_alternates_pairs_and_swaps_the_first_variant(self):
+        steps = h.schedule(['seek', 'crossfade'], lambda name: 3)
+        self.assertEqual(steps[:6], [('base', 'seek', 0), ('fix', 'seek', 0), ('fix', 'seek', 1),
+                                     ('base', 'seek', 1), ('base', 'seek', 2), ('fix', 'seek', 2)])
+        self.assertEqual(steps[6:8], [('fix', 'crossfade', 0), ('base', 'crossfade', 0)])  # the second scenario starts with the other variant
+        quick = h.schedule(['a', 'b', 'c'], lambda name: 1)  # reps=1 (the default quick run) still alternates across scenarios
+        self.assertEqual([v for v, _, _ in quick], ['base', 'fix', 'fix', 'base', 'base', 'fix'])
+        self.assertEqual(len(steps), len(set(steps)), 'every (variant, scenario, rep) exactly once')
+        self.assertEqual(h.schedule(['seek'], lambda name: 1), [('base', 'seek', 0), ('fix', 'seek', 0)])
+
+    def test_engine_runs_one_rep_at_its_own_index(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            seen = []
+            def fake_engine(args, env, folder, extra, timeout, label, real=False):
+                seen.append(args)
+                (folder / f'{label}.log').write_text('log')
+                run = folder / 'runs' / f'stamp-{label}'
+                run.mkdir(parents=True)
+                rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
+                        for c in h.expected_cells('queue-edit', False, 3, 'linux') if c[3] == 2]
+                (run / 'report.json').write_text(json.dumps({'server': 'fixture', 'results': rows}))
+                return Mock(returncode=0)
+            with patch.object(h, 'engine', side_effect=fake_engine):
+                rows, _ = h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, 3, False, rep=2)
+            self.assertEqual({r['rep'] for r in rows}, {2})
+            args = seen[0]
+            self.assertEqual(args[args.index('--reps') + 1], '1')
+            self.assertEqual(args[args.index('--rep-start') + 1], '2')
+            self.assertEqual({tuple(c) for c in json.loads((out / 'evidence.json').read_text())['expected']},
+                             {tuple(c) for c in h.expected_cells('queue-edit', False, 3, 'linux') if c[3] == 2})
+
+    def test_engine_rep_numbers_start_at_the_requested_index(self):
+        self.assertEqual(list(engine.matrix_reps('seek_far', 3, 0, 0)), [0, 1, 2])
+        self.assertEqual(list(engine.matrix_reps('seek_far', 1, 0, 2)), [2])
+        self.assertEqual(list(engine.matrix_reps('shuffle_album', 3, 2, 1)), [1, 2])
+
+    def ab(self, fail_at=None, reps=3, platform='linux', scenarios=('queue-edit',), full=False, guests=None, real=False, activated=None, seeded=None):
+        """Runs cmd_ab for queue-edit on Linux against a fake engine; returns (exit/exception, evidence dir, calls)."""
+        import argparse
+        import json
+        calls, roles = [], []
+        activated = [] if activated is None else activated
+        seeded = [] if seeded is None else seeded
+        root_ctx = tempfile.TemporaryDirectory()
+        self.addCleanup(root_ctx.cleanup)
+        root = Path(root_ctx.name)
+        artifact = root / 'bundle'
+        artifact.write_text('bundle')
+        def scenario(name, platform, variant_dir, display_env, serial, apk, full, nreps, real, rep=None, pick_role=None):
+            roles.append(pick_role)
+            parts = variant_dir.parts
+            calls.append((parts[-4], parts[-3], int(parts[-2].split('-')[1])) if parts[-2].startswith('rep-')
+                         else (parts[-3], parts[-2], None))
+            if fail_at is not None and len(calls) == fail_at:
+                raise h.InfraError('engine died')
+            variant_dir.mkdir(parents=True, exist_ok=True)
+            cells = [c for c in h.expected_cells(name, full, nreps, platform) if rep is None or c[3] == rep]
+            rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), id=i, metrics={}, violations=[], latencyS=None, passed=True)
+                    for i, c in enumerate(cells, 1)]  # the engine numbers rows from 1 in every invocation
+            (variant_dir / f'{name}.log').write_text(f'engine log {parts[-4]} rep {rep}')
+            report = variant_dir / 'report.json'
+            report.write_text(json.dumps({'server': 'live' if real else 'fixture', 'results': rows}))
+            h.write_evidence(variant_dir, {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells, 'seconds': 1.0,
+                                           'log': str(variant_dir / f'{name}.log'), 'report': str(report)})
+            return rows, 1.0
+        identity = {'head': 'headsha', 'sha256': 'a'}
+        def git(*a, **k):
+            return 'headsha' if a[:2] == ('rev-parse', 'HEAD') else ('basesha' if a[0] == 'rev-parse' else '')
+        args = argparse.Namespace(fn=h.cmd_ab, command='ab', scenarios=list(scenarios), map=False, all=False, platform=platform,
+                                  base='ref', base_range='r...HEAD', full=full, reps=reps, real=real, output=str(root / 'out'))
+        class Guest:  # a fake Emulator that only counts boots
+            def __init__(self, out):
+                guests.append(out) if guests is not None else None
+                self.proc = Mock(poll=Mock(return_value=None))
+            def check(self): pass
+            def __enter__(self): return 'emulator-5620'
+            def __exit__(self, *_): pass
+        with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
+                patch.object(h, 'Emulator', Guest), patch.object(h, 'seed_catalog', side_effect=lambda *a: seeded.append(a) or root), patch.object(h, 'real_credentials'), \
+                patch.object(h, 'environment_identity', return_value={}), patch.object(h, 'heavy_lock', return_value=contextlib.nullcontext(())), \
+                patch.object(h, 'git', side_effect=git), patch.object(h, 'run', return_value=Mock(returncode=0)), \
+                patch.object(h, 'flutter_version', return_value='Flutter test'), patch.object(h, 'downloads_snapshot', return_value={}), \
+                patch.object(h, 'base_build', return_value=(root, 'cached')), patch.object(h, 'fix_build', return_value=root), \
+                patch.object(h, 'artifact_of', return_value=artifact), patch.object(h, 'activate', side_effect=lambda *a: activated.append(a)), \
+                patch.object(h, 'Display', return_value=contextlib.nullcontext({})), patch.object(h, 'run_scenario', side_effect=scenario), \
+                contextlib.redirect_stdout(io.StringIO()):
+            try:
+                code = h.cmd_ab(args)
+            except h.InfraError as error:
+                code = error
+        self.roles = roles
+        return code, root / 'out', calls
+
+    def test_ab_interleaves_and_keeps_one_verified_evidence_record_per_variant(self):
+        import json
+        code, out, calls = self.ab()
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, h.schedule(['queue-edit'], lambda name: 3))
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')  # cmd_ab verifies the merged records before it promotes a pass
+        cells = h.expected_cells('queue-edit', False, 3, 'linux')
+        for variant in ('base', 'fix'):
+            merged = record['variants'][f'{variant}/queue-edit']
+            self.assertEqual((merged['status'], merged['exitCode'], merged['expected'], merged['observed']), ('complete', 0, cells, cells))
+            merged_rows = json.loads(Path(merged['report']).read_text())['results']
+            self.assertEqual(len(merged_rows), len(cells))
+            ids = [r['id'] for r in merged_rows]
+            self.assertEqual(len(set(ids)), len(ids), 'row ids stay unique across repetitions (trace files are named by id)')
+            self.assertTrue(all(r['repDir'].endswith(f"rep-{r['rep']}/attempt-1") for r in merged_rows))
+            self.assertEqual(Path(merged['log']).read_text().count('engine log'), 3)
+
+    def test_linux_real_reuses_the_live_seed_with_a_kept_profile(self):
+        import json
+        seeded, activated = [], []
+        evaluate = patch.object(h, 'evaluate', return_value=[(True, 'ok')])  # these rows carry no metrics; thresholds are not under test
+        evaluate.start()
+        self.addCleanup(evaluate.stop)
+        code, out, calls = self.ab(real=True, reps=1, scenarios=('seek',), seeded=seeded, activated=activated)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(seeded), 1)
+        self.assertTrue(activated and all(a[2] is not None and a[3] is True for a in activated))
+        self.assertEqual(self.ab(real=False, reps=1, scenarios=('seek',), seeded=(none := []))[0], 0)
+        self.assertEqual(none, [])
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')
+        self.assertEqual(json.loads((out / 'comparison.json').read_text())['server'], 'live')
+        self.assertIn('server live', (out / 'summary.md').read_text())
+        merged = Path(record['variants']['fix/seek']['report'])
+        self.assertEqual(json.loads(merged.read_text())['server'], 'live')
+
+
+    def test_the_variant_that_runs_first_records_and_the_other_replays(self):
+        evaluate = patch.object(h, 'evaluate', return_value=[(True, 'ok')])  # these rows carry no metrics; thresholds are not under test
+        evaluate.start()
+        self.addCleanup(evaluate.stop)
+        code, out, calls = self.ab(real=True, reps=2, scenarios=('seek',))
+        self.assertEqual(code, 0)
+        by_step = dict(zip(calls, self.roles))
+        for variant, name, rep in calls:
+            first = next(c for c in calls if c[1:] == (name, rep))
+            self.assertEqual(by_step[(variant, name, rep)], 'record' if (variant, name, rep) == first else 'replay')
+        self.assertEqual(sorted(set(by_step.values())), ['record', 'replay'])
+        self.assertEqual([v for v, _, r in calls if r == 1][0], 'fix')  # fix-first repetitions record just the same
+
+    def test_android_runs_one_guest_per_variant_and_scenario_with_alternating_first_variant(self):
+        import json
+        guests = []
+        names = ('queue-edit', 'stress-drag', 'repeat')
+        with patch.object(h, 'evaluate', return_value=[(True, 'ok')]):  # these rows carry no metrics; thresholds are not under test
+            code, out, calls = self.ab(platform='android', scenarios=names, full=True, reps=None, guests=guests)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [('base', 'queue-edit', None), ('fix', 'queue-edit', None), ('fix', 'stress-drag', None),
+                                 ('base', 'stress-drag', None), ('base', 'repeat', None), ('fix', 'repeat', None)])
+        guests = [g for g in guests if g != Path('.')]  # _cmd_ab builds one Emulator only to check the tools exist
+        self.assertEqual(len(guests), 2 * len(names), 'a full Android A/B starts exactly 2 guests per scenario')
+        self.assertEqual(h.android_schedule(['a', 'b']), [('base', 'a', None), ('fix', 'a', None), ('fix', 'b', None), ('base', 'b', None)])
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')  # the unmerged per-scenario evidence verifies like the Linux merged one
+        for name in names:
+            cells = h.expected_cells(name, True, None, 'android')
+            for variant in ('base', 'fix'):
+                merged = record['variants'][f'{variant}/{name}']
+                self.assertEqual((merged['status'], merged['observed']), ('complete', cells))
+
+    def test_ab_failure_midway_leaves_incomplete_evidence_for_started_variants(self):
+        import json
+        code, out, calls = self.ab(fail_at=3)
+        self.assertIsInstance(code, h.InfraError)
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertNotEqual(record['status'], 'passed')
+        base = record['variants']['base/queue-edit']
+        self.assertEqual((base['status'], len(base['observed'])), ('incomplete', 3))
+        self.assertEqual(record['variants']['fix/queue-edit']['status'], 'incomplete')
+
+
 class CodeAreaMap(unittest.TestCase):
     def test_paths(self):
         names = lambda *paths: h.map_files(list(paths))[0]
@@ -479,9 +986,27 @@ class InfraErrors(unittest.TestCase):
 
     def ab(self, *args):
         err = io.StringIO()
+        output = Path(self.tmp.name) / f'run-{len(list(Path(self.tmp.name).glob("run-*")))}'  # never the real worktree
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
-            code = h.main(['ab', *args])
+            code = h.main(['ab', *args, '--output', str(output)])
         return code, err.getvalue()
+
+    def test_bad_arguments_fail_before_the_lock_and_leave_no_evidence(self):
+        for arguments in (['--platform', 'linux'], ['nonsense', '--platform', 'linux'], ['seek', '--platform', 'android', '--base', 'HEAD']):
+            with self.subTest(arguments=arguments), patch.object(h, 'heavy_lock', side_effect=AssertionError('lock taken')):
+                code, err = self.ab(*arguments)
+                self.assertEqual(code, 2)
+                self.assertNotIn('busy', err)
+                self.assertFalse(list(Path(self.tmp.name).glob('run-*/evidence.json')))
+
+    def test_uncaught_exception_is_exit_2_with_traceback(self):
+        from contextlib import nullcontext
+        with patch.object(h, 'heavy_lock', return_value=nullcontext(())), patch.object(h, 'candidate_identity', return_value={'head': 'h'}), \
+                patch.object(h, '_cmd_ab', side_effect=KeyError('boom')):
+            code, err = self.ab('--all', '--platform', 'linux')
+        self.assertEqual(code, 2)
+        self.assertIn('Traceback', err)
+        self.assertIn("KeyError: 'boom'", err)
 
     def test_unknown_base_is_exit_2(self):
         code, err = self.ab('queue-edit', '--platform', 'linux', '--base', 'no-such-ref-anywhere')
@@ -526,6 +1051,623 @@ class InfraErrors(unittest.TestCase):
     def test_unknown_scenario_is_exit_2(self):
         code, _ = self.ab('nonsense', '--platform', 'linux')
         self.assertEqual(code, 2)
+
+
+class DurableEvidence(unittest.TestCase):
+    def test_full_counts(self):
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 124)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 88)
+
+    def test_exact_cells(self):
+        expected = h.expected_cells('queue-edit', False, None, 'linux')
+        h.validate_cells(expected, expected)
+        for wrong in (expected[:-1], expected[:-1] + expected[:1], expected + expected[:1],
+                      [cell[:2] + ['wrong', cell[3]] for cell in expected]):
+            with self.assertRaises(h.InfraError):
+                h.validate_cells(expected, wrong)
+
+    def test_source_identity_tracks_bytes_modes_untracked_and_ignores(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return h.git(*args, cwd=root)
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.invalid')
+            git('config', 'user.name', 'Test')
+            (root / '.gitignore').write_text('ignored\n')
+            (root / 'source').write_text('a')
+            git('add', '.')
+            git('commit', '-qm', 'fixture')
+            first = h.candidate_identity(root)
+            (root / 'ignored').write_text('secret')
+            self.assertEqual(first, h.candidate_identity(root))
+            (root / 'source').write_text('b')
+            self.assertNotEqual(first, h.candidate_identity(root))
+            (root / 'source').write_text('a')
+            (root / 'source').chmod(0o755)
+            self.assertNotEqual(first, h.candidate_identity(root))
+            (root / 'source').chmod(0o644)
+            (root / 'source').unlink()
+            self.assertNotEqual(first, h.candidate_identity(root))
+            (root / 'source').write_text('a')
+            (root / 'new').write_text('new')
+            self.assertNotEqual(first, h.candidate_identity(root))
+            self.assertNotIn('secret', str(h.candidate_identity(root)))
+
+    def test_source_identity_excludes_only_the_progress_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return h.git(*args, cwd=root)
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.invalid')
+            git('config', 'user.name', 'Test')
+            (root / 'docs/project').mkdir(parents=True)
+            (root / 'docs/project/progress.md').write_text('log')
+            (root / 'docs/project/other.md').write_text('log')
+            git('add', '.')
+            git('commit', '-qm', 'fixture')
+            first = h.candidate_identity(root)
+            (root / 'docs/project/progress.md').write_text('log\nrecorded evidence')
+            self.assertEqual(first, h.candidate_identity(root))
+            git('add', 'docs/project/progress.md')
+            self.assertEqual(first, h.candidate_identity(root))
+            (root / 'docs/project/other.md').write_text('changed')
+            self.assertNotEqual(first, h.candidate_identity(root))
+
+    def test_engine_failure_timeout_partial_and_malformed_are_durable(self):
+        import json
+        import subprocess
+        for fault in ('exit', 'timeout', 'timeout-partial', 'interrupt', 'missing', 'malformed', 'partial', 'duplicate', 'wrong', 'missing-log', 'multiple'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                def engine(*args, **kwargs):
+                    if fault != 'missing-log':
+                        (out / 'queue-edit.log').write_text('log')
+                    if fault == 'timeout':
+                        raise subprocess.TimeoutExpired('engine', 1)
+                    if fault == 'interrupt':
+                        raise KeyboardInterrupt()
+                    if fault != 'missing':
+                        folder = out / 'runs' / 'stamp-queue-edit'
+                        folder.mkdir(parents=True)
+                        cells = h.expected_cells('queue-edit', False, None, 'linux')
+                        if fault in ('partial', 'timeout-partial'):
+                            cells = cells[:-1]
+                        if fault == 'duplicate':
+                            cells[-1] = cells[0]
+                        if fault == 'wrong':
+                            cells[0][0] = 'wrong'
+                        rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c),
+                                     metrics={}, violations=[], latencyS=None, passed=True) for c in cells]
+                        (folder / 'report.json').write_text('{' if fault == 'malformed' else json.dumps({'server': 'fixture', 'results': rows}))
+                    if fault == 'timeout-partial':
+                        raise subprocess.TimeoutExpired('engine', 1)
+                    if fault == 'multiple':
+                        second = out / 'runs' / 'second-queue-edit'
+                        second.mkdir()
+                        (second / 'report.json').write_text('{}')
+                    return Mock(returncode=2 if fault == 'exit' else 0)
+                with patch.object(h, 'engine', side_effect=engine):
+                    with self.assertRaises((h.InfraError, KeyboardInterrupt)):
+                        h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, None, False)
+                record = json.loads((out / 'evidence.json').read_text())
+                self.assertNotEqual(record['status'], 'complete')
+                self.assertIn('seconds', record)
+                if fault == 'timeout-partial':
+                    self.assertEqual(record['status'], 'timeout')
+                    self.assertEqual(len(record['observed']), 2)
+
+    def test_complete_report_and_contradictory_exit(self):
+        import json
+        for code, passed, allowed in ((0, True, True), (1, False, True), (1, True, False), (0, False, False)):
+            with self.subTest(code=code, passed=passed), tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                def engine(*args, **kwargs):
+                    (out / 'queue-edit.log').write_text('log')
+                    folder = out / 'runs' / 'stamp-queue-edit'
+                    folder.mkdir(parents=True)
+                    rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={},
+                                 violations=[] if passed else [{'oracle': 'stall'}], latencyS=None, passed=passed)
+                            for c in h.expected_cells('queue-edit', False, None, 'linux')]
+                    (folder / 'report.json').write_text(json.dumps({'server': 'fixture', 'results': rows}))
+                    return Mock(returncode=code)
+                with patch.object(h, 'engine', side_effect=engine):
+                    if allowed:
+                        rows, seconds = h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, None, False)
+                        self.assertEqual(len(rows), 3)
+                    else:
+                        with self.assertRaises(h.InfraError):
+                            h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, None, False)
+
+    def test_cell_verdict_must_agree_with_violations(self):
+        row = dict(case='queue_reorder', quality='opus128', throttle='wan6000', rep=0,
+                   metrics={}, latencyS=None)
+        for passed, violations in ((False, []), (True, [{'oracle': 'stall'}]), (False, [{}])):
+            with self.subTest(passed=passed, violations=violations), self.assertRaises(h.InfraError):
+                h.observed_cells([{**row, 'passed': passed, 'violations': violations}])
+
+    def test_build_exit_and_interruption_records_without_building(self):
+        import json
+        for fault in ('exit', 'interrupt'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                with patch.object(h, 'DATA', root / 'data'), \
+                        patch.object(h, 'bounded_command', return_value=Mock(returncode=7),
+                                     side_effect=KeyboardInterrupt() if fault == 'interrupt' else None):
+                    with self.assertRaises((h.InfraError, KeyboardInterrupt)):
+                        h.build(root, 'android', root / 'artifact', root / 'build.log')
+                record = json.loads((root / 'build.result.json').read_text())
+                self.assertEqual(record['exitCode'], 7 if fault == 'exit' else None)
+                self.assertNotEqual(record['status'], 'complete')
+
+    def test_ab_finalizes_and_verifies_complete_evidence(self):
+        import argparse
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            identity = {'head': 'head', 'sha256': 'a'}
+            args = argparse.Namespace(fn=h.cmd_ab, full=False, reps=None, platform='linux')
+            def complete(args, out, evidence):
+                evidence.update(base='base', flutter='Flutter test')
+                evidence['config'].update(names=['queue-edit'], baseSha='base', flutter='Flutter test')
+                for variant in ('base', 'fix'):
+                    folder = out / variant / 'queue-edit' / 'attempt-1'
+                    folder.mkdir(parents=True)
+                    log, report = folder / 'queue-edit.log', folder / 'report.json'
+                    log.write_text('engine log')
+                    cells = h.expected_cells('queue-edit', False, None, 'linux')
+                    report.write_text(json.dumps({'results': [dict(zip(('case', 'quality', 'throttle', 'rep'), c),
+                                      metrics={}, violations=[], latencyS=None, passed=True) for c in cells]}))
+                    h.write_evidence(folder, {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells,
+                                              'log': str(log), 'report': str(report)})
+                    evidence['variants'][variant + '/queue-edit'] = {'status': 'not-run'}
+                evidence['baseArtifact'] = {'path': str(log), 'sha256': h.sha256(log)}
+                (out / 'comparison.json').write_text(json.dumps({'base': 'base', 'fix': 'head', 'platform': 'linux',
+                                                               'scenarios': {'queue-edit': {}}}))
+                (out / 'summary.md').write_text('# detail\n\nRESULT UNVERIFIED\n')
+                return 0
+            with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
+                    patch.object(h, '_cmd_ab', side_effect=complete), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(h.cmd_ab(args), 0)
+            record = json.loads(next(root.glob('build/harness/*/evidence.json')).read_text())
+            self.assertEqual(record['status'], 'passed')
+            self.assertEqual(len(record['variants']), 2)
+            summary = next(root.glob('build/harness/*/summary.md'))
+            self.assertIn('RESULT PASS', summary.read_text())
+            self.assertNotIn('UNVERIFIED', summary.read_text())
+            self.assertEqual(record['artifacts'][str(summary)], h.sha256(summary))
+            self.assertFalse(list(summary.parent.glob('*.tmp')))
+
+    def test_ab_persists_interruption_and_changed_source(self):
+        import argparse
+        import json
+        for fault in ('interrupt', 'source'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                args = argparse.Namespace(fn=h.cmd_ab)
+                identity = {'head': 'head', 'sha256': 'a'}
+                identities = [identity, {**identity, 'sha256': 'b'}] if fault == 'source' else [identity, identity]
+                with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', side_effect=identities), \
+                        patch.object(h, '_cmd_ab', side_effect=KeyboardInterrupt() if fault == 'interrupt' else None, return_value=0):
+                    with contextlib.redirect_stdout(io.StringIO()), self.assertRaises((KeyboardInterrupt, h.InfraError)):
+                        h.cmd_ab(args)
+                record = json.loads(next(root.glob('build/harness/*/evidence.json')).read_text())
+                self.assertNotEqual(record['status'], 'passed')
+                self.assertEqual(record['exitCode'], 2)
+
+    def test_verify_rejects_stale_incomplete_and_missing_artifacts(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            config = {'names': ['queue-edit'], 'full': False, 'reps': None, 'platform': 'linux',
+                      'baseSha': 'base', 'flutter': 'Flutter test'}
+            cells = h.expected_cells('queue-edit', False, None, 'linux')
+            log, report = out / 'run.log', out / 'report.json'
+            for p in (log, report, out / 'comparison.json', out / 'summary.md'):
+                p.write_text('{}')
+            report.write_text(json.dumps({'results': [dict(zip(('case', 'quality', 'throttle', 'rep'), c),
+                              metrics={}, violations=[], latencyS=None, passed=True) for c in cells]}))
+            (out / 'comparison.json').write_text(json.dumps({'base': 'base', 'fix': 'head', 'platform': 'linux',
+                                                           'scenarios': {'queue-edit': {}}}))
+            record = {'base': 'base', 'flutter': 'Flutter test',
+                      'baseArtifact': {'path': str(log), 'sha256': h.sha256(log)},
+                      'schema': 1, 'status': 'passed', 'exitCode': 0, 'candidate': {'sha256': 'a', 'head': 'head'},
+                      'candidateAfter': {'sha256': 'a', 'head': 'head'}, 'environment': {}, 'config': config,
+                      'variants': {v + '/queue-edit': {'status': 'complete', 'exitCode': 0, 'expected': cells,
+                                   'observed': cells, 'log': str(log), 'report': str(report)} for v in ('base', 'fix')},
+                      'artifacts': {str(p): h.sha256(p) for p in out.iterdir()}}
+            h.write_evidence(out, record)
+            h.verify_evidence(out, record['candidate'], {}, config)
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, {'sha256': 'changed'}, {}, config)
+            for field, value in (('status', 'incomplete'), ('variants', {}), ('variants', []), ('artifacts', {}), ('artifacts', [])):
+                changed = {**record, field: value}
+                h.write_evidence(out, changed)
+                with self.assertRaises(h.InfraError):
+                    h.verify_evidence(out, record['candidate'], {}, config)
+            h.write_evidence(out, record)
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {'changed': True}, config)
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {}, {**config, 'full': True})
+            report.write_text('corrupt')
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {}, config)
+            report.unlink()
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {}, config)
+            (out / 'evidence.json').write_text('{')
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, {}, {}, config)
+
+class RealServer(unittest.TestCase):
+    """--real must reach the live server in every site that assumes the fixture (#200)."""
+
+    def engine_args(self, real, tmp):
+        seen = []
+        credentials = Path(tmp) / 'creds.json'
+        credentials.write_text('{}')
+        credentials.chmod(0o600)
+        with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'bounded_command', side_effect=lambda cmd, **k: seen.append(cmd)):
+            h.engine(['--seed-only'], {}, Path(tmp) / 'out', {}, 10, 'x', real=real)
+        return seen[0], credentials
+
+    def test_engine_args_by_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cmd, credentials = self.engine_args(True, tmp)
+            self.assertEqual(cmd[cmd.index('--server') + 1], 'live')
+            self.assertEqual(cmd[cmd.index('--credentials') + 1], str(credentials))
+            self.assertNotIn('--transcode-speed', cmd)
+            cmd, _ = self.engine_args(False, tmp)
+            self.assertEqual(cmd[cmd.index('--server') + 1], 'fixture')
+            self.assertNotIn('--credentials', cmd)
+            self.assertEqual(cmd[cmd.index('--transcode-speed') + 1], '3')
+
+    def test_credentials_must_exist_with_mode_600(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'creds.json'
+            with patch.object(h, 'CREDENTIALS', path):
+                with self.assertRaises(h.InfraError):
+                    h.real_credentials()
+                path.write_text('{}')
+                path.chmod(0o644)
+                with self.assertRaises(h.InfraError):
+                    h.real_credentials()
+                path.chmod(0o600)
+                self.assertEqual(h.real_credentials(), path)
+
+    def run_with_server(self, server, real):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            def fake_engine(args, env, folder, extra, timeout, label, real=False):
+                (folder / f'{label}.log').write_text('log')
+                run = folder / 'runs' / f'stamp-{label}'
+                run.mkdir(parents=True)
+                rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
+                        for c in h.expected_cells('queue-edit', False, 1, 'linux')]
+                (run / 'report.json').write_text(json.dumps({'server': server, 'results': rows}))
+                return Mock(returncode=0)
+            with patch.object(h, 'engine', side_effect=fake_engine):
+                return h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, 1, real)
+
+    def test_report_server_must_match_the_requested_mode(self):
+        self.run_with_server('fixture', False)
+        self.run_with_server('live', True)
+        for server, real in (('fixture', True), ('live', False), (None, True)):
+            with self.subTest(server=server, real=real), self.assertRaises(h.InfraError):
+                self.run_with_server(server, real)
+
+    def names(self, scenarios=(), all=False, map=False, platform='linux', real=True):
+        import argparse
+        args = argparse.Namespace(scenarios=list(scenarios), all=all, map=map, platform=platform, real=real, base_range='r...HEAD')
+        with contextlib.redirect_stdout(io.StringIO()):
+            return h.select_scenarios(args)
+
+    def test_fixture_only_scenarios_are_rejected_before_building(self):
+        with self.assertRaises(h.InfraError) as caught:
+            self.names(['seek', 'repeat', 'cut-recovery'])
+        for word in ('repeat', 'cut-recovery', '--transcode-speed'):
+            self.assertIn(word, str(caught.exception))
+        self.assertNotIn('seek,', str(caught.exception))
+        self.assertEqual(self.names(['seek', 'local-seek']), ['seek', 'local-seek'])
+        self.assertEqual(self.names(['repeat'], real=False), ['repeat'])
+
+    def test_all_under_real_runs_only_the_allowed_scenarios(self):
+        allowed = [n for n in h.SCENARIOS if n not in h.FIXTURE_ONLY]
+        self.assertEqual(self.names(all=True), allowed)
+        self.assertEqual(self.names(all=True, platform='android'), [n for n in allowed if n in h.ANDROID_SCENARIOS])
+        self.assertEqual(self.names(all=True, real=False), list(h.SCENARIOS))
+        with patch.object(h, 'map_files', return_value=(['repeat', 'cut-recovery'], 'x')), patch.object(h, 'git', return_value=''):
+            with self.assertRaises(h.InfraError):
+                self.names(map=True)
+
+    def test_allowed_scenarios_use_no_fixture_only_engine_option(self):
+        fixture_only = ('--transcode-speed', '--no-transcode-offset', '--fixture-', '--cut-', '--proxy-chunked')
+        for name, spec in h.SCENARIOS.items():
+            if name not in h.FIXTURE_ONLY:
+                self.assertFalse([a for a in spec['args'] if a.startswith(fixture_only)], name)
+        for name in h.FIXTURE_ONLY:
+            self.assertIn(name, h.SCENARIOS)
+
+    def test_android_seed_is_a_live_sync_cached_apart_from_the_fixture_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            credentials = Path(tmp) / 'creds.json'
+            credentials.write_text('{"url": "https://a.example", "username": "u", "password": "SECRET-PW"}')
+            credentials.chmod(0o600)
+            linux = Path(tmp) / 'base-linux'
+            linux.mkdir()
+            data = Path(tmp) / 'data'
+            (data / 'root').mkdir(parents=True)
+            calls = []
+            def fake_engine(args, env, out, extra, timeout, label, real=False):
+                calls.append((args, real))
+                (data / 'root' / 'navis.sqlite').write_text('catalog')
+                return Mock(returncode=0)
+            def fake_activate(folder, platform, seed=None, real=False):
+                calls.append(('activate', real))
+            with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'DATA', data), patch.object(h, 'base_build', return_value=(linux, 'hit')), \
+                    patch.object(h, 'engine', side_effect=fake_engine), patch.object(h, 'activate', side_effect=fake_activate), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                live = h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=True)
+                fixture = h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=False)
+            self.assertNotEqual(live, fixture)
+            self.assertIn('live', live.name)
+            self.assertNotIn('live', fixture.name)
+            self.assertEqual(calls, [('activate', True), (['--seed-only'], True), ('activate', False), (['--seed-only'], False)])
+
+    def test_activate_marks_the_seeded_profile_with_its_server(self):
+        for real, marker in ((True, 'live'), (False, 'fixture')):
+            with tempfile.TemporaryDirectory() as tmp:
+                seed = Path(tmp) / 'seed.sqlite'
+                seed.write_text('catalog')
+                with patch.object(h, 'DATA', Path(tmp) / 'data'):
+                    h.activate(Path(tmp), 'android', seed, real)
+                    self.assertEqual((Path(tmp) / 'data' / 'root' / 'profile-server').read_text(), marker)
+
+    def test_live_seed_key_names_the_server_and_account_but_never_the_password(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            credentials = Path(tmp) / 'creds.json'
+            names = []
+            for url, user in (('https://a.example', 'u'), ('https://b.example', 'u'), ('https://a.example', 'v'), ('https://a.example', 'u')):
+                credentials.write_text(json.dumps({'url': url, 'username': user, 'password': 'SECRET-PW'}))
+                credentials.chmod(0o600)
+                with patch.object(h, 'CREDENTIALS', credentials):
+                    names.append(h.live_seed_name('base-linux'))
+            self.assertEqual(len({names[0], names[1], names[2]}), 3)
+            self.assertEqual(names[0], names[3])
+            self.assertNotIn('SECRET-PW', ''.join(names))
+
+    def run_args(self, platform, real, role='record', existing=False):
+        seen = {}
+        def fake_engine(args, env, folder, extra, timeout, label, real=False):
+            seen.update(args=args, extra=extra, timeout=timeout)
+            raise h.InfraError('stop')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(h, 'engine', side_effect=fake_engine), \
+                patch.object(h, 'PICKS', Path(tmp) / 'picks'):
+            picks = Path(tmp) / 'picks' / ('seek-all.json')
+            if existing:
+                picks.parent.mkdir()
+                picks.write_text('{"partial": []}')
+            with self.assertRaises(h.InfraError):
+                h.run_scenario('seek', platform, Path(tmp), {}, 'emulator-5554' if platform == 'android' else None, Path('a.apk'), False, 1, real, None, role)
+            seen['picks_left'] = picks.exists()
+        return seen
+
+    def test_recorder_attempts_start_fresh_and_replayer_attempts_keep_the_recording(self):
+        recorder = self.run_args('android', True, 'record', existing=True)  # attempt 2 of the recorder: its partial file is discarded
+        self.assertEqual((recorder['extra']['NAVIS_LIVE_SEEK_PICKS_ROLE'], recorder['picks_left']), ('record', False))
+        replayer = self.run_args('android', True, 'replay', existing=True)
+        self.assertEqual((replayer['extra']['NAVIS_LIVE_SEEK_PICKS_ROLE'], replayer['picks_left']), ('replay', True))
+
+    def test_linux_real_keeps_the_profile_and_pairs_the_songs(self):
+        live = self.run_args('linux', True)
+        self.assertIn('--keep-profile', live['args'])
+        self.assertTrue(live['extra']['NAVIS_LIVE_SEEK_PICKS'].endswith('seek-all.json'))
+        self.assertGreaterEqual(live['timeout'], 1800)
+        for platform, real in (('linux', False), ('android', True)):
+            seen = self.run_args(platform, real)
+            self.assertNotIn('--keep-profile', seen['args'])
+        self.assertNotIn('NAVIS_LIVE_SEEK_PICKS', self.run_args('linux', False)['extra'])
+
+    def test_picks_are_keyed_by_scenario_and_repetition(self):
+        seen = {}
+        def fake_engine(args, env, folder, extra, timeout, label, real=False):
+            seen.update(extra)
+            raise h.InfraError('stop')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(h, 'engine', side_effect=fake_engine), patch.object(h, 'PICKS', Path(tmp)):
+            with self.assertRaises(h.InfraError):
+                h.run_scenario('seek', 'linux', Path(tmp) / 'v', {}, None, None, False, 3, True, 2)
+        self.assertEqual(seen['NAVIS_LIVE_SEEK_PICKS'], str(Path(tmp) / 'seek-2.json'))
+
+    def test_real_full_all_evidence_is_iteration_coverage_not_full_platform(self):
+        import json
+        for real in (True, False):
+            with self.subTest(real=real), tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                config = {'names': ['queue-edit'], 'all': True, 'full': True, 'reps': None, 'platform': 'linux', 'real': real,
+                          'baseSha': 'base', 'flutter': 'Flutter test'}
+                cells = h.expected_cells('queue-edit', True, None, 'linux')
+                log, report = out / 'run.log', out / 'report.json'
+                log.write_text('x')
+                report.write_text(json.dumps({'results': [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[],
+                                                                latencyS=None, passed=True) for c in cells]}))
+                (out / 'comparison.json').write_text(json.dumps({'base': 'base', 'fix': 'head', 'platform': 'linux', 'scenarios': {'queue-edit': {}}}))
+                (out / 'summary.md').write_text('x')
+                record = {'base': 'base', 'flutter': 'Flutter test', 'coverage': 'iteration' if real else 'full-platform',
+                          'baseArtifact': {'path': str(log), 'sha256': h.sha256(log)},
+                          'schema': 1, 'status': 'passed', 'exitCode': 0, 'candidate': {'sha256': 'a', 'head': 'head'},
+                          'candidateAfter': {'sha256': 'a', 'head': 'head'}, 'environment': {}, 'config': config,
+                          'variants': {v + '/queue-edit': {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells,
+                                                           'log': str(log), 'report': str(report)} for v in ('base', 'fix')},
+                          'artifacts': {str(p): h.sha256(p) for p in out.iterdir()}}
+                h.write_evidence(out, record)
+                h.verify_evidence(out, record['candidate'], {}, config)
+                if not real:  # fixture evidence still has to be full-platform
+                    record['coverage'] = 'iteration'
+                    h.write_evidence(out, record)
+                    with self.assertRaises(h.InfraError):
+                        h.verify_evidence(out, record['candidate'], {}, config)
+
+    def test_engine_pairs_live_picks_between_base_and_fix(self):
+        class Backend:
+            cell = ('seek_far', 'opus128', 'wan6000', 0)
+            def __init__(self, path, role='record'):
+                self._picks, self._picks_role, self.draws = path, role, 0
+            @engine.paired
+            def fresh_songs(self, n, min_s=100):
+                self.draws += 1
+                return [{'id': f'random-{self.draws}-{k}'} for k in range(n)]
+            @engine.paired
+            def fresh_artist(self, short=False):
+                self.draws += 1
+                return f'artist-{self.draws}', [f'song-{self.draws}']
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            base = Backend(path)
+            first = (base.fresh_songs(2), base.fresh_artist())
+            self.assertEqual(base.fresh_songs(1), [{'id': 'random-3-0'}], 'the recorder keeps recording after its first pick')
+            fix = Backend(path, 'replay')
+            fix.draws = 100  # a fresh process would draw different random songs
+            self.assertEqual((fix.fresh_songs(2), fix.fresh_artist()), first)
+            self.assertEqual(fix.draws, 100, 'replayed picks draw nothing')
+            self.assertEqual(Backend(None).fresh_songs(1), [{'id': 'random-1-0'}])  # no file: plain draw
+
+    def paired_backend(self, path):
+        class Backend:
+            cell = ('seek_far', 'opus128', 'wan6000', 0)
+            def __init__(self, role='record'):
+                self._picks, self._picks_role, self.draws, self.real_calls = path, role, 0, 0
+            @engine.paired
+            def fresh_songs(self, n, min_s=100):
+                self.draws += 1
+                self.real_calls += 1
+                return [{'id': f'song-{self.draws}-{k}'} for k in range(n)]
+            @engine.paired
+            def filler(self, n, exclude=()):
+                self.real_calls += 1
+                return [f'f{k}' for k in range(n)]
+        return Backend
+
+    def test_replay_with_other_args_or_a_skipped_pick_raises_and_keeps_the_recording(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            recorder = Backend()
+            recorder.fresh_songs(1)
+            recorder.filler(3, exclude=('a',))
+            recorder.fresh_songs(2)
+            recorded = path.read_text()
+            replay = Backend('replay')
+            with self.assertRaises(engine.Failure):  # same method, other args
+                replay.fresh_songs(6)
+            skipping = Backend('replay')
+            with self.assertRaises(engine.Failure):  # the first variant skipped its first pick
+                skipping.filler(3, exclude=('a',))
+            late = Backend('replay')
+            late.fresh_songs(1)
+            with self.assertRaises(engine.Failure):  # other exclude
+                late.filler(3, exclude=('b',))
+            self.assertEqual(path.read_text(), recorded, 'a mismatch never rewrites or truncates the recording')
+            ok = Backend('replay')
+            self.assertEqual([ok.fresh_songs(1), ok.filler(3, exclude=('a',)), ok.fresh_songs(2)],
+                             [[{'id': 'song-1-0'}], ['f0', 'f1', 'f2'], [{'id': 'song-2-0'}, {'id': 'song-2-1'}]])
+            self.assertEqual(list(Path(tmp).iterdir()), [path], 'the recording is written atomically: no temporary file is left')
+
+    def test_a_replayer_never_draws_or_writes_past_the_end_of_the_recording(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            Backend().fresh_songs(1)  # the other variant aborted its case after one pick
+            recorded, stamp = path.read_text(), path.stat().st_mtime_ns
+            replayer = Backend('replay')
+            self.assertEqual(replayer.fresh_songs(1), [{'id': 'song-1-0'}])
+            with self.assertRaises(engine.Failure):
+                replayer.fresh_songs(1)
+            self.assertEqual(replayer.real_calls, 0, 'a replayer never calls the real method')
+            self.assertEqual((path.read_text(), path.stat().st_mtime_ns), (recorded, stamp), 'a replayer never writes the file')
+
+
+    def test_a_replayer_without_a_recording_and_a_pick_outside_a_case_raise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Backend = self.paired_backend(Path(tmp) / 'seek-0.json')
+            with self.assertRaises(engine.Failure):
+                Backend('replay').fresh_songs(1)  # the other variant recorded nothing: no silent draw
+            self.assertEqual(Backend('replay').real_calls, 0)
+            self.assertFalse((Path(tmp) / 'seek-0.json').exists())
+            outside = Backend()
+            outside.cell = None  # run_matrix clears the cell after every case
+            with self.assertRaises(engine.Failure):
+                outside.fresh_songs(1)
+
+    def test_a_replay_attempt_after_a_crash_still_replays_the_other_variants_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            Backend('record').fresh_songs(2)
+            recorded = path.read_text()
+            for attempt in (1, 2):  # a fresh process each attempt, same role
+                self.assertEqual(Backend('replay').fresh_songs(2), [{'id': 'song-1-0'}, {'id': 'song-1-1'}])
+            self.assertEqual(path.read_text(), recorded)
+
+    def test_an_aborted_case_does_not_shift_the_next_cases_picks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            recorder = Backend()
+            recorder.cell = ('a', 'q', 't', 0)
+            recorder.fresh_songs(1)
+            recorder.fresh_songs(2)
+            recorder.cell = ('b', 'q', 't', 0)
+            expected = recorder.fresh_songs(3)
+            replayer = Backend('replay')
+            replayer.cell = ('a', 'q', 't', 0)
+            replayer.fresh_songs(1)  # this case aborts before its second pick
+            replayer.cell = ('b', 'q', 't', 0)
+            self.assertEqual(replayer.fresh_songs(3), expected)
+
+    def test_failed_seed_copy_leaves_no_seed_behind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            credentials = Path(tmp) / 'creds.json'
+            credentials.write_text('{"url": "https://a.example", "username": "u", "password": "SECRET-PW"}')
+            credentials.chmod(0o600)
+            linux = Path(tmp) / 'base-linux'
+            linux.mkdir()
+            data = Path(tmp) / 'data'
+            (data / 'root').mkdir(parents=True)
+            (data / 'root' / 'navis.sqlite').write_text('catalog')
+            def dying_copy(source, target):
+                Path(target).write_text('trunc')
+                raise OSError('killed mid-copy')
+            with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'DATA', data), patch.object(h, 'activate'), \
+                    patch.object(h, 'base_build', return_value=(linux, 'hit')), patch.object(h, 'engine', return_value=Mock(returncode=0)), \
+                    patch.object(h.shutil, 'copyfile', side_effect=dying_copy), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(OSError):
+                    h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=True)
+            self.assertEqual(sorted(p.name for p in Path(tmp).glob('base-linux*seed*')), [], 'no seed and no .tmp is left behind')
+            out = io.StringIO()
+            with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'DATA', data), patch.object(h, 'activate'), \
+                    patch.object(h, 'base_build', return_value=(linux, 'hit')), patch.object(h, 'engine', return_value=Mock(returncode=0)), \
+                    contextlib.redirect_stdout(out):
+                self.assertTrue(h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=True).exists())
+            self.assertIn('\nseed: linux base', '\n' + out.getvalue())
+            self.assertNotIn('android seed', out.getvalue())
+
+    def test_android_password_file_is_private_and_removed_after_a_failure(self):
+        modes = []
+        real_open = os.open
+        def spy(path, flags, mode=0o777, **kw):
+            modes.append((Path(path).name, mode))
+            return real_open(path, flags, mode, **kw)
+        with tempfile.TemporaryDirectory() as tmp:
+            app = engine.AndroidApp(Path(tmp), 'emulator-5554')  # no navis.sqlite in ROOT: the seed backup fails after the password is written
+            with patch.object(engine, 'ROOT', Path(tmp) / 'root'), patch.object(engine.subprocess, 'run', return_value=Mock(returncode=0, stdout='', stderr='')), \
+                    patch.object(engine.os, 'open', side_effect=spy):
+                with self.assertRaises(Exception):
+                    app.prepare({'password': 'SECRET-PW'}, 'http://127.0.0.1:1')
+            self.assertIn(('password.tmp', 0o600), modes)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
 
 
 if __name__ == '__main__':

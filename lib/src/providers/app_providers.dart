@@ -10,13 +10,7 @@ import 'package:dio/dio.dart' show BaseOptions;
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/foundation.dart'
-    show
-        TargetPlatform,
-        defaultTargetPlatform,
-        kIsWeb,
-        mapEquals,
-        setEquals,
-        visibleForTesting;
+    show mapEquals, setEquals, visibleForTesting;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/integrations/domain/update_source.dart';
@@ -1406,6 +1400,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       readServerHost: () => ref.mounted ? ref.read(serverHostProvider) : null,
     );
     final handler = await initNavisAudioHandler(
+      readLocalizations: () =>
+          resolveNotificationLocalizations(ref.read(appLocaleProvider)),
       reconcileNetwork: () => ref.read(networkReconciliationProvider)(),
       checkDeviceConnected: () => ref.read(deviceConnectionCheckProvider)(),
       recoveredNetwork: recoveredNetwork.stream,
@@ -3553,17 +3549,13 @@ final updateRepositoryProvider = Provider<UpdateRepository>((ref) {
   );
 });
 
-/// Whether this build can update itself. iOS builds update through TestFlight
-/// or the App Store, so they never contact the update host.
-bool get selfUpdateSupported =>
-    !kIsWeb && defaultTargetPlatform != TargetPlatform.iOS;
-
 /// Checks whether a newer signed Navis release is available.
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   ref.watch(effectiveUpdateSourceProvider);
-  // Before the force flag is consumed: no iOS path may reach the network.
-  if (!selfUpdateSupported) {
+  // Before the force flag is consumed: no non-sideload iOS path may reach the
+  // network.
+  if (!updateUiAvailable) {
     return null;
   }
   final isLoading = ref.watch(

@@ -1,24 +1,47 @@
 import 'dart:io';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Resolves the database file, moving a legacy desktop database before opening.
+/// Android keeps the database in documents (its app-private files directory).
+/// Everywhere else documents is user-visible or may become so: iOS exposes it
+/// in the Files app, and desktop documents are the user's own folder.
+@visibleForTesting
+bool databaseUsesSupportDirectory(String operatingSystem) =>
+    const {'linux', 'windows', 'macos', 'ios'}.contains(operatingSystem);
+
+/// The iOS app container root (the parent of Documents), or null elsewhere.
+/// The container path changes when iOS updates or reinstalls the app.
+Future<String?> iosContainerHome({
+  bool? isIOS,
+  Future<Directory> Function()? readDocuments,
+}) async {
+  if (!(isIOS ?? Platform.isIOS)) return null;
+  return (await (readDocuments ?? getApplicationDocumentsDirectory)())
+      .parent
+      .path;
+}
+
+/// Resolves the database file, moving a legacy documents database to the
+/// application support directory before opening (every platform but Android).
 /// Directory readers use path_provider so diagnostics profile overrides apply.
 Future<File> resolveDatabaseFile({
-  bool? desktop,
+  bool? useSupportDirectory,
   Future<Directory> Function()? readApplicationSupportDirectory,
   Future<Directory> Function()? readApplicationDocumentsDirectory,
   Future<File> Function(File source, String destination)? renameFile,
   Future<File> Function(File source, String destination)? copyFile,
+  Future<void> Function(File file)? deleteFile,
 }) async {
-  final isDesktop =
-      desktop ?? (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+  final inSupport =
+      useSupportDirectory ??
+      databaseUsesSupportDirectory(Platform.operatingSystem);
   final readDocuments =
       readApplicationDocumentsDirectory ?? getApplicationDocumentsDirectory;
-  if (!isDesktop) {
+  if (!inSupport) {
     return File(p.join((await readDocuments()).path, 'navis.sqlite.sqlite'));
   }
   final legacy = File(
@@ -82,8 +105,10 @@ Future<File> resolveDatabaseFile({
         transferred.add(entry);
       }
     }
+    // Sidecars first, the main file last, so a crash in between never leaves
+    // a legacy WAL without its main file.
     for (final entry in copied) {
-      await entry.source.delete();
+      await (deleteFile ?? _delete)(entry.source);
     }
     return target;
   } on Object catch (error) {
@@ -98,12 +123,14 @@ Future<File> resolveDatabaseFile({
       if (await _exists(entry.destination)) await entry.destination.delete();
     }
     AppLogger.warning(
-      'Desktop database migration failed; using legacy location: '
+      'Database migration failed; using legacy location: '
       '${error.runtimeType}',
     );
     return legacy;
   }
 }
+
+Future<void> _delete(File file) => file.delete();
 
 Future<bool> _exists(File file) async =>
     // Keep filesystem probing asynchronous during startup migration.

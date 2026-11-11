@@ -63,9 +63,9 @@ extension _NavisRadio on NavisAudioHandler {
     ({int generation, RadioStationMetadata station, DateTime since})? previous,
   ) {
     final now = DateTime.now();
-    if (identical(previous?.station, station)) return previous!.since;
+    if (_isSameStation(previous?.station, station)) return previous!.since;
     final recovered = _radioRecovered;
-    return identical(recovered?.station, station) &&
+    return _isSameStation(recovered?.station, station) &&
             now.difference(recovered!.recoveredAt) < _timeouts.radioHealthyPlay
         ? now.subtract(recovered.recoveredAt.difference(recovered.since))
         : now;
@@ -78,6 +78,44 @@ extension _NavisRadio on NavisAudioHandler {
       (await reconcileNetwork?.call())?.connected ??
       true;
 
+  /// Reconnects the active station after its connection failed, stalled or
+  /// ended. A repeated failure during one outage keeps its recovery budget.
+  /// [onlyIfIdle] drops a trigger that arrives while a reconnect is running or
+  /// waiting for the network, so an error and an end report one reconnect.
+  void _beginRadioRecovery({required String reason, bool onlyIfIdle = false}) {
+    final station = _radioStation;
+    if (station == null) return;
+    if (onlyIfIdle &&
+        (_radioRecoveryInProgress || _pendingRadioRecovery != null)) {
+      return;
+    }
+    _cancelRemotePlaybackStallWatchdog();
+    _transportTrace.record(
+      'recovery',
+      () => <String, Object?>{'decision': 'radioReconnect', 'reason': reason},
+    );
+    _pendingRadioRecovery = (
+      generation: _transportGeneration,
+      station: station,
+      since: _radioOutageStart(station, _pendingRadioRecovery),
+    );
+    _radioMetadataService.stop();
+    AppLogger.startup(
+      StartupEvent.radioRecovery,
+      outcome: StartupOutcome.offline,
+    );
+    _scheduleNetworkPlaybackRetry();
+    unawaited(_recoverRadioAfterNetworkFailure());
+  }
+
+  /// Now-playing metadata updates replace the station object, so stations
+  /// are compared by identity of the stream, not of the object.
+  bool _isSameStation(RadioStationMetadata? a, RadioStationMetadata? b) =>
+      a != null &&
+      b != null &&
+      a.stationId == b.stationId &&
+      a.streamUrl == b.streamUrl;
+
   Future<void> _recoverRadioAfterNetworkFailure() async {
     final pending = _pendingRadioRecovery;
     if (pending == null || _radioRecoveryInProgress || _disposeHandlerStarted)
@@ -86,7 +124,7 @@ extension _NavisRadio on NavisAudioHandler {
     bool current() =>
         !_disposeHandlerStarted &&
         _isCurrentTransportIntent(pending.generation) &&
-        identical(_radioStation, pending.station);
+        _isSameStation(_radioStation, pending.station);
     try {
       final connected = await _deviceConnected();
       if (!current()) return;
@@ -169,7 +207,7 @@ extension _NavisRadio on NavisAudioHandler {
       if (!_disposeHandlerStarted &&
           latest != null &&
           _isCurrentTransportIntent(latest.generation) &&
-          identical(_radioStation, latest.station)) {
+          _isSameStation(_radioStation, latest.station)) {
         if (DateTime.now().difference(latest.since) >=
             _timeouts.radioRecovery) {
           unawaited(_stopUnavailableRadio());

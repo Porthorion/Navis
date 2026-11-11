@@ -87,6 +87,13 @@ class _PackageUpdateService extends UpdateService {
   }
 }
 
+class _TranslocatedService extends _PackageUpdateService {
+  new() : super(canApply: false);
+
+  @override
+  bool needsMoveToApplications(UpdateInstallMode mode) => true;
+}
+
 Future<void> _openPackageDialog(
   WidgetTester tester,
   _PackageUpdateService service,
@@ -194,6 +201,22 @@ void main() {
       expect(service.applies, 0);
     },
   );
+
+  testWidgets('a translocated macOS app is told to move to Applications', (
+    tester,
+  ) async {
+    await _openPackageDialog(
+      tester,
+      _TranslocatedService(),
+      UpdateInstallMode.macosBundle,
+    );
+    expect(
+      find.text('Move Navis to the Applications folder to update it.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('cannot update itself'), findsNothing);
+    expect(find.text('Download Manually'), findsOneWidget);
+  });
 
   for (final mode in [UpdateInstallMode.linuxDeb, UpdateInstallMode.linuxRpm]) {
     testWidgets('$mode without elevation uses package-manager screen', (
@@ -326,5 +349,41 @@ void main() {
     );
     expect(find.textContaining('apt lock held'), findsNothing);
     expect(find.text('Download Manually'), findsOneWidget);
+  });
+
+  testWidgets('release-page updates offer the page, not an install', (
+    tester,
+  ) async {
+    final service = _PackageUpdateService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: navisLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () => showUpdateDialog(
+                context,
+                const UpdateInfo(
+                  sha256: null,
+                  size: null,
+                  tagName: 'v1.5.2',
+                  htmlUrl: 'https://example.invalid/navis/releases/tag/v1.5.2',
+                  delivery: UpdateDelivery.releasePage,
+                ),
+                updateService: service,
+              ),
+              child: const Text('Open update'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open update'));
+    await tester.pumpAndSettle();
+    expect(find.text('Download'), findsOneWidget);
+    expect(find.text('Install'), findsNothing);
+    expect(service.downloads, 0);
   });
 }

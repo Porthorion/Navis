@@ -14,21 +14,38 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 
-def _wav_bytes(seconds=4) -> bytes:
+def _wav_bytes(seconds=4, rate=22050, hz=440, channels=1, bits=16, amplitude=5000 / 32768) -> bytes:
+    """Four seconds of 440 Hz (1760 whole cycles, so consecutive songs join
+    phase-continuously) at the given sample rate. A song that lasts a whole
+    number of seconds at a whole number of hertz ends on a zero crossing, so a
+    tone of another frequency can follow it without a step. `bits` 32 makes a
+    float WAV (format tag 3, which the wave module cannot write); every channel
+    carries the same tone. `amplitude` is a fraction of full scale."""
+    samples = [amplitude * math.sin(2 * math.pi * hz * index / rate) for index in range(rate * seconds)]
+    if bits == 32:
+        data = b"".join(struct.pack("<f", value) * channels for value in samples)
+        header = (
+            b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVEfmt "
+            + struct.pack("<IHHIIHH", 16, 3, channels, rate, rate * channels * 4, channels * 4, 32)
+            + b"data" + struct.pack("<I", len(data))
+        )
+        return header + data
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
-        wav.setnchannels(1)
+        wav.setnchannels(channels)
         wav.setsampwidth(2)
-        wav.setframerate(22050)
-        frames = bytearray()
-        for index in range(22050 * seconds):
-            sample = int(5000 * math.sin(2 * math.pi * 440 * index / 22050))
-            frames.extend(struct.pack("<h", sample))
-        wav.writeframes(frames)
+        wav.setframerate(rate)
+        wav.writeframes(b"".join(struct.pack("<h", int(value * 32768)) * channels for value in samples))
     return output.getvalue()
 
 
 AUDIO = _wav_bytes()
+# Songs with their own sample rate (--song-rate), by song id.
+SONG_AUDIO = {}
+# Length in seconds of the songs --song-tone made longer (or shorter) than 4 s.
+SONG_SECONDS = {}
+# ReplayGain tags of the songs --song-gain tagged, by song id: (gain dB, peak).
+SONG_GAIN = {}
 def _cover_png(size=48) -> bytes:
     """A visible cover: orange and teal quarters, so screenshots can tell a
     rendered cover from the placeholder."""
@@ -185,6 +202,15 @@ def _configure_downloads_fixture(song_count, distinct_covers=False):
             "title": f"Lifecycle Tone {index}",
             "track": index,
             **({"coverArt": f"fixture-cover-{index}"} if distinct_covers else {}),
+            **({"size": len(SONG_AUDIO[f"fixture-song-{index}"])}
+               if f"fixture-song-{index}" in SONG_AUDIO else {}),
+            **({"duration": SONG_SECONDS[f"fixture-song-{index}"]}
+               if f"fixture-song-{index}" in SONG_SECONDS else {}),
+            **({"replayGain": {"trackGain": SONG_GAIN[f"fixture-song-{index}"][0],
+                               "albumGain": SONG_GAIN[f"fixture-song-{index}"][0],
+                               "trackPeak": SONG_GAIN[f"fixture-song-{index}"][1],
+                               "albumPeak": SONG_GAIN[f"fixture-song-{index}"][1]}}
+               if f"fixture-song-{index}" in SONG_GAIN else {}),
         }
         for index in range(2, song_count + 1)
     }
@@ -519,7 +545,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if endpoint in {"stream", "download"}:
-            self._bytes(AUDIO, "audio/wav")
+            self._bytes(SONG_AUDIO.get(query.get("id", [""])[0], AUDIO), "audio/wav")
             return
         if endpoint == "getCoverArt":
             self._bytes(PNG, "image/png")
@@ -650,6 +676,39 @@ def main():
         help="Songs on the fixture album in downloads mode.",
     )
     parser.add_argument(
+        "--song-rate",
+        action="append",
+        default=[],
+        metavar="SONG_ID=HZ",
+        help="Serve this downloads-mode song as a 4 s tone at another sample rate.",
+    )
+    parser.add_argument(
+        "--song-tone",
+        action="append",
+        default=[],
+        metavar="SONG_ID=HZ[:RATE[:SECONDS[:AMPLITUDE]]]",
+        help="Serve this downloads-mode song as a sine of HZ (sample rate RATE, "
+        "default 22050; length SECONDS, default 4; AMPLITUDE as a fraction of "
+        "full scale, default 5000/32768).",
+    )
+    parser.add_argument(
+        "--song-gain",
+        action="append",
+        default=[],
+        metavar="SONG_ID=GAIN:PEAK",
+        help="Tag this downloads-mode song (id fixture-song-N, N >= 2) with a "
+        "ReplayGain track and album gain in dB and a peak (a sample ratio).",
+    )
+    parser.add_argument(
+        "--song-wav",
+        action="append",
+        default=[],
+        metavar="SONG_ID=CHANNELS:BITS",
+        help="Serve this downloads-mode song as a 4 s, 22.05 kHz, 440 Hz WAV with "
+        "this many channels and BITS 16 (integer) or 32 (float): another source "
+        "format for AVQueuePlayer.",
+    )
+    parser.add_argument(
         "--media-seconds",
         type=float,
         default=0.0,
@@ -664,6 +723,11 @@ def main():
         "--distinct-covers",
         action="store_true",
         help="Give each extra song in downloads mode its own cover id.",
+    )
+    parser.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="Address to listen on (a LAN address exercises local-network access).",
     )
     parser.add_argument("--annotation-log")
     parser.add_argument(
@@ -702,6 +766,24 @@ def main():
         else ""
     )
     MEDIA_SECONDS = max(0.0, args.media_seconds)
+    for entry in args.song_rate:
+        song_id, _, rate = entry.partition("=")
+        SONG_AUDIO[song_id] = _wav_bytes(rate=int(rate))
+    for entry in args.song_tone:
+        song_id, _, spec = entry.partition("=")
+        parts = spec.split(":")
+        hz, rate, seconds = parts[0], (parts[1:2] or ["22050"])[0], (parts[2:3] or ["4"])[0]
+        amplitude = float(parts[3]) if len(parts) > 3 else 5000 / 32768
+        SONG_AUDIO[song_id] = _wav_bytes(seconds=int(seconds), rate=int(rate), hz=int(hz), amplitude=amplitude)
+        SONG_SECONDS[song_id] = int(seconds)
+    for entry in args.song_gain:
+        song_id, _, spec = entry.partition("=")
+        gain, _, peak = spec.partition(":")
+        SONG_GAIN[song_id] = (float(gain), float(peak))
+    for entry in args.song_wav:
+        song_id, _, spec = entry.partition("=")
+        channels, _, bits = spec.partition(":")
+        SONG_AUDIO[song_id] = _wav_bytes(channels=int(channels), bits=int(bits))
     if args.scenario == "downloads":
         _configure_downloads_fixture(
             max(1, args.song_count), distinct_covers=args.distinct_covers
@@ -721,11 +803,13 @@ def main():
         if not PARTIAL_ALBUM_FLAG:
             parser.error("--partial-album-flag is required for partial-album")
         _configure_partial_album_fixture()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server = ThreadingHTTPServer((args.bind, 0), Handler)
     os.makedirs(os.path.dirname(os.path.realpath(args.handshake)), exist_ok=True)
     with open(args.handshake, "w", encoding="utf-8") as output:
         json.dump(
             {
+                # A wildcard bind is reachable, and best addressed, via loopback.
+                "host": "127.0.0.1" if args.bind in ("", "0.0.0.0", "::") else args.bind,
                 "port": server.server_port,
                 "indexesLastModified": INDEX_LAST_MODIFIED,
             },

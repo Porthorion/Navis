@@ -31,11 +31,13 @@
         NSString *playerId = (NSString *)request[@"id"];
         NSDictionary *loadConfiguration = (NSDictionary *)request[@"audioLoadConfiguration"];
         BOOL useLazyPreparation = [((NSNumber *)request[@"useLazyPreparation"]) boolValue];
+        // Navis: optional initial equalizer configuration (iOS only; ignored elsewhere).
+        NSDictionary *equalizerConfiguration = [request[@"equalizerConfiguration"] isKindOfClass:[NSDictionary class]] ? request[@"equalizerConfiguration"] : nil;
         if ([_players objectForKey:playerId] != nil) {
             FlutterError *flutterError = [FlutterError errorWithCode:@"error" message:@"Platform player already exists" details:nil];
             result(flutterError);
         } else {
-            AudioPlayer* player = [[AudioPlayer alloc] initWithRegistrar:_registrar playerId:playerId loadConfiguration:loadConfiguration useLazyPreparation:useLazyPreparation];
+            AudioPlayer* player = [[AudioPlayer alloc] initWithRegistrar:_registrar playerId:playerId loadConfiguration:loadConfiguration useLazyPreparation:useLazyPreparation equalizerConfiguration:equalizerConfiguration];
             [_players setValue:player forKey:playerId];
             result(nil);
         }

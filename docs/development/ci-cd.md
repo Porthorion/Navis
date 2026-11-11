@@ -9,11 +9,13 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
   [setup-java](https://github.com/actions/setup-java) and the runner image's
   preinstalled Android SDK (`sdkmanager` adds platform 37); the job has a
   15-minute deadline and requires no emulator or secrets.
-- `ci`: waits for all three and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
+- `tooling`: the playback harness and validation gate Python suites plus Bash syntax checks (see [Playback tooling](#playback-tooling-and-final-fixture-evidence)).
+- `ios`: on `macos-latest` (free for this public repository), bootstrap then `flutter build ios --simulator --debug` with a 45-minute deadline. It proves the iOS project, its SwiftPM plugins and the vendored Darwin audio code compile. The simulator build is used because it needs no signing or provisioning and is the same build the simulator runtime loop runs; a device or release build (`--release --no-codesign`) adds only the device slice and ahead-of-time compile, which only a local release build exercises today. The job also runs what needs a Mac, which no Ubuntu job can: the pitch-stage C test (`NAVIS_NATIVE_C_ONLY=1 ./tool/equalizer_native_test.sh`), `flutter test test/src/features/settings/data/macos_update_test.dart` (its "running new app without a marker" test is skipped off macOS; targeted file only, because the full suite has macOS-local failures and golden diffs), `./tool/libmpv_fetch_macos_test.sh`, and `xcodebuild test` for the `Runner` scheme (the `macos/RunnerTests` XCTests: dock menu, controls menu, last-window close/quit). The Runner is the XCTest host, so the step first runs `flutter build macos --debug --config-only` (Flutter ephemeral files and `pod install`; CocoaPods ships on the runner image) and builds ad-hoc signed (`CODE_SIGN_IDENTITY=-`, no team or secrets). To run it locally: `flutter build macos --debug --config-only`, then the same `xcodebuild test` command as the workflow (see `.github/workflows/ci.yml`). It uses no secrets.
+- `ci`: waits for all five and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
 `tool/check.sh` and the CI `test` job set `NAVIS_REQUIRE_SQLITE=1`: a missing native SQLite then fails the database suites (`sqliteAvailable` in `test/helpers/test_database.dart` throws) instead of skipping them.
 
-The `static`, `test` and `native` jobs cache `.dart_tool/hooks_runner/shared/sqlite3/build`, (one entry per job, keyed on `pubspec.lock`). With a warm cache the `sqlite3` package's build hook reuses its prebuilt library after checking its hash, so a GitHub release-download outage does not fail the job; a cold cache (new key) still downloads.
+The `static`, `test`, `native` and `ios` jobs cache `.dart_tool/hooks_runner/shared/sqlite3/build`, (one entry per job, keyed on `pubspec.lock`). With a warm cache the `sqlite3` package's build hook reuses its prebuilt library after checking its hash, so a GitHub release-download outage does not fail the job; a cold cache (new key) still downloads.
 
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:
@@ -33,11 +35,15 @@ app-support state such as the What's New marker under `<root>/support/`, where
 desktop clone builds keep it (see `docs/development/development-workflow.md`).
 
 Diagnostics database defaults are shared through `tool/diagnostics_profile.py`:
-Linux application support first, the Documents file only as an existing legacy
-fallback, with `NAVIS_DIAGNOSTICS_PRIMARY_DB` retaining clone overrides.
+application support first (Linux `~/.local/share/com.navis.app.navis/`, macOS
+`~/Library/Application Support/com.navis.app.navis/`), the Documents file only
+as an existing legacy fallback, with `NAVIS_DIAGNOSTICS_PRIMARY_DB` retaining clone overrides.
 Run `python3 -m unittest tool/dev_sync_scenario_test.py tool/diagnostics_profile_test.py`
 for path selection, shell-launcher defaults and scenario preparation without
 launching the app. Primary certification keeps its normal-path restriction.
+`tool/auth_lifecycle_fixture_server.py` writes `host` (the `--bind` address, or
+`127.0.0.1` for a wildcard bind) beside `port` in its handshake; the launchers
+that sign a clone in to the fixture use it, defaulting to `127.0.0.1`.
 
 Artist queue changes additionally verify early playback and background queue
 growth without a modal using `python3 tool/artist_playback_diagnostics.py`.
@@ -107,8 +113,9 @@ Checks performed (in order, fail-fast):
 1. `/tmp` disk-space preflight
 2. Flutter test-log guard fixtures (`tool/check_test_log_test.sh`) and Linux
    desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
-3. Native equalizer response/PCM and progressive HTTP retry/repeat fixtures
-   (`tool/equalizer_native_test.sh`), Android repeat runner contract
+3. Native equalizer response/PCM (Android JVM and the Darwin C DSP, which needs
+   a C compiler and is skipped with a message without one) and progressive HTTP
+   retry/repeat fixtures (`tool/equalizer_native_test.sh`), Android repeat runner contract
    (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
    (`tool/android_repeat_native_test.sh`; it runs every app JVM unit suite, not
    only the repeat ones), the sync scenario, sync action attribution and libmpv
@@ -592,6 +599,7 @@ Builds selected release artifacts, tags the commit, and publishes the assets plu
 ./tool/release.sh v0.2.0 --targets=linux --linux-package=deb
 ./tool/release.sh v0.2.0 --targets=windows --windows-package=exe
 ./tool/release.sh v0.2.0 --targets=macos --macos-notarize
+./tool/release.sh v0.2.0 --targets=ios --build-only --ios-upload
 ./tool/release.sh v0.2.0 --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
 ./tool/release.sh v0.2.0 --allow-existing-version
 ```
@@ -647,6 +655,13 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    `force-version-code-ignoring-abi=true` in `android/gradle.properties` skips
    Flutter's ABI version-code offsets, so all four APKs share the release build
    number and can update over one another. See [release-r2.md](../release/release-r2.md).
+   `ios` builds a signed App Store IPA into `build/ios/ipa/` (never a release
+   asset); `--ios-upload` uploads it with `altool`, after a preflight of `ASC_KEY_ID`,
+   `ASC_ISSUER_ID` and the key file. A stable run first builds an unsigned
+   sideload IPA with `NAVIS_IOS_SIDELOAD=true` and attaches it as
+   `<prefix>-<tag>-ios-sideload.ipa`; an iOS-only dev run needs `--build-only`
+   ([release-ios.md](../release/release-ios.md)). `tool/ios_release_test.sh`
+   covers this with stubbed tools.
    Linux x86_64 builds use the Ubuntu 22.04 container, preserving glibc 2.35
    compatibility, release AOT with split debug info and separate LGPL libmpv.
    Select `--linux-package=bundle|deb|rpm|all`; `all` packages one bundle three ways.
@@ -672,7 +687,7 @@ publication isolation, source/checksum guards and exact dist-file uploads.
 8. Publishes to R2 with `tool/r2_publish.sh publish`: uploads each updater asset to
    `navis/releases/<tag>/`, writes `SHA256SUMS`, signs and uploads the channel manifest
    last, then verifies it against the pinned key and the uploaded files. Assets with no
-   updater install mode (such as the `.ipa`) are skipped.
+   updater install mode are skipped.
 9. With `--forgejo` only, creates a Forgejo release (`prerelease=true` for the dev
    channel or when `--prerelease` is passed) and uploads the same assets to it.
    Both calls load Authorization from a mode-600 header file in the private
@@ -1066,9 +1081,19 @@ its bounded wait; network-free seek classification also verifies the final file.
 Seek-oracle self-checks cover raw and offset native clock blips, persistent
 rewinds, slow returns and queue/source identity changes.
 Repeat-driver checks reject clock blips before real wraps and still reject
-missing or duplicate loops.
+missing or duplicate loops. `repeat_one_fill` waits for the backend's song
+duration (never seeks from 0), uses disjoint per-duration wrap windows and ends
+its observation before a second loop; fixtures cover a zero duration at start, a
+true 5 s loop and the 300 s case.
 
-Android cut-splice self-checks reject a missing/zero base reload count, use
+Emulator-boot self-checks (fake adb and clock) cover an adb that stays
+`unauthorized`/`offline` (reconnect at 40 s, `InfraError` at 90 s from the first
+bad poll even if the state flaps (10 s of a steady `device` state ends the episode), a failed serial-scoped reconnect is an
+`InfraError`), and the one boot retry on a fresh guest. Pairing
+self-checks cover the interleaved base/fix schedule and that its merged evidence
+still verifies. None of these starts an emulator or a runtime matrix.
+
+Android cut-splice self-checks reject a missing/zero base `cutsObserved` count (a splicing base has zero reloads), use
 only cut cells for the frozen median, and reject decoded files whose length
 differs by more than 20 ms even when RMS over their common prefix is zero.
 `cut5` is included only in Android's full case list. These unit checks do not
@@ -1078,3 +1103,39 @@ Memory-soak self-checks cover swap-out with a flat `Pss + SwapPss` total,
 identical negative slopes, real growth and missing kernel fields in either
 variant, including a single incomplete repetition. The harness gates the total
 from `smaps_rollup`; resident PSS is informational and Dart heap stays gated.
+
+## Playback tooling and final fixture evidence
+
+Local `./tool/check.sh` retains every captured step log in a unique
+`build/check/run-*` directory and propagates both command and tee failures.
+It now includes `python3 tool/playback_harness_test.py` and
+`python3 tool/validation_gate_test.py` (Linux only: it needs pidfd and
+child-subreaper support, so other hosts skip it with a message); existing
+checks remain required.
+CI's focused `tooling` job runs these two Python suites (NumPy for PCM oracle
+self-checks) plus Bash syntax checks. The aggregate `ci` job requires it. This
+adds no duplicate Flutter suite and starts no runtime matrix, build or emulator.
+
+Before: run check.sh, Linux `ab --all --full`, then Android `ab --all --full`
+separately. After: `python3 tool/playback_harness.py gate --base github/release/1.5`.
+See the [exact commands, deadlines, locks and handoff protocol](development-workflow.md#final-fixture-gate-and-ownership).
+The gate retains all 424 A/B fixture cells, per-step logs and machine/human
+summaries. Missing platforms, incomplete evidence, changed candidates, capture
+failures and timeouts never pass. Explicit reuse requires exact source/base,
+Flutter/configuration/environment, full-platform cells and intact artifacts;
+no automatic reuse or substitute run is inferred.
+
+Exit 0 establishes only the quality gate and the complete Linux/Android fixture
+matrices. The [coverage map](playback-validation-coverage.md) keeps standalone
+diagnostics, native service tests, OS controls, live-server and applicable
+physical/manual acceptance outstanding. Independent reviewers assess those
+artifacts and gaps; fixture evidence cannot certify whole playback acceptance.
+Task C owns actual heavy execution and runtime acceptance for this workflow.
+
+Bounded-command cleanup uses Linux child-subreapers and pidfds, retaining inherited
+locks through descendant reaping. Focused real subprocess tests in
+`tool/validation_gate_test.py ProcessCleanup` cover nested separate sessions,
+TERM-resistant descendants, an already-exited parent, timeout and cancellation,
+original error retention, lock retention and an unrelated surviving control.
+These small tests do not establish app/emulator cleanup or platform acceptance.
+See the [workflow cleanup contract and limitations](development-workflow.md#final-fixture-gate-and-ownership).

@@ -81,6 +81,49 @@ void main() {
     expect(AdjustmentRange.inward(0.12345, 3.4567).maximum, 3.45);
     expect(const PlaybackAdjustmentCapabilities().supports(linked), isFalse);
   });
+  test('iOS pitch limits are the AUNewTimePitch range of +-2400 cents', () {
+    const ios = PlaybackAdjustmentCapabilities.ios;
+    expect(ios.pitchSupported, isTrue);
+    expect(ios.minimumSpeed, isNull);
+    expect(ios.maximumSpeed, isNull);
+    expect(ios.supports(const PlaybackAdjustments(pitchSemitones: 12)), isTrue);
+    expect(ios.supports(const PlaybackAdjustments(pitchSemitones: 24)), isTrue);
+    expect(
+      ios.supports(const PlaybackAdjustments(pitchSemitones: -24)),
+      isTrue,
+    );
+    expect(
+      ios.supports(const PlaybackAdjustments(pitchSemitones: 25)),
+      isFalse,
+    );
+    expect(
+      ios.supports(const PlaybackAdjustments(pitchSemitones: -25)),
+      isFalse,
+    );
+    // Locked, the pitch factor is the speed.
+    expect(
+      ios.supports(
+        const PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true),
+      ),
+      isTrue,
+    );
+    expect(
+      ios.supports(const PlaybackAdjustments(speed: 4, lockPitchToSpeed: true)),
+      isTrue,
+    );
+    expect(
+      ios.supports(const PlaybackAdjustments(speed: 5, lockPitchToSpeed: true)),
+      isFalse,
+    );
+    expect(
+      ios.supports(
+        const PlaybackAdjustments(speed: 0.2, lockPitchToSpeed: true),
+      ),
+      isFalse,
+    );
+    expect(ios.pitchRange(const PlaybackAdjustments()).minimum, -24);
+    expect(ios.pitchRange(const PlaybackAdjustments()).maximum, 24);
+  });
   test('percent and semitone conversion preserve independent values', () {
     const values = PlaybackAdjustments(speed: 1.2537, pitchSemitones: 12);
     expect(values.speedPercent, closeTo(25.37, 0.000001));

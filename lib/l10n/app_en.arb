@@ -1234,6 +1234,7 @@
   "nowPlayingPlay": "Play",
   "nowPlayingPause": "Pause",
   "nowPlayingNext": "Next",
+  "macosMenuControls": "Controls",
   "nowPlayingNoNextTrack": "No next track",
   "nowPlayingRepeatOff": "Repeat Off",
   "nowPlayingRepeatAll": "Repeat All",
@@ -1680,6 +1681,8 @@
   "downloadsCustomFolderTitle": "Custom Folder",
   "downloadsCustomFolderSubtitle": "Store permanent downloads in a folder you choose. Navis moves its downloads there into artist folders; files already in the folder keep their names.",
   "downloadsCustomFolderUnsupported": "Custom download folders are not available on this platform.",
+  "downloadsFilesAppTitle": "Downloads in Files",
+  "downloadsFilesAppSubtitle": "Downloads appear in the Files app under On My iPhone › Navis.",
   "downloadsCustomFolderChooseAction": "Choose Folder",
   "downloadsCustomFolderSaved": "Download folder updated.",
   "downloadsCustomFolderDisabled": "Custom download folder disabled.",
@@ -2285,6 +2288,7 @@
     "description": "Shown in the update dialog while the Linux package manager (apt or dnf) installs a downloaded deb/rpm update, including while the system authentication prompt is open."
   },
   "updateNoWriteAccess": "Navis cannot update itself from this location. Please download manually.",
+  "updateMoveToApplications": "Move Navis to the Applications folder to update it.",
   "updateUsePackageManager": "Navis was installed by your system's package manager. Update it from there, for example with your software updater or AUR helper.",
   "updateSignatureMismatch": "This update is signed with a different key than your installed version. Uninstall Navis, then install the new version manually.",
   "updateDownloadManually": "Download Manually",
@@ -3098,6 +3102,14 @@
   "notificationLibraryScanStageIdle": "Waiting to scan",
   "@notificationLibraryScanStageIdle": {
     "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationPlaybackChannelName": "Playback",
+  "@notificationPlaybackChannelName": {
+    "description": "System notification: name of the Android channel for the media playback notification."
+  },
+  "notificationPlaybackChannelDescription": "Media playback controls and status",
+  "@notificationPlaybackChannelDescription": {
+    "description": "System notification: description of the playback channel in system settings."
   },
   "notificationDownloadsChannelName": "Downloads",
   "@notificationDownloadsChannelName": {

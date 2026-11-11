@@ -1,7 +1,6 @@
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
+import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
@@ -24,6 +23,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
   const new({this.focusReplayGain = false, super.key});
@@ -174,6 +174,7 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int?>(
+                    isExpanded: true,
                     initialValue: _wifiBitRate,
                     decoration: InputDecoration(
                       labelText: l10n.playbackSettingsWifiQualityLabel,
@@ -192,6 +193,7 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
+                    isExpanded: true,
                     initialValue: _wifiFormat,
                     decoration: InputDecoration(
                       labelText: l10n.playbackSettingsWifiFormatLabel,
@@ -215,6 +217,7 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int?>(
+                    isExpanded: true,
                     initialValue: _cellularBitRate,
                     decoration: InputDecoration(
                       labelText: l10n.playbackSettingsCellularQualityLabel,
@@ -233,6 +236,7 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
+                    isExpanded: true,
                     initialValue: _cellularFormat,
                     decoration: InputDecoration(
                       labelText: l10n.playbackSettingsCellularFormatLabel,
@@ -294,9 +298,7 @@ class _PlaybackSettingsScreenState
                         subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
                       ),
                     ),
-                  if (!kIsWeb &&
-                      (defaultTargetPlatform == TargetPlatform.linux ||
-                          defaultTargetPlatform == TargetPlatform.windows))
+                  if (navisFastSeekSupported())
                     NavisSwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       value: _fastSeekingEnabled,
@@ -360,6 +362,7 @@ class _PlaybackSettingsScreenState
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
+                              isExpanded: true,
                               initialValue: _crossfadeType,
                               decoration: InputDecoration(
                                 labelText:
@@ -434,6 +437,7 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _replayGainMode,
                     decoration: InputDecoration(
                       labelText: l10n.playbackSettingsReplayGainModeLabel,
@@ -550,12 +554,17 @@ class _PlaybackSettingsScreenState
                           ),
                         ),
                       if (_isAutoSaving) const SizedBox(width: 8),
-                      Text(
-                        _isAutoSaving
-                            ? 'Saving changes...'
-                            : 'Changes save automatically',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      Flexible(
+                        child: Text(
+                          _isAutoSaving
+                              ? 'Saving changes...'
+                              : 'Changes save automatically',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
                         ),
                       ),
                     ],
@@ -621,7 +630,7 @@ class _PlaybackSettingsScreenState
                   ),
                   AnimatedRotation(
                     turns: _experimentalExpanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 220),
+                    duration: MotionPolicy.of(context).surface,
                     curve: Curves.easeOutCubic,
                     child: const Icon(Icons.keyboard_arrow_down_rounded),
                   ),
@@ -633,11 +642,11 @@ class _PlaybackSettingsScreenState
             child: AnimatedAlign(
               alignment: Alignment.topCenter,
               heightFactor: _experimentalExpanded ? 1 : 0,
-              duration: const Duration(milliseconds: 220),
+              duration: MotionPolicy.of(context).surface,
               curve: Curves.easeOutCubic,
               child: AnimatedOpacity(
                 opacity: _experimentalExpanded ? 1 : 0,
-                duration: const Duration(milliseconds: 160),
+                duration: MotionPolicy.of(context).surface,
                 curve: Curves.easeOutCubic,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),

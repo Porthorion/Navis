@@ -13,7 +13,8 @@
 #   --build-only              Stage validated assets locally; never tag or publish
 #   --publish-from=<dist/tag>  Publish a verified staged bundle without building
 #   --skip-checks              Skip ./tool/check.sh
-#   --ipa                      Shortcut for --targets=android,ios
+#   --ipa                      Shortcut for --targets=android,ios (a stable run also
+#                              attaches the unsigned sideload IPA as a release asset)
 #   --targets=<csv>            Build targets: android,ios,macos,linux,windows
 #   --all-platforms            Same as --targets=android,ios,macos,linux,windows
 #   --linux-package=<mode>     Linux output: bundle (default), deb, rpm or all
@@ -23,6 +24,10 @@
 #   --linux-remote-dir=<path>  Remote Linux work dir relative to remote HOME
 #   --windows-remote-dir=<path> Remote Windows work dir relative to remote HOME
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
+#   --ios-upload               Upload the built IPA to App Store Connect (TestFlight).
+#                              Needs ios in --targets, the stable channel, ASC_KEY_ID,
+#                              ASC_ISSUER_ID and the API key file; works with --build-only. See
+#                              docs/release/release-ios.md
 #   --channel=<stable|dev>     Release/update channel (default: stable)
 #   --prerelease               Force prerelease=true in release metadata
 #   --forgejo                  Also publish a Forgejo release (only for the 1.5.0 bridge)
@@ -35,6 +40,7 @@
 #   ./tool/release.sh v0.3.0 --channel=dev
 #   ./tool/release.sh v0.3.0 --targets=android,macos --channel=stable
 #   ./tool/release.sh v0.3.0 --ipa
+#   ./tool/release.sh v0.3.0 --targets=ios --build-only --ios-upload
 #   ./tool/release.sh v0.3.0 --targets=windows --windows-package=exe
 #   ./tool/release.sh v0.3.0 --targets=macos --macos-notarize
 #
@@ -44,6 +50,11 @@
 #   - Release assets are channel-prefixed:
 #       stable: navis-<tag>.*
 #       dev:    navis-dev-<tag>.*
+#   - iOS builds two IPAs. The signed App Store IPA stays in build/ios/ipa and is never
+#     published; its CFBundleVersion comes from tool/dev_build_number.py (monotonic per
+#     host), so each upload of one version is accepted. A stable run also builds an
+#     unsigned sideload IPA (<prefix>-<tag>-ios-sideload.ipa, built with
+#     NAVIS_IOS_SIDELOAD=true) for AltStore/SideStore, and that one is a release asset.
 
 set -euo pipefail
 
@@ -74,6 +85,7 @@ LINUX_REMOTE_DIR=""
 WINDOWS_REMOTE_DIR=""
 WINDOWS_FLUTTER_DIR=""
 MACOS_NOTARIZE=false
+IOS_UPLOAD=false
 UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
 ALLOW_EXISTING_VERSION=false
@@ -88,7 +100,7 @@ BUILD_OPTIONS_SET=false
 
 for arg in "$@"; do
   case "${arg}" in
-    --ipa|--targets=*|--all-platforms|--linux-*|--windows-*|--macos-notarize) BUILD_OPTIONS_SET=true ;;
+    --ipa|--targets=*|--all-platforms|--linux-*|--windows-*|--macos-notarize|--ios-upload) BUILD_OPTIONS_SET=true ;;
   esac
   case "${arg}" in
     --build-only) BUILD_ONLY=true ;;
@@ -104,6 +116,7 @@ for arg in "$@"; do
     --linux-remote-dir=*) LINUX_REMOTE_DIR="${arg#--linux-remote-dir=}" ;;
     --windows-remote-dir=*) WINDOWS_REMOTE_DIR="${arg#--windows-remote-dir=}" ;;
     --macos-notarize) MACOS_NOTARIZE=true ;;
+    --ios-upload) IOS_UPLOAD=true ;;
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}"; CHANNEL_EXPLICIT=true ;;
     --prerelease) FORCE_PRERELEASE=true ;;
     --allow-existing-version) ALLOW_EXISTING_VERSION=true ;;
@@ -113,14 +126,14 @@ for arg in "$@"; do
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
+      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--ios-upload] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
       exit 1
       ;;
   esac
 done
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
+  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--ios-upload] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
@@ -210,6 +223,25 @@ if [[ "${PUBLISH_FROM_SET}" == false && "${BUILD_ANDROID}" == "false" && "${BUIL
   exit 1
 fi
 
+if [[ "${IOS_UPLOAD}" == "true" && "${BUILD_IOS}" != "true" ]]; then
+  echo "Error: --ios-upload needs ios among the --targets (for example --targets=ios)." >&2
+  exit 1
+fi
+
+# A dev tag's build name (1.5.0-dev.N) is not a valid CFBundleShortVersionString.
+if [[ "${IOS_UPLOAD}" == "true" && "${UPDATE_CHANNEL}" != "stable" ]]; then
+  echo "Error: --ios-upload is stable-only; App Store builds need a plain version." >&2
+  exit 1
+fi
+
+# An iOS-only dev run has no release assets (the sideload IPA is stable-only), and
+# an iOS-only upload is a TestFlight iteration that builds none, so only a local
+# build can run either.
+if [[ "${BUILD_IOS}" == "true" && ( "${UPDATE_CHANNEL}" != "stable" || "${IOS_UPLOAD}" == "true" ) && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" && "${BUILD_ONLY}" == "false" && "${PUBLISH_FROM_SET}" == "false" ]]; then
+  echo "Error: this iOS-only run has nothing to publish (dev builds and --ios-upload runs are not published); use --build-only or add another target." >&2
+  exit 1
+fi
+
 # ─── Env file ───────────────────────────────────────────────────────────────
 # Publication always requires the release key, even if local dev builds opt in
 # to debug signing. Fail before loading secrets or running the quality gates.
@@ -248,10 +280,28 @@ if [[ "${BUILD_ANDROID}" == "true" && -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   exit 1
 fi
 
+# App Store Connect API key for --ios-upload: validated before any build, and
+# the messages name variables and never print values.
+IOS_KEY_FILE=""
+if [[ "${IOS_UPLOAD}" == "true" ]]; then
+  [[ -n "${ASC_KEY_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_KEY_ID (tool/release.env or the environment)." >&2; exit 1; }
+  [[ -n "${ASC_ISSUER_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_ISSUER_ID (tool/release.env or the environment)." >&2; exit 1; }
+  if [[ -n "${ASC_KEY_PATH:-}" ]]; then
+    [[ -f "${ASC_KEY_PATH}" && -r "${ASC_KEY_PATH}" ]] || { echo "Error: ASC_KEY_PATH does not point to a readable file." >&2; exit 1; }
+    # The script changes to the repo root before altool runs, so make it absolute now.
+    IOS_KEY_FILE="$(cd "$(dirname "${ASC_KEY_PATH}")" && pwd)/$(basename "${ASC_KEY_PATH}")"
+  else
+    IOS_KEY_FILE="${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+    [[ -f "${IOS_KEY_FILE}" && -r "${IOS_KEY_FILE}" ]] || { echo 'Error: API key file ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8 not found (or set ASC_KEY_PATH).' >&2; exit 1; }
+  fi
+fi
+
 # ─── Validate tools ─────────────────────────────────────────────────────────
 REQUIRED_TOOLS=(jq git sha256sum)
 if [[ "${PUBLISH_FROM_SET}" == false ]]; then REQUIRED_TOOLS+=(flutter openssl); fi
 if [[ "${BUILD_ONLY}" == false ]]; then REQUIRED_TOOLS+=(curl openssl); fi
+if [[ "${BUILD_IOS}" == "true" ]]; then REQUIRED_TOOLS+=(python3 zip); fi
+if [[ "${IOS_UPLOAD}" == "true" ]]; then REQUIRED_TOOLS+=(xcrun); fi
 
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! command -v "${tool}" &>/dev/null; then
@@ -696,26 +746,83 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   done
 fi
 
-if [[ "${BUILD_IOS}" == "true" ]]; then
-  echo "==> Building iOS IPA (ad-hoc)..."
-  set_symbol_args ios
-  flutter build ipa --release --export-method ad-hoc "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
+# Unsigned IPA for AltStore/SideStore users, who sign it themselves. Built first
+# and zipped out of build/ios/iphoneos at once, so the App Store build below can
+# never pick up (or be mistaken for) its output. Only this build carries
+# NAVIS_IOS_SIDELOAD, which turns on its update notice; Flutter keeps a separate
+# build cache per set of dart-defines. Stable only: its update notice links to a
+# GitHub release, and GitHub publication is stable-only. Skipped for an iOS-only
+# upload, which is a TestFlight iteration: staging its IPA would make every
+# repeat run stop at the existing dist/<tag> guard.
+IOS_TESTFLIGHT_ONLY=false
+if [[ "${IOS_UPLOAD}" == "true" && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" ]]; then
+  IOS_TESTFLIGHT_ONLY=true
+fi
+if [[ "${BUILD_IOS}" == "true" && "${UPDATE_CHANNEL}" == "stable" && "${IOS_TESTFLIGHT_ONLY}" == "false" ]]; then
+  echo "==> Building the unsigned iOS sideload IPA..."
+  set_symbol_args ios-sideload
+  SIDELOAD_APP="$(pwd)/build/ios/iphoneos/Runner.app"
+  # A stale app from an earlier build must never be packaged.
+  rm -rf "$(pwd)/build/ios/iphoneos"
+  PATH="/usr/bin:${PATH}" flutter build ios --release --no-codesign \
+    "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" --dart-define=NAVIS_IOS_SIDELOAD=true
+  if [[ ! -d "${SIDELOAD_APP}" ]]; then
+    echo "Error: Runner.app not found at ${SIDELOAD_APP}"
+    exit 1
+  fi
+  # No signature, but Info.plist must still carry the release version and build.
+  python3 -I -c 'import plistlib, sys
+info = plistlib.load(open(sys.argv[1], "rb"))
+sys.exit(0 if info.get("CFBundleShortVersionString") == sys.argv[2] and str(info.get("CFBundleVersion")) == sys.argv[3] else 1)' \
+    "${SIDELOAD_APP}/Info.plist" "${SEMVER}" "${BUILD_NUMBER}" || {
+    echo "Error: the sideload app's Info.plist does not carry ${SEMVER} (${BUILD_NUMBER})."
+    exit 1
+  }
+  SIDELOAD_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-ios-sideload.ipa"
+  SIDELOAD_ASSET="${SCRIPT_DIR}/../${SIDELOAD_ASSET_NAME}"
+  remove_release_asset "${SIDELOAD_ASSET}"
+  SIDELOAD_STAGE="$(mktemp -d "$(pwd)/build/ios/sideload.XXXXXX")"
+  mkdir "${SIDELOAD_STAGE}/Payload"
+  cp -R "${SIDELOAD_APP}" "${SIDELOAD_STAGE}/Payload/Runner.app"
+  if ! (cd "${SIDELOAD_STAGE}" && zip -qry "${SIDELOAD_ASSET}" Payload); then
+    rm -rf "${SIDELOAD_STAGE}"
+    remove_release_asset "${SIDELOAD_ASSET}"
+    echo "Error: could not zip the sideload IPA."
+    exit 1
+  fi
+  rm -rf "${SIDELOAD_STAGE}"
+  scan_release_artifact "${SIDELOAD_ASSET}"
+  ASSET_FILES+=("${SIDELOAD_ASSET}")
+  ASSET_NAMES+=("${SIDELOAD_ASSET_NAME}")
+  echo "    iOS sideload -> ${SIDELOAD_ASSET_NAME}"
+fi
 
-  IPA_DIR="${SCRIPT_DIR}/../build/ios/ipa"
+if [[ "${BUILD_IOS}" == "true" ]]; then
+  echo "==> Building iOS IPA (App Store Connect export)..."
+  # TestFlight/App Store only: ad-hoc IPAs install on registered devices only.
+  # The IPA stays in build/ios/ipa; it is not a release asset. It never gets the
+  # sideload define: DART_DEFINE_ARGS does not hold it.
+  set_symbol_args ios
+
+  IPA_DIR="$(pwd)/build/ios/ipa"
+  # A stale IPA from an older build must never be picked up or uploaded.
+  rm -rf "${IPA_DIR}"
+  # TestFlight needs a CFBundleVersion above every earlier upload of this
+  # version, and the pubspec number never changes within one. Reuse the
+  # monotonic dev allocator (also used for Android dev versionCodes).
+  IOS_BUILD_NUMBER="$(python3 "${SCRIPT_DIR}/dev_build_number.py")"
+  # Xcode's IPA export shells out to rsync and fails ("Copy failed") with a
+  # newer rsync (MacPorts/Homebrew 3.x) ahead of /usr/bin on PATH.
+  PATH="/usr/bin:${PATH}" flutter build ipa --release --export-options-plist=ios/ExportOptions.plist \
+    "--build-number=${IOS_BUILD_NUMBER}" "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
+
   FOUND_IPA="$(find "${IPA_DIR}" -maxdepth 2 -name "*.ipa" | head -1)"
   if [[ -z "${FOUND_IPA}" ]]; then
     echo "Error: IPA not found under ${IPA_DIR}"
     exit 1
   fi
-
-  IPA_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.ipa"
-  IPA_ASSET="${SCRIPT_DIR}/../${IPA_ASSET_NAME}"
-  remove_release_asset "${IPA_ASSET}"
-  cp "${FOUND_IPA}" "${IPA_ASSET}"
-  scan_release_artifact "${IPA_ASSET}"
-  ASSET_FILES+=("${IPA_ASSET}")
-  ASSET_NAMES+=("${IPA_ASSET_NAME}")
-  echo "    IPA -> ${IPA_ASSET_NAME}"
+  scan_release_artifact "${FOUND_IPA}"
+  echo "    IPA -> ${FOUND_IPA} (build number ${IOS_BUILD_NUMBER})"
 fi
 
 if [[ "${BUILD_MACOS}" == "true" ]]; then
@@ -881,12 +988,25 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
   echo "    Windows -> ${WINDOWS_ASSET_NAME}"
 fi
 
+# Upload only after every target built: a rerun after a later failure would
+# rebuild and re-upload a CFBundleVersion App Store Connect already holds.
+if [[ "${IOS_UPLOAD}" == "true" ]]; then
+  echo "==> Uploading the IPA to App Store Connect..."
+  xcrun altool --upload-app -t ios -f "${FOUND_IPA}" \
+    --api-key "${ASC_KEY_ID}" --api-issuer "${ASC_ISSUER_ID}" --p8-file-path "${IOS_KEY_FILE}"
+  echo "    Uploaded; it appears in TestFlight once App Store Connect finishes processing."
+fi
+
 fi # build artifacts
 
 if [[ "${BUILD_ONLY}" == true ]]; then
   if [[ -n "$(git status --porcelain)" || "$(git rev-parse HEAD)" != "${SOURCE_COMMIT}" ]]; then
     echo "Error: Source changed during the build; commit it and rebuild before staging."
     exit 1
+  fi
+  if (( ${#ASSET_FILES[@]} == 0 )); then
+    echo "==> No release assets (the App Store IPA is not staged); nothing to stage."
+    exit 0
   fi
   generate_release_notes
   stage_release_dist

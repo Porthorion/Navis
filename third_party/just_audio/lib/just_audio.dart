@@ -1314,20 +1314,30 @@ class AudioPlayer {
   Future<void> setReplayGainBoost({
     required double currentDb,
     Map<IndexedAudioSource, double> bySource = const {},
+    Map<IndexedAudioSource, int> durationMsBySource = const {},
   }) async {
     if (_disposed || !_active) return;
-    final byUri = <String, double>{};
-    for (final entry in bySource.entries) {
-      final message = entry.key._toMessage();
-      final uri = switch (message) {
+    String? uriOf(IndexedAudioSource source) {
+      final message = source._toMessage();
+      return switch (message) {
         UriAudioSourceMessage(:final uri) => uri,
         ClippingAudioSourceMessage(:final child) => child.uri,
         _ => null,
       };
+    }
+
+    final byUri = <String, double>{};
+    for (final entry in bySource.entries) {
+      final uri = uriOf(entry.key);
       if (uri != null) byUri[uri] = entry.value;
     }
-    final request =
-        SetReplayGainBoostRequest(currentDb: currentDb, byUri: byUri);
+    final durationMsByUri = <String, int>{};
+    for (final entry in durationMsBySource.entries) {
+      final uri = uriOf(entry.key);
+      if (uri != null) durationMsByUri[uri] = entry.value;
+    }
+    final request = SetReplayGainBoostRequest(
+        currentDb: currentDb, byUri: byUri, durationMsByUri: durationMsByUri);
     final platform = await _platform;
     // The caller re-sends on every index event; an unchanged per-file map to
     // the same native player says nothing new. A message without a map
@@ -1735,6 +1745,10 @@ class AudioPlayer {
       _playbackEventSubscription =
           platform.playbackEventMessageStream.listen((message) {
         var duration = message.duration;
+        // Navis: iOS reports 0 for a stream with no length (a cut or chunked
+        // transcode). That is unknown, not "ended at 0": a 0 here clamps the
+        // position at the offset in _getPositionFor.
+        if (duration == Duration.zero) duration = null;
         final index = message.currentIndex ?? currentIndex;
         final IndexedAudioSource? source;
         if (_sequenceEditsInFlight > 0 &&

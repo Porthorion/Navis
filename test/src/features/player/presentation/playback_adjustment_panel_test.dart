@@ -48,6 +48,7 @@ void main() {
   Future<ProviderContainer> mount(
     WidgetTester tester, {
     bool pitchSupported = true,
+    PlaybackAdjustmentCapabilities? capabilities,
     double textScale = 1,
     AsyncValue<AppSettingsModel> settings = const AsyncData(
       AppSettingsModel.defaults(),
@@ -60,9 +61,10 @@ void main() {
         settingsRepositoryProvider.overrideWithValue(repository),
         audioHandlerProvider.overrideWithValue(null),
         playbackAdjustmentCapabilitiesProvider.overrideWithValue(
-          pitchSupported
-              ? PlaybackAdjustmentCapabilities.android
-              : const PlaybackAdjustmentCapabilities(),
+          capabilities ??
+              (pitchSupported
+                  ? PlaybackAdjustmentCapabilities.android
+                  : const PlaybackAdjustmentCapabilities()),
         ),
       ],
     );
@@ -302,6 +304,19 @@ void main() {
       1.2,
     );
     expect(presetText(tester), 'Nightcore');
+  });
+
+  testWidgets('iOS capabilities show the pitch controls', (tester) async {
+    await mount(tester, capabilities: PlaybackAdjustmentCapabilities.ios);
+    expect(
+      find.byKey(const ValueKey('adjustment-pitch-ruler')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('playback-pitch-lock')), findsOneWidget);
+    expect(
+      find.text('Pitch control is unavailable on this audio backend.'),
+      findsNothing,
+    );
   });
 
   testWidgets('unsupported pitch hides pitch controls and keeps speed', (

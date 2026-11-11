@@ -2,8 +2,91 @@
 set -euo pipefail
 
 navis_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-navis_jdk="${ANDROID_STUDIO_JDK:-${JAVA_HOME:-${HOME}/android-studio/jbr}}"
-if command -v javac >/dev/null 2>&1; then
+navis_studio_jdk="${HOME}/android-studio/jbr"
+[[ "$(uname -s)" != Darwin ]] || navis_studio_jdk='/Applications/Android Studio.app/Contents/jbr/Contents/Home'
+# Darwin (iOS) equalizer DSP: plain C11, so any host C compiler runs it.
+navis_darwin_source="${navis_root}/third_party/just_audio/darwin"
+if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
+  navis_c_out="$(mktemp -d)"
+  trap 'rm -rf "${navis_c_out}"' EXIT
+  # Memory errors in the realtime code must fail CI: use ASan/UBSan when the compiler has them.
+  navis_c_sanitize=()
+  printf 'int main(void){return 0;}\n' > "${navis_c_out}/probe.c"
+  if "${navis_cc}" -fsanitize=address,undefined "${navis_c_out}/probe.c" -o "${navis_c_out}/probe" >/dev/null 2>&1 \
+      && "${navis_c_out}/probe" >/dev/null 2>&1; then
+    navis_c_sanitize=(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  elif [[ -n "${CI:-}" ]]; then
+    echo 'ERROR: CI needs a compiler with working ASan/UBSan for the Darwin DSP test.' >&2
+    exit 1
+  else
+    echo 'NOTE: this compiler lacks working ASan/UBSan; running the Darwin DSP test unsanitized.' >&2
+  fi
+  navis_c_flags=(-std=c11 -O1 -g ${navis_c_sanitize[@]+"${navis_c_sanitize[@]}"} -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L)
+  navis_c_sources="${navis_darwin_source}/just_audio/Sources/just_audio"
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_equalizer_dsp_test.c" \
+    "${navis_c_sources}/NavisEqualizerDsp.c" \
+    -lm -o "${navis_c_out}/navis_equalizer_dsp_test"
+  "${navis_c_out}/navis_equalizer_dsp_test"
+  # Independent pitch (I21): the stage state machine with a fake renderer, portable.
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_pitch_stage_test.c" \
+    "${navis_c_sources}/NavisPitchStage.c" \
+    "${navis_c_sources}/NavisEqualizerDsp.c" \
+    -lm -o "${navis_c_out}/navis_pitch_stage_test"
+  "${navis_c_out}/navis_pitch_stage_test"
+  # ReplayGain boost (I24): the timing decision and the gain ramp.
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_boost_test.c" \
+    "${navis_c_sources}/NavisBoost.c" \
+    -lm -o "${navis_c_out}/navis_boost_test"
+  "${navis_c_out}/navis_boost_test"
+  # Pitch Lock as one Varispeed stage (#528): the rate plan and the scaled EQ config.
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_rate_plan_test.c" \
+    "${navis_c_sources}/NavisRatePlan.c" \
+    "${navis_c_sources}/NavisEqualizerDsp.c" \
+    -lm -o "${navis_c_out}/navis_rate_plan_test"
+  "${navis_c_out}/navis_rate_plan_test"
+  # One tap stream per audio format (I25): the slot set around the stage, with a fake AU.
+  navis_tap_sources=("${navis_c_sources}/NavisTapFormats.c" "${navis_c_sources}/NavisBoost.c" "${navis_c_sources}/NavisPitchStage.c" "${navis_c_sources}/NavisEqualizerDsp.c")
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_tap_formats_test.c" "${navis_tap_sources[@]}" \
+    -lm -o "${navis_c_out}/navis_tap_formats_test"
+  "${navis_c_out}/navis_tap_formats_test"
+  # The render/control thread interleavings again under ThreadSanitizer (it cannot be combined with ASan).
+  if [[ "$(uname -s)" == Darwin ]] \
+      && "${navis_cc}" -fsanitize=thread "${navis_c_out}/probe.c" -o "${navis_c_out}/probe_tsan" >/dev/null 2>&1 \
+      && "${navis_c_out}/probe_tsan" >/dev/null 2>&1; then
+    "${navis_cc}" -std=c11 -O1 -g -fsanitize=thread -fno-omit-frame-pointer -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L \
+      "${navis_darwin_source}/test/navis_tap_formats_test.c" "${navis_tap_sources[@]}" \
+      -lm -o "${navis_c_out}/navis_tap_formats_tsan_test"
+    "${navis_c_out}/navis_tap_formats_tsan_test" --concurrency
+  elif [[ "$(uname -s)" == Darwin && -n "${CI:-}" ]]; then
+    echo 'ERROR: CI on macOS needs a compiler with working ThreadSanitizer for the tap formats test.' >&2
+    exit 1
+  else
+    echo 'SKIPPED: the ThreadSanitizer run of the tap formats test needs macOS with a working -fsanitize=thread.'
+  fi
+  # The real AUNewTimePitch behind the renderer: Darwin only (AudioToolbox).
+  if [[ "$(uname -s)" == Darwin ]]; then
+    "${navis_cc}" "${navis_c_flags[@]}" -DNAVIS_PITCH_AU_HOST_TEST \
+      "${navis_darwin_source}/test/navis_pitch_au_test.c" \
+      "${navis_c_sources}/NavisPitchAU.c" \
+      -lm -framework AudioToolbox -framework CoreFoundation -o "${navis_c_out}/navis_pitch_au_test"
+    "${navis_c_out}/navis_pitch_au_test"
+  else
+    echo 'SKIPPED: the pitch AU test needs AudioToolbox (macOS).'
+  fi
+  rm -rf "${navis_c_out}"
+else
+  echo 'SKIPPED: Darwin equalizer DSP test needs a C compiler (cc, gcc or clang).' >&2
+fi
+# The macOS CI job runs only the C tests (no JDK there).
+[[ -z "${NAVIS_NATIVE_C_ONLY:-}" ]] || exit 0
+navis_jdk="${ANDROID_STUDIO_JDK:-${JAVA_HOME:-${navis_studio_jdk}}}"
+# Probe that javac runs: macOS ships a /usr/bin/javac stub that fails without a JDK.
+if javac -version >/dev/null 2>&1; then
   navis_javac="$(command -v javac)"
   navis_java="$(command -v java)"
 else
@@ -15,7 +98,7 @@ if [[ ! -x "${navis_javac}" || ! -x "${navis_java}" ]]; then
   exit 1
 fi
 navis_classes="$(mktemp -d)"
-trap 'rm -rf "${navis_classes}"' EXIT
+trap 'rm -rf "${navis_classes}" "${navis_c_out:-}"' EXIT
 navis_source="${navis_root}/third_party/just_audio/android/src"
 "${navis_javac}" -d "${navis_classes}" \
   "${navis_source}/main/java/com/ryanheise/just_audio/EqualizerDsp.java" \

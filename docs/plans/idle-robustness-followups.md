@@ -282,11 +282,11 @@ and backoff rather than resetting all subsystems.
 
 Resolved in 1.5.2 by #457. Holding the lock while paused kept the CPU awake for
 hours (15% of the owner's daily battery). `NavisAudioService` overrides the
-package-private `setState` and releases the private `wakeLock` after every
-not-playing state. This supersedes the earlier "no reflection" note: the
-dependency is pinned in pubspec.lock, `@Override` fails the build on signature
-drift, a JVM contract test pins the field, proguard keeps `com.ryanheise.**`,
-and a field mismatch disables the release with one warning instead of failing.
+package-private `setState` and calls the vendored plugin's package-private
+`releaseWakeLock()` after every not-playing state (no reflection; the change is
+recorded in `third_party/audio_service/NAVIS_CHANGES.md`, #479). `@Override`
+fails the build on signature drift and proguard keeps `com.ryanheise.**`; a
+release failure is logged and retried on the next paused state.
 Service retention (`androidStopForegroundOnPause: false`) is unchanged.
 
 ## Acceptance

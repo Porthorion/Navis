@@ -4,7 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
-/// Native channel that plays an Android haptic constant by kind name.
+/// Native channel that plays a haptic by kind name: an Android constant or an
+/// iOS feedback generator.
 const String navisHapticsChannelName = 'com.navis.app/haptics';
 
 /// The haptic vocabulary: one named feel per kind of action, so every control
@@ -14,7 +15,8 @@ const String navisHapticsChannelName = 'com.navis.app/haptics';
 /// `View.performHapticFeedback` (`MainActivity.kt`), which honours the user's
 /// touch-feedback setting. When the device lacks the constant, or the native
 /// channel is missing, the Flutter primitive named beside each entry plays
-/// instead (iOS always uses it). Desktop is silent, so shared widgets can call
+/// instead. iOS plays each kind's own feedback generator through the same
+/// channel (`HapticKinds.swift`). Desktop is silent, so shared widgets can call
 /// this without checking the platform. Nothing here ever throws.
 ///
 /// Every method takes the [HapticCategory] of its call site, and plays only
@@ -106,21 +108,22 @@ abstract final class NavisHaptics {
   static bool get _android =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+  static bool get _ios =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
   static void _play(HapticCategory category, _Haptic haptic) {
     if (!_prefs.allows(category)) return;
     _playAlways(haptic);
   }
 
   static void _playAlways(_Haptic haptic) {
-    if (!_android && (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS)) {
-      return;
-    }
+    if (!_android && !_ios) return;
     unawaited(_perform(haptic));
   }
 
   static Future<void> _perform(_Haptic haptic) async {
     try {
-      if (_android && !_channelMissing) {
+      if (!_channelMissing) {
         try {
           if (await _channel.invokeMethod<bool>('perform', haptic.name) ??
               false) {
@@ -140,7 +143,8 @@ abstract final class NavisHaptics {
   }
 }
 
-/// Kind names are the strings `MainActivity.kt` maps to Android constants.
+/// Kind names are the strings `HapticKinds.kt` and `HapticKinds.swift` map to
+/// the Android constants and iOS feedback.
 enum _Haptic {
   toggleOn(HapticFeedback.lightImpact),
   toggleOff(HapticFeedback.selectionClick),
