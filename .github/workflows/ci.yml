@@ -32,8 +32,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # the base-without-harness self-check walks to the repository's root commit
-      # The system Python on ubuntu-24.04 is externally managed (PEP 668): pip install is refused.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-numpy
+      # numpy from PyPI, not apt: the Ubuntu archive is not always reachable from
+      # the runners (2026-11-11 outage). The system Python is externally managed
+      # (PEP 668), so a user install needs --break-system-packages.
+      - run: python3 -c 'import numpy' 2>/dev/null || python3 -m pip install --user --break-system-packages --quiet numpy
       - run: python3 tool/playback_harness_test.py
       - run: python3 tool/validation_gate_test.py
       - run: for script in tool/*.sh tool/lib/*.sh; do bash -n "$script"; done
@@ -75,7 +77,15 @@ jobs:
       - run: shellcheck linux/install.sh
       # Hermetic tooling self-tests (also in tool/check.sh). They use rg,
       # which the runner image may not ship.
-      - run: command -v rg >/dev/null || sudo apt-get install -y ripgrep
+      # Pinned upstream release with its published sha256, not apt (see numpy above).
+      - name: Install ripgrep
+        run: |
+          command -v rg >/dev/null && exit 0
+          name=ripgrep-14.1.1-x86_64-unknown-linux-musl
+          curl -sSfL -o "$RUNNER_TEMP/rg.tar.gz" "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/$name.tar.gz"
+          echo "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e  $RUNNER_TEMP/rg.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/$name" >> "$GITHUB_PATH"
       - name: GitHub update publication self-test
         run: ./tool/github_release_test.sh
       - name: iOS release path self-test
