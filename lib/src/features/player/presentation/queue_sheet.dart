@@ -11,7 +11,7 @@ import 'package:navis/src/features/player/presentation/queue_shuffle_controls.da
 import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.dart';
 import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart'
-    show playerStateProvider;
+    show playerStateProvider, sheetStyleProvider;
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
@@ -49,6 +49,7 @@ class QueueSheet extends ConsumerWidget {
     final playerSnapshot = ref.watch(playerStateProvider);
     final actionsDisabled = queueActionsDisabled(playerSnapshot);
     final close = onClose ?? () => Navigator.of(context).pop();
+    final sheetStyle = ref.watch(sheetStyleProvider);
 
     final body = Column(
       children: <Widget>[
@@ -131,8 +132,9 @@ class QueueSheet extends ConsumerWidget {
 
     if (embeddedMode) {
       return Material(
-        color: nowPlayingArtworkPanelFill(
+        color: queuePanelFill(
           context,
+          sheetStyle,
           Theme.of(context).colorScheme.surface,
         ),
         child: body,
@@ -143,8 +145,9 @@ class QueueSheet extends ConsumerWidget {
       top: true,
       bottom: false,
       child: Material(
-        color: nowPlayingArtworkPanelFill(
+        color: queuePanelFill(
           context,
+          sheetStyle,
           Theme.of(context).colorScheme.surface,
         ),
         elevation: 12,

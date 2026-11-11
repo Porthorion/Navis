@@ -183,6 +183,11 @@ class _AppearanceSettingsScreenState
           background.storageKey,
         );
       },
+      sheetStyle: ref.watch(sheetStyleProvider),
+      onSheetStyleChanged: (style) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateSheetStyle(style.storageKey);
+      },
       colorTuning: tuningState.tuning,
       onOpenColorTuning: (anchor) => unawaited(_openColorTuning(anchor, ref)),
       previewBrightness: previewBrightness,
@@ -527,6 +532,7 @@ class _AppearanceSettingsScreenState
                 ),
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.nowPlayingBackground,
+                  AppearanceOptionKind.sheetStyle,
                 ]),
                 const Divider(height: 32),
 

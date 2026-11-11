@@ -246,7 +246,10 @@ void main() {
     expect(find.byKey(_artworkKey), findsNothing);
     expect(find.text('bare'), findsOneWidget);
     expect(decoration(tester).gradient, isNotNull);
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+    // The tinted fallback is what the queue overlay follows: a tint, no image.
+    final published = container.read(nowPlayingPublishedBackdropProvider)!;
+    expect(published.image, isNull);
+    expect(published.tintColor, _tint);
     expect(tester.takeException(), isNull);
   });
 
@@ -293,7 +296,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(_artworkKey), findsNothing);
     expect(decoration(tester).gradient, isNotNull);
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+    final published = container.read(nowPlayingPublishedBackdropProvider)!;
+    expect(published.image, isNull);
+    expect(published.tintColor, _tint);
     background.value = NowPlayingBackground.plain;
     await tester.pumpAndSettle();
     expect(decoration(tester).gradient, isNull);

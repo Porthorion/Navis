@@ -18,9 +18,10 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
-/// The blurred cover a visible Artwork background is drawing, published so
-/// surfaces outside the Now Playing subtree (the phone queue overlay) can
-/// paint the same layer without a second decode or fetch.
+/// What Now Playing's visible background is drawing, published so surfaces
+/// outside its subtree (the phone queue overlay) can paint the same layer:
+/// the blurred cover of the Artwork background ([image], no second decode or
+/// fetch) or the Art-Tinted gradient's [tintColor].
 @immutable
 class NowPlayingPublishedBackdrop {
   const new({
@@ -29,14 +30,20 @@ class NowPlayingPublishedBackdrop {
     required this.image,
     required this.coverAverage,
     required this.useCoverAverage,
+    this.tintColor,
   });
 
   /// The [NowPlayingBackdrop] state that published this.
   final Object owner;
   final String? imageKey;
-  final ImageProvider<Object> image;
+
+  /// The blurred cover, or null while Art-Tinted publishes [tintColor].
+  final ImageProvider<Object>? image;
   final Color? coverAverage;
   final bool useCoverAverage;
+
+  /// The extracted art colour of an Art-Tinted background, null for Artwork.
+  final Color? tintColor;
 
   @override
   bool operator ==(Object other) =>
@@ -45,11 +52,18 @@ class NowPlayingPublishedBackdrop {
       other.imageKey == imageKey &&
       other.image == image &&
       other.coverAverage == coverAverage &&
-      other.useCoverAverage == useCoverAverage;
+      other.useCoverAverage == useCoverAverage &&
+      other.tintColor == tintColor;
 
   @override
-  int get hashCode =>
-      Object.hash(owner, imageKey, image, coverAverage, useCoverAverage);
+  int get hashCode => Object.hash(
+    owner,
+    imageKey,
+    image,
+    coverAverage,
+    useCoverAverage,
+    tintColor,
+  );
 }
 
 /// Holds the published Artwork backdrop, or null while Now Playing shows none.
@@ -251,6 +265,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
   Widget _withArtworkBackground({
     required bool showArtworkLayer,
     required ImageProvider<Object>? image,
+    required Color? tintColor,
     required NavisColorStyleData colorStyle,
     required ColorScheme colors,
     required Duration fadeDuration,
@@ -275,9 +290,20 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         NowPlayingPublishedBackdrop(
           owner: this,
           imageKey: _artworkBackdropKey,
-          image: image!,
+          image: image,
           coverAverage: average,
           useCoverAverage: hasCoverId,
+        ),
+      );
+    } else if (tintColor != null && widget.publishToQueueOverlay) {
+      _publish(
+        NowPlayingPublishedBackdrop(
+          owner: this,
+          imageKey: null,
+          image: null,
+          coverAverage: null,
+          useCoverAverage: false,
+          tintColor: tintColor,
         ),
       );
     } else {
@@ -441,6 +467,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         child: _withArtworkBackground(
           showArtworkLayer: showArtworkLayer,
           image: artworkImage,
+          tintColor: tintColor,
           colorStyle: colorStyle,
           colors: colors,
           fadeDuration: motion.surface,

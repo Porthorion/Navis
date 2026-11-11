@@ -13,6 +13,7 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -80,6 +81,7 @@ void main() {
     bool clearWhenSeen = false,
     bool settle = true,
     NowPlayingBackground? nowPlayingBackground,
+    SheetStyle? sheetStyle,
     bool flatSurfaces = false,
     FlatAreas flatAreas = const FlatAreas(),
     bool albumArtShade = false,
@@ -103,6 +105,7 @@ void main() {
       themeMode: themeMode,
       colorStyle: colorStyle,
       nowPlayingBackground: nowPlayingBackground,
+      sheetStyle: sheetStyle,
       flatSurfaces: flatSurfaces,
       flatAreas: flatAreas,
       albumArtShade: albumArtShade,
@@ -698,11 +701,20 @@ void main() {
         l10n.appearanceArtistViewModeLabel,
         l10n.appearanceSectionNowPlaying,
         l10n.appearanceNowPlayingBackgroundLabel,
+        l10n.appearanceSheetStyleLabel,
         l10n.appearanceHomeSectionsLabel,
         l10n.appearancePagesSectionLabel,
       ];
       for (final text in ordered) {
-        expect(find.text(text), findsOneWidget, reason: text);
+        // The Sheets & Menus "Theme" segment shares the Theme heading's text;
+        // `top` takes the first, which is the heading.
+        expect(
+          find.text(text),
+          text == l10n.appearanceSectionTheme
+              ? findsNWidgets(2)
+              : findsOneWidget,
+          reason: text,
+        );
       }
       for (var i = 1; i < ordered.length; i++) {
         expect(
@@ -1408,6 +1420,57 @@ void main() {
         container.read(navisDatabaseProvider).appSettingsDao.getSettings,
       );
       expect(settings?.nowPlayingBackground, 'artwork');
+    });
+
+    for (final style in SheetStyle.values) {
+      testWidgets('Sheets & Menus describes ${style.name}', (tester) async {
+        final descriptions = <SheetStyle, String>{
+          SheetStyle.matchNowPlaying:
+              l10n.appearanceSheetStyleMatchNowPlayingSub,
+          SheetStyle.albumColor: l10n.appearanceSheetStyleAlbumColorSub,
+          SheetStyle.theme: l10n.appearanceSheetStyleThemeSub,
+        };
+        await pumpAppearance(tester, sheetStyle: style);
+        await scrollTo(
+          tester,
+          find.byKey(const ValueKey<String>('sheetStyleSelector')),
+        );
+        expect(find.text(l10n.appearanceSheetStyleLabel), findsOneWidget);
+        for (final entry in descriptions.entries) {
+          expect(
+            find.text(entry.value),
+            entry.key == style ? findsOneWidget : findsNothing,
+          );
+        }
+      });
+    }
+
+    testWidgets('Sheets & Menus sits under Now Playing Background and saves', (
+      tester,
+    ) async {
+      final container = await pumpAppearance(tester);
+      final selector = find.byKey(const ValueKey<String>('sheetStyleSelector'));
+      await scrollTo(tester, selector);
+      expect(
+        tester.getTopLeft(find.text(l10n.appearanceSheetStyleLabel)).dy,
+        greaterThan(
+          tester
+              .getTopLeft(find.text(l10n.appearanceNowPlayingBackgroundLabel))
+              .dy,
+        ),
+      );
+      final album = find.descendant(
+        of: selector,
+        matching: find.text(l10n.appearanceSheetStyleAlbumColor),
+      );
+      await tester.ensureVisible(album);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(album);
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.sheetStyle, 'album_color');
     });
 
     testWidgets('Density sits beside Artwork Size, not in Home Sections', (

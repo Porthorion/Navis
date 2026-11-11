@@ -850,6 +850,35 @@ void main() {
           expect(c.read(nowPlayingBackgroundProvider).storageKey, 'tinted'),
     ),
 
+    for (final (name, label) in <(String, String)>[
+      ('album_color', l10n.appearanceSheetStyleAlbumColor),
+      ('theme', l10n.appearanceSheetStyleTheme),
+    ])
+      _Control(
+        'Sheets & Menus: $name',
+        writers: {'updateSheetStyle'},
+        columns: {'sheetStyle'},
+        fields: {'sheetStyle'},
+        act: (t) => tap(t, inSelector('sheetStyleSelector', label)),
+        effect: (c) => expect(c.read(sheetStyleProvider).storageKey, name),
+      ),
+    _Control(
+      'Sheets & Menus: Match Now Playing',
+      writers: {'updateSheetStyle'},
+      columns: {'sheetStyle'},
+      fields: {'sheetStyle'},
+      seed: (db) => db.appSettingsDao.updateSheetStyle('theme'),
+      act: (t) => tap(
+        t,
+        inSelector(
+          'sheetStyleSelector',
+          l10n.appearanceSheetStyleMatchNowPlaying,
+        ),
+      ),
+      effect: (c) =>
+          expect(c.read(sheetStyleProvider).storageKey, 'match_now_playing'),
+    ),
+
     // Not part of a Look: the Look must stay selected.
     _Control(
       'Home: automatic recommendations',
@@ -1136,8 +1165,7 @@ void main() {
       final covered = {for (final c in controls) ...c.fields};
       // albumGridDensity is a legacy column: nothing reads or writes it
       // outside the Look snapshot, and the page has no control for it.
-      // sheetStyle has no control until #560 P3 adds its row; remove it then.
-      const withoutControl = {'albumGridDensity', 'sheetStyle'};
+      const withoutControl = {'albumGridDensity'};
       expect(fields.difference(covered), withoutControl);
       expect(covered.difference(fields), isEmpty);
     });

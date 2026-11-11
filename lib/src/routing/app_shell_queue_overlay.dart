@@ -447,13 +447,16 @@ class _QueueOverlayState extends State<_QueueOverlay>
   }
 }
 
-/// Surface of the phone queue overlay.
+/// Surface of the phone queue overlay, following Sheets & Menus.
 ///
-/// Opaque `surface` normally. While Now Playing is expanded and showing its
-/// Artwork layer, it paints the same blurred cover (published by
-/// [NowPlayingBackdrop]) underneath and marks the content with
-/// [NowPlayingArtworkLayerScope], so the queue's translucent panel fill
-/// applies and the cover stays visible through it.
+/// Match Now Playing: opaque `surface` normally. While Now Playing is
+/// expanded and drawing a background, the queue paints the same one
+/// (published by [NowPlayingBackdrop]): the Artwork layer's blurred cover or
+/// the Art-Tinted gradient, and marks the content with
+/// [NowPlayingArtworkLayerScope] so the queue's panel fill turns translucent
+/// or transparent and the background shows through. Theme and Album Color
+/// draw no Now Playing background: the content's own opaque fill (see
+/// `queuePanelFill`) is the theme surface or the album tint.
 class _QueueArtworkSurface extends ConsumerWidget {
   const new({required this.fullscreen, required this.child});
 
@@ -465,8 +468,11 @@ class _QueueArtworkSurface extends ConsumerWidget {
     final colors = Theme.of(context).colorScheme;
     final nowPlayingExpanded = ref.watch(playerSheetExpandedProvider);
     final published = ref.watch(nowPlayingPublishedBackdropProvider);
-    final backdrop = nowPlayingExpanded ? published : null;
+    final matchNowPlaying =
+        ref.watch(sheetStyleProvider) == SheetStyle.matchNowPlaying;
+    final backdrop = matchNowPlaying && nowPlayingExpanded ? published : null;
     final show = backdrop != null;
+    final tintColor = backdrop?.tintColor;
     final surface = Material(
       color: show
           ? Colors.transparent
@@ -475,8 +481,18 @@ class _QueueArtworkSurface extends ConsumerWidget {
         fit: StackFit.expand,
         children: <Widget>[
           Positioned.fill(
-            child: show
-                ? NowPlayingArtworkBackground(
+            child: !show
+                ? const SizedBox.shrink()
+                : tintColor != null
+                ? DecoratedBox(
+                    key: const ValueKey<String>('queueTintBackground'),
+                    decoration: nowPlayingSurfaceDecoration(
+                      tintColor: tintColor,
+                      colorStyle: NavisColorStyleData.of(context),
+                      surfaceColor: colors.surface,
+                    ),
+                  )
+                : NowPlayingArtworkBackground(
                     key: const ValueKey<String>('queueArtworkBackground'),
                     imageKey: backdrop.imageKey,
                     image: backdrop.image,
@@ -488,10 +504,13 @@ class _QueueArtworkSurface extends ConsumerWidget {
                     accentColor: colors.primary,
                     onSurfaceVariantColor: colors.onSurfaceVariant,
                     fadeDuration: Duration.zero,
-                  )
-                : const SizedBox.shrink(),
+                  ),
           ),
-          NowPlayingArtworkLayerScope(active: show, child: child),
+          NowPlayingArtworkLayerScope(
+            active: show,
+            tinted: tintColor != null,
+            child: child,
+          ),
         ],
       ),
     );
