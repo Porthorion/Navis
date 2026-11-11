@@ -72,8 +72,10 @@ Future<T?> showNavisModalSheet<T>({
 /// the Artwork cover average), else null for the theme fill. Nothing is
 /// published under Plain/Flat, so those keep the theme. Read once at open.
 Color? _nowPlayingSheetFill(BuildContext context) {
-  // No scope in isolated widget tests: the theme fill.
-  if (context.findAncestorWidgetOfExactType<ProviderScope>() == null) {
+  // No scope in isolated widget tests: the theme fill. ProviderScope builds an
+  // UncontrolledProviderScope, which lib/main.dart mounts directly.
+  if (context.findAncestorWidgetOfExactType<UncontrolledProviderScope>() ==
+      null) {
     return null;
   }
   final container = ProviderScope.containerOf(context, listen: false);

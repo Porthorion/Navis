@@ -124,9 +124,14 @@ Future<void> _pump(
   _Cache? cache,
 }) async {
   final theme = _theme(mode);
+  // Mounted like lib/main.dart (UncontrolledProviderScope), not ProviderScope.
+  final container = ProviderContainer(
+    overrides: _overrides(style, cache ?? _Cache()),
+  );
+  addTearDown(container.dispose);
   await tester.pumpWidget(
-    ProviderScope(
-      overrides: _overrides(style, cache ?? _Cache()),
+    UncontrolledProviderScope(
+      container: container,
       child: MaterialApp(
         theme: theme,
         darkTheme: theme,
