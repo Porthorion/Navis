@@ -4,8 +4,11 @@ import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart'
+    show trackRowReservedHeight;
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
@@ -18,6 +21,7 @@ import 'package:navis/src/providers/app_providers.dart'
 import 'package:navis/src/routing/desktop_layout.dart'
     show resolveAdaptiveContextFor;
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -268,7 +272,12 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
     final scheme = Theme.of(context).colorScheme;
     final reduceMotion = MotionPolicy.of(context).reduceMotion;
     const slide = Duration(milliseconds: 200);
-
+    final touch = !resolveAdaptiveContextFor(context).desktopRuntime;
+    final textTheme = Theme.of(context).textTheme;
+    final titleStyle = (textTheme.bodyMedium ?? const TextStyle()).copyWith(
+      fontWeight: FontWeight.w600,
+    );
+    final rowPadding = NavisDensityScope.of(context).trackRowPadding;
     return songAsync.when(
       data: (song) {
         if (song == null) {
@@ -278,6 +287,17 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
             subtitle: Text(l10n.queueUnavailableTrackDescription),
           );
         }
+
+        Widget artistLine(TextStyle? style) => RemoteSourceMetadataLine(
+          metadata: Text(
+            song.artistName ?? l10n.queueUnknownArtist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+          isRemote: song.isExternal,
+          spacing: 8,
+        );
 
         return Dismissible(
           key: widget.key!,
@@ -358,25 +378,52 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
                         RemoteSourceIndicatorPolicy.hidden,
                   ),
                 ),
-                title: Text(
-                  song.title,
-                  style: isSelected
-                      ? TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        )
-                      : null,
-                ),
-                subtitle: RemoteSourceMetadataLine(
-                  metadata: Text(
-                    song.artistName ?? l10n.queueUnknownArtist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  isRemote: song.isExternal,
-                  spacing: 8,
-                ),
+                // On phones the artist line sits in the title slot: ListTile
+                // places a subtitle by fixed baselines and ignores
+                // minTileHeight once the text is taller than they allow.
+                title: touch
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          MarqueeText(
+                            song.title,
+                            maxLines: 2,
+                            active: false,
+                            style: titleStyle.copyWith(
+                              color: isSelected ? scheme.primary : null,
+                            ),
+                          ),
+                          artistLine(
+                            textTheme.bodySmall?.copyWith(
+                              color: widget.actionsDisabled
+                                  ? scheme.onSurface.withValues(alpha: 0.38)
+                                  : scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        song.title,
+                        style: isSelected
+                            ? TextStyle(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.bold,
+                              )
+                            : null,
+                      ),
+                subtitle: touch ? null : artistLine(null),
                 trailing: _trailing(context, l10n),
+                // Phones size the row like a song row: two title lines, so
+                // short and long titles are equally tall.
+                contentPadding: touch
+                    ? const EdgeInsetsDirectional.only(start: 12, end: 4)
+                    : null,
+                horizontalTitleGap: touch ? 12 : null,
+                minVerticalPadding: touch ? rowPadding.vertical / 2 : null,
+                minTileHeight: touch
+                    ? trackRowReservedHeight(context, padding: rowPadding)
+                    : null,
                 enabled: !widget.actionsDisabled,
                 onTap: widget.actionsDisabled ? null : widget.onTap,
               ),

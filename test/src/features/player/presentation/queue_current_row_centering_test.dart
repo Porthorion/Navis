@@ -162,7 +162,9 @@ void main() {
 
         final list = tester.getRect(find.byType(ReorderableListView));
         final row = tester.getRect(_row(120));
-        expect(row.height, greaterThan(72));
+        // A loaded phone row is the reserved two-line height, taller than the
+        // loading row it replaces.
+        expect(row.height, 72);
         expect((row.center.dy - list.center.dy).abs(), lessThanOrEqualTo(1));
       });
 

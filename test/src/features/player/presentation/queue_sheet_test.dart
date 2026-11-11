@@ -10,6 +10,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -334,6 +335,56 @@ void main() {
       find.byType(QueueSheet),
       matchesGoldenFile('goldens/queue_sheet_text_scale_200.png'),
     );
+  });
+
+  group('row layout', () {
+    final longId = 'a-long-title-${'word ' * 40}';
+
+    List<double> heights(WidgetTester tester) => [
+      for (final tile in find.byType(ListTile).evaluate())
+        tester.getSize(find.byWidget(tile.widget)).height,
+    ];
+
+    testWidgets('phone rows have uniform height and a two-line w600 title', (
+      tester,
+    ) async {
+      await _pumpRemovable(tester, ids: ['a', longId, 'c']);
+
+      final rows = heights(tester);
+      expect(rows, [72.0, 72.0, 72.0]);
+      final title = tester.widget<MarqueeText>(find.byType(MarqueeText).at(1));
+      expect(title.maxLines, 2);
+      expect(title.active, isFalse);
+      expect(title.style.fontWeight, FontWeight.w600);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final scale in [1.3, 2.0]) {
+      testWidgets('phone rows stay uniform at text scale $scale', (
+        tester,
+      ) async {
+        await _pumpRemovable(tester, ids: ['a', longId, 'c'], textScale: scale);
+        final rows = heights(tester);
+        expect(rows.toSet(), hasLength(1), reason: '$rows');
+        expect(rows.first, greaterThan(72));
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('phone rows fit 360 dp wide', (tester) async {
+      await _pumpRemovable(tester, ids: ['a', longId], width: 360);
+      expect(heights(tester).toSet(), hasLength(1));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('desktop queue rows are unchanged', (tester) async {
+      await _pumpRemovable(tester, ids: ['a', longId, 'c'], desktop: true);
+
+      expect(find.byType(MarqueeText), findsNothing);
+      final title = tester.widget<Text>(find.text('Track a'));
+      expect(title.maxLines, isNull);
+      expect(title.style?.fontWeight, FontWeight.bold);
+    });
   });
 
   group('swipe to remove', () {

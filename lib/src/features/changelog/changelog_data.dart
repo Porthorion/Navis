@@ -215,8 +215,8 @@ const List<ChangelogVersion> changelogs = [
         'of splitting it',
       ),
       ChangelogEntry(
-        'Song titles in phone lists show up to two full lines; rows have one '
-        'even height',
+        'Song titles in phone lists, including the queue, show up to two full '
+        'lines; rows have one even height',
       ),
       ChangelogEntry(
         'Swipe a queue song left to remove it, with Undo; the trash button is '
