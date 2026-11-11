@@ -255,6 +255,65 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('113 to 114 sheet style', () {
+    Future<NavisDatabase> upgraded113() async {
+      final directory = await Directory.systemTemp.createTemp('navis_v114_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.updateNowPlayingBackground('artwork');
+      await seed.appSettingsDao.updateAutoTheme(source: 'schedule');
+      await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('ALTER TABLE app_settings DROP COLUMN sheet_style');
+        raw.execute('PRAGMA user_version = 113');
+        expect(
+          raw
+              .select('PRAGMA table_info(app_settings)')
+              .where((row) => row['name'] == 'sheet_style'),
+          isEmpty,
+        );
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      return db;
+    }
+
+    test('fresh profiles default to match_now_playing', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      expect(
+        (await db.appSettingsDao.getSettings())!.sheetStyle,
+        'match_now_playing',
+      );
+    });
+
+    test('adds the column with the default and keeps other values', () async {
+      final db = await upgraded113();
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(settings.sheetStyle, 'match_now_playing');
+      expect(settings.nowPlayingBackground, 'artwork');
+      expect(settings.autoThemeSource, 'schedule');
+      expect(settings.hapticsEnabled, isFalse);
+      expect(
+        (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+          'user_version',
+        ),
+        NavisDatabase.currentSchemaVersion,
+      );
+      // Idempotent: running the step again changes nothing.
+      await db.appSettingsDao.updateSheetStyle('theme');
+      await db.from113To114(Migrator(db));
+      final again = (await db.appSettingsDao.getSettings())!;
+      expect(again.sheetStyle, 'theme');
+      expect(again.nowPlayingBackground, 'artwork');
+    });
+  }, skip: !sqliteAvailable);
+
   group('112 to 113 scheduled Auto theme', () {
     const columns = <String>[
       'auto_theme_source',
@@ -331,8 +390,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 113', () {
-      expect(NavisDatabase.currentSchemaVersion, 113);
+    test('the schema version is 114', () {
+      expect(NavisDatabase.currentSchemaVersion, 114);
     });
 
     test('fresh profiles seed the Auto defaults', () async {
