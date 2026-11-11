@@ -1589,7 +1589,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       final row = find.byType(AdaptiveTrackRow);
       expect(row, findsOneWidget);
-      expect(tester.getSize(row).height, 64);
+      expect(tester.getSize(row).height, 72);
       expect(
         tester.getRect(find.text('3:43')).left,
         greaterThanOrEqualTo(

@@ -363,7 +363,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               sliver: SliverFillRemaining(
                 hasScrollBody: false,
                 child: isLoading
-                    ? const ShimmerListPage()
+                    ? const ShimmerListPage(songRows: true)
                     : downloadedOnly
                     ? EmptyState(
                         title: l10n.libraryDownloadedOnlyEmpty,
