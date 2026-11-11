@@ -25,7 +25,8 @@ import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dar
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/settings/presentation/haptics_settings_screen.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/interface_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/about_screen.dart';
 import 'package:navis/src/features/settings/presentation/cache_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/desktop_shortcuts_settings_screen.dart';
@@ -538,15 +539,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: AppRoutes.settingsAppearanceSegment,
+                    path: AppRoutes.settingsThemesSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
-                      child: AppearanceSettingsScreen(
+                      child: const ThemesSettingsScreen(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.settingsInterfaceSegment,
+                    pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
+                      key: state.pageKey,
+                      child: InterfaceSettingsScreen(
                         focusLibraryPages:
                             state.uri.queryParameters[AppRoutes
-                                .appearanceFocusParam] ==
-                            AppRoutes.appearanceFocusLibraryPages,
+                                .interfaceFocusParam] ==
+                            AppRoutes.interfaceFocusLibraryPages,
                       ),
                     ),
                   ),

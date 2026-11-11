@@ -24,6 +24,9 @@ enum SetupHighlight {
   /// create the Home setup card. See [standaloneSetupHighlightsFor].
   final bool standalone;
 
+  /// Whether the option sits on Settings › Interface (the rest are on Themes).
+  bool get onInterfacePage => this == genresPage;
+
   /// Stable key stored in the seen-options JSON array.
   String get storageKey =>
       this == albumArtShade ? 'albumArtColoredShade' : name;

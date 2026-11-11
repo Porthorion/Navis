@@ -711,7 +711,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester.widget<Text>(_key('looksHint')).data,
-        'Save this as part of a Look in Appearance.',
+        'Save this as part of a Look in Themes.',
       );
       expect(
         tester.getTopLeft(_key('looksHint')).dx,

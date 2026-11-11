@@ -15,8 +15,9 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/domain/sheet_style.dart';
+import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
@@ -64,7 +65,6 @@ void main() {
     bool dynamicAlbumColorEnabled = false,
     AdaptiveContext? adaptiveContext,
     TextScaler textScaler = TextScaler.noScaling,
-    List<String>? homeSectionOrder,
     String? themeMode,
     String? colorStyle,
     bool nightScheduleEnabled = false,
@@ -87,7 +87,6 @@ void main() {
     FlatAreas flatAreas = const FlatAreas(),
     bool albumArtShade = false,
     bool albumArtColoredShade = false,
-    bool focusLibraryPages = false,
   }) async {
     if (adaptiveContext == null &&
         tester.view.physicalSize / tester.view.devicePixelRatio ==
@@ -102,7 +101,6 @@ void main() {
     final settings = const AppSettingsModel.defaults().copyWith(
       colorSchemeSeed: colorSeed,
       dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
-      homeSectionOrder: homeSectionOrder,
       themeMode: themeMode,
       colorStyle: colorStyle,
       nowPlayingBackground: nowPlayingBackground,
@@ -173,12 +171,10 @@ void main() {
             child: child!,
           ),
           home: adaptiveContext == null
-              ? AppearanceSettingsScreen(focusLibraryPages: focusLibraryPages)
+              ? const ThemesSettingsScreen()
               : AdaptiveContextScope(
                   adaptiveContext: adaptiveContext,
-                  child: AppearanceSettingsScreen(
-                    focusLibraryPages: focusLibraryPages,
-                  ),
+                  child: const ThemesSettingsScreen(),
                 ),
         ),
       ),
@@ -215,75 +211,6 @@ void main() {
   BoxDecoration chipDecoration(WidgetTester tester, String key) {
     return chip(tester, key).decoration! as BoxDecoration;
   }
-
-  group('focus=libraryPages deep link', () {
-    final genresRow = find.byKey(const ValueKey<String>('library-page-genres'));
-
-    Material material(WidgetTester tester) =>
-        tester.widget<Material>(genresRow);
-
-    testWidgets(
-      'opens Library pages, scrolls to the Genres row and highlights it',
-      (tester) async {
-        setAdaptiveTestViewport(tester, const Size(390, 844));
-        // The group's eye icon blinks forever, so pump by time, not settle.
-        await pumpAppearance(
-          tester,
-          focusLibraryPages: true,
-          highlights: const <SetupHighlight>{SetupHighlight.genresPage},
-          settle: false,
-        );
-        await tester.pump(const Duration(milliseconds: 500));
-
-        expect(genresRow, findsOneWidget);
-        final rect = tester.getRect(genresRow);
-        expect(rect.top, greaterThanOrEqualTo(0));
-        expect(rect.bottom, lessThanOrEqualTo(844));
-        expect(genresRow.hitTestable(), findsOneWidget);
-        expect(
-          find.descendant(of: genresRow, matching: find.byType(NewFeatureTag)),
-          findsOneWidget,
-        );
-        final colors = Theme.of(tester.element(genresRow)).colorScheme;
-        expect(material(tester).color, colors.primary.withValues(alpha: 0.22));
-
-        await tester.pump(const Duration(seconds: 3));
-        expect(material(tester).color, Colors.transparent);
-      },
-    );
-
-    testWidgets('works on the desktop layout too', (tester) async {
-      setAdaptiveTestViewport(tester, const Size(1280, 800));
-      await pumpAppearance(
-        tester,
-        focusLibraryPages: true,
-        highlights: const <SetupHighlight>{SetupHighlight.genresPage},
-        settle: false,
-        adaptiveContext: resolveAdaptiveContext(
-          desktopRuntime: true,
-          viewportSize: const Size(1280, 800),
-          safePadding: EdgeInsets.zero,
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(genresRow, findsOneWidget);
-      final rect = tester.getRect(genresRow);
-      expect(rect.top, greaterThanOrEqualTo(0));
-      expect(rect.bottom, lessThanOrEqualTo(800));
-      expect(genresRow.hitTestable(), findsOneWidget);
-      final colors = Theme.of(tester.element(genresRow)).colorScheme;
-      expect(material(tester).color, colors.primary.withValues(alpha: 0.22));
-      await tester.pump(const Duration(seconds: 3));
-    });
-
-    testWidgets('without the link the group stays closed', (tester) async {
-      setAdaptiveTestViewport(tester, const Size(390, 844));
-      await pumpAppearance(tester);
-
-      expect(genresRow.hitTestable(), findsNothing);
-    });
-  });
 
   testWidgets('theme selector stays horizontal on a phone-width surface', (
     tester,
@@ -585,54 +512,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'mobile Home offers an automatic recommendation preference off by default',
-    (tester) async {
-      setAdaptiveTestViewport(tester, const Size(390, 844));
-      final container = await pumpAppearance(tester);
-      final home = find.text('Home Sections');
-      await tester.scrollUntilVisible(
-        home,
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.ensureVisible(home);
-      await tester.pump();
-      await tester.tap(home);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      final control = find.widgetWithText(
-        SwitchListTile,
-        'Automatically Advance Recommendations',
-      );
-      await tester.scrollUntilVisible(
-        control,
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.widget<SwitchListTile>(control).value, isFalse);
-      await tester.ensureVisible(control);
-      await tester.pump();
-      await tester.tap(control);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      final row = (await tester.runAsync(
-        () => container
-            .read(navisDatabaseProvider)
-            .appSettingsDao
-            .watchSettings()
-            .firstWhere((row) => row?.homeRecommendationsAutoAdvance == true)
-            .timeout(const Duration(seconds: 2)),
-      ))!;
-      expect(row.homeRecommendationsAutoAdvance, isTrue);
-      expect(row.gridArtworkSize, 'auto');
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets('desktop appearance uses a focused settings workspace', (
+  testWidgets('desktop themes uses a focused settings workspace', (
     tester,
   ) async {
     setAdaptiveTestViewport(tester, const Size(1280, 800));
@@ -648,52 +528,10 @@ void main() {
     expect(find.byTooltip('Back'), findsOneWidget);
     expect(tester.getSize(find.byType(ListView)).width, 1040);
     await expectLater(
-      find.byType(AppearanceSettingsScreen),
-      matchesGoldenFile('goldens/appearance_settings_desktop_workspace.png'),
+      find.byType(ThemesSettingsScreen),
+      matchesGoldenFile('goldens/themes_settings_desktop_workspace.png'),
     );
   });
-
-  testWidgets(
-    'a saved Home order lists New Releases right under You Might Like',
-    (tester) async {
-      // Saved by 1.4.2, before New Releases existed.
-      await pumpAppearance(
-        tester,
-        homeSectionOrder: const <String>[
-          'recently_added',
-          'random_albums',
-          'recently_liked_albums',
-          'liked_tracks',
-          'recently_played',
-          'most_played',
-          'recently_played_tracks',
-          'frequent_albums',
-        ],
-      );
-      final page = find.byType(Scrollable).first;
-      await tester.scrollUntilVisible(
-        find.text('Home Sections'),
-        200,
-        scrollable: page,
-      );
-      await tester.tap(find.text('Home Sections'));
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.scrollUntilVisible(
-        find.text('New Releases'),
-        200,
-        scrollable: page,
-      );
-      await tester.pump(const Duration(milliseconds: 500));
-
-      final random = tester.getTopLeft(find.text('You Might Like').last).dy;
-      final releases = tester.getTopLeft(find.text('New Releases')).dy;
-      final liked = tester
-          .getTopLeft(find.text('Recently Liked Albums').last)
-          .dy;
-      expect(releases, greaterThan(random));
-      expect(releases, lessThan(liked));
-    },
-  );
 
   group('sections', () {
     final l10n = lookupAppLocalizations(const Locale('en'));
@@ -707,54 +545,59 @@ void main() {
     double top(WidgetTester tester, String text) =>
         tester.getTopLeft(find.text(text).first).dy;
 
-    testWidgets('four sections in order with the expected controls', (
-      tester,
-    ) async {
+    testWidgets(
+      'four sections in order with the expected controls, none from Interface',
+      (tester) async {
+        tallView(tester);
+        await pumpAppearance(tester, themeMode: 'system', settle: false);
+        final ordered = <String>[
+          l10n.appearanceSectionTheme,
+          l10n.appearanceThemeModeLabel,
+          l10n.appearanceOledForAutoLabel,
+          l10n.appearanceSectionColor,
+          l10n.appearanceColorStyleLabel,
+          l10n.appearanceColorTuningLabel,
+          l10n.appearanceNightScheduleLabel,
+          l10n.appearanceColorSchemeLabel,
+          l10n.appearanceDynamicAlbumColorLabel,
+          l10n.appearanceAlbumArtShadeLabel,
+          l10n.appearanceSectionShapeLayout,
+          l10n.appearanceFlatSurfacesLabel,
+          l10n.appearanceCornerStyleLabel,
+          l10n.appearanceCoverArtShapeLabel,
+          l10n.appearanceArtworkSizeLabel,
+          l10n.appearanceDensityLabel,
+          l10n.appearanceKeepTitleVersionLabel,
+          l10n.appearanceArtistViewModeLabel,
+          l10n.appearanceSectionNowPlaying,
+          l10n.appearanceNowPlayingBackgroundLabel,
+          l10n.appearanceSheetStyleLabel,
+        ];
+        for (final text in ordered) {
+          expect(find.text(text), findsOneWidget, reason: text);
+        }
+        expect(find.text(l10n.appearanceHomeSectionsLabel), findsNothing);
+        expect(find.text(l10n.appearancePagesSectionLabel), findsNothing);
+        for (var i = 1; i < ordered.length; i++) {
+          expect(
+            top(tester, ordered[i]),
+            greaterThan(top(tester, ordered[i - 1])),
+            reason: '${ordered[i - 1]} before ${ordered[i]}',
+          );
+        }
+      },
+    );
+
+    testWidgets('the first section is titled Mode, not Theme', (tester) async {
       tallView(tester);
       await pumpAppearance(tester, themeMode: 'system', settle: false);
-      final ordered = <String>[
-        l10n.appearanceSectionTheme,
-        l10n.appearanceThemeModeLabel,
-        l10n.appearanceOledForAutoLabel,
-        l10n.appearanceSectionColor,
-        l10n.appearanceColorStyleLabel,
-        l10n.appearanceColorTuningLabel,
-        l10n.appearanceNightScheduleLabel,
-        l10n.appearanceColorSchemeLabel,
-        l10n.appearanceDynamicAlbumColorLabel,
-        l10n.appearanceAlbumArtShadeLabel,
-        l10n.appearanceSectionShapeLayout,
-        l10n.appearanceFlatSurfacesLabel,
-        l10n.appearanceCornerStyleLabel,
-        l10n.appearanceCoverArtShapeLabel,
-        l10n.appearanceArtworkSizeLabel,
-        l10n.appearanceDensityLabel,
-        l10n.appearanceKeepTitleVersionLabel,
-        l10n.appearanceArtistViewModeLabel,
-        l10n.appearanceSectionNowPlaying,
-        l10n.appearanceNowPlayingBackgroundLabel,
-        l10n.appearanceSheetStyleLabel,
-        l10n.appearanceHomeSectionsLabel,
-        l10n.appearancePagesSectionLabel,
-      ];
-      for (final text in ordered) {
-        // The Sheets & Menus "Theme" segment shares the Theme heading's text;
-        // `top` takes the first, which is the heading.
-        expect(
-          find.text(text),
-          text == l10n.appearanceSectionTheme
-              ? findsNWidgets(2)
-              : findsOneWidget,
-          reason: text,
-        );
-      }
-      for (var i = 1; i < ordered.length; i++) {
-        expect(
-          top(tester, ordered[i]),
-          greaterThan(top(tester, ordered[i - 1])),
-          reason: '${ordered[i - 1]} before ${ordered[i]}',
-        );
-      }
+      Finder heading(String title) => find.byWidgetPredicate(
+        (w) => w is AppearanceHeading && w.title == title,
+      );
+      expect(heading('Mode'), findsOneWidget);
+      expect(heading('Theme'), findsNothing);
+      expect(top(tester, 'Mode'), lessThan(top(tester, 'Theme Mode')));
+      expect(find.text('Themes'), findsOneWidget); // the AppBar title
     });
 
     testWidgets('Artwork Shape selectors are visible without expanding', (
@@ -1596,66 +1439,6 @@ void main() {
         expect(seenOptions, hasLength(setupHighlightsFor('1.5.0').length));
       });
 
-      testWidgets('the Library pages group header carries the Genres tag', (
-        tester,
-      ) async {
-        tallView(tester);
-        final header = find
-            .ancestor(
-              of: find.text(l10n.appearancePagesSectionLabel),
-              matching: find.byType(InkWell),
-            )
-            .first;
-        await pumpAppearance(
-          tester,
-          highlights: <SetupHighlight>{SetupHighlight.genresPage},
-          settle: false,
-        );
-        await tester.pump(const Duration(milliseconds: 500));
-        expect(
-          find.descendant(of: header, matching: find.byType(NewFeatureTag)),
-          findsOneWidget,
-        );
-      });
-
-      testWidgets('the group header has no tag when nothing is pending', (
-        tester,
-      ) async {
-        tallView(tester);
-        await pumpAppearance(tester, settle: false);
-        await tester.pump(const Duration(milliseconds: 500));
-        final header = find
-            .ancestor(
-              of: find.text(l10n.appearancePagesSectionLabel),
-              matching: find.byType(InkWell),
-            )
-            .first;
-        expect(
-          find.descendant(of: header, matching: find.byType(NewFeatureTag)),
-          findsNothing,
-        );
-      });
-
-      testWidgets('the Genres tag clears only once its group is open', (
-        tester,
-      ) async {
-        tallView(tester);
-        await pumpAppearance(
-          tester,
-          highlights: <SetupHighlight>{SetupHighlight.genresPage},
-          settle: false,
-        );
-        await tester.pump(const Duration(milliseconds: 500));
-        expect(seenOptions, isEmpty);
-
-        await tester.ensureVisible(find.text(l10n.appearancePagesSectionLabel));
-        await tester.tap(find.text(l10n.appearancePagesSectionLabel));
-        await tester.pump(const Duration(milliseconds: 500));
-        await tester.pump(const Duration(milliseconds: 500));
-        await tester.pump();
-        expect(seenOptions, <SetupHighlight>[SetupHighlight.genresPage]);
-      });
-
       testWidgets('hidden OLED option is never marked', (tester) async {
         tallView(tester);
         await pumpAppearance(
@@ -1715,7 +1498,7 @@ void main() {
             child: MaterialApp(
               localizationsDelegates: navisLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const AppearanceSettingsScreen(),
+              home: const ThemesSettingsScreen(),
             ),
           ),
         );
