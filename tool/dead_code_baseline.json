@@ -43,12 +43,6 @@
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
     },
     {
-      "kind": "declaration",
-      "path": "lib/src/features/settings/domain/sheet_style.dart",
-      "name": "SheetStyle.albumColor",
-      "reason": "in progress: #560 P2 applies Album Color; remove this entry in P2"
-    },
-    {
       "kind": "dependency",
       "path": "pubspec.yaml",
       "name": "cupertino_icons",

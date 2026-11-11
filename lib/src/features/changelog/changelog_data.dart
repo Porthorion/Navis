@@ -203,7 +203,7 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Long song titles keep their version, such as (Radio Edit), visible '
         'in lists, and scroll on the playing song and, on desktop, under the '
-        'pointer',
+        'pointer, and in the player',
       ),
       ChangelogEntry(
         'The mini player shows more of the song title and no longer grows '

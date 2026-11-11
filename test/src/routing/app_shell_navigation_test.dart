@@ -20,6 +20,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -416,6 +417,17 @@ const SongsTableData _longMetadataSong = SongsTableData(
   artistName: 'An Artist With A Deliberately Long Name For Metadata Coverage',
   albumName:
       'A Representative Album With Enough Metadata To Exercise The Layout',
+  artistId: 'artist-1',
+  albumId: 'album-1',
+  isProvisional: false,
+  isExternal: false,
+);
+
+const SongsTableData _versionedSong = SongsTableData(
+  id: 'song-1',
+  title: 'A Long Track Title That Must Stay Legible Without Taking Over (Radio Edit)',
+  artistName: 'An Artist With A Deliberately Long Name For Metadata Coverage',
+  albumName: 'A Representative Album',
   artistId: 'artist-1',
   albumId: 'album-1',
   isProvisional: false,
@@ -3393,7 +3405,7 @@ void main() {
     expect(find.byKey(const ValueKey('miniPlayerAlwaysOnTop')), findsOneWidget);
     expect(
       tester
-          .widget<Text>(
+          .widget<MarqueeText>(
             find.byKey(const ValueKey<String>('desktopMiniPlayerTitle')),
           )
           .textAlign,
@@ -3401,7 +3413,7 @@ void main() {
     );
     expect(
       tester
-          .widget<Text>(
+          .widget<MarqueeText>(
             find.byKey(const ValueKey<String>('desktopMiniPlayerArtist')),
           )
           .textAlign,
@@ -3803,6 +3815,189 @@ void main() {
       expect(find.byType(TabBar), findsOneWidget);
     },
   );
+
+  group('player surfaces scroll a long title a few times, then rest', () {
+    const suffix = ' (Radio Edit)';
+    final title = find.byWidgetPredicate(
+      (w) => w is MarqueeText && w.text == _versionedSong.title,
+    );
+    final scrolling = find.descendant(
+      of: title,
+      matching: find.byType(Transform),
+    );
+
+    Future<ProviderContainer> pumpShell(
+      WidgetTester tester,
+      Size size, {
+      bool desktop = false,
+      bool miniPlayer = false,
+      bool reduceMotion = false,
+      ValueNotifier<PlaybackSnapshot>? playing,
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final windowController = DesktopWindowController.fallback(
+        desktopRuntime: desktop,
+      );
+      if (miniPlayer) await windowController.setMiniPlayerMode(true);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: desktop,
+            playing: playing,
+          ),
+          if (desktop)
+            desktopWindowControllerProvider.overrideWith(
+              (ref) => windowController,
+            ),
+          songByIdProvider.overrideWith(
+            (ref, songId) => Stream.value(switch (songId) {
+              'song-1' => _versionedSong,
+              'song-2' => _versionedSong.copyWith(
+                id: 'song-2',
+                title: 'Another Track Title That Is Far Too Long To Fit (Live)',
+              ),
+              _ => null,
+            }),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(disableAnimations: reduceMotion),
+          child: UncontrolledProviderScope(
+            container: container,
+            child: testNavisApp,
+          ),
+        ),
+      );
+      // Short pumps: the title must be seen before its first pass ends.
+      for (var i = 0; i < 12 && title.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      return container;
+    }
+
+    Future<void> expectScrollsThenRests(WidgetTester tester) async {
+      expect(title, findsOneWidget);
+      expect(find.text(suffix), findsOneWidget);
+      expect(scrolling, findsNothing);
+      await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+      expect(scrolling, findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(scrolling, findsNothing);
+      expect(find.text(suffix), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+
+    testWidgets('phone mini player', (tester) async {
+      await pumpShell(tester, const Size(390, 844));
+      await expectScrollsThenRests(tester);
+      await tester.pump(const Duration(milliseconds: 201));
+    });
+
+    testWidgets('phone mini player is still with reduced motion', (
+      tester,
+    ) async {
+      await pumpShell(tester, const Size(390, 844), reduceMotion: true);
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
+      expect(title, findsOneWidget);
+      expect(scrolling, findsNothing);
+      expect(find.text(suffix), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 201));
+    });
+
+    testWidgets('a track change mid-scroll restarts the new title', (
+      tester,
+    ) async {
+      final playing = ValueNotifier<PlaybackSnapshot>(_activePlayback);
+      await pumpShell(tester, const Size(390, 844), playing: playing);
+      await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+      expect(scrolling, findsOneWidget);
+
+      playing.value = _activePlayback.copyWith(
+        currentSongId: 'song-2',
+        currentIndex: 1,
+      );
+      final next = find.byWidgetPredicate(
+        (w) => w is MarqueeText && w.text.startsWith('Another Track'),
+      );
+      for (var i = 0; i < 12 && next.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(next, findsOneWidget);
+      expect(
+        find.descendant(of: next, matching: find.byType(Transform)),
+        findsNothing,
+      );
+      expect(find.text(' (Live)'), findsOneWidget);
+      await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+      expect(
+        find.descendant(of: next, matching: find.byType(Transform)),
+        findsOneWidget,
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 201));
+    });
+
+    testWidgets('desktop player bar loops under the pointer only', (
+      tester,
+    ) async {
+      await pumpShell(tester, const Size(800, 600), desktop: true);
+      await expectScrollsThenRests(tester);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(title));
+      await tester.pump(const Duration(milliseconds: 50));
+      // Far past two passes: it is still moving.
+      await tester.pump(const Duration(seconds: 40));
+      expect(tester.binding.hasScheduledFrame, isTrue);
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(scrolling, findsNothing);
+      expect(find.text(suffix), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 201));
+    });
+
+    testWidgets('desktop Mini Player title and its key', (tester) async {
+      await pumpShell(
+        tester,
+        const Size(560, 360),
+        desktop: true,
+        miniPlayer: true,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('desktopMiniPlayerTitle')),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<MarqueeText>(
+          find.byKey(const ValueKey<String>('desktopMiniPlayerTitle')),
+        ),
+        isA<MarqueeText>().having((m) => m.passes, 'passes', 2),
+      );
+      await expectScrollsThenRests(tester);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(title));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(seconds: 40));
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await mouse.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 201));
+    });
+  });
 
   testWidgets('phone MiniPlayerStrip rendering is pinned', (tester) async {
     tester.view.devicePixelRatio = 1;

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -1629,7 +1630,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       await _showDesktopSongActions(song, anchor: anchor);
       return;
     }
-    await showModalBottomSheet<void>(
+    await showNavisModalSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (context) {
@@ -2369,7 +2370,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     int? albumRating,
     String coverArtHeroTag,
   ) async {
-    await showModalBottomSheet<void>(
+    await showNavisModalSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) {

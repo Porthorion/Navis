@@ -364,195 +364,195 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                               SizedBox(width: compactLayout ? 8 : 10),
                               SizedBox(
                                 width: metadataTextWidth,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    // Title — tappable for radio search and normal cached metadata navigation.
-                                    if (playback.isRadioMode &&
-                                        (widget.songTitle ?? '')
-                                            .trim()
-                                            .isNotEmpty)
-                                      MouseRegion(
-                                        cursor: SystemMouseCursors.click,
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            NavService.openSearch(
-                                              context,
-                                              ref,
-                                              widget.songTitle!.trim(),
-                                              filter: SearchResultType.songs,
-                                            );
-                                          },
-                                          child: Text(
-                                            title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ),
-                                      )
-                                    else if (!playback.isRadioMode &&
-                                        (widget.songTitle ?? '')
-                                            .trim()
-                                            .isNotEmpty)
-                                      MouseRegion(
-                                        cursor: SystemMouseCursors.click,
-                                        child: GestureDetector(
-                                          onTap: () => unawaited(
-                                            NormalPlaybackMetadataNavigator.goToTitle(
-                                              context,
-                                              ref,
-                                              title: widget.songTitle,
-                                              albumId: widget.albumId,
-                                              artistId: widget.artistId,
-                                              artistName: widget.songArtist,
+                                child: _PointerHover(
+                                  builder: (context, hovered) => Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      // Title — tappable for radio search and normal cached metadata navigation.
+                                      if (playback.isRadioMode &&
+                                          (widget.songTitle ?? '')
+                                              .trim()
+                                              .isNotEmpty)
+                                        MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              NavService.openSearch(
+                                                context,
+                                                ref,
+                                                widget.songTitle!.trim(),
+                                                filter: SearchResultType.songs,
+                                              );
+                                            },
+                                            child: MarqueeText(
+                                              title,
+                                              passes: hovered ? null : 2,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium!
+                                                  .copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
                                             ),
                                           ),
-                                          child: Text(
-                                            title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium
-                                                ?.copyWith(
-                                                  color: colors.primary,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      Text(
-                                        title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
+                                        )
+                                      else if (!playback.isRadioMode &&
+                                          (widget.songTitle ?? '')
+                                              .trim()
+                                              .isNotEmpty)
+                                        MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          child: GestureDetector(
+                                            onTap: () => unawaited(
+                                              NormalPlaybackMetadataNavigator.goToTitle(
+                                                context,
+                                                ref,
+                                                title: widget.songTitle,
+                                                albumId: widget.albumId,
+                                                artistId: widget.artistId,
+                                                artistName: widget.songArtist,
+                                              ),
                                             ),
-                                      ),
-                                    if (canOpenArtist)
-                                      MouseRegion(
-                                        cursor: SystemMouseCursors.click,
-                                        child: TextButton(
-                                          style: TextButton.styleFrom(
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: Size.zero,
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                            alignment: Alignment.centerLeft,
-                                            foregroundColor:
-                                                colors.onSurfaceVariant,
-                                          ),
-                                          onPressed: () => unawaited(
-                                            NormalPlaybackMetadataNavigator.goToArtist(
-                                              context,
-                                              ref,
-                                              artistId: widget.artistId,
-                                              artistName: widget.songArtist,
+                                            child: MarqueeText(
+                                              title,
+                                              passes: hovered ? null : 2,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium!
+                                                  .copyWith(
+                                                    color: colors.primary,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
                                             ),
                                           ),
-                                          // Only the title carries the
-                                          // accent; the artist link stays
-                                          // secondary like other metadata.
-                                          child: Text(
-                                            artist,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color:
-                                                      colors.onSurfaceVariant,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                          ),
+                                        )
+                                      else
+                                        MarqueeText(
+                                          title,
+                                          passes: hovered ? null : 2,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium!
+                                              .copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                         ),
-                                      )
-                                    else if (playback.isRadioMode &&
-                                        (widget.songArtist ?? '')
-                                            .trim()
-                                            .isNotEmpty)
-                                      _radioArtistLine(
-                                        context,
-                                        heightClass,
-                                        Wrap(
-                                          spacing: 0,
-                                          runSpacing: 0,
-                                          children: [
-                                            for (final (i, name)
-                                                in splitArtistNames(
-                                                  widget.songArtist!,
-                                                ).indexed) ...<Widget>[
-                                              if (i > 0)
-                                                Text(
-                                                  ', ',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: colors
-                                                            .onSurfaceVariant,
-                                                      ),
-                                                ),
-                                              MouseRegion(
-                                                cursor:
-                                                    SystemMouseCursors.click,
-                                                child: GestureDetector(
-                                                  onTap: () {
-                                                    NavService.openSearch(
-                                                      context,
-                                                      ref,
-                                                      name,
-                                                      filter: SearchResultType
-                                                          .artists,
-                                                    );
-                                                  },
-                                                  child: Text(
-                                                    name,
+                                      if (canOpenArtist)
+                                        MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          child: TextButton(
+                                            style: TextButton.styleFrom(
+                                              padding: EdgeInsets.zero,
+                                              minimumSize: Size.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              alignment: Alignment.centerLeft,
+                                              foregroundColor:
+                                                  colors.onSurfaceVariant,
+                                            ),
+                                            onPressed: () => unawaited(
+                                              NormalPlaybackMetadataNavigator.goToArtist(
+                                                context,
+                                                ref,
+                                                artistId: widget.artistId,
+                                                artistName: widget.songArtist,
+                                              ),
+                                            ),
+                                            // Only the title carries the
+                                            // accent; the artist link stays
+                                            // secondary like other metadata.
+                                            child: MarqueeText(
+                                              artist,
+                                              active: hovered,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall!
+                                                  .copyWith(
+                                                    color:
+                                                        colors.onSurfaceVariant,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                            ),
+                                          ),
+                                        )
+                                      else if (playback.isRadioMode &&
+                                          (widget.songArtist ?? '')
+                                              .trim()
+                                              .isNotEmpty)
+                                        _radioArtistLine(
+                                          context,
+                                          heightClass,
+                                          Wrap(
+                                            spacing: 0,
+                                            runSpacing: 0,
+                                            children: [
+                                              for (final (i, name)
+                                                  in splitArtistNames(
+                                                    widget.songArtist!,
+                                                  ).indexed) ...<Widget>[
+                                                if (i > 0)
+                                                  Text(
+                                                    ', ',
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .bodySmall
                                                         ?.copyWith(
-                                                          color: colors.primary,
+                                                          color: colors
+                                                              .onSurfaceVariant,
                                                         ),
                                                   ),
+                                                MouseRegion(
+                                                  cursor:
+                                                      SystemMouseCursors.click,
+                                                  child: GestureDetector(
+                                                    onTap: () {
+                                                      NavService.openSearch(
+                                                        context,
+                                                        ref,
+                                                        name,
+                                                        filter: SearchResultType
+                                                            .artists,
+                                                      );
+                                                    },
+                                                    child: Text(
+                                                      name,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            color:
+                                                                colors.primary,
+                                                          ),
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
+                                              ],
                                             ],
-                                          ],
+                                          ),
+                                        )
+                                      else
+                                        MarqueeText(
+                                          artist,
+                                          active: hovered,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall!
+                                              .copyWith(
+                                                color: colors.onSurfaceVariant,
+                                              ),
                                         ),
-                                      )
-                                    else
-                                      Text(
-                                        artist,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: colors.onSurfaceVariant,
-                                            ),
-                                      ),
-                                    if (widget.isExternalSource)
-                                      const RemoteSourceIndicator(
-                                        variant:
-                                            RemoteSourceIndicatorVariant.inline,
-                                      ),
-                                  ],
+                                      if (widget.isExternalSource)
+                                        const RemoteSourceIndicator(
+                                          variant: RemoteSourceIndicatorVariant
+                                              .inline,
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],

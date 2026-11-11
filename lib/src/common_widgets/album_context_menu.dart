@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -80,7 +81,7 @@ Future<void> showAlbumContextMenu(
     return;
   }
 
-  await showModalBottomSheet<void>(
+  await showNavisModalSheet<void>(
     context: context,
     builder: (sheetContext) {
       return Consumer(
