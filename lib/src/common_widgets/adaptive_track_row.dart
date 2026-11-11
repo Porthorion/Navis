@@ -395,12 +395,14 @@ class AdaptiveTrackRow extends StatelessWidget {
         final touchCompact = _isCompactTouch(context, width);
         final status = trailingStatus;
         // Natural width: [actionExtent] still counts the status box here, so
-        // it is subtracted (a shown glyph takes 20 dp more, see the glyph).
+        // it is subtracted and the glyph's own 20 dp (16 + 4 gap, see the
+        // glyph) added; a hidden glyph is over-estimated by those 20 dp.
         final naturalActions = touchCompact && status != null;
         final estimatedActions = naturalActions
             ? (actions == null
-                  ? 0.0
-                  : math.max(48.0, (actionExtent ?? 96) - 48))
+                      ? 0.0
+                      : math.max(48.0, (actionExtent ?? 96) - 48)) +
+                  20
             : actionExtent ??
                   (actions == null
                       ? 0.0
