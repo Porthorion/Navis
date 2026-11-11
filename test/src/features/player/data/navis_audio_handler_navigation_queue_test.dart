@@ -5483,6 +5483,7 @@ void main() {
   });
 
   for (final (count, lateFailure) in [(3, false), (3, true), (70, false)]) {
+    const loadDeadline = Duration(milliseconds: 500);
     test('timed-out explicit saved queue preparation cannot change a newer selection '
         '(count=$count, lateFailure=$lateFailure)', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -5505,6 +5506,11 @@ void main() {
         initialPlayer: initialPlayer,
         waitForReady: false,
         rebuiltPlayers: rebuilt,
+        // Shortened from the 12 s default. prepare() runs the in-lane restore,
+        // which never arms the queueRestore timer: the gated native load's
+        // deadline is the only timeout here, already spent before
+        // replaceQueue, so no later deadline is left to race the selection.
+        timeouts: const NavisPlaybackTimeouts(load: loadDeadline),
       );
       addTearDown(() async {
         if (!gate.isCompleted) gate.complete();
@@ -5527,11 +5533,6 @@ void main() {
       final selectedPlayer =
           handler.debugActivePlayer as ControllableAudioPlayer;
       expect(selectedPlayer.isPlaying, isTrue);
-      // A two-phase restore also has a native load deadline. Its later
-      // timeout must not rebuild the player that now owns the selection.
-      if (count > 64) {
-        await Future<void>.delayed(const Duration(seconds: 3));
-      }
       gate.complete();
       await pumpEventQueue(times: 50);
 
