@@ -6610,7 +6610,7 @@ void main() {
       await unmountShell(tester, container);
     });
 
-    testWidgets('phone queue over Flat Artwork follows the tinted fallback', (
+    testWidgets('phone queue over expanded Artwork stays opaque under Flat', (
       tester,
     ) async {
       final container = await pumpShell(
@@ -6621,10 +6621,28 @@ void main() {
       await openQueueOverNowPlaying(tester, container);
       expect(container.read(playerSheetExpandedProvider), isTrue);
       expect(find.byKey(queueBackdropKey), findsNothing);
-      expect(find.byKey(queueTintKey), findsOneWidget);
-      expect(queuePanelFill(tester).a, 0);
+      expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+      expect(find.byKey(queueTintKey), findsNothing);
+      expect(queuePanelFill(tester).a, 1);
       await unmountShell(tester, container);
     });
+
+    testWidgets(
+      'phone queue over expanded Art-Tinted stays opaque under Flat',
+      (tester) async {
+        final container = await pumpShell(
+          tester,
+          background: NowPlayingBackground.tinted,
+          flat: true,
+        );
+        await openQueueOverNowPlaying(tester, container);
+        expect(container.read(playerSheetExpandedProvider), isTrue);
+        expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+        expect(find.byKey(queueTintKey), findsNothing);
+        expect(queuePanelFill(tester).a, 1);
+        await unmountShell(tester, container);
+      },
+    );
 
     testWidgets('desktop lyrics view draws the Artwork background', (
       tester,

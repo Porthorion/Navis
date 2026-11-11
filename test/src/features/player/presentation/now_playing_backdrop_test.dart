@@ -246,10 +246,7 @@ void main() {
     expect(find.byKey(_artworkKey), findsNothing);
     expect(find.text('bare'), findsOneWidget);
     expect(decoration(tester).gradient, isNotNull);
-    // The tinted fallback is what the queue overlay follows: a tint, no image.
-    final published = container.read(nowPlayingPublishedBackdropProvider)!;
-    expect(published.image, isNull);
-    expect(published.tintColor, _tint);
+    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
     expect(tester.takeException(), isNull);
   });
 
@@ -296,6 +293,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(_artworkKey), findsNothing);
     expect(decoration(tester).gradient, isNotNull);
+    // A chosen Art-Tinted background publishes its tint for the queue.
     final published = container.read(nowPlayingPublishedBackdropProvider)!;
     expect(published.image, isNull);
     expect(published.tintColor, _tint);

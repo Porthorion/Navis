@@ -467,7 +467,13 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         child: _withArtworkBackground(
           showArtworkLayer: showArtworkLayer,
           image: artworkImage,
-          tintColor: tintColor,
+          // Only a chosen Art-Tinted background reaches the queue; Flat and a
+          // failed-Artwork fallback keep the queue opaque (#560).
+          tintColor:
+              background == NowPlayingBackground.tinted &&
+                  !colorStyle.flatNowPlaying
+              ? tintColor
+              : null,
           colorStyle: colorStyle,
           colors: colors,
           fadeDuration: motion.surface,

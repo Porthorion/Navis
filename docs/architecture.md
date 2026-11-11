@@ -986,10 +986,10 @@ target-selection rules.
   switched away from Artwork, or disposed. The phone queue overlay outside the
   Now Playing subtree reuses that same prepared blur through the shared cache in
   `NowPlayingArtworkBackground` beneath its own active artwork scope. A queue
-  opened from Home with Now Playing collapsed stays opaque. Sheets & Menus
-  (`sheetStyleProvider`) decides what the queue draws: Match Now Playing
-  follows the published background, which for Art-Tinted (and Artwork under
-  Flat, which falls back to it) is the extracted `tintColor`, painted by
+  opened from Home with Now Playing collapsed, or under Flat, stays opaque.
+  Sheets & Menus (`sheetStyleProvider`) decides what the queue draws: Match
+  Now Playing follows the published background, which for a chosen Art-Tinted
+  background (not Flat, not an Artwork fallback) is the extracted `tintColor`, painted by
   `nowPlayingSurfaceDecoration` with `NowPlayingArtworkLayerScope.tinted` making
   panel fills transparent; Theme keeps `surface` opaque; Album Color uses the
   album tint that `AlbumSurfaceScope` publishes on `PopupMenuTheme`. The queue
