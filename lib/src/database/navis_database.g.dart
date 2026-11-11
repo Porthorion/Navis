@@ -1442,6 +1442,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('match_now_playing'),
   );
+  static const VerificationMeta _keepTitleVersionVisibleMeta =
+      const VerificationMeta('keepTitleVersionVisible');
+  @override
+  late final GeneratedColumn<bool> keepTitleVersionVisible =
+      GeneratedColumn<bool>(
+        'keep_title_version_visible',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("keep_title_version_visible" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
   static const VerificationMeta _dynamicAlbumColorEnabledMeta =
       const VerificationMeta('dynamicAlbumColorEnabled');
   @override
@@ -2225,6 +2240,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     cornerStyle,
     nowPlayingBackground,
     sheetStyle,
+    keepTitleVersionVisible,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
@@ -2871,6 +2887,15 @@ class $AppSettingsTableTable extends AppSettingsTable
       context.handle(
         _sheetStyleMeta,
         sheetStyle.isAcceptableOrUnknown(data['sheet_style']!, _sheetStyleMeta),
+      );
+    }
+    if (data.containsKey('keep_title_version_visible')) {
+      context.handle(
+        _keepTitleVersionVisibleMeta,
+        keepTitleVersionVisible.isAcceptableOrUnknown(
+          data['keep_title_version_visible']!,
+          _keepTitleVersionVisibleMeta,
+        ),
       );
     }
     if (data.containsKey('dynamic_album_color_enabled')) {
@@ -3650,6 +3675,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}sheet_style'],
       )!,
+      keepTitleVersionVisible: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}keep_title_version_visible'],
+      )!,
       dynamicAlbumColorEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}dynamic_album_color_enabled'],
@@ -4040,6 +4069,10 @@ class AppSettingsTableData extends DataClass
   /// Fill of sheets and menus: match_now_playing, album_color or theme.
   final String sheetStyle;
 
+  /// Keep Song Versions Visible: long titles keep a trailing tag such as
+  /// "(Remastered)" whole and shorten the name. Off: one plain ellipsis.
+  final bool keepTitleVersionVisible;
+
   /// When true, app accent color follows the currently playing album art.
   final bool dynamicAlbumColorEnabled;
 
@@ -4293,6 +4326,7 @@ class AppSettingsTableData extends DataClass
     required this.cornerStyle,
     required this.nowPlayingBackground,
     required this.sheetStyle,
+    required this.keepTitleVersionVisible,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
@@ -4458,6 +4492,7 @@ class AppSettingsTableData extends DataClass
     map['corner_style'] = Variable<String>(cornerStyle);
     map['now_playing_background'] = Variable<String>(nowPlayingBackground);
     map['sheet_style'] = Variable<String>(sheetStyle);
+    map['keep_title_version_visible'] = Variable<bool>(keepTitleVersionVisible);
     map['dynamic_album_color_enabled'] = Variable<bool>(
       dynamicAlbumColorEnabled,
     );
@@ -4664,6 +4699,7 @@ class AppSettingsTableData extends DataClass
       cornerStyle: Value(cornerStyle),
       nowPlayingBackground: Value(nowPlayingBackground),
       sheetStyle: Value(sheetStyle),
+      keepTitleVersionVisible: Value(keepTitleVersionVisible),
       dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
       updateCheckEnabled: Value(updateCheckEnabled),
       updateChannel: Value(updateChannel),
@@ -4874,6 +4910,9 @@ class AppSettingsTableData extends DataClass
         json['nowPlayingBackground'],
       ),
       sheetStyle: serializer.fromJson<String>(json['sheetStyle']),
+      keepTitleVersionVisible: serializer.fromJson<bool>(
+        json['keepTitleVersionVisible'],
+      ),
       dynamicAlbumColorEnabled: serializer.fromJson<bool>(
         json['dynamicAlbumColorEnabled'],
       ),
@@ -5087,6 +5126,9 @@ class AppSettingsTableData extends DataClass
       'cornerStyle': serializer.toJson<String>(cornerStyle),
       'nowPlayingBackground': serializer.toJson<String>(nowPlayingBackground),
       'sheetStyle': serializer.toJson<String>(sheetStyle),
+      'keepTitleVersionVisible': serializer.toJson<bool>(
+        keepTitleVersionVisible,
+      ),
       'dynamicAlbumColorEnabled': serializer.toJson<bool>(
         dynamicAlbumColorEnabled,
       ),
@@ -5244,6 +5286,7 @@ class AppSettingsTableData extends DataClass
     String? cornerStyle,
     String? nowPlayingBackground,
     String? sheetStyle,
+    bool? keepTitleVersionVisible,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
@@ -5399,6 +5442,8 @@ class AppSettingsTableData extends DataClass
     cornerStyle: cornerStyle ?? this.cornerStyle,
     nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
     sheetStyle: sheetStyle ?? this.sheetStyle,
+    keepTitleVersionVisible:
+        keepTitleVersionVisible ?? this.keepTitleVersionVisible,
     dynamicAlbumColorEnabled:
         dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
     updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -5694,6 +5739,9 @@ class AppSettingsTableData extends DataClass
       sheetStyle: data.sheetStyle.present
           ? data.sheetStyle.value
           : this.sheetStyle,
+      keepTitleVersionVisible: data.keepTitleVersionVisible.present
+          ? data.keepTitleVersionVisible.value
+          : this.keepTitleVersionVisible,
       dynamicAlbumColorEnabled: data.dynamicAlbumColorEnabled.present
           ? data.dynamicAlbumColorEnabled.value
           : this.dynamicAlbumColorEnabled,
@@ -5934,6 +5982,7 @@ class AppSettingsTableData extends DataClass
           ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('sheetStyle: $sheetStyle, ')
+          ..write('keepTitleVersionVisible: $keepTitleVersionVisible, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
@@ -6069,6 +6118,7 @@ class AppSettingsTableData extends DataClass
     cornerStyle,
     nowPlayingBackground,
     sheetStyle,
+    keepTitleVersionVisible,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
@@ -6199,6 +6249,7 @@ class AppSettingsTableData extends DataClass
           other.cornerStyle == this.cornerStyle &&
           other.nowPlayingBackground == this.nowPlayingBackground &&
           other.sheetStyle == this.sheetStyle &&
+          other.keepTitleVersionVisible == this.keepTitleVersionVisible &&
           other.dynamicAlbumColorEnabled == this.dynamicAlbumColorEnabled &&
           other.updateCheckEnabled == this.updateCheckEnabled &&
           other.updateChannel == this.updateChannel &&
@@ -6331,6 +6382,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> cornerStyle;
   final Value<String> nowPlayingBackground;
   final Value<String> sheetStyle;
+  final Value<bool> keepTitleVersionVisible;
   final Value<bool> dynamicAlbumColorEnabled;
   final Value<bool> updateCheckEnabled;
   final Value<String> updateChannel;
@@ -6455,6 +6507,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
     this.sheetStyle = const Value.absent(),
+    this.keepTitleVersionVisible = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
@@ -6580,6 +6633,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
     this.sheetStyle = const Value.absent(),
+    this.keepTitleVersionVisible = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
@@ -6705,6 +6759,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? cornerStyle,
     Expression<String>? nowPlayingBackground,
     Expression<String>? sheetStyle,
+    Expression<bool>? keepTitleVersionVisible,
     Expression<bool>? dynamicAlbumColorEnabled,
     Expression<bool>? updateCheckEnabled,
     Expression<String>? updateChannel,
@@ -6858,6 +6913,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (nowPlayingBackground != null)
         'now_playing_background': nowPlayingBackground,
       if (sheetStyle != null) 'sheet_style': sheetStyle,
+      if (keepTitleVersionVisible != null)
+        'keep_title_version_visible': keepTitleVersionVisible,
       if (dynamicAlbumColorEnabled != null)
         'dynamic_album_color_enabled': dynamicAlbumColorEnabled,
       if (updateCheckEnabled != null)
@@ -7017,6 +7074,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? cornerStyle,
     Value<String>? nowPlayingBackground,
     Value<String>? sheetStyle,
+    Value<bool>? keepTitleVersionVisible,
     Value<bool>? dynamicAlbumColorEnabled,
     Value<bool>? updateCheckEnabled,
     Value<String>? updateChannel,
@@ -7156,6 +7214,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       cornerStyle: cornerStyle ?? this.cornerStyle,
       nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
       sheetStyle: sheetStyle ?? this.sheetStyle,
+      keepTitleVersionVisible:
+          keepTitleVersionVisible ?? this.keepTitleVersionVisible,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -7478,6 +7538,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (sheetStyle.present) {
       map['sheet_style'] = Variable<String>(sheetStyle.value);
     }
+    if (keepTitleVersionVisible.present) {
+      map['keep_title_version_visible'] = Variable<bool>(
+        keepTitleVersionVisible.value,
+      );
+    }
     if (dynamicAlbumColorEnabled.present) {
       map['dynamic_album_color_enabled'] = Variable<bool>(
         dynamicAlbumColorEnabled.value,
@@ -7773,6 +7838,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('sheetStyle: $sheetStyle, ')
+          ..write('keepTitleVersionVisible: $keepTitleVersionVisible, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
@@ -36985,6 +37051,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
       Value<String> sheetStyle,
+      Value<bool> keepTitleVersionVisible,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
@@ -37111,6 +37178,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
       Value<String> sheetStyle,
+      Value<bool> keepTitleVersionVisible,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
@@ -37511,6 +37579,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get sheetStyle => $composableBuilder(
     column: $table.sheetStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get keepTitleVersionVisible => $composableBuilder(
+    column: $table.keepTitleVersionVisible,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38140,6 +38213,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get keepTitleVersionVisible => $composableBuilder(
+    column: $table.keepTitleVersionVisible,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get dynamicAlbumColorEnabled => $composableBuilder(
     column: $table.dynamicAlbumColorEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -38759,6 +38837,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get keepTitleVersionVisible => $composableBuilder(
+    column: $table.keepTitleVersionVisible,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get dynamicAlbumColorEnabled => $composableBuilder(
     column: $table.dynamicAlbumColorEnabled,
     builder: (column) => column,
@@ -39142,6 +39225,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
                 Value<String> sheetStyle = const Value.absent(),
+                Value<bool> keepTitleVersionVisible = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
@@ -39271,6 +39355,7 @@ class $$AppSettingsTableTableTableManager
                 cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
                 sheetStyle: sheetStyle,
+                keepTitleVersionVisible: keepTitleVersionVisible,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
@@ -39398,6 +39483,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
                 Value<String> sheetStyle = const Value.absent(),
+                Value<bool> keepTitleVersionVisible = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
@@ -39527,6 +39613,7 @@ class $$AppSettingsTableTableTableManager
                 cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
                 sheetStyle: sheetStyle,
+                keepTitleVersionVisible: keepTitleVersionVisible,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,

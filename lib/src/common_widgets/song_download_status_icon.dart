@@ -220,6 +220,74 @@ class SongDownloadStatusIcon extends ConsumerWidget {
   }
 }
 
+/// The non-interactive download state of a phone song row, drawn beside the
+/// more button: a check once downloaded, a progress ring while downloading,
+/// a faint ring while queued, nothing otherwise (rolling-cached songs
+/// included). Downloading and removing live in the row's menu.
+///
+/// A visible glyph carries its own 4 dp gap towards the more button, so rows
+/// without a state take no extra width.
+class SongDownloadStatusGlyph extends ConsumerWidget {
+  const new({required this.songId, super.key});
+
+  final String songId;
+
+  /// The 16 dp box of a ring.
+  @visibleForTesting
+  static const boxKey = ValueKey('song-download-status-ring');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(songDownloadStateProvider(songId));
+    final l10n = AppLocalizations.of(context)!;
+    final primary = Theme.of(context).colorScheme.primary;
+    Widget ring(double? value, Color color) => SizedBox(
+      key: boxKey,
+      width: 16,
+      height: 16,
+      child: Center(
+        child: SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(
+            value: value,
+            strokeWidth: 2,
+            color: color,
+          ),
+        ),
+      ),
+    );
+    final (label, glyph) = switch (state.status) {
+      SongDownloadStatus.downloaded => (
+        l10n.songStatusDownloaded,
+        Icon(
+          Icons.check_circle,
+          size: 16,
+          color: NavisTokens.of(context).success,
+        ),
+      ),
+      SongDownloadStatus.downloading => (
+        l10n.songStatusDownloading,
+        ring(state.progress, primary),
+      ),
+      SongDownloadStatus.queued => (
+        l10n.songStatusQueued,
+        ring(null, primary.withValues(alpha: 0.5)),
+      ),
+      SongDownloadStatus.none || SongDownloadStatus.cached => (null, null),
+    };
+    if (label == null || glyph == null) return const SizedBox.shrink();
+    return Semantics(
+      label: label,
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(end: 4),
+        child: glyph,
+      ),
+    );
+  }
+}
+
 /// Shows a confirmation dialog and, if confirmed, deletes the permanently
 /// downloaded file for [songId].
 ///

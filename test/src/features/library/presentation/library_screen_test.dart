@@ -20,6 +20,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -837,7 +838,6 @@ void main() {
           matching: find.byType(CustomScrollView),
         );
         final start = tester.getRect(scroll).top;
-        final firstSongTop = tester.getRect(find.text('First liked song')).top;
         final row = find.ancestor(
           of: find.text('First liked song'),
           matching: find.byType(AdaptiveTrackRow),
@@ -848,8 +848,66 @@ void main() {
           matching: find.byIcon(Icons.more_vert),
         );
         expect(tester.getRect(more).center.dy, tester.getRect(row).center.dy);
-        expect(firstSongTop - start, lessThanOrEqualTo(440));
+        // The row, not its title: a title on one line sits lower in the row.
+        expect(tester.getRect(row).top - start, lessThanOrEqualTo(440));
         expect(find.text('See All'), findsNWidgets(2));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'phone Liked song rows show the download glyph, not a button',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await _pumpLibraryScreen(
+          tester,
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: false,
+            viewportSize: const Size(390, 844),
+            safePadding: EdgeInsets.zero,
+          ),
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+            likedArtistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              AsyncData([
+                _likedSong(
+                  id: 'liked-song',
+                  title: 'Liked song',
+                  albumId: 'liked-0',
+                ),
+              ]),
+            ),
+            likedAlbumSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            songDownloadStateProvider.overrideWith(
+              (ref, songId) => const SongDownloadState(
+                status: SongDownloadStatus.downloaded,
+              ),
+            ),
+          ],
+        );
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+        expect(find.text('Liked song'), findsOneWidget);
+        expect(find.byType(SongDownloadStatusGlyph), findsOneWidget);
+        expect(find.byType(SongDownloadStatusIcon), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );

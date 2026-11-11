@@ -3289,6 +3289,17 @@ final dynamicAlbumColorEnabledProvider = Provider<bool>((ref) {
   return settings.dynamicAlbumColorEnabled;
 });
 
+/// Keep Song Versions Visible: long titles keep a trailing tag whole.
+final keepTitleVersionVisibleProvider = Provider<bool>((ref) {
+  return ref.watch(
+    appSettingsProvider.select(
+      (settings) =>
+          settings.asData?.value.keepTitleVersionVisible ??
+          const AppSettingsModel.defaults().keepTitleVersionVisible,
+    ),
+  );
+});
+
 final gridArtworkSizeProvider = Provider<GridArtworkSize>((ref) {
   return ref.watch(
     appSettingsProvider.select(

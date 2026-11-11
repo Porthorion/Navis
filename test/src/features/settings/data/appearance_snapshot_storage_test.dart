@@ -53,6 +53,7 @@ void main() {
       artistViewMode: 'list',
       nowPlayingBackground: NowPlayingBackground.artwork,
       sheetStyle: SheetStyle.albumColor,
+      keepTitleVersionVisible: false,
       appLocale: 'en',
       homeRecommendationsAutoAdvance: true,
     );
@@ -64,7 +65,7 @@ void main() {
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      28,
+      29,
     ); // Every Look setting; tuning is Custom.
     await dao.applyAppearanceSnapshot(
       AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
@@ -81,6 +82,8 @@ void main() {
     expect(AppearanceSnapshot.capture(restored), original);
     expect(restored.sheetStyle, SheetStyle.albumColor);
     expect(original.toJson()['sheetStyle'], 'album_color');
+    expect(restored.keepTitleVersionVisible, isFalse);
+    expect(original.toJson()['keepTitleVersionVisible'], isFalse);
     final container = ProviderContainer(overrides: withTestDatabase(database));
     addTearDown(container.dispose);
     // Language, saved swatches and recommendation auto-advance are not part
@@ -134,6 +137,27 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test('an older Look without keepTitleVersionVisible leaves it', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final dao = database.appSettingsDao;
+    final repository = SettingsRepository(dao);
+    await dao.getSettings();
+    final full = AppearanceSnapshot.capture(await repository.getSettings())
+        .toJson();
+    final old = AppearanceSnapshot.fromJson(
+      full..remove('keepTitleVersionVisible'),
+    );
+    expect(old.keepTitleVersionVisible, isNull);
+    await dao.updateKeepTitleVersionVisible(enabled: false);
+    await dao.applyAppearanceSnapshot(old);
+    expect((await repository.getSettings()).keepTitleVersionVisible, isFalse);
+    await dao.applyAppearanceSnapshot(
+      AppearanceSnapshot.fromJson({...full, 'keepTitleVersionVisible': true}),
+    );
+    expect((await repository.getSettings()).keepTitleVersionVisible, isTrue);
+  }, skip: !sqliteAvailable);
 
   for (final legacyDensity in <int?>[null, 6]) {
     test('old stored Look restores layout keys ($legacyDensity)', () async {

@@ -690,6 +690,8 @@ class _ListenBrainzWeeklyDetailContentState
         }
         final recommendation = playlist.recommendations[index - 1];
         final tableSong = recommendation.tableSong;
+        final desktopRuntime = resolveAdaptiveContextFor(context)
+            .desktopRuntime;
         // Keyed by recommendation for the clone-only weeklyLastRow action.
         final rowKey = ValueKey<String>('weekly-row-${index - 1}');
         if (recommendation.hasServerSong && tableSong != null) {
@@ -709,17 +711,22 @@ class _ListenBrainzWeeklyDetailContentState
               tableSong,
               anchor: details.globalPosition,
             ),
+            // Desktop keeps the download button: this row has no desktop branch.
+            trailingStatus: desktopRuntime
+                ? null
+                : SongDownloadStatusGlyph(songId: tableSong.id),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: SongDownloadStatusIcon(
-                    songId: tableSong.id,
-                    onDownload: () => _downloadSong(tableSong),
+                if (desktopRuntime)
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: SongDownloadStatusIcon(
+                      songId: tableSong.id,
+                      onDownload: () => _downloadSong(tableSong),
+                    ),
                   ),
-                ),
                 Builder(
                   builder: (buttonContext) => IconButton(
                     tooltip: MaterialLocalizations.of(buttonContext)

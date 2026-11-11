@@ -31,7 +31,6 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
@@ -2084,37 +2083,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       return TrackListTile(
                         song: song,
                         actionExtent: desktopMode ? null : 96,
+                        trailingStatus: desktopMode
+                            ? null
+                            : SongDownloadStatusGlyph(songId: song.id),
                         trailing: desktopMode
                             ? DesktopSongActions(
                                 song: song,
                                 keyPrefix: 'liked-song',
                               )
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  SizedBox(
-                                    width: 48,
-                                    height: 48,
-                                    child: SongDownloadStatusIcon(
-                                      songId: song.id,
-                                      onDownload: () =>
-                                          unawaited(_downloadLikedSong(song)),
-                                    ),
-                                  ),
-                                  Builder(
-                                    builder: (buttonContext) => IconButton(
-                                      tooltip: MaterialLocalizations.of(
-                                        buttonContext,
-                                      ).showMenuTooltip,
-                                      icon: const Icon(Icons.more_vert),
-                                      onPressed: () => showSongContextMenu(
-                                        this.context,
-                                        ref,
-                                        song,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            : IconButton(
+                                tooltip: MaterialLocalizations.of(context)
+                                    .showMenuTooltip,
+                                icon: const Icon(Icons.more_vert),
+                                onPressed: () => showSongContextMenu(
+                                  this.context,
+                                  ref,
+                                  song,
+                                ),
                               ),
                         onTap: () {
                           _handleLikedSongTap(
@@ -2167,26 +2152,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   /// "See all" opens the liked artists page, like liked albums does.
   void _openLikedArtistsAll() {
     NavService.openLikedArtists(context, ref);
-  }
-
-  Future<void> _downloadLikedSong(SongsTableData song) async {
-    final choice = await requestDownloadQuality(context, ref);
-    if (choice == null || !mounted) return;
-    final service = ref.read(downloadServiceProvider);
-    unawaited(
-      service.enqueueSong(
-        song.id,
-        quality: choice.quality,
-        format: choice.format,
-      ),
-    );
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context)!;
-    showAppNotice(
-      context,
-      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
-      level: AppNoticeLevel.success,
-    );
   }
 
   Future<void> _queueLikedSongs(

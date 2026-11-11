@@ -402,6 +402,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         entry.playlistIndex,
                         anchor: details.globalPosition,
                       ),
+                      trailingStatus: desktopMode
+                          ? null
+                          : SongDownloadStatusGlyph(songId: song.id),
                       trailing: desktopMode
                           ? DesktopSongActions(
                               song: song,
@@ -412,21 +415,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 anchor: anchor,
                               ),
                             )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: SongDownloadStatusIcon(
-                                    songId: song.id,
-                                    onDownload: () =>
-                                        unawaited(_downloadSong(song)),
-                                  ),
-                                ),
-                                _songActionsButton(song, entry.playlistIndex),
-                              ],
-                            ),
+                          : _songActionsButton(song, entry.playlistIndex),
                     ),
                   );
                 }, childCount: visibleEntries.length),
@@ -466,6 +455,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         index,
                         anchor: details.globalPosition,
                       ),
+                      trailingStatus: desktopMode
+                          ? null
+                          : SongDownloadStatusGlyph(songId: song.id),
                       trailing: desktopMode
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
@@ -485,15 +477,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: SongDownloadStatusIcon(
-                                    songId: song.id,
-                                    onDownload: () =>
-                                        unawaited(_downloadSong(song)),
-                                  ),
-                                ),
                                 _songActionsButton(song, index),
                                 if (_canEdit) _reorderHandle(index),
                               ],

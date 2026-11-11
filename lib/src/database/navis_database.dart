@@ -283,7 +283,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 114;
+  static const currentSchemaVersion = 115;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -458,6 +458,7 @@ class NavisDatabase extends _$NavisDatabase {
       from111To112,
       from112To113,
       from113To114,
+      from114To115,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -543,6 +544,17 @@ class NavisDatabase extends _$NavisDatabase {
   Future<void> from113To114(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'sheet_style')) {
       await migrator.addColumn(appSettingsTable, appSettingsTable.sheetStyle);
+    }
+  }
+
+  /// Keep Song Versions Visible (`app_settings.keep_title_version_visible`).
+  /// Adds one column that defaults on, so every profile keeps today's titles.
+  Future<void> from114To115(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'keep_title_version_visible')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.keepTitleVersionVisible,
+      );
     }
   }
 

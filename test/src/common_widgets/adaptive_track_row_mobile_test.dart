@@ -35,93 +35,106 @@ void main() {
     String title = 'A long song title that must truncate',
     bool desktopRuntime = false,
     bool twoLineTitle = true,
+    SongDownloadState? status,
+    VoidCallback? onTap,
   }) async {
     setAdaptiveTestViewport(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
-        theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: AdaptiveContextScope(
-          adaptiveContext: resolveAdaptiveContext(
-            desktopRuntime: desktopRuntime,
-            viewportSize: size,
-            safePadding: EdgeInsets.zero,
-          ),
-          child: MediaQuery(
-            data: MediaQueryData(
-              size: size,
-              textScaler: TextScaler.linear(scale),
+      ProviderScope(
+        overrides: [
+          if (status != null)
+            songDownloadStateProvider('row').overrideWithValue(status),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: desktopRuntime,
+              viewportSize: size,
+              safePadding: EdgeInsets.zero,
             ),
-            child: Scaffold(
-              body: Column(
-                children: [
-                  AdaptiveTrackHeader(actionExtent: buttons * 48),
-                  RepaintBoundary(
-                    key: const ValueKey('mobile-row-boundary'),
-                    child: AdaptiveTrackRow(
-                      key: rowKey,
-                      title: title,
-                      twoLineTitle: twoLineTitle,
-                      artist: artist,
-                      album: album,
-                      duration: duration,
-                      leadingExtent: leading,
-                      leading: const SizedBox(
-                        key: leadingKey,
-                        height: 48,
-                        child: Icon(Icons.album),
-                      ),
-                      isRemote: remote,
-                      badge: badge,
-                      selected: selected,
-                      actionExtent: buttons * 48,
-                      actions: buttons == 0
-                          ? null
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child:
-                                      downloadControl ??
-                                      IconButton(
-                                        key: downloadKey,
-                                        tooltip: 'Download',
-                                        onPressed: () {},
-                                        icon: const Icon(Icons.download),
-                                      ),
-                                ),
-                                if (buttons >= 2)
-                                  SizedBox(
-                                    width: 48,
-                                    height: 48,
-                                    child: IconButton(
-                                      key: moreKey,
-                                      tooltip: 'More',
-                                      onPressed: () {},
-                                      icon: const Icon(Icons.more_vert),
+            child: MediaQuery(
+              data: MediaQueryData(
+                size: size,
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: Scaffold(
+                body: Column(
+                  children: [
+                    AdaptiveTrackHeader(actionExtent: buttons * 48),
+                    RepaintBoundary(
+                      key: const ValueKey('mobile-row-boundary'),
+                      child: AdaptiveTrackRow(
+                        key: rowKey,
+                        title: title,
+                        twoLineTitle: twoLineTitle,
+                        artist: artist,
+                        album: album,
+                        duration: duration,
+                        leadingExtent: leading,
+                        leading: const SizedBox(
+                          key: leadingKey,
+                          height: 48,
+                          child: Icon(Icons.album),
+                        ),
+                        isRemote: remote,
+                        badge: badge,
+                        selected: selected,
+                        onTap: onTap,
+                        actionExtent: buttons * 48,
+                        trailingStatus: status == null
+                            ? null
+                            : const SongDownloadStatusGlyph(songId: 'row'),
+                        actions: buttons == 0
+                            ? null
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (status == null)
+                                    SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child:
+                                          downloadControl ??
+                                          IconButton(
+                                            key: downloadKey,
+                                            tooltip: 'Download',
+                                            onPressed: () {},
+                                            icon: const Icon(Icons.download),
+                                          ),
                                     ),
-                                  ),
-                                if (buttons == 3)
-                                  const SizedBox(
-                                    width: 48,
-                                    height: 48,
-                                    child: Icon(Icons.drag_handle),
-                                  ),
-                              ],
-                            ),
+                                  if (buttons >= 2)
+                                    SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: IconButton(
+                                        key: moreKey,
+                                        tooltip: 'More',
+                                        onPressed: () {},
+                                        icon: const Icon(Icons.more_vert),
+                                      ),
+                                    ),
+                                  if (buttons == 3)
+                                    const SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: Icon(Icons.drag_handle),
+                                    ),
+                                ],
+                              ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
-    if (downloadControl == null) {
+    if (downloadControl == null && status == null) {
       await tester.pumpAndSettle();
     } else {
       await tester.pump(const Duration(milliseconds: 300));
@@ -249,6 +262,109 @@ void main() {
       expect(tester.getSize(find.byKey(moreKey)), const Size(48, 48));
       expect(tester.getRect(find.byKey(moreKey)).center.dy, row.center.dy);
       expect(find.text('3:43'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  const downloaded = SongDownloadState(status: SongDownloadStatus.downloaded);
+
+  testWidgets('phone rows show the glyph left of More and no download button', (
+    tester,
+  ) async {
+    for (final scale in [1.0, 1.3, 2.0]) {
+      for (final state in [
+        SongDownloadState.none,
+        const SongDownloadState(status: SongDownloadStatus.queued),
+        const SongDownloadState(
+          status: SongDownloadStatus.downloading,
+          progress: .5,
+        ),
+        downloaded,
+      ]) {
+        await render(tester, status: state, scale: scale);
+        final row = tester.getRect(find.byKey(rowKey));
+        final more = tester.getRect(find.byKey(moreKey));
+        expect(row.height, tester.getSize(find.byKey(rowKey)).height);
+        expect(more.size, const Size(48, 48));
+        expect(more.center.dy, row.center.dy);
+        expect(find.byKey(downloadKey), findsNothing);
+        final glyph = find.byType(SongDownloadStatusGlyph);
+        if (state.status == SongDownloadStatus.none) {
+          expect(tester.getSize(glyph), Size.zero);
+        } else {
+          final box = tester.getRect(
+            state.status == SongDownloadStatus.downloaded
+                ? find.byIcon(Icons.check_circle)
+                : find.byKey(SongDownloadStatusGlyph.boxKey),
+          );
+          expect(box.size, const Size(16, 16));
+          expect(box.right, more.left - 4);
+          expect(box.center.dy, row.center.dy);
+        }
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
+  testWidgets('only rows with a state give up 20 dp of title width', (
+    tester,
+  ) async {
+    await render(tester, status: SongDownloadState.none);
+    final base = tester.getRect(find.text('3:43')).right;
+    final height = tester.getSize(find.byKey(rowKey)).height;
+    for (final state in [
+      const SongDownloadState(status: SongDownloadStatus.queued),
+      downloaded,
+    ]) {
+      await render(tester, status: state);
+      expect(tester.getRect(find.text('3:43')).right, base - 20);
+      expect(tester.getSize(find.byKey(rowKey)).height, height);
+    }
+    await render(
+      tester,
+      status: const SongDownloadState(status: SongDownloadStatus.cached),
+    );
+    expect(tester.getRect(find.text('3:43')).right, base);
+  });
+
+  testWidgets('a downloaded phone row shows the check beside More', (
+    tester,
+  ) async {
+    await render(tester, status: downloaded);
+    await expectLater(
+      find.byKey(const ValueKey('mobile-row-boundary')),
+      matchesGoldenFile('goldens/adaptive_track_row_mobile_glyph_390.png'),
+    );
+  });
+
+  testWidgets('tapping the glyph plays the row', (tester) async {
+    var taps = 0;
+    await render(tester, status: downloaded, onTap: () => taps++);
+    await tester.tap(find.byIcon(Icons.check_circle));
+    expect(taps, 1);
+  });
+
+  testWidgets('medium touch rows keep the 48 dp status box and alignment', (
+    tester,
+  ) async {
+    const size = Size(844, 390);
+    await render(tester, size: size, status: SongDownloadState.none);
+    final more = tester.getRect(find.byKey(moreKey));
+    final time = tester.getRect(find.text('3:43'));
+    for (final state in [
+      const SongDownloadState(status: SongDownloadStatus.queued),
+      downloaded,
+    ]) {
+      await render(tester, size: size, status: state);
+      expect(tester.getRect(find.byKey(moreKey)), more);
+      expect(tester.getRect(find.text('3:43')), time);
+      final box = tester.getRect(
+        state.status == SongDownloadStatus.downloaded
+            ? find.byIcon(Icons.check_circle)
+            : find.byKey(SongDownloadStatusGlyph.boxKey),
+      );
+      expect(box.size, const Size(16, 16));
+      expect(box.center.dx, closeTo(more.left - 24, 2));
       expect(tester.takeException(), isNull);
     }
   });

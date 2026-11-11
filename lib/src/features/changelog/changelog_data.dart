@@ -215,8 +215,17 @@ const List<ChangelogVersion> changelogs = [
         'of splitting it',
       ),
       ChangelogEntry(
+        'Settings › Appearance › Keep Song Versions Visible: turn off to '
+        'shorten long titles at the end instead',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Song titles in phone lists show up to two full lines; rows have one '
         'even height',
+      ),
+      ChangelogEntry(
+        'Phone song rows show download progress and a ✓ next to ⋯; download or '
+        'remove a download from ⋯',
       ),
       ChangelogEntry(
         'Swipe a queue song left to remove it, with Undo; the trash button is '

@@ -17,6 +17,7 @@ class TrackListTile extends ConsumerWidget {
     this.onLongPress,
     this.onSecondaryTapDown,
     this.trailing,
+    this.trailingStatus,
     this.badge,
     this.showAlbumArt = true,
     this.showAlbumColumn = true,
@@ -31,6 +32,9 @@ class TrackListTile extends ConsumerWidget {
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
   final Widget? trailing;
+
+  /// See [AdaptiveTrackRow.trailingStatus].
+  final Widget? trailingStatus;
   final Widget? badge;
   final double? actionExtent;
 
@@ -110,6 +114,7 @@ class TrackListTile extends ConsumerWidget {
       selected: isSelected,
       isRemote: song.isExternal,
       actions: trailing,
+      trailingStatus: trailingStatus,
       badge: badge,
       onTap: onTap,
       padding: contentPadding,

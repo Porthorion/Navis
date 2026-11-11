@@ -1123,6 +1123,11 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 115 (`from114To115`, guarded by `_columnExists`) adds
+    `app_settings.keep_title_version_visible` (boolean, default true): Settings >
+    Appearance > Shape & Layout > Keep Song Versions Visible. It is a Look field
+    (`updateKeepTitleVersionVisible`, `AppearanceSnapshot.keepTitleVersionVisible`);
+    an older Look or export without the key leaves the setting unchanged.
   - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
     `app_settings.sheet_style` (`match_now_playing` default, `album_color` or
     `theme`): the fill of Now Playing sheets and menus (#560). It is a Look
@@ -1206,8 +1211,8 @@ target-selection rules.
     owns the single 1.5.0 parent tag and retains the `albumArtColoredShade`
     storage key so existing acknowledgements survive.
     The authenticated, clone-gated `/v1/presentation/appearance` endpoint
-    returns `flatAreas` as an integer and `albumArtShade` / `albumArtColoredShade`
-    as booleans; POST validates their types and mask bounds before any targeted
+    returns `flatAreas` as an integer and `albumArtShade` / `albumArtColoredShade` /
+    `keepTitleVersionVisible` as booleans; POST validates their types and mask bounds before any targeted
     writes. Either shade flag can be set independently.
   - Colour and Brightness tuning (`ColorAdjustment`) layer on every style,
     including Neutral, in Light, Dark and OLED. Vividness and depth are integer
@@ -1805,7 +1810,13 @@ title, the base is ellipsised and the version kept whole on the same line
 ("Long Song Na… (Radio Edit)"), so edits of one song stay distinguishable. A
 credit (`isTitleCredit`: `feat.`/`ft.`, `From …`, `with …`, `prod. …`) is never
 pinned, and neither is a version over 55% of the width: the whole title gets one
-plain ellipsis, so base and version are never both ellipsised.
+plain ellipsis, so base and version are never both ellipsised. Settings >
+Appearance > Keep Song Versions Visible (default on; `keepTitleVersionVisible`,
+`keepTitleVersionVisibleProvider`) turns the version rule off: the still form is
+then always one plain ellipsis (`Text`, one or two lines). `app.dart` carries the
+flag in `NavisDensityScope.keepTitleVersion` and `MarqueeText` reads it with
+`NavisDensityScope.keepTitleVersionOf` (true when no scope, as in tests); the
+scrolling itself is unchanged.
 Track rows (`AdaptiveTrackRow`) make the title active only while the row is
 hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes) on
 desktop and tablets; phone rows never scroll (two-line titles), and the
@@ -3075,8 +3086,21 @@ accessible description Track number: 32px for album/playlist/weekly
 lists and 30px within the 82px Artist Top Tracks leading area. Artwork-only
 lists leave it null, and compact headers stay hidden. Specialized callers
 retain their queue and playlist occurrence callbacks. Artist previews explicitly
-reserve 96px for their two mobile actions.
+reserve 96px for their two mobile actions: ⋯ plus a non-interactive download-state
+glyph.
 Downloaded library rows use the same presentation; transfer progress is separate.
+
+Phone song rows (compact touch layouts; desktop keeps `SongDownloadStatusIcon`
+and its actions) show download state with `SongDownloadStatusGlyph`, a
+non-tappable 16 dp glyph passed as `AdaptiveTrackRow.trailingStatus` and drawn
+left of ⋯: a check once downloaded, a progress ring while downloading, a faint
+ring while queued, nothing otherwise (rolling-cached songs included). The glyph
+reads `songDownloadStateProvider`; Download and Delete download live in the ⋯
+sheets. A compact touch row lays status and ⋯ out at natural width, so only
+rows with a state lose 20 dp of title width; medium and wide touch rows keep the
+glyph in a 48 dp box inside `actionExtent`, so `AdaptiveTrackHeader` alignment
+never changes. Genre, search, Home song lists, match-flow and Downloads rows
+never had the button and show no glyph.
 
 Desktop recommendation artwork and previews are bounded; narrow desktop panes
 use the existing cover card while retaining selected identity. Touch recommendations
