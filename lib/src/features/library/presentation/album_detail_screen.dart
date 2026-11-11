@@ -459,35 +459,20 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 anchor: details.globalPosition,
                               ),
                             ),
+                            trailingStatus: desktopMode
+                                ? null
+                                : song.isExternal
+                                ? const SizedBox.shrink()
+                                : SongDownloadStatusGlyph(songId: song.id),
                             trailing: desktopMode
                                 ? DesktopSongActions(
                                     song: song,
                                     keyPrefix: 'album-song',
                                   )
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: <Widget>[
-                                      SizedBox(
-                                        width: 48,
-                                        height: 48,
-                                        child: song.isExternal
-                                            ? null
-                                            : SongDownloadStatusIcon(
-                                                songId: song.id,
-                                                onDownload: () => unawaited(
-                                                  _downloadSong(song),
-                                                ),
-                                              ),
-                                      ),
-                                      _AlbumSongMoreButton(
-                                        onPressed: (anchor) => unawaited(
-                                          _showSongActions(
-                                            song,
-                                            anchor: anchor,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                : _AlbumSongMoreButton(
+                                    onPressed: (anchor) => unawaited(
+                                      _showSongActions(song, anchor: anchor),
+                                    ),
                                   ),
                           ),
                         };

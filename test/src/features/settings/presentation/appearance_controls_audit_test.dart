@@ -699,6 +699,14 @@ void main() {
         effect: (c) => expect(c.read(cornerStyleProvider).name, name),
       ),
     _Control(
+      'Keep Song Versions Visible',
+      writers: {'updateKeepTitleVersionVisible'},
+      columns: {'keepTitleVersionVisible'},
+      fields: {'keepTitleVersionVisible'},
+      act: (t) => tap(t, find.text(l10n.appearanceKeepTitleVersionLabel)),
+      effect: (c) => expect(c.read(keepTitleVersionVisibleProvider), isFalse),
+    ),
+    _Control(
       'Corner style: Pill',
       writers: {'updateCornerStyle'},
       columns: {'cornerStyle'},

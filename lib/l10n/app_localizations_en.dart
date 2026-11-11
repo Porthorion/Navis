@@ -4936,6 +4936,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceDensityCompact => 'Compact';
 
   @override
+  String get appearanceKeepTitleVersionLabel => 'Keep Song Versions Visible';
+
+  @override
+  String get appearanceKeepTitleVersionSub =>
+      'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.';
+
+  @override
   String get desktopNavbarSectionLabel => 'Desktop Navigation';
 
   @override
@@ -5040,6 +5047,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get songStatusDownloading => 'Downloading…';
+
+  @override
+  String get songStatusDownloaded => 'Downloaded';
 
   @override
   String get songStatusCachedTooltip => 'Cached — tap to download';

@@ -422,6 +422,7 @@ class SettingsRepository {
         row.nowPlayingBackground,
       ),
       sheetStyle: SheetStyle.parse(row.sheetStyle),
+      keepTitleVersionVisible: row.keepTitleVersionVisible,
       cornerStyle: NavisCornerStyle.parse(row.cornerStyle),
       dynamicAlbumColorEnabled: row.dynamicAlbumColorEnabled,
       updateCheckEnabled: row.updateCheckEnabled,

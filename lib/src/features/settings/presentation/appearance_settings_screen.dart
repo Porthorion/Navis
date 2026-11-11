@@ -489,6 +489,18 @@ class _AppearanceSettingsScreenState
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.density,
                 ]),
+                NavisSwitchListTile(
+                  contentPadding: appearanceSwitchPadding(context),
+                  title: Text(l10n.appearanceKeepTitleVersionLabel),
+                  subtitle: Text(l10n.appearanceKeepTitleVersionSub),
+                  value: ref.watch(keepTitleVersionVisibleProvider),
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateKeepTitleVersionVisible(
+                      enabled: enabled,
+                    );
+                  },
+                ),
                 AppearanceHeading(
                   title: l10n.appearanceArtistViewModeLabel,
                   topPadding: NavisSpace.md,
