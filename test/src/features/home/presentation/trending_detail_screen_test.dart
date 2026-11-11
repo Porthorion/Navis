@@ -274,14 +274,16 @@ void main() {
           ),
         );
 
-        // Two resolved rows; the unresolved one has neither.
+        // Two resolved rows; the unresolved one has neither. On touch the
+        // remote row never shows the mark (the row guards it), so only the
+        // local row does.
         expect(
           find.byType(SongDownloadStatusIcon),
           desktop ? findsNWidgets(2) : findsNothing,
         );
         expect(
           find.byType(SongDownloadStatusGlyph),
-          desktop ? findsNothing : findsNWidgets(2),
+          desktop ? findsNothing : findsOneWidget,
         );
       },
     );
