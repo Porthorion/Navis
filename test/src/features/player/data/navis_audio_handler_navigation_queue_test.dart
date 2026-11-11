@@ -4272,6 +4272,191 @@ void main() {
     },
   );
 
+  // Queue Undo re-inserts a removed song at its old row. Nothing inserted at
+  // or before the playing song before, so playback must not restart or jump.
+  group('inserting a run at or before the playing song', () {
+    for (final crossfade in [true, false]) {
+      group('crossfade ${crossfade ? 'on' : 'off'}', () {
+        Future<(NavisAudioHandler, ControllableAudioPlayer, NavisDatabase)>
+        playing(int current) async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-undo-',
+          );
+          final (handler, player, database) = await createHandler(
+            directory,
+            10,
+            crossfade: crossfade,
+          );
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          await handler.replaceQueue(
+            <String>['song-0', 'song-1', 'song-2', 'song-3', 'song-4'],
+            startIndex: current,
+            expandMatchFlows: false,
+          );
+          await handler.play();
+          player.simulatedPosition = const Duration(seconds: 42);
+          player.simulateProgress = true;
+          player.positionUpdatedAt = DateTime.now();
+          return (handler, player, database);
+        }
+
+        for (final (label, at) in [('at', 2), ('before', 1)]) {
+          test('$label the current index keeps the song playing', () async {
+            final (handler, player, database) = await playing(2);
+            final loads = player.sourceLoads;
+            final seeks = player.seekCalls;
+            final starts = player.playedFrom.length;
+            final songs = await database.libraryDao.getSongsByIds(<String>[
+              'song-7',
+            ]);
+
+            await handler.insertQueueRuns(<QueueInsertRun>[
+              QueueInsertRun(at, songs),
+            ]);
+
+            final expected = <String>[
+              'song-0',
+              'song-1',
+              'song-2',
+              'song-3',
+              'song-4',
+            ]..insert(at, 'song-7');
+            expect(handler.snapshot.queueSongIds, expected);
+            expect(handler.snapshot.currentSongId, 'song-2');
+            expect(handler.snapshot.currentIndex, expected.indexOf('song-2'));
+            expect(handler.snapshot.currentIndex, 3);
+            expect(player.index, 3);
+            expect(player.playing, isTrue);
+            expect(player.sourceLoads, loads);
+            expect(player.seekCalls, seeks);
+            expect(player.playedFrom, hasLength(starts));
+            final after = player.position;
+            expect(after, greaterThanOrEqualTo(const Duration(seconds: 42)));
+            await Future<void>.delayed(const Duration(milliseconds: 60));
+            expect(player.position, greaterThan(after));
+            expectNativeMirrorsQueue(handler, player);
+          });
+        }
+
+        test('removing the playing row and restoring it lands before the '
+            'next song', () async {
+          final (handler, player, database) = await playing(2);
+          final songs = await database.libraryDao.getSongsByIds(<String>[
+            'song-2',
+          ]);
+
+          await handler.removeAt(2);
+          expect(handler.snapshot.currentSongId, 'song-3');
+          expect(handler.snapshot.currentIndex, 2);
+          final starts = player.playedFrom.length;
+          final loads = player.sourceLoads;
+          final seeks = player.seekCalls;
+
+          await handler.insertQueueRuns(<QueueInsertRun>[
+            QueueInsertRun(2, songs),
+          ]);
+
+          expect(handler.snapshot.queueSongIds, <String>[
+            'song-0',
+            'song-1',
+            'song-2',
+            'song-3',
+            'song-4',
+          ]);
+          expect(handler.snapshot.currentSongId, 'song-3');
+          expect(handler.snapshot.currentIndex, 3);
+          expect(player.index, 3);
+          expect(player.playing, isTrue);
+          expect(player.sourceLoads, loads);
+          expect(player.playedFrom, hasLength(starts));
+          expect(player.seekCalls, seeks);
+          final after = player.position;
+          expect(after, isNot(Duration.zero));
+          await Future<void>.delayed(const Duration(milliseconds: 60));
+          expect(player.position, greaterThan(after));
+          expectNativeMirrorsQueue(handler, player);
+        });
+
+        if (crossfade) {
+          // Undo while a fade runs: the fade may be cut short, but the song
+          // that is playing must never restart.
+          Future<ControllableAudioPlayer> fading(
+            NavisAudioHandler handler,
+          ) async {
+            await handler.debugStartCrossfade();
+            return handler.debugInactiveDeck! as ControllableAudioPlayer;
+          }
+
+          for (final (label, at) in [('at', 2), ('before', 1)]) {
+            test('$label the current index during a fade keeps the song '
+                'playing', () async {
+              final (handler, player, database) = await playing(2);
+              final deck = await fading(handler);
+              final loads = player.sourceLoads;
+              final seeks = player.seekCalls;
+              final starts = player.playedFrom.length;
+              final songs = await database.libraryDao.getSongsByIds(<String>[
+                'song-7',
+              ]);
+
+              await handler.insertQueueRuns(<QueueInsertRun>[
+                QueueInsertRun(at, songs),
+              ]);
+              await handler.debugCompleteCrossfade();
+              await pumpEventQueue();
+
+              expect(handler.snapshot.currentSongId, 'song-2');
+              expect(handler.snapshot.queueSongIds.indexOf('song-7'), at);
+              expect(player.sourceLoads, loads);
+              expect(player.seekCalls, seeks);
+              expect(player.playedFrom, hasLength(starts));
+              // The deck missed the edit: the fade is cancelled (deck_mismatch)
+              // and the active player keeps playing at full volume.
+              expect(handler.snapshot.currentIndex, 3);
+              expect(player.playing, isTrue);
+              expect(player.volume, 1.0);
+              expect(deck.playing, isFalse);
+            });
+          }
+
+          test('between the current and incoming song during a fade lets '
+              'it finish', () async {
+            final (handler, player, database) = await playing(2);
+            final deck = await fading(handler);
+            final songs = await database.libraryDao.getSongsByIds(<String>[
+              'song-7',
+            ]);
+
+            await handler.insertQueueRuns(<QueueInsertRun>[
+              QueueInsertRun(3, songs),
+            ]);
+            await handler.debugCompleteCrossfade();
+            await pumpEventQueue();
+
+            // The incoming song's index moved with the insert: the fade
+            // completes and the deck takes over.
+            expect(handler.snapshot.currentSongId, 'song-3');
+            expect(handler.snapshot.queueSongIds, <String>[
+              'song-0',
+              'song-1',
+              'song-2',
+              'song-7',
+              'song-3',
+              'song-4',
+            ]);
+            expect(deck.playing, isTrue);
+            expect(deck.volume, 1.0);
+            expect(player.playing, isFalse);
+          });
+        }
+      });
+    }
+  });
+
   group('released queue window', () {
     const window = NavisQueueWindow(
       deferThreshold: 16,

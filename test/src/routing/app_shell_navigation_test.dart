@@ -429,7 +429,7 @@ const SongsTableData _longMetadataSong = SongsTableData(
 
 const SongsTableData _versionedSong = SongsTableData(
   id: 'song-1',
-  title: 'A Long Track Title That Must Stay Legible Without Taking Over (Radio Edit)',
+  title: 'A Long Track Title That Must Stay Legible Without Taking Over (Edit)',
   artistName: 'An Artist With A Deliberately Long Name For Metadata Coverage',
   albumName: 'A Representative Album',
   artistId: 'artist-1',
@@ -3845,7 +3845,7 @@ void main() {
   );
 
   group('player surfaces scroll a long title a few times, then rest', () {
-    const suffix = ' (Radio Edit)';
+    const suffix = ' (Edit)';
     final title = find.byWidgetPredicate(
       (w) => w is MarqueeText && w.text == _versionedSong.title,
     );
@@ -3976,7 +3976,7 @@ void main() {
     testWidgets('desktop player bar loops under the pointer only', (
       tester,
     ) async {
-      await pumpShell(tester, const Size(800, 600), desktop: true);
+      await pumpShell(tester, const Size(1000, 600), desktop: true);
       await expectScrollsThenRests(tester);
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
