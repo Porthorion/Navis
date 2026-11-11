@@ -436,91 +436,95 @@ class _DesktopMiniPlayerTightPlaybackState
               Flexible(child: AspectRatio(aspectRatio: 1, child: artwork)),
               const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      key: const ValueKey<String>('desktopMiniPlayerTitle'),
-                      title,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      key: const ValueKey<String>('desktopMiniPlayerArtist'),
-                      artist,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(color: colors.onSurfaceVariant),
-                    ),
-                    if (isExternalSource)
-                      const Align(
-                        alignment: Alignment.center,
-                        child: RemoteSourceIndicator(
-                          variant: RemoteSourceIndicatorVariant.inline,
-                        ),
+                child: _PointerHover(
+                  builder: (context, hovered) => Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      MarqueeText(
+                        key: const ValueKey<String>('desktopMiniPlayerTitle'),
+                        title,
+                        textAlign: TextAlign.center,
+                        passes: hovered ? null : 2,
+                        style: Theme.of(context).textTheme.titleMedium!
+                            .copyWith(fontWeight: FontWeight.w700),
                       ),
-                    if (playback.isRadioMode)
-                      Align(
-                        alignment: Alignment.center,
-                        child: Chip(
-                          visualDensity: VisualDensity.compact,
-                          avatar: const Icon(Icons.podcasts_rounded, size: 16),
-                          label: Text(l10n.radioLive),
+                      MarqueeText(
+                        key: const ValueKey<String>('desktopMiniPlayerArtist'),
+                        artist,
+                        textAlign: TextAlign.center,
+                        active: hovered,
+                        style: Theme.of(context).textTheme.bodyMedium!
+                            .copyWith(color: colors.onSurfaceVariant),
+                      ),
+                      if (isExternalSource)
+                        const Align(
+                          alignment: Alignment.center,
+                          child: RemoteSourceIndicator(
+                            variant: RemoteSourceIndicatorVariant.inline,
+                          ),
                         ),
-                      )
-                    else
-                      RepaintBoundary(
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final position = watchDisplayedPlaybackPosition(
-                              ref,
-                              playback,
-                            );
-                            return NavisSlider(
-                              sliderKey: const ValueKey<String>(
-                                'desktopMiniPlayerSeekSlider',
-                              ),
-                              value: canSeek
-                                  ? (_dragSeekValue ??
-                                            position.inMilliseconds.toDouble())
-                                        .clamp(0, durationMs)
-                                        .toDouble()
-                                  : 0.0,
-                              max: canSeek ? durationMs.toDouble() : 1,
-                              onChanged: canSeek
-                                  ? (value) {
-                                      _seekDrag.changed(value);
-                                      setState(() => _dragSeekValue = value);
-                                    }
-                                  : null,
-                              onChangeEnd: canSeek
-                                  ? (value) {
-                                      _seekDrag.finish();
-                                      setState(() => _dragSeekValue = null);
-                                      unawaited(
-                                        ref
-                                            .read(audioHandlerProvider)
-                                            ?.seek(
-                                              Duration(
-                                                milliseconds: value.round(),
+                      if (playback.isRadioMode)
+                        Align(
+                          alignment: Alignment.center,
+                          child: Chip(
+                            visualDensity: VisualDensity.compact,
+                            avatar: const Icon(
+                              Icons.podcasts_rounded,
+                              size: 16,
+                            ),
+                            label: Text(l10n.radioLive),
+                          ),
+                        )
+                      else
+                        RepaintBoundary(
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              final position = watchDisplayedPlaybackPosition(
+                                ref,
+                                playback,
+                              );
+                              return NavisSlider(
+                                sliderKey: const ValueKey<String>(
+                                  'desktopMiniPlayerSeekSlider',
+                                ),
+                                value: canSeek
+                                    ? (_dragSeekValue ??
+                                              position.inMilliseconds
+                                                  .toDouble())
+                                          .clamp(0, durationMs)
+                                          .toDouble()
+                                    : 0.0,
+                                max: canSeek ? durationMs.toDouble() : 1,
+                                onChanged: canSeek
+                                    ? (value) {
+                                        _seekDrag.changed(value);
+                                        setState(() => _dragSeekValue = value);
+                                      }
+                                    : null,
+                                onChangeEnd: canSeek
+                                    ? (value) {
+                                        _seekDrag.finish();
+                                        setState(() => _dragSeekValue = null);
+                                        unawaited(
+                                          ref
+                                              .read(audioHandlerProvider)
+                                              ?.seek(
+                                                Duration(
+                                                  milliseconds: value.round(),
+                                                ),
                                               ),
-                                            ),
-                                      );
-                                    }
-                                  : null,
-                            );
-                          },
+                                        );
+                                      }
+                                    : null,
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    transport,
-                    const _DesktopMiniPlayerInlineVolumeControl(),
-                  ],
+                      transport,
+                      const _DesktopMiniPlayerInlineVolumeControl(),
+                    ],
+                  ),
                 ),
               ),
             ],

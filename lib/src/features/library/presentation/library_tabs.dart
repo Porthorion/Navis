@@ -523,7 +523,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       return;
     }
     final l10n = AppLocalizations.of(context)!;
-    showModalBottomSheet<void>(
+    showNavisModalSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: Column(

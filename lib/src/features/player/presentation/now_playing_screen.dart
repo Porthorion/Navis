@@ -4,7 +4,9 @@ library;
 export 'now_playing_artwork_background.dart'
     show nowPlayingShowsArtworkLayer, nowPlayingSurfaceDecoration;
 
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/features/player/presentation/audio_quality_format.dart';
 import 'package:navis/src/features/player/presentation/media_info.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
@@ -593,7 +595,7 @@ void _showNowPlayingSettingsSheet(
   // Phones have system volume, buttons and per-app volume; only desktop keeps
   // an in-app volume control.
   final showVolume = resolveAdaptiveContextFor(context).desktopRuntime;
-  final action = showModalBottomSheet<_SettingsSheetAction>(
+  final action = showNavisModalSheet<_SettingsSheetAction>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,

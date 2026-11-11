@@ -1062,9 +1062,24 @@ target-selection rules.
   - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
     `app_settings.sheet_style` (`match_now_playing` default, `album_color` or
     `theme`): the fill of Now Playing sheets and menus (#560). It is a Look
-    field: `SheetStyle`, `updateSheetStyle` and the
+    field: `SheetStyle`, `sheetStyleProvider`, `updateSheetStyle` and the
     `sheetStyle` diagnostics key mirror `NowPlayingBackground`; an older Look
     or export without the key leaves the setting unchanged.
+    Album Color (`SheetStyle.albumColor`) tints sheets, popup menus, MenuAnchor
+    menus and the desktop popover, never dialogs and never `ThemeData`.
+    `playingArtworkSourceProvider` (ungated) feeds both the accent gate and
+    `albumSurfaceSeedProvider` (resolves when Album Color or accent-from-album
+    is on, through the one `DynamicAccentColorCache`), so Album Color never
+    changes `effectiveColorSchemeSeedProvider`. `AlbumSurfaceScope`, inserted
+    in `MaterialApp.builder`, listens to the seed, mixes it into the sheet
+    surface with `albumSheetSurface` (steps 0.16 / 0.10 / 0.05, OLED lower; the
+    first mix whose `onSurface` and `onSurfaceVariant` stay at
+    `min(4.5, untinted ratio)` wins, else the theme surface) and always inserts
+    `PopupMenuTheme` and `MenuTheme`, varying only the colour. The sheet helper
+    `showNavisModalSheet` and the popover read the fill back from
+    `PopupMenuTheme.of(context).color` once, at open, so an open sheet keeps
+    its fill across a track change and theme change. Every modal sheet opens
+    through that helper (`navis_modal_sheet_audit_test.dart`).
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
     theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
     `auto_dark_start_minutes` (1200) and `auto_dark_end_minutes` (420), plus
@@ -1724,7 +1739,18 @@ too, in the title's own direction), so edits of one song stay distinguishable.
 Track rows (`AdaptiveTrackRow`) make the title active only while the row is
 hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes), and the
 wide artist and album cells only while hovered; the compact secondary
-"Artist · Album" line and subtitles stay single-line ellipsis. A hovered or
+"Artist · Album" line and subtitles stay single-line ellipsis. Player
+surfaces always scroll a truncated title a few times per track, then rest in
+the still form: 2 passes on the phone mini player, the desktop player bar, the
+desktop Mini Player, the rail mini player, the lyrics headers and the wide
+panel header, 3 on Now Playing (title, single artist and album lines; the
+multi-link and folded artist rows hold several tap targets and stay
+ellipsised, and the Now Playing line keeps its `titleStrut`/`artistStrut` and
+centring). The mini players' and the desktop bar's artist lines are still
+form only (`active: false`), except on desktop, where one `MouseRegion` (`_PointerHover`) per surface makes the title
+loop and the artist scroll while the pointer is over the text. A new track,
+or the pointer leaving, restarts the pass count. The Home random-album name
+loops like album cards. A hovered or
 looping title never settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
 `VisibilityDetector` debounce so tests leave no pending timer. The Home
 Recently added / Frequent carousel card is `AlbumCardContent`, the raw-field

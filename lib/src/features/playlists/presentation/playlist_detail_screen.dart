@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -686,7 +687,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     }
     final l10n = AppLocalizations.of(context)!;
     final at = _occurrenceAt(song, songIndex);
-    showModalBottomSheet<void>(
+    showNavisModalSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

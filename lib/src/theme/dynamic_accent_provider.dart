@@ -13,6 +13,7 @@ import 'package:navis/src/features/integrations/domain/integration_artwork.dart'
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -24,11 +25,11 @@ final dynamicAccentEnabledProvider = Provider<bool>((ref) {
 /// provider holds its previous value instead of resolving.
 const _pendingDynamicAccentSource = 'pending';
 
-final _dynamicAccentSourceProvider = Provider<String?>((ref) {
-  if (!ref.watch(dynamicAccentEnabledProvider)) {
-    return null;
-  }
-
+/// Source of the playing cover's colour (`id:<cover>`, `url:<radio art>`,
+/// the pending sentinel, or `null` for nothing usable), whatever the settings.
+/// The accent gate sits in [_dynamicAccentSourceProvider]; Album Color sheets
+/// read the same source through [albumSurfaceSeedProvider].
+final playingArtworkSourceProvider = Provider<String?>((ref) {
   final playback = ref.watch(
     playerStateProvider.select(
       (snapshot) => (
@@ -74,6 +75,13 @@ final _dynamicAccentSourceProvider = Provider<String?>((ref) {
   return coverArtId.isEmpty ? null : 'id:$coverArtId';
 });
 
+final _dynamicAccentSourceProvider = Provider<String?>((ref) {
+  if (!ref.watch(dynamicAccentEnabledProvider)) {
+    return null;
+  }
+  return ref.watch(playingArtworkSourceProvider);
+});
+
 final dynamicAccentColorCacheProvider = Provider<DynamicAccentColorCache>((_) {
   return DynamicAccentColorCache();
 });
@@ -106,6 +114,31 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
     api: api,
     cacheManager: ref.watch(coverArtCacheManagerProvider),
   );
+});
+
+/// Seed colour of the playing cover for Album Color sheets and menus: live
+/// only when [SheetStyle.albumColor] is chosen, `null` otherwise. It resolves
+/// through the one shared [DynamicAccentColorCache], which also dedupes
+/// in-flight work, so a song is extracted once even while the accent seed
+/// asks for the same cover. It is separate from [effectiveColorSchemeSeedProvider], so
+/// Album Color never re-seeds the app theme.
+final albumSurfaceSeedProvider = FutureProvider<int?>((ref) async {
+  final wanted = ref.watch(sheetStyleProvider) == SheetStyle.albumColor;
+  final source = wanted ? ref.watch(playingArtworkSourceProvider) : null;
+  if (source == null) {
+    return null;
+  }
+  if (source == _pendingDynamicAccentSource) {
+    // Stay loading so `.value` keeps the previous album's seed.
+    return await Completer<int?>().future;
+  }
+  return await ref
+      .watch(dynamicAccentColorCacheProvider)
+      .resolve(
+        source: source,
+        api: ref.watch(subsonicApiProvider),
+        cacheManager: ref.watch(coverArtCacheManagerProvider),
+      );
 });
 
 /// Whether a cover may be fetched only to read its colour: the same
@@ -252,12 +285,6 @@ final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
 class DynamicAccentColorCache {
   final Map<String, int> _seedBySource = <String, int>{};
 
-  /// Extractions under way, so concurrent callers for one source (the current
-  /// track, a next-track prefetch and a skip onto it) share a single decode
-  /// and quantisation. An entry lives only until its extraction ends, so
-  /// failures and `null` results are never remembered.
-  final Map<String, Future<int?>> _inFlight = <String, Future<int?>>{};
-
   int? peek(String source) => _seedBySource[source];
 
   /// Source of a cover read at `ArtworkSeedRequest.size` pixels, the size the
@@ -269,20 +296,53 @@ class DynamicAccentColorCache {
   int? peekArtwork(ArtworkSeedRequest request) =>
       peek('id:${request.coverArtId}') ?? peek(artworkSource(request));
 
+  /// Extractions under way, so concurrent callers for one source (the current
+  /// track, a next-track prefetch and a skip onto it) share a single decode
+  /// and quantisation. An entry lives only until its extraction ends, so
+  /// failures and `null` results are never remembered.
+  final Map<String, Future<int?>> _pending = <String, Future<int?>>{};
+
+  /// The seed for [source]. A finished seed is cached; concurrent callers of
+  /// the same source share one [extract]. A `null` result (or a throw) is not
+  /// cached, so a later call retries.
   Future<int?> resolve({
     required String source,
     required SubsonicApiClient? api,
     required BaseCacheManager cacheManager,
-  }) async {
+  }) {
     final cached = _seedBySource[source];
     if (cached != null) {
-      return cached;
+      return Future<int?>.value(cached);
     }
-    final pending = _inFlight[source];
-    if (pending != null) {
-      return await pending;
-    }
+    return _pending[source] ??= _extractOnce(source, api, cacheManager);
+  }
 
+  Future<int?> _extractOnce(
+    String source,
+    SubsonicApiClient? api,
+    BaseCacheManager cacheManager,
+  ) async {
+    try {
+      final seed = await extract(
+        source: source,
+        api: api,
+        cacheManager: cacheManager,
+      );
+      if (seed != null) _seedBySource[source] = seed;
+      return seed;
+    } finally {
+      unawaited(_pending.remove(source));
+    }
+  }
+
+  /// Reads the colour from the artwork; `null` when there is none. The one
+  /// seam [resolve] dedupes around.
+  @visibleForTesting
+  Future<int?> extract({
+    required String source,
+    required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
+  }) async {
     final image = _toImageProvider(
       source: source,
       api: api,
@@ -292,26 +352,8 @@ class DynamicAccentColorCache {
       return null;
     }
 
-    final future = _extractAndStore(source, image);
-    _inFlight[source] = future;
     try {
-      return await future;
-    } finally {
-      // The removed future is the one just awaited.
-      unawaited(_inFlight.remove(source));
-    }
-  }
-
-  Future<int?> _extractAndStore(
-    String source,
-    ImageProvider<Object> image,
-  ) async {
-    try {
-      final seed = await extractSeed(image);
-      if (seed != null) {
-        _seedBySource[source] = seed;
-      }
-      return seed;
+      return await extractSeed(image);
     } on Object {
       return null;
     }

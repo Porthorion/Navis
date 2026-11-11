@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -221,7 +222,7 @@ Future<DownloadQualityChoice?> showDownloadQualitySheet(
       builder: (ctx) => Dialog(child: SizedBox(width: 440, child: picker(ctx))),
     );
   }
-  return showModalBottomSheet<DownloadQualityChoice>(
+  return showNavisModalSheet<DownloadQualityChoice>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,

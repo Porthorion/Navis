@@ -88,11 +88,10 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Text(
+                              MarqueeText(
                                 title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.labelLarge,
+                                passes: 2,
+                                style: Theme.of(context).textTheme.labelLarge!,
                               ),
                               const SizedBox(height: 1),
                               Text(

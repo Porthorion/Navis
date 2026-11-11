@@ -172,12 +172,11 @@ class _TrackInfo extends StatelessWidget {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTitleTap,
-          child: Text(
+          child: MarqueeText(
             title,
-            style: titleStyle,
+            style: titleStyle!,
             strutStyle: titleStrut,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            passes: 3,
             textAlign: TextAlign.center,
           ),
         ),
@@ -271,12 +270,11 @@ class _TrackInfo extends StatelessWidget {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onArtistTap,
-            child: Text(
+            child: MarqueeText(
               artist,
-              style: artistStyle,
+              style: artistStyle!,
               strutStyle: artistStrut,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              passes: 3,
               textAlign: TextAlign.center,
             ),
           ),
@@ -285,12 +283,11 @@ class _TrackInfo extends StatelessWidget {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onAlbumTap,
-            child: Text(
+            child: MarqueeText(
               album,
-              style: albumStyle,
+              style: albumStyle!,
               strutStyle: albumStrut,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              passes: 3,
               textAlign: TextAlign.center,
             ),
           ),
