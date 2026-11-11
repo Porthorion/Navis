@@ -220,8 +220,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Song titles in phone lists show up to two full lines; rows have one '
-        'even height',
+        'Song titles in phone lists, including the queue, show up to two full '
+        'lines; rows have one even height',
       ),
       ChangelogEntry(
         'Phone song rows show download progress and a ✓ next to ⋯; download or '
