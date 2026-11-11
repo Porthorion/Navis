@@ -3085,8 +3085,21 @@ accessible description Track number: 32px for album/playlist/weekly
 lists and 30px within the 82px Artist Top Tracks leading area. Artwork-only
 lists leave it null, and compact headers stay hidden. Specialized callers
 retain their queue and playlist occurrence callbacks. Artist previews explicitly
-reserve 96px for their two mobile actions.
+reserve 96px for their two mobile actions: ⋯ plus a non-interactive download-state
+glyph.
 Downloaded library rows use the same presentation; transfer progress is separate.
+
+Phone song rows (compact touch layouts; desktop keeps `SongDownloadStatusIcon`
+and its actions) show download state with `SongDownloadStatusGlyph`, a
+non-tappable 16 dp glyph passed as `AdaptiveTrackRow.trailingStatus` and drawn
+left of ⋯: a check once downloaded, a progress ring while downloading, a faint
+ring while queued, nothing otherwise (rolling-cached songs included). The glyph
+reads `songDownloadStateProvider`; Download and Delete download live in the ⋯
+sheets. A compact touch row lays status and ⋯ out at natural width, so only
+rows with a state lose 20 dp of title width; medium and wide touch rows keep the
+glyph in a 48 dp box inside `actionExtent`, so `AdaptiveTrackHeader` alignment
+never changes. Genre, search, Home song lists, match-flow and Downloads rows
+never had the button and show no glyph.
 
 Desktop recommendation artwork and previews are bounded; narrow desktop panes
 use the existing cover card while retaining selected identity. Touch recommendations

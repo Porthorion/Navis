@@ -234,6 +234,25 @@ void main() {
     }
   }
 
+  testWidgets(
+    'phone playlist rows carry the state glyph, not a download button',
+    (tester) async {
+      await _pumpEditableDetail(
+        tester,
+        _playlist,
+        actions: _MockPlaylistActions(),
+      );
+      expect(find.byType(SongDownloadStatusGlyph), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byType(AdaptiveTrackRow),
+          matching: find.byIcon(Icons.download_outlined),
+        ),
+        findsNothing,
+      );
+    },
+  );
+
   testWidgets('playlist rows show artwork, not album track numbers', (
     tester,
   ) async {

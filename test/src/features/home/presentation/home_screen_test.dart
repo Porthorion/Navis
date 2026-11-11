@@ -891,6 +891,7 @@ Future<void> _pumpWeeklyDetail(
           : withTestDatabase(
               database,
               overrides: <Override>[
+                ...overrides,
                 listenBrainzDiscoverStreamProvider.overrideWith(
                   (ref) => playlists,
                 ),
@@ -1274,6 +1275,47 @@ void main() {
 
     expect(find.text('Matching 2 of 5'), findsOneWidget);
   });
+
+  for (final desktop in <bool>[false, true]) {
+    testWidgets(
+      'weekly detail ${desktop ? 'keeps the download button on desktop' : 'shows the download glyph, not a button, on touch'}',
+      (tester) async {
+        setAdaptiveTestViewport(
+          tester,
+          desktop ? const Size(1366, 900) : const Size(390, 900),
+        );
+        await _pumpWeeklyDetail(
+          tester,
+          playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+            <ListenBrainzDiscoverPlaylist>[
+              _listenBrainzPlaylistWithTableSongs(),
+            ],
+          ),
+          sourcePatch: 'weekly-exploration',
+          database: database,
+          overrides: <Override>[
+            songDownloadStateProvider.overrideWith(
+              (ref, songId) => const SongDownloadState(
+                status: SongDownloadStatus.downloaded,
+              ),
+            ),
+          ],
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 120));
+
+        expect(find.text('Weekly Song 1'), findsOneWidget);
+        expect(
+          find.byType(SongDownloadStatusIcon),
+          desktop ? findsNWidgets(3) : findsNothing,
+        );
+        expect(
+          find.byType(SongDownloadStatusGlyph),
+          desktop ? findsNothing : findsNWidgets(3),
+        );
+      },
+    );
+  }
 
   group('update tile', () {
     const update = UpdateInfo(
