@@ -546,7 +546,12 @@ void main() {
       await store.warm(1);
       store.add('x', _field(1));
       expect(File(path).existsSync(), isFalse);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      // Slow CI can run the debounce timer late: poll, do not guess a delay.
+      final waited = Stopwatch()..start();
+      while (!File(path).existsSync() &&
+          waited.elapsed < const Duration(seconds: 5)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
       expect(File(path).existsSync(), isTrue);
     });
 

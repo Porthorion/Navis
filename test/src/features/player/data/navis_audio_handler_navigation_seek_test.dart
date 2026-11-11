@@ -2089,7 +2089,19 @@ void main() {
             addTearDown(() async {
               messenger.setMockMethodCallHandler(channel, null);
               PlaybackArtCache.resetKeyForTesting();
-              await directory.delete(recursive: true);
+              // The handler is already disposed (teardowns run last-in
+              // first-out), but an art-cache write that was in flight can
+              // still land mid-delete (ENOTEMPTY, #439): the cache has no
+              // awaitable for it, so retry briefly.
+              for (var attempt = 0; ; attempt++) {
+                try {
+                  await directory.delete(recursive: true);
+                  break;
+                } on FileSystemException {
+                  if (attempt == 20) rethrow;
+                  await Future<void>.delayed(const Duration(milliseconds: 50));
+                }
+              }
             });
             await PlaybackArtCache.initializeKey(supportDirectory: directory);
             await File(
