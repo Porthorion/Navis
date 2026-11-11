@@ -99,23 +99,23 @@ final RegExp _featuringCredit = RegExp(
   caseSensitive: false,
 );
 
-// A credit in brackets or after " - " that is not a version: "(From "Game")",
-// "[with X]", "(prod. X)", "(prod by X)", " - From X".
+// A credit that opens the suffix, in brackets or after " - ": "(feat. X)",
+// "[with X]", "(prod. X)", "(From "Game")", " - From X". Anchored so a
+// location such as "(Live at Ft. Worth)" is not a credit. Known mild false
+// positive: "(With Strings)" reads as a "with" credit.
 final RegExp _creditTail = RegExp(
-  r'^\s*(?:[(\[]\s*(?:from|with|prod\.?|prod by)(?![\p{L}\p{N}])|[-–—]\s*from(?![\p{L}\p{N}]))',
+  r'^\s*(?:[(\[【]\s*(?:(?:feat(?:uring)?|ft)(?![\p{L}\p{N}])|(?:from|with|prod)(?![\p{L}\p{N}]))'
+  r'|[-–—]\s*(?:(?:feat|ft)(?:\.|\s)|from(?![\p{L}\p{N}])))',
   caseSensitive: false,
   unicode: true,
 );
 
 /// Whether the trailing [suffix] from [splitTitleVersion] is a credit, not a
-/// version: "(feat. X)", "[ft. X]", "(From "Game")", "(with X)", "(prod. X)",
-/// " - From X". A truncated title lets a credit trail off with the base
-/// instead of pinning it, since a credit says nothing that tells editions
-/// apart.
-bool isTitleCredit(String suffix) =>
-    _bracketedFeaturing.hasMatch(suffix.toLowerCase()) ||
-    _featuringCredit.hasMatch(suffix) ||
-    _creditTail.hasMatch(suffix);
+/// version: "(feat. X)", "[ft. X]", "（feat. X）", "【From Game】", "(From
+/// "Game")", "(with X)", "(prod. X)", " - From X". A truncated title lets a
+/// credit trail off with the base instead of pinning it, since a credit says
+/// nothing that tells editions apart.
+bool isTitleCredit(String suffix) => _creditTail.hasMatch(_foldWidth(suffix));
 
 // A " - " tail that is a qualifier, not part of the name, in word form:
 // "Live", "Live at X", "Radio Edit", "feat. X". Mastering qualifiers are

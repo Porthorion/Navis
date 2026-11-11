@@ -18,11 +18,15 @@ Widget _host({
   bool active = true,
   TextAlign textAlign = TextAlign.start,
   StrutStyle? strutStyle,
+  double textScale = 1,
 }) => MaterialApp(
   home: Directionality(
     textDirection: direction,
     child: MediaQuery(
-      data: MediaQueryData(disableAnimations: reduceMotion),
+      data: MediaQueryData(
+        disableAnimations: reduceMotion,
+        textScaler: TextScaler.linear(textScale),
+      ),
       child: TickerMode(
         enabled: tickers,
         child: Scaffold(
@@ -448,17 +452,88 @@ void main() {
       expect(rect(tester, suffix).right, lessThanOrEqualTo(host.right + 0.5));
     });
 
+    testWidgets('a short credit under 55 percent still gives one plain Text', (
+      tester,
+    ) async {
+      const title = 'A long song title that will not fit (feat. X)';
+      await tester.pumpWidget(_host(text: title, width: 320, active: false));
+
+      final texts = find.descendant(
+        of: find.byType(MarqueeText),
+        matching: find.byType(Text),
+      );
+      expect(texts, findsOneWidget);
+      expect(tester.widget<Text>(texts).data, title);
+      expect(_exceeds(tester, texts), isTrue);
+      expect(
+        find.descendant(
+          of: find.byType(MarqueeText),
+          matching: find.byType(Row),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('only the last suffix of a title is tested for a credit', (
       tester,
     ) async {
       await tester.pumpWidget(
         _host(
           text: 'A very long song title (feat. X) (Remix)',
-          width: 320,
+          width: 200,
           active: false,
         ),
       );
       expect(find.text(' (Remix)'), findsOneWidget);
+      expect(_exceeds(tester, find.text(' (Remix)')), isFalse);
+      expect(
+        _exceeds(tester, find.text('A very long song title (feat. X)')),
+        isTrue,
+      );
+    });
+
+    testWidgets(
+      'at text scale 1.3 a suffix over the share gives a plain Text',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(text: _versioned, width: 320, active: false),
+        );
+        expect(find.text(_suffix), findsOneWidget);
+
+        await tester.pumpWidget(
+          _host(text: _versioned, width: 320, active: false, textScale: 1.3),
+        );
+        final texts = find.descendant(
+          of: find.byType(MarqueeText),
+          matching: find.byType(Text),
+        );
+        expect(texts, findsOneWidget);
+        expect(tester.widget<Text>(texts).data, _versioned);
+        expect(_exceeds(tester, texts), isTrue);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('a credit on an RTL title stays one plain Text', (
+      tester,
+    ) async {
+      const title = 'عنوان أغنية طويل جدا لا يتسع في هذا العرض (feat. X)';
+      await tester.pumpWidget(
+        _host(
+          text: title,
+          width: 300,
+          active: false,
+          direction: TextDirection.rtl,
+        ),
+      );
+      final texts = find.descendant(
+        of: find.byType(MarqueeText),
+        matching: find.byType(Text),
+      );
+      expect(texts, findsOneWidget);
+      expect(tester.widget<Text>(texts).data, title);
+      expect(_exceeds(tester, texts), isTrue);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('centred text that fits is centred', (tester) async {

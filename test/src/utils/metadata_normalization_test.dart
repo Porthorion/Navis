@@ -289,6 +289,9 @@ void main() {
         ' - From X',
         ' (FROM X)',
         ' (Feat X)',
+        ' （feat. X）',
+        ' 【From Game】',
+        ' - feat. X',
       ]) {
         expect(isTitleCredit(suffix), isTrue, reason: suffix);
       }
@@ -304,6 +307,10 @@ void main() {
         ' (Fromage)',
         ' (Production Mix)',
         ' - Live',
+        ' (Live at Ft. Worth)',
+        ' - Live at Ft. Worth',
+        ' (Live at Ft Lauderdale)',
+        ' （Live at Ft. Worth）',
         '',
       ]) {
         expect(isTitleCredit(suffix), isFalse, reason: suffix);
