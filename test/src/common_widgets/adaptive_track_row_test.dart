@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/test_theme.dart';
@@ -589,6 +590,17 @@ void main() {
       matching: find.byType(Transform),
     );
 
+    // Phone rows wrap their titles and never scroll; scrolling titles are a
+    // desktop (pointer) behaviour.
+    Widget desktop(double width, Widget child) => AdaptiveContextScope(
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: Size(width, 600),
+        safePadding: EdgeInsets.zero,
+      ),
+      child: child,
+    );
+
     Future<void> pumpRow(
       WidgetTester tester, {
       double width = 390,
@@ -603,22 +615,25 @@ void main() {
           theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Builder(
-            builder: (context) => MediaQuery(
-              data: MediaQuery.of(context)
-                  .copyWith(disableAnimations: reduceMotion),
-              child: Scaffold(
-                body: AdaptiveTrackRow(
-                  title: rowTitle,
-                  artist: 'An artist',
-                  album: album,
-                  duration: 223,
-                  selected: selected,
-                  actionExtent: 48,
-                  leading: const Icon(Icons.music_note),
-                  actions: const IconButton(
-                    onPressed: null,
-                    icon: Icon(Icons.more_horiz),
+          home: desktop(
+            width,
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(disableAnimations: reduceMotion),
+                child: Scaffold(
+                  body: AdaptiveTrackRow(
+                    title: rowTitle,
+                    artist: 'An artist',
+                    album: album,
+                    duration: 223,
+                    selected: selected,
+                    actionExtent: 48,
+                    leading: const Icon(Icons.music_note),
+                    actions: const IconButton(
+                      onPressed: null,
+                      icon: Icon(Icons.more_horiz),
+                    ),
                   ),
                 ),
               ),
@@ -713,16 +728,19 @@ void main() {
           theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: ListView.builder(
-              itemCount: 300,
-              itemBuilder: (context, index) => AdaptiveTrackRow(
-                title: '$title $index$version',
-                artist: 'An artist',
-                duration: 223,
-                selected: index == 5,
-                actionExtent: 48,
-                leading: const Icon(Icons.music_note),
+          home: desktop(
+            390,
+            Scaffold(
+              body: ListView.builder(
+                itemCount: 300,
+                itemBuilder: (context, index) => AdaptiveTrackRow(
+                  title: '$title $index$version',
+                  artist: 'An artist',
+                  duration: 223,
+                  selected: index == 5,
+                  actionExtent: 48,
+                  leading: const Icon(Icons.music_note),
+                ),
               ),
             ),
           ),

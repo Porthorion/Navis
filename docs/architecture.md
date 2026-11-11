@@ -1774,7 +1774,8 @@ credit (`isTitleCredit`: `feat.`/`ft.`, `From …`, `with …`, `prod. …`) is 
 pinned, and neither is a version over 55% of the width: the whole title gets one
 plain ellipsis, so base and version are never both ellipsised.
 Track rows (`AdaptiveTrackRow`) make the title active only while the row is
-hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes), and the
+hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes) on
+desktop and tablets; phone rows never scroll (two-line titles), and the
 wide artist and album cells only while hovered; the compact secondary
 "Artist · Album" line and subtitles stay single-line ellipsis. Player
 surfaces always scroll a truncated title a few times per track, then rest in
@@ -3008,14 +3009,28 @@ loading, errors, incomplete responses, or collection exhaustion.
 `AdaptiveTrackRow` and `AdaptiveTrackHeader` share pane/text-scale column
 geometry. Compact rows stack metadata, medium rows separate Artist, wide rows
 separate Artist and Album. Desktop columns reserve duration outside trailing
-actions. Constrained mobile rows measure the formatted duration and place it at
-the end of the secondary metadata line, retaining leading artwork/numbers and
-48px action targets beside a flexible text block. Long metadata truncates first;
-Remote labels, duration and badges may use additional lines inside that block.
-Controls move below only when the remaining text area is narrower than 96px
-scaled by the current text scaler, and align to the trailing edge. Duration
-stays with the text. Normal artwork rows retain their 64px minimum height.
-Rows with enough room keep their existing inline duration arrangement. Headers
+actions. Compact touch rows (phones; compact mode with
+`desktopRuntime` false) always place the formatted duration at the end of the
+secondary metadata line, retaining leading artwork/numbers and 48px action
+targets beside a flexible text block. The title takes up to two lines
+(`MarqueeText(maxLines: 2)`, never a marquee, also on the playing row, which
+keeps its primary colour and marker) and the row reserves them:
+`trackRowReservedHeight` is the larger of the caller's `minHeight` (default the
+Density's 64 or 52) and the padding plus two title lines, the secondary line and
+a badge line, measured with `textLineHeight` (the same style merge, strut and
+text scaler `MarqueeText` lays out with). That is 72 at text scale 1 with
+Comfortable Density and grows with the scale, so short and long titles give
+equally tall rows and loading skeletons (`ShimmerListTile(songRows: true)`,
+`trackRowSkeletonHeight`) take the same height; Home shelves, Home hero
+rows and the weekly hero list pass `twoLineTitle: false` and keep one line and today's
+heights. Long metadata truncates first; Remote labels, duration and badges may
+use additional lines inside that block. Controls move below only when the
+remaining text area is narrower than 96px scaled by the current text scaler,
+and align to the trailing edge. A row with actions and the default padding
+shrinks its end inset to 4 so the more glyph sits 16px from the edge; explicit
+paddings keep theirs. Desktop rows (compact mode included), medium and wide
+modes keep one-line titles, the inline duration arrangement and the Density
+minimum height. Headers
 appear only for full collections. Numbered collections set
 `numberColumnExtent` to label their existing numeric area with `#` and the
 accessible description Track number: 32px for album/playlist/weekly

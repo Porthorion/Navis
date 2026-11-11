@@ -808,7 +808,7 @@ class _DownloadedTab extends ConsumerWidget {
           ],
         );
       },
-      loading: const ShimmerListPage(count: 8),
+      loading: const ShimmerListPage(count: 8, songRows: true, songBadge: true),
       errorTitle: l10n.downloadsErrorLoadingQueue,
       onRetry: () => ref.invalidate(permanentCachedTracksProvider),
     );

@@ -842,7 +842,7 @@ void main() {
           of: find.text('First liked song'),
           matching: find.byType(AdaptiveTrackRow),
         );
-        expect(tester.getSize(row).height, 64);
+        expect(tester.getSize(row).height, 72);
         final more = find.descendant(
           of: row,
           matching: find.byIcon(Icons.more_vert),
