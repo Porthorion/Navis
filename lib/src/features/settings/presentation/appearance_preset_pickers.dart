@@ -50,7 +50,7 @@ PresetPickerLabels _labels(
   discardConfirm: l10n.presetDiscardConfirm,
 );
 
-/// Saved Looks at the top of Appearance settings.
+/// Saved Looks at the top of Themes settings.
 ///
 /// Choosing a Look applies its whole appearance through
 /// [AppearanceLooksController].

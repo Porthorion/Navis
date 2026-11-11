@@ -731,7 +731,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final colorStyle = NavisColorStyle.parse(draft.colorStyle);
     final previewOled = _previewOled(context, draft);
     final optionTitleStyle = theme.textTheme.titleMedium;
-    // The same builders as Settings > Appearance, fed from the draft.
+    // The same builders as Settings > Themes, fed from the draft.
     final options = AppearanceOptionSet(
       oledForAutoVisible: draft.themeMode == 'system',
       oledForAuto: draft.oledForAuto,

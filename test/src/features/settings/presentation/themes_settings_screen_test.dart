@@ -512,7 +512,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop appearance uses a focused settings workspace', (
+  testWidgets('desktop themes uses a focused settings workspace', (
     tester,
   ) async {
     setAdaptiveTestViewport(tester, const Size(1280, 800));
@@ -529,7 +529,7 @@ void main() {
     expect(tester.getSize(find.byType(ListView)).width, 1040);
     await expectLater(
       find.byType(ThemesSettingsScreen),
-      matchesGoldenFile('goldens/appearance_settings_desktop_workspace.png'),
+      matchesGoldenFile('goldens/themes_settings_desktop_workspace.png'),
     );
   });
 

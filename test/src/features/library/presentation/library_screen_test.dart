@@ -321,7 +321,8 @@ Widget _buildLibraryScreenRouter({
       ),
       GoRoute(
         path: '/settings/interface',
-        builder: (context, state) => Text('Interface settings ${state.uri.queryParameters['focus']}'),
+        builder: (context, state) =>
+            Text('Interface settings ${state.uri.queryParameters['focus']}'),
       ),
     ],
   );

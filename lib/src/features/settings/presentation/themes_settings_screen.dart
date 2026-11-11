@@ -471,7 +471,6 @@ class ThemesSettingsScreen extends ConsumerWidget {
   }
 }
 
-
 /// What Fine-Tune Colors paints from in Settings: the theme the app shows,
 /// including the dynamic album colour, read fresh from the providers.
 ColorTuningBasis _settingsTuningBasis(WidgetRef ref, Brightness platform) {

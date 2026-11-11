@@ -131,6 +131,10 @@ void main() {
     expect(find.byTooltip('Back'), findsOneWidget);
     expect(tester.getSize(find.byType(ListView)).width, 1040);
     expect(find.text(l10n.desktopNavbarSectionLabel), findsOneWidget);
+    await expectLater(
+      find.byType(InterfaceSettingsScreen),
+      matchesGoldenFile('goldens/interface_settings_desktop_workspace.png'),
+    );
   });
 
   testWidgets('Home Sections, Page Visibility and Desktop Navigation keep '

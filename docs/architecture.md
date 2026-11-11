@@ -596,7 +596,7 @@ count write touches `songs`. Albums and songs show their genres as `GenreChips`
 (an album's come from its songs, remote songs excluded; songs show them at the
 top of the mobile song sheet and the desktop song menu, never for a remote song).
 A chip opens the genre page, or, while the page is hidden, a notice
-"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Appearance with
+"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Interface with
 `focus=libraryPages`: that group opens, scrolls into view and briefly
 highlights the Genres row, which carries the 1.5.2 "New" tag
 (`SetupHighlight.genresPage`, a standalone highlight: the Library pages group
@@ -1074,7 +1074,7 @@ target-selection rules.
   panel fills transparent; Theme keeps `surface` opaque; Album Color uses the
   album tint that `AlbumSurfaceScope` publishes on `PopupMenuTheme`. The queue
   panels pick their fill with `queuePanelFill`. The setting sits under Now
-  Playing in Settings > Appearance and has no setup step.
+  Playing in Settings > Themes and has no setup step.
   The adaptive veil keeps `onSurface`,
   `onSurfaceVariant` and the accent title at 5.0:1 within its range. When the
   cap is hit and the title is under 3.0:1, `nowPlayingArtworkAccent` shifts the
@@ -1135,7 +1135,7 @@ target-selection rules.
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
   - Schema 115 (`from114To115`, guarded by `_columnExists`) adds
     `app_settings.keep_title_version_visible` (boolean, default true): Settings >
-    Appearance > Shape & Layout > Keep Song Versions Visible. It is a Look field
+    Themes > Shape & Layout > Keep Song Versions Visible. It is a Look field
     (`updateKeepTitleVersionVisible`, `AppearanceSnapshot.keepTitleVersionVisible`);
     an older Look or export without the key leaves the setting unchanged.
   - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
@@ -1366,8 +1366,7 @@ target-selection rules.
     uses `updateArtistViewMode`. Playback reset uses targeted playback writers
     and preserves appearance, layout, the Look library and its selection.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
-    `AppearanceLooksController`) capture all Appearance settings above Home
-    sections and page visibility: theme mode, OLED-for-Auto, saved colour style,
+    `AppearanceLooksController`) capture every Themes setting (nothing on Interface): theme mode, OLED-for-Auto, saved colour style,
     nullable accent seed, dynamic album colour, Night Schedule enable/start/end,
     both album-title shade flags, intensity, both brightness values, both tint
     values and Controls directly, Flat switch and area mask, corner style,
@@ -1607,7 +1606,7 @@ target-selection rules.
     only while `FocusManager.highlightMode` is traditional (keyboard), so a
     tap or drag leaves no outline.
   - Looks have one control, `AppearanceLooksOption` (same file), at the top of
-    Settings › Appearance above Theme and tagged by
+    Settings › Themes above Mode and tagged by
     `SetupHighlight.appearanceLooks`: a heading, a subtitle and a
     `PresetPicker` over the saved Looks, with "Custom" while the appearance
     matches none and a ⋮ menu offering Save Current as New Look, Update,
@@ -1626,20 +1625,30 @@ target-selection rules.
     subtitle points at the menu. Setup does not show Looks (they write settings directly).
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
-  - Settings › Appearance (`appearance_settings_screen.dart`) has four
+  - Settings › Themes (`themes_settings_screen.dart`) has four
     sections under one `AppearanceHeading` (`appearance_layout.dart`), below
     the Looks picker:
-    Theme (Theme Mode, Use OLED When Dark in Auto only), Color (Color Style,
+    Mode (Theme Mode, the Auto source and Use Different Presets for Auto, Use
+    OLED When Dark in Auto only), Color (Color Style,
     the Fine-Tune Colors row, Night Schedule, Accent Color, then Dynamic Album Color
     directly under the accent grid, whose note names the switch, then Album Art
     Shade with its Use Cover Color sub-switch), Shape & Layout (Flat Surfaces
     with its three area switches revealed while Flat is on, Corner Style,
     Artwork Shape with its three selectors, Artwork Size, Density, Artist View
-    Mode) and Now Playing (Now Playing Background). Home Sections, Page
-    Visibility and Desktop Navigation stay collapsed below. Night Schedule
+    Mode) and Now Playing (Now Playing Background). Night Schedule
     shows its explanation while off and the time pills while on; with Night as
     the chosen style the switch is locked off and says so. `app.dart` re-checks
     the scheduled style when the app resumes.
+  - Settings › Interface (`interface_settings_screen.dart`) holds everything
+    else: Language (when the language control is enabled), then the collapsed
+    Home Sections, Page Visibility and, on desktop only, Desktop Navigation
+    groups (`SettingsCollapsibleGroup`, `settings_collapsible_group.dart`).
+    Page rule: Themes = `AppearanceSnapshot` fields + Looks + Auto
+    sub-options; Interface = everything else, so changing an Interface
+    control never flips the selected Look to Custom. Enforced by
+    `appearance_controls_audit_test.dart`. `/settings/appearance` is a retired
+    segment that redirects to Themes; library-page deep links
+    (`focus=libraryPages`) target `/settings/interface`.
   - Settings and setup share the option widgets and one `AppearanceOptionSet`
     (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
     Fine-Tune Colors, Night Schedule, Flat Surfaces, Corner Style, Density,
@@ -1804,7 +1813,7 @@ classic (Shade off, the default) is `_DarkShadeLabel` (key
 shape as the colour shade (a short fade, then solid under the text); color
 (both on) is that shade tinted from the cover through `_CoverTintLabel`, with
 fill and text adjusted for 4.5:1 contrast. Classic and dark require no cover
-sampling. Settings › Appearance and setup show
+sampling. Settings › Themes and setup show
 Album Art Shade (New tag) with an indented Use Cover Color switch revealed by
 `AppearanceSubOptionReveal` while Shade is on; both are disabled with a note
 under Flat text over artwork. An album title is never more than one line:
@@ -2545,7 +2554,7 @@ Settings):
 - `/settings` - Settings
 - `/settings/server` (Server Information), `/settings/integrations`,
   `/settings/cache`, `/settings/downloads`, `/settings/sync`,
-  `/settings/playback`, `/settings/equalizer`, `/settings/appearance`,
+  `/settings/playback`, `/settings/equalizer`, `/settings/themes`, `/settings/interface`,
   `/settings/about`, `/settings/unavailable-items`
 - `/settings/playback/match-flow` and `/settings/playback/match-flow/:flowId/search`
 - `/settings/about/changelog`, `/settings/about/privacy`
@@ -2623,7 +2632,7 @@ it, and the Library pages group header carries its tag so it is visible while
 the group is closed.
 
 The look step shows the appearance options through the same callback-driven
-widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
+widgets as Settings › Themes (`settings/presentation/appearance_options.dart`).
 Theme Mode, Color Style, Night Schedule and Accent Color are always visible;
 Album Art Shade (with Use Cover Color) sits after the accent hint. A "More
 appearance options" group (`SettingsCollapsibleGroup`, children built only

@@ -303,7 +303,6 @@ class _InterfaceSettingsScreenState
   }
 }
 
-
 String _localeLabel(Locale locale, AppLocalizations l10n) {
   switch (locale.languageCode) {
     case 'en':
