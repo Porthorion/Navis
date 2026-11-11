@@ -20,6 +20,7 @@ import 'package:navis/src/routing/desktop_layout.dart'
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 /// Queue edits are blocked while a logical queue replacement is still loading.
 bool queueActionsDisabled(PlaybackSnapshot playback) =>
@@ -169,8 +170,10 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
       // Dismissible must leave the tree for one built frame before the row
       // may come back; without this wait the row would reappear under it.
       await WidgetsBinding.instance.endOfFrame;
-    } catch (_) {
-      // runReportingErrors already reported it; the row comes back below.
+    } on Object catch (error) {
+      // Handler failures were reported by runReportingErrors; log the rest
+      // (notice/l10n). The row comes back below.
+      AppLogger.warning('Queue row removal failed: $error');
     } finally {
       // Removed rows are gone from the list by now; a refused or failed
       // removal brings the row back.

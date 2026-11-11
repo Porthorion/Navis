@@ -184,6 +184,19 @@ void main() {
       expect(removed, [1, 2]);
     }, skip: !sqliteAvailable);
 
+    test('a shifted row is refused after the queue was replaced', () async {
+      removeDelay = const Duration(milliseconds: 20);
+      await start(_BatchHandler(), ['a', 'b', 'c', 'd']);
+
+      final first = controller().removeForUndo(1, 'b');
+      final second = controller().removeForUndo(3, 'd');
+      controller().reserveSelection();
+
+      expect(await first, isNotNull);
+      expect(await second, isNull);
+      expect(removed, [1]);
+    }, skip: !sqliteAvailable);
+
     test('a shifted row of a duplicated song is refused', () async {
       removeDelay = const Duration(milliseconds: 20);
       await start(_BatchHandler(), ['a', 'x', 'b', 'x']);

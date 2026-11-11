@@ -653,10 +653,11 @@ class QueueController extends Notifier<List<String>> {
     return previous.then((_) => task()).whenComplete(complete.complete);
   }
 
-  /// Removes the row at [index] if it still holds [songId], one removal at a
-  /// time, and returns what [undoRemoval] needs once the queue shows the
-  /// change. At its turn, a row that moved (an earlier removal shifted it) is
-  /// found again by [songId] when that song occurs exactly once; with no copy
+  /// Removes the row at [requestedIndex] if it still holds [songId], one
+  /// removal at a time, and returns what [undoRemoval] needs once the queue
+  /// shows the change. At its turn, a row that moved (an earlier removal
+  /// shifted it) is found again by [songId] when that song occurs exactly
+  /// once, unless the queue was replaced since the swipe; with no copy
   /// or several copies nothing is removed, because the swiped row cannot be
   /// told apart. Null means nothing was removed: a stale row or a failed
   /// removal (reported). If the handler removed the row but the queue did not
@@ -671,10 +672,13 @@ class QueueController extends Notifier<List<String>> {
   /// no bound on a hung handler call (a hung handler blocks playback edits
   /// anyway).
   Future<QueueRemoval?> removeForUndo(int requestedIndex, String songId) {
+    final swipeEpoch = _regularSelectionEpoch;
     return _inRemovalOrder(() async {
       final before = state;
       var index = requestedIndex;
       if (index < 0 || index >= before.length || before[index] != songId) {
+        // A replaced queue is not the one the user swiped in.
+        if (!ownsSelection(swipeEpoch)) return null;
         index = before.indexOf(songId);
         if (index < 0 || index != before.lastIndexOf(songId)) return null;
       }
