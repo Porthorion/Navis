@@ -1706,10 +1706,11 @@ desktop Mini Player, the rail mini player, the lyrics headers and the wide
 panel header, 3 on Now Playing (title, single artist and album lines; the
 multi-link and folded artist rows hold several tap targets and stay
 ellipsised, and the Now Playing line keeps its `titleStrut`/`artistStrut` and
-centring). Their artist lines are still form only (`active: false`), except on
-desktop, where one `MouseRegion` (`_PointerHover`) per surface makes the title
-loop and the artist scroll while the pointer is over the text. A new track
-restarts the pass count. A hovered or
+centring). The mini players' and the desktop bar's artist lines are still
+form only (`active: false`), except on desktop, where one `MouseRegion` (`_PointerHover`) per surface makes the title
+loop and the artist scroll while the pointer is over the text. A new track,
+or the pointer leaving, restarts the pass count. The Home random-album name
+loops like album cards. A hovered or
 looping title never settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
 `VisibilityDetector` debounce so tests leave no pending timer. The Home
 Recently added / Frequent carousel card is `AlbumCardContent`, the raw-field

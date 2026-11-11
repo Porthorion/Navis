@@ -311,6 +311,7 @@ class _PointerHoverState extends State<_PointerHover> {
 
   @override
   Widget build(BuildContext context) => MouseRegion(
+    opaque: false,
     onEnter: (_) => _set(true),
     onExit: (_) => _set(false),
     child: widget.builder(context, _hovered),
