@@ -215,6 +215,10 @@ const List<ChangelogVersion> changelogs = [
         'it',
       ),
       ChangelogEntry(
+        'Swipe a queue song left to remove it, with Undo; the trash button is '
+        'gone on phones',
+      ),
+      ChangelogEntry(
         'Song menus on phones show the whole song title, with its cover and '
         'artist, at the top',
       ),

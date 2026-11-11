@@ -105,17 +105,14 @@ class QueueSheet extends ConsumerWidget {
                         actionsDisabled: actionsDisabled,
                         sheetDragActive: sheetDragActive,
                         onSwipeActiveChanged: onItemSwipeActiveChanged,
-                        onRemove: () {
-                          if (actionsDisabled) return;
-                          ref
-                              .read(queueProvider.notifier)
-                              .fireAndForget(
-                                () => ref
-                                    .read(queueProvider.notifier)
-                                    .removeAt(index),
-                                label: 'remove queue item',
-                              );
-                        },
+                        onRemove: () => actionsDisabled
+                            ? Future.value(false)
+                            : removeQueueRowWithUndo(
+                                context,
+                                ref,
+                                index,
+                                queueIds[index],
+                              ),
                         onTap: () async {
                           if (actionsDisabled) return;
                           await ref
