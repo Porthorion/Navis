@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class ShimmerPlaceholder extends StatefulWidget {
@@ -68,14 +69,43 @@ class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
 
 /// A skeleton that mimics a single list tile with a leading square thumbnail,
 /// a title bar, and a subtitle bar — suitable for track, album, or playlist
-/// loading states.
+/// loading states. With [songRows] it is as tall as a loaded song row
+/// ([trackRowSkeletonHeight]), so the list does not jump when data arrives.
 class ShimmerListTile extends StatelessWidget {
-  const new({super.key, this.leadingSize = 48});
+  const new({
+    super.key,
+    this.leadingSize = 48,
+    this.songRows = false,
+    this.songBadge = false,
+  });
 
   final double leadingSize;
+  final bool songRows;
+
+  /// With [songRows]: the loaded rows have a badge line (Downloads).
+  final bool songBadge;
 
   @override
   Widget build(BuildContext context) {
+    if (!songRows) return _tile();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = trackRowSkeletonHeight(
+          context,
+          constraints.maxWidth,
+          badge: songBadge,
+        );
+        return height == null
+            ? _tile()
+            : SizedBox(
+                height: height,
+                child: Center(child: _tile()),
+              );
+      },
+    );
+  }
+
+  Widget _tile() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -105,10 +135,22 @@ class ShimmerListTile extends StatelessWidget {
 /// A full-screen shimmer list page with [count] [ShimmerListTile] items.
 /// Use this as the `loading:` fallback in `AsyncValue.when(...)`.
 class ShimmerListPage extends StatelessWidget {
-  const new({super.key, this.count = 10, this.leadingSize = 48});
+  const new({
+    super.key,
+    this.count = 10,
+    this.leadingSize = 48,
+    this.songRows = false,
+    this.songBadge = false,
+  });
 
   final int count;
   final double leadingSize;
+
+  /// See [ShimmerListTile.songRows].
+  final bool songRows;
+
+  /// See [ShimmerListTile.songBadge].
+  final bool songBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +160,11 @@ class ShimmerListPage extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       itemCount: count,
-      itemBuilder: (_, _) => ShimmerListTile(leadingSize: leadingSize),
+      itemBuilder: (_, _) => ShimmerListTile(
+        leadingSize: leadingSize,
+        songRows: songRows,
+        songBadge: songBadge,
+      ),
     );
   }
 }

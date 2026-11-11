@@ -66,6 +66,14 @@ void main() {
     duration: 120,
     leading: SizedBox.shrink(),
   );
+  const oneLineRow = AdaptiveTrackRow(
+    title: 'Song',
+    artist: 'Artist',
+    album: 'Album',
+    duration: 120,
+    leading: SizedBox.shrink(),
+    twoLineTitle: false,
+  );
 
   group('NavisDensityScope', () {
     test('compact trims the measurements, comfortable keeps today\'s', () {
@@ -101,16 +109,25 @@ void main() {
   });
 
   group('AdaptiveTrackRow', () {
-    testWidgets('comfortable rows are 64 high', (tester) async {
+    testWidgets('comfortable rows are 64 high, 72 with two title lines', (
+      tester,
+    ) async {
+      await _pump(tester, oneLineRow);
+      expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 64);
+      await _pump(tester, oneLineRow, density: NavisDensity.comfortable);
+      expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 64);
+      // Phones reserve two title lines.
       await _pump(tester, row);
-      expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 64);
-      await _pump(tester, row, density: NavisDensity.comfortable);
-      expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 64);
+      expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 72);
     });
 
-    testWidgets('compact rows are 52 high', (tester) async {
-      await _pump(tester, row, density: NavisDensity.compact);
+    testWidgets('compact rows are 52 high, 64 with two title lines', (
+      tester,
+    ) async {
+      await _pump(tester, oneLineRow, density: NavisDensity.compact);
       expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 52);
+      await _pump(tester, row, density: NavisDensity.compact);
+      expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 64);
     });
 
     testWidgets('an explicit minHeight and padding still win', (tester) async {
@@ -120,10 +137,22 @@ void main() {
           title: 'Song',
           minHeight: 48,
           padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          twoLineTitle: false,
         ),
         density: NavisDensity.compact,
       );
       expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 48);
+      // With two title lines the explicit minHeight is a floor.
+      await _pump(
+        tester,
+        const AdaptiveTrackRow(
+          title: 'Song',
+          minHeight: 48,
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        ),
+        density: NavisDensity.compact,
+      );
+      expect(tester.getSize(find.byType(AdaptiveTrackRow)).height, 60);
     });
 
     testWidgets('compact keeps a 48 high action reachable', (tester) async {
@@ -190,7 +219,7 @@ void main() {
     testWidgets('comfortable is 48', (tester) async {
       await _pump(tester, const TrackListTile(song: _song, showAlbumArt: true));
       expect(cover(tester), const Size(48, 48));
-      expect(tester.getSize(find.byType(TrackListTile)).height, 64);
+      expect(tester.getSize(find.byType(TrackListTile)).height, 72);
     });
 
     testWidgets('compact is 40', (tester) async {
@@ -200,7 +229,7 @@ void main() {
         density: NavisDensity.compact,
       );
       expect(cover(tester), const Size(40, 40));
-      expect(tester.getSize(find.byType(TrackListTile)).height, 52);
+      expect(tester.getSize(find.byType(TrackListTile)).height, 64);
     });
   });
 

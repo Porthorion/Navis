@@ -495,7 +495,9 @@ class _TopTrackTile extends ConsumerWidget {
           : trailing == null
           ? 0
           : 96,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      padding: _topTracksRowPadding,
+      // Some tracks have no listener count; their rows keep its line.
+      reserveBadge: true,
       badge: subtitle == null
           ? null
           : Text(
@@ -551,6 +553,9 @@ class _TopTrackTile extends ConsumerWidget {
 // Private: shimmer loading skeleton
 // ---------------------------------------------------------------------------
 
+/// Padding of a top-tracks row, shared with its loading skeleton.
+const _topTracksRowPadding = EdgeInsets.symmetric(horizontal: 4, vertical: 2);
+
 class _TopTracksShimmer extends StatelessWidget {
   const new();
 
@@ -564,30 +569,56 @@ class _TopTracksShimmer extends StatelessWidget {
           ShimmerPlaceholder(height: 22, width: 120),
           const SizedBox(height: 12),
           for (var i = 0; i < kArtistTopTracksCollapsed; i++) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: const <Widget>[
-                  ShimmerPlaceholder(height: 16, width: 24),
-                  SizedBox(width: 8),
-                  ShimmerPlaceholder(height: 40, width: 40),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        ShimmerPlaceholder(height: 14, width: double.infinity),
-                        SizedBox(height: 6),
-                        ShimmerPlaceholder(height: 11, width: 80),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            // As tall as a loaded compact touch row, so the list does not
+            // jump when the songs arrive.
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final height = trackRowSkeletonHeight(
+                  context,
+                  constraints.maxWidth,
+                  padding: _topTracksRowPadding,
+                  badge: true,
+                );
+                return height == null
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: _TopTracksShimmerRow(),
+                      )
+                    : SizedBox(
+                        height: height,
+                        child: const Center(child: _TopTracksShimmerRow()),
+                      );
+              },
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _TopTracksShimmerRow extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: <Widget>[
+        ShimmerPlaceholder(height: 16, width: 24),
+        SizedBox(width: 8),
+        ShimmerPlaceholder(height: 40, width: 40),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              ShimmerPlaceholder(height: 14, width: double.infinity),
+              SizedBox(height: 6),
+              ShimmerPlaceholder(height: 11, width: 80),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

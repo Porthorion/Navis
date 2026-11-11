@@ -278,6 +278,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
     this.horizontalTitleGap = 6,
     this.minHeight = 64,
     this.leadingExtent,
+    this.twoLineTitle = true,
     super.key,
   });
 
@@ -292,6 +293,9 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
   /// Width of the number slot; null follows the Density cover size so titles
   /// line up with the matched rows' artwork.
   final double? leadingExtent;
+
+  /// See [AdaptiveTrackRow.twoLineTitle].
+  final bool twoLineTitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -341,6 +345,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
           leadingGap: horizontalTitleGap,
           actionExtent: 96,
           minHeight: minHeight,
+          twoLineTitle: twoLineTitle,
           titleBadge: statusKind == null
               ? null
               : TrackMatchStatusLabel(kind: statusKind),

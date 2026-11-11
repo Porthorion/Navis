@@ -3071,6 +3071,7 @@ class _DesktopListenBrainzSongListState
           index: index + 1,
           // Numbered hero list without artwork: denser rows.
           minHeight: 48,
+          twoLineTitle: false,
           leadingExtent: 32,
           onPlay: (_) => _playWeeklyRecommendation(ref, recommendations, index),
           onSearch: (track) {
@@ -3171,6 +3172,7 @@ class _TrendingSongRow extends ConsumerWidget {
       actionExtent: 96,
       // Numbered hero list without artwork: denser rows.
       minHeight: 48,
+      twoLineTitle: false,
       titleBadge: song != null
           ? null
           : TrackMatchStatusLabel(
@@ -3430,6 +3432,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       // Numbered hero list without artwork: denser rows.
       minHeight: 48,
+      twoLineTitle: false,
       leading: Center(
         child: playbackState.isSelected
             ? SongPlaybackMarker(state: playbackState, size: 17)
@@ -4453,6 +4456,8 @@ class _SongListSection extends ConsumerWidget {
     Widget songTile(SongsTableData song) => TrackListTile(
       key: ValueKey(song.id),
       song: song,
+      // Shelves are sized from one-line rows.
+      twoLineTitle: false,
       actionExtent: desktopMode ? null : 0,
       contentPadding: EdgeInsets.symmetric(
         horizontal: tabletMode ? 12 : 8,
