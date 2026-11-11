@@ -32,6 +32,7 @@ import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -877,6 +878,7 @@ class SyncDiagnosticsServer {
           final coloredShade = body['albumArtColoredShade'];
           final corners = body['cornerStyle'];
           final background = body['nowPlayingBackground'];
+          final sheetStyle = body['sheetStyle'];
           final density = body['density'];
           final choices = <String, Iterable<String>>{
             'themeMode': ['system', 'light', 'dark', 'oled'],
@@ -887,6 +889,7 @@ class SyncDiagnosticsServer {
             'nowPlayingBackground': NowPlayingBackground.values.map(
               (value) => value.storageKey,
             ),
+            'sheetStyle': SheetStyle.values.map((value) => value.storageKey),
             'density': NavisDensity.values.map((value) => value.storageKey),
             'controlColor': const ['accent', 'white'],
           };
@@ -1009,6 +1012,7 @@ class SyncDiagnosticsServer {
                   'albumArtColoredShade',
                   'cornerStyle',
                   'nowPlayingBackground',
+                  'sheetStyle',
                   'density',
                   'gridArtworkSize',
                   'homeRecommendationsAutoAdvance',
@@ -1106,6 +1110,7 @@ class SyncDiagnosticsServer {
           if (background is String) {
             await dao.updateNowPlayingBackground(background);
           }
+          if (sheetStyle is String) await dao.updateSheetStyle(sheetStyle);
           if (density is String) {
             await dao.updateDensity(NavisDensity.parse(density));
           }
@@ -1185,6 +1190,7 @@ class SyncDiagnosticsServer {
           'nowPlayingBackground': NowPlayingBackground.parse(
             settings?.nowPlayingBackground,
           ).storageKey,
+          'sheetStyle': SheetStyle.parse(settings?.sheetStyle).storageKey,
           'cornerStyle': NavisCornerStyle.parse(settings?.cornerStyle).name,
           'density': NavisDensity.parse(settings?.homeDensity).storageKey,
           'artistCardShape': settings?.artistCardShape ?? 'circle',
@@ -5238,6 +5244,7 @@ class SyncDiagnosticsServer {
       'setupHighlightsSeenRelease': settings.setupHighlightsSeenRelease,
       'setupCardDismissedRelease': settings.setupCardDismissedRelease,
       'nowPlayingBackground': settings.nowPlayingBackground.storageKey,
+      'sheetStyle': settings.sheetStyle.storageKey,
       'cornerStyle': settings.cornerStyle.name,
       'density': settings.density.storageKey,
       'services': <String, Object?>{

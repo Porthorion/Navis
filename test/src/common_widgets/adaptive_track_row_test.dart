@@ -1,8 +1,10 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 
@@ -574,5 +576,165 @@ void main() {
     final line = tester.renderObject<RenderParagraph>(secondary);
     expect(line.didExceedMaxLines, isTrue);
     expect(tester.takeException(), isNull);
+  });
+
+  group('long titles', () {
+    const title = 'A very long song title that cannot fit in a narrow row';
+    const version = ' (Radio Edit)';
+    const away = Offset(200, 550);
+    const longAlbum =
+        'An album name that is far too long for its column to hold';
+    final scrolling = find.descendant(
+      of: find.byType(MarqueeText),
+      matching: find.byType(Transform),
+    );
+
+    Future<void> pumpRow(
+      WidgetTester tester, {
+      double width = 390,
+      bool selected = false,
+      bool reduceMotion = false,
+      String album = 'An album',
+      String rowTitle = '$title$version',
+    }) async {
+      setAdaptiveTestViewport(tester, Size(width, 600));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(disableAnimations: reduceMotion),
+              child: Scaffold(
+                body: AdaptiveTrackRow(
+                  title: rowTitle,
+                  artist: 'An artist',
+                  album: album,
+                  duration: 223,
+                  selected: selected,
+                  actionExtent: 48,
+                  leading: const Icon(Icons.music_note),
+                  actions: const IconButton(
+                    onPressed: null,
+                    icon: Icon(Icons.more_horiz),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Future<TestGesture> hover(WidgetTester tester) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: away);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byType(AdaptiveTrackRow)));
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets('the playing row scrolls twice, then rests on its version', (
+      tester,
+    ) async {
+      await pumpRow(tester, selected: true);
+      await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+      expect(scrolling, findsOneWidget);
+      expect(
+        tester.widget<Transform>(scrolling).transform.getTranslation().x,
+        lessThan(0),
+      );
+
+      await tester.pumpAndSettle();
+      expect(scrolling, findsNothing);
+      expect(find.text(version), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('an idle row never scrolls and keeps its version', (
+      tester,
+    ) async {
+      await pumpRow(tester);
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
+      expect(scrolling, findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(find.text(version), findsOneWidget);
+    });
+
+    testWidgets(
+      'a hovered row scrolls and rests again when the pointer leaves',
+      (tester) async {
+        await pumpRow(tester);
+        final gesture = await hover(tester);
+        await tester.pump(
+          kMarqueeStartPause + const Duration(milliseconds: 500),
+        );
+        expect(scrolling, findsOneWidget);
+
+        await gesture.moveTo(away);
+        await tester.pump();
+        await tester.pump();
+        expect(scrolling, findsNothing);
+        expect(find.text(version), findsOneWidget);
+      },
+    );
+
+    testWidgets('hovering a wide row scrolls a long album cell', (
+      tester,
+    ) async {
+      await pumpRow(tester, width: 1000, album: longAlbum, rowTitle: 'Song');
+      expect(scrolling, findsNothing);
+      await hover(tester);
+      await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+      expect(scrolling, findsOneWidget);
+      expect(
+        tester.widget<Transform>(scrolling).transform.getTranslation().x,
+        lessThan(0),
+      );
+    });
+
+    testWidgets('reduced motion keeps a playing row still with its version', (
+      tester,
+    ) async {
+      await pumpRow(tester, selected: true, reduceMotion: true);
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
+      expect(scrolling, findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(find.text(version), findsOneWidget);
+    });
+
+    testWidgets('a long list moves at most the playing row', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 600));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 300,
+              itemBuilder: (context, index) => AdaptiveTrackRow(
+                title: '$title $index$version',
+                artist: 'An artist',
+                duration: 223,
+                selected: index == 5,
+                actionExtent: 48,
+                leading: const Icon(Icons.music_note),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+      expect(scrolling, findsOneWidget);
+
+      await tester.fling(find.byType(ListView), const Offset(0, -400), 2000);
+      await tester.pumpAndSettle();
+      expect(scrolling.evaluate().length, lessThanOrEqualTo(1));
+      expect(tester.takeException(), isNull);
+    });
   });
 }

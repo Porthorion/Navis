@@ -239,4 +239,40 @@ void main() {
     expect(stripTitleQualifiers('Ft. Worth Blues'), 'Ft. Worth Blues');
     expect(stripTitleQualifiers('Lift'), 'Lift');
   });
+
+  group('splitTitleVersion', () {
+    void expectSplit(String title, String base, String suffix) {
+      final split = splitTitleVersion(title);
+      expect((split.base, split.suffix), (base, suffix), reason: title);
+      expect(split.base + split.suffix, title, reason: title);
+    }
+
+    test('splits a trailing bracket group or dash tail', () {
+      expectSplit('Song (Radio Edit)', 'Song', ' (Radio Edit)');
+      expectSplit('Song - Extended Mix', 'Song', ' - Extended Mix');
+      expectSplit('Song – Live', 'Song', ' – Live');
+      expectSplit('Song [Remix]', 'Song', ' [Remix]');
+      expectSplit('Intro - Outro', 'Intro', ' - Outro');
+    });
+
+    test('splits off only the last qualifier', () {
+      expectSplit(
+        'Song (feat. X) [Radio Edit]',
+        'Song (feat. X)',
+        ' [Radio Edit]',
+      );
+      expectSplit('Song (Live) - Remix', 'Song (Live)', ' - Remix');
+    });
+
+    test('handles full-width brackets', () {
+      expectSplit('曲名（ライブ）', '曲名', '（ライブ）');
+      expectSplit('曲名【Remix】', '曲名', '【Remix】');
+    });
+
+    test('does not split when there is no clean trailing qualifier', () {
+      for (final title in ['(Intro)', 'Song (A (B))', 'Song (', 'Song', '']) {
+        expectSplit(title, title, '');
+      }
+    });
+  });
 }

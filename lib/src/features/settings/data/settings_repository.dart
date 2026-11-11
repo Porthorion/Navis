@@ -13,6 +13,7 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
@@ -163,6 +164,9 @@ class SettingsRepository {
       await _dao.updateNowPlayingBackground(
         draft.nowPlayingBackground.storageKey,
       );
+    }
+    if (draft.sheetStyle != initial.sheetStyle) {
+      await _dao.updateSheetStyle(draft.sheetStyle.storageKey);
     }
     if (draft.colorSchemeSeed != initial.colorSchemeSeed) {
       await _dao.updateColorSchemeSeed(draft.colorSchemeSeed);
@@ -417,6 +421,7 @@ class SettingsRepository {
       nowPlayingBackground: NowPlayingBackground.parse(
         row.nowPlayingBackground,
       ),
+      sheetStyle: SheetStyle.parse(row.sheetStyle),
       cornerStyle: NavisCornerStyle.parse(row.cornerStyle),
       dynamicAlbumColorEnabled: row.dynamicAlbumColorEnabled,
       updateCheckEnabled: row.updateCheckEnabled,

@@ -262,4 +262,60 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+
+  testWidgets("album rows keep each edit's version visible", (tester) async {
+    const size = Size(390, 844);
+    setAdaptiveTestViewport(tester, size);
+    Widget row(String title) => AdaptiveTrackRow(
+      title: title,
+      artist: 'Artist',
+      album: 'Album',
+      duration: 223,
+      leadingExtent: 32,
+      leadingGap: 6,
+      actionExtent: 96,
+      showAlbumColumn: false,
+      leading: const Icon(Icons.album),
+      actions: const SizedBox(width: 96, height: 48),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: AdaptiveContextScope(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: false,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+          ),
+          child: Scaffold(
+            body: Column(
+              children: [
+                row('A Very Long Song Name For Testing (Radio Edit)'),
+                row('A Very Long Song Name For Testing (Extended Mix)'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final rows = find.byType(AdaptiveTrackRow);
+    for (final (index, suffix) in [
+      ' (Radio Edit)',
+      ' (Extended Mix)',
+    ].indexed) {
+      final text = find.text(suffix);
+      expect(text, findsOneWidget, reason: suffix);
+      final rect = tester.getRect(text);
+      final rowRect = tester.getRect(rows.at(index));
+      expect(rowRect.contains(rect.topLeft), isTrue, reason: suffix);
+      expect(rowRect.contains(rect.bottomRight), isTrue, reason: suffix);
+      // Right of the base, inside the title column.
+      expect(rect.left, greaterThan(tester.getRect(rows.at(index)).left + 38));
+    }
+    expect(tester.takeException(), isNull);
+  });
 }

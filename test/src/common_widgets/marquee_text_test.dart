@@ -1,9 +1,12 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
 
 const _long = 'A deliberately very long album title that cannot fit in a card';
 const _style = TextStyle(fontSize: 13);
+const _versioned = 'A long song title that will not fit (Radio Edit)';
+const _suffix = ' (Radio Edit)';
 
 Widget _host({
   String text = _long,
@@ -12,6 +15,9 @@ Widget _host({
   TextDirection direction = TextDirection.ltr,
   bool tickers = true,
   int? passes,
+  bool active = true,
+  TextAlign textAlign = TextAlign.start,
+  StrutStyle? strutStyle,
 }) => MaterialApp(
   home: Directionality(
     textDirection: direction,
@@ -24,7 +30,14 @@ Widget _host({
             alignment: Alignment.topLeft,
             child: SizedBox(
               width: width,
-              child: MarqueeText(text, style: _style, passes: passes),
+              child: MarqueeText(
+                text,
+                style: _style,
+                passes: passes,
+                active: active,
+                textAlign: textAlign,
+                strutStyle: strutStyle,
+              ),
             ),
           ),
         ),
@@ -33,15 +46,18 @@ Widget _host({
   ),
 );
 
-Transform _scroller(WidgetTester tester) => tester.widget<Transform>(
-  find.descendant(
-    of: find.byType(MarqueeText),
-    matching: find.byType(Transform),
-  ),
+final _scrollers = find.descendant(
+  of: find.byType(MarqueeText),
+  matching: find.byType(Transform),
 );
 
-double _offset(WidgetTester tester) =>
-    _scroller(tester).transform.getTranslation().x;
+/// Zero while the title rests in its still form (it has no [Transform] then).
+double _offset(WidgetTester tester) => _scrollers.evaluate().isEmpty
+    ? 0
+    : tester.widget<Transform>(_scrollers).transform.getTranslation().x;
+
+bool _exceeds(WidgetTester tester, Finder text) =>
+    tester.renderObject<RenderParagraph>(text).didExceedMaxLines;
 
 void main() {
   testWidgets('limited passes scroll, then rest at the start', (tester) async {
@@ -74,10 +90,15 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(_host());
+    // The full text is only laid out while travelling.
+    await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 100));
     final overflow =
         tester.getSize(find.text(_long)).width -
         tester.getSize(find.byType(MarqueeText)).width;
     expect(overflow, greaterThan(0));
+    // Remount, so the cycle starts again from its rest.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(_host());
     final travel = Duration(
       microseconds: (overflow / kMarqueeSpeed * 1e6).round(),
     );
@@ -205,5 +226,244 @@ void main() {
 
     expect(tester.hasRunningAnimations, isFalse);
     expect(tester.takeException(), isNull);
+  });
+
+  group('version-keeping still form', () {
+    Rect rect(WidgetTester tester, Finder f) => tester.getRect(f);
+
+    testWidgets('an inactive title ellipsizes the base, never the version', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 300, active: false),
+      );
+
+      final host = rect(tester, find.byType(MarqueeText));
+      final suffix = rect(tester, find.text(_suffix));
+      expect(suffix.left, greaterThanOrEqualTo(host.left));
+      expect(suffix.right, lessThanOrEqualTo(host.right + 0.5));
+      expect(_exceeds(tester, find.text(_suffix)), isFalse);
+      final base = find.text('A long song title that will not fit');
+      expect(_exceeds(tester, base), isTrue);
+      expect(rect(tester, base).right, lessThanOrEqualTo(suffix.left + 0.5));
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a fitting title with a version stays one Text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(text: 'Song (Live)', width: 300));
+      expect(
+        find.descendant(
+          of: find.byType(MarqueeText),
+          matching: find.byType(Text),
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(
+        _host(text: 'Song (Live)', width: 300, active: false),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(MarqueeText),
+          matching: find.byType(Text),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an unbounded width never throws', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: UnconstrainedBox(
+              child: MarqueeText(_versioned, style: _style, active: false),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: UnconstrainedBox(
+              child: MarqueeText(_versioned, style: _style),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('reduced motion shows the same still form', (tester) async {
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 300, reduceMotion: true),
+      );
+      expect(find.text(_suffix), findsOneWidget);
+      expect(_exceeds(tester, find.text(_suffix)), isFalse);
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('active: still form at rest, full text while travelling', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(text: _versioned, width: 300, passes: 1));
+
+      // The start pause shows the version.
+      await tester.pump(kMarqueeStartPause ~/ 2);
+      expect(find.text(_suffix), findsOneWidget);
+      expect(_offset(tester), 0);
+
+      await tester.pump(kMarqueeStartPause ~/ 2 + const Duration(seconds: 1));
+      expect(_offset(tester), lessThan(0));
+      expect(find.text(_suffix), findsNothing);
+
+      await tester.pumpAndSettle();
+      expect(find.text(_suffix), findsOneWidget);
+      expect(_exceeds(tester, find.text(_suffix)), isFalse);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('the full title is one semantics node', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 300, active: false),
+      );
+
+      expect(find.bySemanticsLabel(_versioned), findsOneWidget);
+      expect(find.bySemanticsLabel(_suffix), findsNothing);
+      expect(find.bySemanticsLabel(' (Radio Edit)'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('an Arabic title keeps its version at the visual left end', (
+      tester,
+    ) async {
+      const title = 'عنوان أغنية طويل جدا لا يتسع في هذا العرض (ريمكس)';
+      await tester.pumpWidget(
+        _host(
+          text: title,
+          width: 300,
+          active: false,
+          direction: TextDirection.rtl,
+        ),
+      );
+      final suffix = rect(tester, find.text(' (ريمكس)'));
+      final base = rect(
+        tester,
+        find.text('عنوان أغنية طويل جدا لا يتسع في هذا العرض'),
+      );
+      expect(suffix.center.dx, lessThan(base.center.dx));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a Latin title in an RTL ambient keeps its version right', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          text: _versioned,
+          width: 300,
+          active: false,
+          direction: TextDirection.rtl,
+        ),
+      );
+      final suffix = rect(tester, find.text(_suffix));
+      final base = rect(
+        tester,
+        find.text('A long song title that will not fit'),
+      );
+      expect(suffix.center.dx, greaterThan(base.center.dx));
+    });
+
+    testWidgets('a Latin title with an Arabic version stays left to right', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(text: 'Song (ريمكس)', width: 100, active: false),
+      );
+      final suffix = rect(tester, find.text(' (ريمكس)'));
+      final base = rect(tester, find.text('Song'));
+      expect(suffix.center.dx, greaterThan(base.center.dx));
+    });
+
+    testWidgets('a suffix wider than 60 percent is ellipsized too', (
+      tester,
+    ) async {
+      const title = 'Song (A remix with a really very long descriptive name)';
+      await tester.pumpWidget(_host(text: title, width: 200, active: false));
+
+      final host = rect(tester, find.byType(MarqueeText));
+      final suffix = find.text(
+        ' (A remix with a really very long descriptive name)',
+      );
+      expect(_exceeds(tester, suffix), isTrue);
+      expect(
+        rect(tester, suffix).width,
+        lessThanOrEqualTo(host.width * 0.6 + 0.5),
+      );
+      expect(rect(tester, suffix).right, lessThanOrEqualTo(host.right + 0.5));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('centred text that fits is centred', (tester) async {
+      await tester.pumpWidget(
+        _host(text: 'Short', width: 200, textAlign: TextAlign.center),
+      );
+      final host = rect(tester, find.byType(MarqueeText));
+      expect(
+        rect(tester, find.text('Short')).center.dx,
+        closeTo(host.center.dx, 1),
+      );
+    });
+
+    testWidgets('strutStyle sets the line height in both forms', (
+      tester,
+    ) async {
+      const strut = StrutStyle(fontSize: 13, height: 3, forceStrutHeight: true);
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 300, active: false, strutStyle: strut),
+      );
+      expect(tester.getSize(find.byType(MarqueeText)).height, closeTo(39, 0.5));
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 300, strutStyle: strut),
+      );
+      expect(tester.getSize(find.byType(MarqueeText)).height, closeTo(39, 0.5));
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
+      expect(tester.getSize(find.byType(MarqueeText)).height, closeTo(39, 0.5));
+    });
+
+    testWidgets('changing passes restarts them', (tester) async {
+      await tester.pumpWidget(_host(passes: 1));
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+
+      await tester.pumpWidget(_host(passes: 2));
+      await tester.pump();
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('an inactive title without a version is one plain Text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(active: false));
+      final texts = find.descendant(
+        of: find.byType(MarqueeText),
+        matching: find.byType(Text),
+      );
+      expect(texts, findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(MarqueeText),
+          matching: find.byType(LayoutBuilder),
+        ),
+        findsNothing,
+      );
+      expect(_exceeds(tester, texts), isTrue);
+    });
   });
 }
