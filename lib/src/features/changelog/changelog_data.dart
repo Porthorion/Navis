@@ -224,8 +224,9 @@ const List<ChangelogVersion> changelogs = [
         'lines; rows have one even height',
       ),
       ChangelogEntry(
-        'Phone song rows show download progress and a ✓ next to ⋯; download or '
-        'remove a download from ⋯',
+        'Downloaded songs show a small green download mark before the artist '
+        'name on phones, and a ring shows while a song downloads. Download and '
+        'Delete Download are in the song\'s ⋯ menu',
       ),
       ChangelogEntry(
         'Swipe a queue song left to remove it, with Undo; the trash button is '

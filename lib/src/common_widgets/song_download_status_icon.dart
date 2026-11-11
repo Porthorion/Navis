@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -220,65 +222,83 @@ class SongDownloadStatusIcon extends ConsumerWidget {
   }
 }
 
-/// The non-interactive download state of a phone song row, drawn beside the
-/// more button: a check once downloaded, a progress ring while downloading,
-/// a faint ring while queued, nothing otherwise (rolling-cached songs
-/// included). Downloading and removing live in the row's menu.
+/// The non-interactive download state of a phone song row, drawn inline
+/// before the artist on the row's second line: a filled circle with a down
+/// arrow once downloaded, a progress ring with a small arrow while
+/// downloading, a faint dashed ring while queued, nothing otherwise
+/// (rolling-cached songs included). Downloading and removing live in the
+/// row's menu.
 ///
-/// A visible glyph carries its own 4 dp gap towards the more button, so rows
-/// without a state take no extra width.
+/// A visible mark carries its own 4 dp gap towards the text, so rows without
+/// a state take no extra width.
 class SongDownloadStatusGlyph extends ConsumerWidget {
   const new({required this.songId, super.key});
 
   final String songId;
 
-  /// The 16 dp box of a ring.
+  /// The 14 dp box of the downloading ring.
   @visibleForTesting
   static const boxKey = ValueKey('song-download-status-ring');
+
+  /// The 14 dp box of the queued dashed ring.
+  @visibleForTesting
+  static const queuedKey = ValueKey('song-download-status-queued');
+
+  static const _size = 14.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(songDownloadStateProvider(songId));
     final l10n = AppLocalizations.of(context)!;
     final primary = Theme.of(context).colorScheme.primary;
-    Widget ring(double? value, Color color) => SizedBox(
-      key: boxKey,
-      width: 16,
-      height: 16,
-      child: Center(
-        child: SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(
-            value: value,
-            strokeWidth: 2,
-            color: color,
-          ),
-        ),
-      ),
-    );
-    final (label, glyph) = switch (state.status) {
+    final (label, value, glyph) = switch (state.status) {
       SongDownloadStatus.downloaded => (
         l10n.songStatusDownloaded,
+        null,
         Icon(
-          Icons.check_circle,
-          size: 16,
+          Icons.download_for_offline,
+          size: _size,
           color: NavisTokens.of(context).success,
         ),
       ),
       SongDownloadStatus.downloading => (
         l10n.songStatusDownloading,
-        ring(state.progress, primary),
+        l10n.notificationDownloadProgressPercent(
+          (state.progress * 100).round(),
+        ),
+        SizedBox(
+          key: boxKey,
+          width: _size,
+          height: _size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CircularProgressIndicator(
+                value: state.progress,
+                strokeWidth: 1.75,
+                color: primary,
+              ),
+              Icon(Icons.arrow_downward, size: 8, color: primary),
+            ],
+          ),
+        ),
       ),
       SongDownloadStatus.queued => (
         l10n.songStatusQueued,
-        ring(null, primary.withValues(alpha: 0.5)),
+        null,
+        CustomPaint(
+          key: queuedKey,
+          size: const Size.square(_size),
+          painter: _DashedRingPainter(primary.withValues(alpha: .5)),
+        ),
       ),
-      SongDownloadStatus.none || SongDownloadStatus.cached => (null, null),
+      SongDownloadStatus.none ||
+      SongDownloadStatus.cached => (null, null, null),
     };
     if (label == null || glyph == null) return const SizedBox.shrink();
     return Semantics(
       label: label,
+      value: value,
       excludeSemantics: true,
       child: Padding(
         padding: const EdgeInsetsDirectional.only(end: 4),
@@ -286,6 +306,32 @@ class SongDownloadStatusGlyph extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// A still ring of ten dashes: the queued state (no animation).
+class _DashedRingPainter extends CustomPainter {
+  const _DashedRingPainter(this.color);
+
+  final Color color;
+
+  static const _stroke = 1.75;
+  static const _dashes = 10;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _stroke;
+    final rect = (Offset.zero & size).deflate(_stroke / 2);
+    const step = 2 * math.pi / _dashes;
+    for (var i = 0; i < _dashes; i++) {
+      canvas.drawArc(rect, i * step, step * .55, false, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRingPainter old) => old.color != color;
 }
 
 /// Shows a confirmation dialog and, if confirmed, deletes the permanently

@@ -3102,14 +3102,17 @@ Downloaded library rows use the same presentation; transfer progress is separate
 
 Phone song rows (compact touch layouts; desktop keeps `SongDownloadStatusIcon`
 and its actions) show download state with `SongDownloadStatusGlyph`, a
-non-tappable 16 dp glyph passed as `AdaptiveTrackRow.trailingStatus` and drawn
-left of ⋯: a check once downloaded, a progress ring while downloading, a faint
-ring while queued, nothing otherwise (rolling-cached songs included). The glyph
-reads `songDownloadStateProvider`; Download and Delete download live in the ⋯
-sheets. A compact touch row lays status and ⋯ out at natural width, so only
-rows with a state lose 20 dp of title width; medium and wide touch rows keep the
-glyph in a 48 dp box inside `actionExtent`, so `AdaptiveTrackHeader` alignment
-never changes. Genre, search, Home song lists, match-flow and Downloads rows
+non-tappable 14 dp mark passed as `AdaptiveTrackRow.downloadStatus` and drawn
+inline on line 2 before the artist: a filled circle with a down arrow
+(`Icons.download_for_offline`, success colour) once downloaded, a progress ring
+with a small arrow while downloading, a still dashed ring while queued, nothing
+otherwise (rolling-cached songs included). The glyph reads
+`songDownloadStateProvider`; Download and Delete download live in the ⋯ sheets.
+The mark carries its own 4 dp end gap, so a hidden one costs nothing and only
+the line-2 text shifts: the title, row height, duration and ⋯ never move, and
+a compact touch row's actions take their natural width, ignoring `actionExtent`.
+Medium and wide touch rows keep the mark in a 48 dp box inside `actionExtent`,
+so `AdaptiveTrackHeader` alignment never changes. Genre, search, Home song lists, match-flow and Downloads rows
 never had the button and show no glyph.
 
 Desktop recommendation artwork and previews are bounded; narrow desktop panes

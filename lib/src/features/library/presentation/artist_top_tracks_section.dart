@@ -414,7 +414,7 @@ class _TopTrackTile extends ConsumerWidget {
 
     // ── Trailing: download status + 3-dot menu (resolved tracks only) ───
     Widget? trailing;
-    Widget? trailingStatus;
+    Widget? downloadStatus;
     if (desktopRuntime && dbSong != null) {
       trailing = DesktopSongActions(
         song: dbSong,
@@ -437,7 +437,7 @@ class _TopTrackTile extends ConsumerWidget {
       // row's columns left.
       trailing = const SizedBox.shrink();
     } else if (resolvedId != null) {
-      trailingStatus = SongDownloadStatusGlyph(songId: resolvedId);
+      downloadStatus = SongDownloadStatusGlyph(songId: resolvedId);
       trailing = Builder(
         builder: (buttonContext) => IconButton(
           tooltip: MaterialLocalizations.of(buttonContext).showMenuTooltip,
@@ -494,7 +494,7 @@ class _TopTrackTile extends ConsumerWidget {
             }
           : null,
       leading: leading,
-      trailingStatus: trailingStatus,
+      downloadStatus: downloadStatus,
       actions: trailing,
     );
 

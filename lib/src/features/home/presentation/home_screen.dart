@@ -712,7 +712,7 @@ class _ListenBrainzWeeklyDetailContentState
               anchor: details.globalPosition,
             ),
             // Desktop keeps the download button: this row has no desktop branch.
-            trailingStatus: desktopRuntime
+            downloadStatus: desktopRuntime
                 ? null
                 : SongDownloadStatusGlyph(songId: tableSong.id),
             trailing: Row(

@@ -204,6 +204,17 @@ double? trackRowSkeletonHeight(
       : null;
 }
 
+/// Line 2 of a compact touch row: the download mark (which carries its own
+/// gap, so a hidden one costs nothing), then [metadata] in the rest.
+Widget _withDownloadStatus(Widget? status, Widget metadata) => status == null
+    ? metadata
+    : Row(
+        children: [
+          status,
+          Flexible(child: metadata),
+        ],
+      );
+
 Widget _columns(List<Widget> children) {
   final flexes = switch (children.length) {
     3 => const [45, 25, 30],
@@ -232,7 +243,7 @@ class AdaptiveTrackRow extends StatelessWidget {
     this.leadingGap = 12,
     this.actionExtent,
     this.actions,
-    this.trailingStatus,
+    this.downloadStatus,
     this.badge,
     this.isRemote = false,
     this.selected = false,
@@ -260,12 +271,13 @@ class AdaptiveTrackRow extends StatelessWidget {
   final double? actionExtent;
   final Widget? actions;
 
-  /// A non-interactive state glyph (download state) shown before [actions].
-  /// Compact touch rows lay it out at its natural width beside [actions], so
-  /// it costs title width only while it shows something, and ignore
-  /// [actionExtent]. Wider touch rows keep it in a 48 dp box inside
-  /// [actionExtent], so the column header alignment never changes.
-  final Widget? trailingStatus;
+  /// A non-interactive download-state mark. Compact touch rows draw it inline
+  /// on line 2, before the artist, so the title, duration and [actions] never
+  /// move and [actionExtent] is ignored (the mark carries its own gap and
+  /// takes no width while it shows nothing). Wider touch rows keep it in a
+  /// 48 dp box before [actions] inside [actionExtent], so the column header
+  /// alignment never changes.
+  final Widget? downloadStatus;
   final Widget? badge;
   final bool isRemote;
   final bool selected;
@@ -336,6 +348,8 @@ class AdaptiveTrackRow extends StatelessWidget {
         // Without a secondary line the Remote badge rides on the title line,
         // so remote rows keep the height and title position of local rows.
         final remoteOnTitle = isRemote && secondary.isEmpty;
+        final touchCompact = _isCompactTouch(context, width);
+        final inlineStatus = touchCompact ? downloadStatus : null;
         final titleColumn = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,17 +373,22 @@ class AdaptiveTrackRow extends StatelessWidget {
               ],
             ),
             if (secondary.isNotEmpty)
-              RemoteSourceMetadataLine(
-                // One line, like the wider modes' columns: rows have a fixed
-                // minimum height, so a wrapped "Artist · Album" was clipped.
-                metadata: Text(
-                  secondary,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: style,
+              _withDownloadStatus(
+                inlineStatus,
+                RemoteSourceMetadataLine(
+                  // One line, like the wider modes' columns: rows have a fixed
+                  // minimum height, so a wrapped "Artist · Album" was clipped.
+                  metadata: Text(
+                    secondary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: style,
+                  ),
+                  isRemote: isRemote,
                 ),
-                isRemote: isRemote,
-              ),
+              )
+            else
+              ?inlineStatus,
             ?badge,
           ],
         );
@@ -392,36 +411,32 @@ class AdaptiveTrackRow extends StatelessWidget {
             ),
           ),
         );
-        final touchCompact = _isCompactTouch(context, width);
-        final status = trailingStatus;
-        // Natural width: [actionExtent] still counts the status box here, so
-        // it is subtracted and the glyph's own 20 dp (16 + 4 gap, see the
-        // glyph) added; a hidden glyph is over-estimated by those 20 dp.
-        final naturalActions = touchCompact && status != null;
+        // The mark is inline on compact touch rows; elsewhere it rides in a
+        // 48 dp box before the actions, inside [actionExtent].
+        final boxedStatus = touchCompact ? null : downloadStatus;
+        // Inline mark: [actionExtent] still counts the status box callers
+        // reserved, so the actions take their natural width instead.
+        final naturalActions = inlineStatus != null;
         final estimatedActions = naturalActions
             ? (actions == null
-                      ? 0.0
-                      : math.max(48.0, (actionExtent ?? 96) - 48)) +
-                  20
+                  ? 0.0
+                  : math.max(48.0, (actionExtent ?? 96) - 48))
             : actionExtent ??
                   (actions == null
                       ? 0.0
                       : mode == TrackRowMode.wide
                       ? 144
                       : 48);
-        final rowActions = status == null
+        final rowActions = boxedStatus == null
             ? actions
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (naturalActions)
-                    status
-                  else
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Center(child: status),
-                    ),
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(child: boxedStatus),
+                  ),
                   ?actions,
                 ],
               );
@@ -503,6 +518,7 @@ class AdaptiveTrackRow extends StatelessWidget {
             ? _CompactTrackInformation(
                 title: compactTitle,
                 status: titleBadge,
+                downloadStatus: inlineStatus,
                 secondary: secondary,
                 duration: formatSeconds(duration, showHours: true),
                 style: style,
@@ -598,6 +614,7 @@ class _CompactTrackInformation extends StatelessWidget {
     required this.badge,
     this.reservedHeight,
     this.status,
+    this.downloadStatus,
   });
 
   /// With two-line titles: the block's height whatever the title length
@@ -611,6 +628,9 @@ class _CompactTrackInformation extends StatelessWidget {
   /// title, so it takes the duration's place on the metadata line (rows with
   /// a status have no song, hence no duration).
   final Widget? status;
+
+  /// The download mark, drawn before the artist on the metadata line.
+  final Widget? downloadStatus;
   final String secondary;
   final String duration;
   final TextStyle? style;
@@ -648,14 +668,17 @@ class _CompactTrackInformation extends StatelessWidget {
       maxLines: 1,
       style: durationStyle,
     );
-    final metadata = RemoteSourceMetadataLine(
-      metadata: Text(
-        secondary,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: style,
+    final metadata = _withDownloadStatus(
+      downloadStatus,
+      RemoteSourceMetadataLine(
+        metadata: Text(
+          secondary,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        ),
+        isRemote: isRemote,
       ),
-      isRemote: isRemote,
     );
     return LayoutBuilder(
       builder: (context, constraints) {
