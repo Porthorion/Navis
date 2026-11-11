@@ -29,12 +29,23 @@ class _Queue extends QueueController {
   Future<void> reorder(int oldIndex, int newIndex) async {}
 
   @override
-  Future<void> removeAt(int index) async => removed++;
+  Future<QueueRemoval?> removeForUndo(int index, String songId) async {
+    removed++;
+    return null;
+  }
 }
 
 const _ids = <String>['song-1', 'song-2', 'song-3'];
 
 Future<_Queue> _pump(WidgetTester tester) async {
+  // The commit point is 45 percent of the row, so the drags below need a phone
+  // width: 380 dp is past it at 390 dp.
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(390, 844);
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
   final queue = _Queue(_ids);
   await tester.pumpWidget(
     ProviderScope(

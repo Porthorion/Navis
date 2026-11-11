@@ -24,7 +24,10 @@ class _Queue extends QueueController {
   List<String> build() => ids;
 
   @override
-  Future<void> removeAt(int index) async => removed.add(index);
+  Future<QueueRemoval?> removeForUndo(int index, String songId) async {
+    removed.add(index);
+    return null;
+  }
 
   @override
   Future<void> reorder(int oldIndex, int newIndex) async =>
