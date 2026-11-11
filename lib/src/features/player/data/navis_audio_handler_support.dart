@@ -110,6 +110,7 @@ class NavisPlaybackTimeouts {
     this.radioRecovery = const Duration(minutes: 10),
     this.radioHealthyPlay = const Duration(minutes: 1),
     this.healthyPlayback = const Duration(seconds: 5),
+    this.queueRestore = const Duration(seconds: 10),
   });
 
   /// Initial deadline for a native load, or fixed deadline for queue edits.
@@ -161,6 +162,10 @@ class NavisPlaybackTimeouts {
   /// How long a song must really advance before earlier automatic failovers
   /// stop counting towards the consecutive cap.
   final Duration healthyPlayback;
+
+  /// How long restoring the saved queue may run before it is abandoned and
+  /// the saved queue is kept for a later attempt.
+  final Duration queueRestore;
 }
 
 /// The newest exact cached time read from a song's partial download file.
