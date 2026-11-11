@@ -217,6 +217,11 @@ class AppSettingsTable extends Table {
   TextColumn get sheetStyle =>
       text().withDefault(const Constant('match_now_playing'))();
 
+  /// Keep Song Versions Visible: long titles keep a trailing tag such as
+  /// "(Remastered)" whole and shorten the name. Off: one plain ellipsis.
+  BoolColumn get keepTitleVersionVisible =>
+      boolean().withDefault(const Constant(true))();
+
   /// When true, app accent color follows the currently playing album art.
   BoolColumn get dynamicAlbumColorEnabled =>
       boolean().withDefault(const Constant(false))();

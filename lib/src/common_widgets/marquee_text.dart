@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:intl/intl.dart' show Bidi;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -28,7 +29,9 @@ const Duration kMarqueeEndPause = Duration(milliseconds: 800);
 /// pass and after the last one) a truncated title shows its *still form*: the
 /// base ellipsized and the trailing version kept whole, such as
 /// "Song Name That Is L… (Radio Edit)", split by [splitTitleVersion] on the
-/// same line.
+/// same line. With Keep Song Versions Visible off
+/// ([NavisDensityScope.keepTitleVersionOf]) the still form is one plain
+/// ellipsis at the end, as for a credit.
 ///
 /// With [maxLines] 2 the title wraps instead and never scrolls: a truncated
 /// one fills two lines and ends in one ellipsis, keeping a long version whole
@@ -71,6 +74,7 @@ class MarqueeText extends StatelessWidget {
       textAlign: textAlign,
       strutStyle: strutStyle,
       maxLines: maxLines,
+      keepVersion: NavisDensityScope.keepTitleVersionOf(context),
     );
     if (maxLines > 1 || !active || MotionPolicy.of(context).reduceMotion) {
       return still;
@@ -163,6 +167,7 @@ class _VersionKeepingLine extends StatelessWidget {
     required this.textAlign,
     required this.strutStyle,
     required this.maxLines,
+    required this.keepVersion,
   });
 
   final String text;
@@ -170,6 +175,9 @@ class _VersionKeepingLine extends StatelessWidget {
   final TextAlign textAlign;
   final StrutStyle? strutStyle;
   final int maxLines;
+
+  /// The Keep Song Versions Visible setting; off is always the plain form.
+  final bool keepVersion;
 
   /// Share of the width a version may take before the whole title gets one
   /// plain ellipsis instead.
@@ -187,6 +195,7 @@ class _VersionKeepingLine extends StatelessWidget {
             strutStyle: strutStyle,
           )
         : _oneLine(text, style, textAlign, strutStyle);
+    if (!keepVersion) return plain;
     final (:base, :suffix) = splitTitleVersion(text);
     if (suffix.isEmpty || isTitleCredit(suffix)) return plain;
     if (maxLines > 1) return _twoLines(context, plain, base, suffix);

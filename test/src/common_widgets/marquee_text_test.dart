@@ -2,6 +2,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
 
 const _long = 'A deliberately very long album title that cannot fit in a card';
 const _style = TextStyle(fontSize: 13);
@@ -20,6 +22,7 @@ Widget _host({
   TextAlign textAlign = TextAlign.start,
   StrutStyle? strutStyle,
   double textScale = 1,
+  bool? keepVersion,
 }) => MaterialApp(
   home: Directionality(
     textDirection: direction,
@@ -30,19 +33,22 @@ Widget _host({
       ),
       child: TickerMode(
         enabled: tickers,
-        child: Scaffold(
-          body: Align(
-            alignment: Alignment.topLeft,
-            child: SizedBox(
-              width: width,
-              child: MarqueeText(
-                text,
-                style: _style,
-                passes: passes,
-                active: active,
-                maxLines: maxLines,
-                textAlign: textAlign,
-                strutStyle: strutStyle,
+        child: _maybeScope(
+          keepVersion,
+          Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width,
+                child: MarqueeText(
+                  text,
+                  style: _style,
+                  passes: passes,
+                  active: active,
+                  maxLines: maxLines,
+                  textAlign: textAlign,
+                  strutStyle: strutStyle,
+                ),
               ),
             ),
           ),
@@ -51,6 +57,16 @@ Widget _host({
     ),
   ),
 );
+
+/// The Keep Song Versions Visible setting reaches titles through the density
+/// scope; without one (null) the default applies.
+Widget _maybeScope(bool? keepVersion, Widget child) => keepVersion == null
+    ? child
+    : NavisDensityScope(
+        density: NavisDensity.comfortable,
+        keepTitleVersion: keepVersion,
+        child: child,
+      );
 
 final _scrollers = find.descendant(
   of: find.byType(MarqueeText),
@@ -725,6 +741,87 @@ void main() {
       final text = tester.widget<Text>(texts);
       expect(text.data!.endsWith('… (ريمكس)'), isTrue);
       expect(text.textDirection, TextDirection.ltr);
+    });
+  });
+  group('Keep Song Versions Visible off', () {
+    const long =
+        'A very long song title that cannot possibly fit in two short '
+        'lines of this narrow box (Radio Edit)';
+    final texts = find.descendant(
+      of: find.byType(MarqueeText),
+      matching: find.byType(Text),
+    );
+    final rows = find.descendant(
+      of: find.byType(MarqueeText),
+      matching: find.byType(Row),
+    );
+
+    testWidgets('one line: one plain ellipsis, no Row, the full title', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 320, active: false, keepVersion: false),
+      );
+      final text = tester.widget<Text>(texts);
+      expect(text.data, _versioned);
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
+      expect(rows, findsNothing);
+      expect(_exceeds(tester, texts), isTrue);
+    });
+
+    testWidgets('two lines: one plain ellipsis over the full title', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(text: long, width: 400, maxLines: 2, keepVersion: false),
+      );
+      final text = tester.widget<Text>(texts);
+      expect(text.data, long);
+      expect(text.maxLines, 2);
+      expect(text.overflow, TextOverflow.ellipsis);
+      expect(rows, findsNothing);
+      expect(texts, findsOneWidget);
+    });
+
+    testWidgets('a scrolling title still scrolls and rests as plain text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 320, keepVersion: false),
+      );
+      expect(rows, findsNothing);
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
+      expect(_scrollers, findsOneWidget);
+    });
+
+    testWidgets('on keeps the version whole, as does a missing scope', (
+      tester,
+    ) async {
+      for (final keep in <bool?>[true, null]) {
+        await tester.pumpWidget(
+          _host(text: _versioned, width: 320, active: false, keepVersion: keep),
+        );
+        expect(find.text(_suffix), findsOneWidget, reason: '$keep');
+        expect(rows, findsOneWidget);
+        await tester.pumpWidget(
+          _host(text: long, width: 400, maxLines: 2, keepVersion: keep),
+        );
+        expect(tester.widget<Text>(texts).data, endsWith('… (Radio Edit)'));
+      }
+    });
+
+    testWidgets('toggling the setting rebuilds an existing title', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 320, active: false, keepVersion: true),
+      );
+      expect(rows, findsOneWidget);
+      await tester.pumpWidget(
+        _host(text: _versioned, width: 320, active: false, keepVersion: false),
+      );
+      expect(rows, findsNothing);
     });
   });
 }

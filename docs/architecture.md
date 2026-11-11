@@ -1090,6 +1090,11 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 115 (`from114To115`, guarded by `_columnExists`) adds
+    `app_settings.keep_title_version_visible` (boolean, default true): Settings >
+    Appearance > Shape & Layout > Keep Song Versions Visible. It is a Look field
+    (`updateKeepTitleVersionVisible`, `AppearanceSnapshot.keepTitleVersionVisible`);
+    an older Look or export without the key leaves the setting unchanged.
   - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
     `app_settings.sheet_style` (`match_now_playing` default, `album_color` or
     `theme`): the fill of Now Playing sheets and menus (#560). It is a Look
@@ -1772,7 +1777,13 @@ title, the base is ellipsised and the version kept whole on the same line
 ("Long Song Na… (Radio Edit)"), so edits of one song stay distinguishable. A
 credit (`isTitleCredit`: `feat.`/`ft.`, `From …`, `with …`, `prod. …`) is never
 pinned, and neither is a version over 55% of the width: the whole title gets one
-plain ellipsis, so base and version are never both ellipsised.
+plain ellipsis, so base and version are never both ellipsised. Settings >
+Appearance > Keep Song Versions Visible (default on; `keepTitleVersionVisible`,
+`keepTitleVersionVisibleProvider`) turns the version rule off: the still form is
+then always one plain ellipsis (`Text`, one or two lines). `app.dart` carries the
+flag in `NavisDensityScope.keepTitleVersion` and `MarqueeText` reads it with
+`NavisDensityScope.keepTitleVersionOf` (true when no scope, as in tests); the
+scrolling itself is unchanged.
 Track rows (`AdaptiveTrackRow`) make the title active only while the row is
 hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes) on
 desktop and tablets; phone rows never scroll (two-line titles), and the

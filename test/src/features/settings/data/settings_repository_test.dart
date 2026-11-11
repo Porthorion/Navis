@@ -524,6 +524,21 @@ void main() {
       expect(unknown.density, NavisDensity.comfortable);
     }, skip: !sqliteAvailable);
 
+    test('keep title versions visible maps, saves and watches', () async {
+      expect((await repository.getSettings()).keepTitleVersionVisible, isTrue);
+      await database.appSettingsDao.updateKeepTitleVersionVisible(
+        enabled: false,
+      );
+      final settings = await repository.getSettings();
+      expect(settings.keepTitleVersionVisible, isFalse);
+      expect(
+        (await repository.watchSettings().first).keepTitleVersionVisible,
+        isFalse,
+      );
+      await repository.saveSettings(settings.copyWith(scrobbleEnabled: false));
+      expect((await repository.getSettings()).keepTitleVersionVisible, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('sheet style maps, saves and watches', () async {
       expect(
         (await repository.getSettings()).sheetStyle,

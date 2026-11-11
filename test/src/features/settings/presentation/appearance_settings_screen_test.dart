@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
@@ -521,6 +522,36 @@ void main() {
     expect(tester.getTopLeft(dynamicRow).dy, greaterThan(custom.dy));
   });
 
+  testWidgets('Keep Song Versions Visible starts on and turns off', (
+    tester,
+  ) async {
+    final container = await pumpAppearance(tester);
+    final l10n = lookupAppLocalizations(const Locale('en'));
+    final label = find.text(l10n.appearanceKeepTitleVersionLabel);
+    await tester.scrollUntilVisible(
+      label,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(l10n.appearanceKeepTitleVersionLabel, 'Keep Song Versions Visible');
+    expect(find.text(l10n.appearanceKeepTitleVersionSub), findsOneWidget);
+    final tile = find.ancestor(
+      of: label,
+      matching: find.byType(NavisSwitchListTile),
+    );
+    expect(tester.widget<NavisSwitchListTile>(tile).value, isTrue);
+    expect(container.read(keepTitleVersionVisibleProvider), isTrue);
+    await tester.tap(label);
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    final database = container.read(navisDatabaseProvider);
+    final settings = await tester.runAsync(database.appSettingsDao.getSettings);
+    expect(settings?.keepTitleVersionVisible, isFalse);
+  });
+
   testWidgets('artwork choices wrap and save on a phone with large text', (
     tester,
   ) async {
@@ -698,6 +729,7 @@ void main() {
         l10n.appearanceCoverArtShapeLabel,
         l10n.appearanceArtworkSizeLabel,
         l10n.appearanceDensityLabel,
+        l10n.appearanceKeepTitleVersionLabel,
         l10n.appearanceArtistViewModeLabel,
         l10n.appearanceSectionNowPlaying,
         l10n.appearanceNowPlayingBackgroundLabel,

@@ -4922,6 +4922,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Spacing for Home, track lists, playlists and artist lists.';
 
   @override
+  String get appearanceKeepTitleVersionLabel => 'Keep Song Versions Visible';
+
+  @override
+  String get appearanceKeepTitleVersionSub =>
+      'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.';
+
+  @override
   String get appearanceDensityComfortable => 'Comfortable';
 
   @override

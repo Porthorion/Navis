@@ -255,6 +255,68 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('114 to 115 keep song versions visible', () {
+    Future<NavisDatabase> upgraded114() async {
+      final directory = await Directory.systemTemp.createTemp('navis_v115_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.updateSheetStyle('theme');
+      await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN keep_title_version_visible',
+        );
+        raw.execute('PRAGMA user_version = 114');
+        expect(
+          raw
+              .select('PRAGMA table_info(app_settings)')
+              .where((row) => row['name'] == 'keep_title_version_visible'),
+          isEmpty,
+        );
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      return db;
+    }
+
+    test('fresh profiles keep versions visible', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      expect(
+        (await db.appSettingsDao.getSettings())!.keepTitleVersionVisible,
+        isTrue,
+      );
+    });
+
+    test(
+      'adds the column on, keeps other values, and re-runs safely',
+      () async {
+        final db = await upgraded114();
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.keepTitleVersionVisible, isTrue);
+        expect(settings.sheetStyle, 'theme');
+        expect(settings.hapticsEnabled, isFalse);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+        // Idempotent: running the step again changes nothing.
+        await db.appSettingsDao.updateKeepTitleVersionVisible(enabled: false);
+        await db.from114To115(Migrator(db));
+        final again = (await db.appSettingsDao.getSettings())!;
+        expect(again.keepTitleVersionVisible, isFalse);
+        expect(again.sheetStyle, 'theme');
+      },
+    );
+  }, skip: !sqliteAvailable);
+
   group('113 to 114 sheet style', () {
     Future<NavisDatabase> upgraded113() async {
       final directory = await Directory.systemTemp.createTemp('navis_v114_');
@@ -390,8 +452,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 114', () {
-      expect(NavisDatabase.currentSchemaVersion, 114);
+    test('the schema version is 115', () {
+      expect(NavisDatabase.currentSchemaVersion, 115);
     });
 
     test('fresh profiles seed the Auto defaults', () async {

@@ -129,6 +129,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
     final flatAreas = ref.watch(flatAreasProvider);
     final tuning = ref.watch(effectiveColorTuningProvider);
     final density = ref.watch(densityProvider);
+    final keepTitleVersion = ref.watch(keepTitleVersionVisibleProvider);
     final corners = ref.watch(cornerStyleProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     ref.watch(dynamicAccentNextPrefetchProvider);
@@ -196,7 +197,11 @@ class _NavisAppState extends ConsumerState<NavisApp>
         if (isDesktopRuntime) {
           content = DesktopPresentationHost(child: content);
         }
-        content = NavisDensityScope(density: density, child: content);
+        content = NavisDensityScope(
+          density: density,
+          keepTitleVersion: keepTitleVersion,
+          child: content,
+        );
         content = AlbumSurfaceScope(child: content);
         if (widget.requirePlaybackBootstrap) {
           content = _AppBootstrapOverlay(
