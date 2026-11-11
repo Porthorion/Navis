@@ -1114,6 +1114,8 @@ void main() {
     final bounds = tester.getRect(row);
     expect(bounds.height, lessThan(96));
     expect(tester.widget<AdaptiveTrackRow>(row).actionExtent, 48);
+    expect(tester.widget<AdaptiveTrackRow>(row).downloadStatus, isNull);
+    expect(find.byIcon(Icons.download_for_offline), findsNothing);
     final delete = find.descendant(of: row, matching: find.byType(IconButton));
     expect(tester.getRect(delete).center.dy, bounds.center.dy);
     expect(tester.getSize(delete), const Size(48, 48));
