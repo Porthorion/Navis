@@ -179,9 +179,12 @@ Located in `lib/src/providers/app_providers.dart`:
 
 `QueueController.removeForUndo` removes a row through a serial lane
 (`_removalTail`, like `_recommendationCommitTail`), so rapid swipes run one at
-a time. At its turn it re-reads the queue and removes nothing if the row no
-longer holds the song id, then waits (2 s at most) until the queue shows the
-change and returns a `QueueRemoval` (index, successor id, selection epoch,
+a time. At its turn it re-reads the queue; a row that no longer holds the
+song id (an earlier removal shifted it) is found again by the song id when that
+song occurs exactly once, and nothing is removed for a song with no copy or
+several copies (so a rapid swipe of a duplicated song can still bounce back).
+It then waits (2 s at most) until the queue shows the change and returns a
+`QueueRemoval` (index, successor id, selection epoch,
 queue after, only-row flag). Null means nothing was removed (stale row or a
 reported failure); if the handler removed the row but the queue did not show it
 in time, the removal is still returned with the queue as it reads then, so the
@@ -199,6 +202,36 @@ handler's: an edit still in the handler's queue lane can shift indices
 (accepted; a handler-side `removeAt(index, expectedId)` is the upgrade path).
 An Android Auto or media-session replacement does not bump the epoch; the
 content guard limits the damage.
+
+**queue_track_row.dart** (swipe to remove): a normal `QueueTrackRow` is a
+`Dismissible` in the end-to-start direction only (a left swipe in LTR, directional
+in RTL). It commits at 45% of the row width or on any fling in that direction,
+even one that ends below 45%; a slower release below 45% springs back. The
+revealed background shows "Remove from Queue" (two lines at most) and a
+trash icon on the neutral surface, turning `errorContainer` with the filled icon
+once the commit point is passed (the same point as the `thresholdOn` click).
+With Reduce Motion the row neither slides nor collapses (`movementDuration` zero,
+`resizeDuration` null) and the colour change is instant. On commit the row
+plays `reject`, hides itself (`SizedBox.shrink`, which a dismissed `Dismissible`
+must do), releases the sheet's swipe lock and awaits
+`removeQueueRowWithUndo`, which calls `QueueController.removeForUndo` (it
+completes once the published queue changed, so a duplicate song's surviving row
+never inherits the hidden state) and shows "Removed “title”" for 5 s with an
+Undo action. A refused or failed removal (stale row, reported error) shows the
+row again after one frame (a refused removal answers before any frame, and a
+dismissed `Dismissible` must leave the tree for one built frame first); an
+exception from the removal is caught there too. The notice has no Undo for the
+only row, for a
+handler that is not a `QueueBatchEditor`, or while an error notice is up (the
+notice controller drops info notices then); a newer removal replaces the notice,
+so only the last removal can be undone. Undo holds only the `QueueController`
+and the notice controller, so it works after the Queue sheet closed. The same
+removal path serves the screen-reader custom action "Remove from Queue" (absent
+while a logical queue is still loading) and the desktop trash button; phone
+rows have no trash button. Error rows (`song` lookup failed) keep theirs. The
+notice needs an `AppNoticeScope` above the list: the phone sheet has one, but
+the full-screen desktop `QueueScreen` (mini-player route on the root navigator)
+has none, so there a removal shows no notice and no Undo.
 
 **queue_current_row_centering.dart**: `QueueSheet` (phone overlay, compact-wide
 overlay, embedded and wide Now Playing panels) and `QueueScreen` wrap their
@@ -1774,7 +1807,8 @@ credit (`isTitleCredit`: `feat.`/`ft.`, `From …`, `with …`, `prod. …`) is 
 pinned, and neither is a version over 55% of the width: the whole title gets one
 plain ellipsis, so base and version are never both ellipsised.
 Track rows (`AdaptiveTrackRow`) make the title active only while the row is
-hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes), and the
+hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes) on
+desktop and tablets; phone rows never scroll (two-line titles), and the
 wide artist and album cells only while hovered; the compact secondary
 "Artist · Album" line and subtitles stay single-line ellipsis. Player
 surfaces always scroll a truncated title a few times per track, then rest in
@@ -2077,7 +2111,7 @@ The Android touch sound is dropped on tiles with a long press.
 | Any tap that shows the "Not available for remote tracks" notice (hearts, menus, rows); swipe-remove commit | Likes & Alerts (swipe-remove commit: Lists & Menus) | `reject` | REJECT (30) | heavy | `showRemoteSourceActionUnavailable`, queue row |
 | Download started, copy, refresh finished | Likes & Alerts (pull-to-refresh finished: Lists & Menus) | `confirm` | CONFIRM (30) | light | download icon, album title copy, `NavisRefreshIndicator` |
 | Pull to refresh | Lists & Menus | `frequentTick` at each quarter, `thresholdOn` / `thresholdOff` at the trigger | SEGMENT_FREQUENT_TICK, GESTURE_THRESHOLD_ACTIVATE / DEACTIVATE (34) | selection / medium / selection | `NavisRefreshIndicator` (every `RefreshIndicator`) |
-| Swipe-to-remove dismiss point | Lists & Menus | `thresholdOn` / `thresholdOff` | as above | medium / selection | `QueueTrackRow` |
+| Swipe-to-remove dismiss point (45% of the row) | Lists & Menus | `thresholdOn` / `thresholdOff` | as above | medium / selection | `QueueTrackRow` |
 | Reorder pick-up / drop; sheet settle | Lists & Menus (sheet settle and mini player expand: Player Gestures) | `dragStart` / `dragEnd` | DRAG_START (34) / GESTURE_END (30) | medium / light | every reorderable list, `ExpandablePlayerSheet`, mini player expand |
 | Long-press menu | Lists & Menus | `longPress` | LONG_PRESS | heavy | album, artist and track rows |
 
@@ -3008,14 +3042,33 @@ loading, errors, incomplete responses, or collection exhaustion.
 `AdaptiveTrackRow` and `AdaptiveTrackHeader` share pane/text-scale column
 geometry. Compact rows stack metadata, medium rows separate Artist, wide rows
 separate Artist and Album. Desktop columns reserve duration outside trailing
-actions. Constrained mobile rows measure the formatted duration and place it at
-the end of the secondary metadata line, retaining leading artwork/numbers and
-48px action targets beside a flexible text block. Long metadata truncates first;
-Remote labels, duration and badges may use additional lines inside that block.
-Controls move below only when the remaining text area is narrower than 96px
-scaled by the current text scaler, and align to the trailing edge. Duration
-stays with the text. Normal artwork rows retain their 64px minimum height.
-Rows with enough room keep their existing inline duration arrangement. Headers
+actions. Compact touch rows (phones; compact mode with
+`desktopRuntime` false) always place the formatted duration at the end of the
+secondary metadata line, retaining leading artwork/numbers and 48px action
+targets beside a flexible text block. The title takes up to two lines
+(`MarqueeText(maxLines: 2)`, never a marquee, also on the playing row, which
+keeps its primary colour and marker) and the row reserves them:
+`trackRowReservedHeight` is the larger of the caller's `minHeight` (default the
+Density's 64 or 52) and the padding plus two title lines, the secondary line and
+a badge line, measured with `textLineHeight` (the same style merge, strut and
+text scaler `MarqueeText` lays out with). That is 72 at text scale 1 with
+Comfortable Density and grows with the scale, so short and long titles give
+equally tall rows, also when the controls stack below the text, a Remote row
+puts its duration on a separate line, or only some rows have a badge
+(`reserveBadge`, Artist top tracks): the text block keeps a minimum height of
+`trackRowReservedContentHeight` plus the separate duration line, and the
+controls row comes on top of it. Loading skeletons
+(`ShimmerListTile(songRows: true)`, `trackRowSkeletonHeight`) take the same
+height; Home shelves, Home hero
+rows and the weekly hero list pass `twoLineTitle: false` and keep one line and today's
+heights. Long metadata truncates first; Remote labels, duration and badges may
+use additional lines inside that block. Controls move below only when the
+remaining text area is narrower than 96px scaled by the current text scaler,
+and align to the trailing edge. A row with actions and the default padding
+shrinks its end inset to 4 so the more glyph sits 16px from the edge; explicit
+paddings keep theirs. Desktop rows (compact mode included), medium and wide
+modes keep one-line titles, the inline duration arrangement and the Density
+minimum height. Headers
 appear only for full collections. Numbered collections set
 `numberColumnExtent` to label their existing numeric area with `#` and the
 accessible description Track number: 32px for album/playlist/weekly

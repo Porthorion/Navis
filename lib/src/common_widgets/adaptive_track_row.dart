@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
@@ -87,13 +89,20 @@ class _TrackRowHoverRegionState extends State<_TrackRowHoverRegion> {
 }
 
 /// A row title: it rests with its version visible and scrolls only when its
-/// row is hovered (looping) or playing (twice).
+/// row is hovered (looping) or playing (twice). A two-line title (phones)
+/// wraps instead and never scrolls.
 class _TrackTitle extends StatelessWidget {
-  const new({required this.title, required this.style, required this.selected});
+  const new({
+    required this.title,
+    required this.style,
+    required this.selected,
+    this.maxLines = 1,
+  });
 
   final String title;
   final TextStyle style;
   final bool selected;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +110,7 @@ class _TrackTitle extends StatelessWidget {
     return MarqueeText(
       title,
       style: style,
+      maxLines: maxLines,
       active: hovered || selected,
       passes: hovered ? null : 2,
     );
@@ -134,6 +144,64 @@ double _durationWidth(BuildContext context) {
   final width = painter.width.ceilToDouble();
   painter.dispose();
   return width;
+}
+
+/// Whether a row [width] wide (inside its padding) lays out as a compact
+/// touch row: the one layout whose titles take two lines.
+bool _isCompactTouch(BuildContext context, double width) =>
+    ContentLayout.trackMode(width, MediaQuery.textScalerOf(context)) ==
+        TrackRowMode.compact &&
+    !resolveAdaptiveContextFor(context).desktopRuntime;
+
+/// The title style of a track row, as the row builds it.
+TextStyle _rowTitleStyle(ThemeData theme) =>
+    (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
+      fontWeight: FontWeight.w600,
+    );
+
+/// Height of the text block of a compact touch song row: two title lines, the
+/// secondary line and, with a [badge], one more line. Lines are measured with
+/// [textLineHeight], the way [MarqueeText] lays the title out.
+double trackRowReservedContentHeight(
+  BuildContext context, {
+  bool badge = false,
+}) {
+  final theme = Theme.of(context);
+  final title = textLineHeight(context, _rowTitleStyle(theme));
+  final secondary = textLineHeight(
+    context,
+    theme.textTheme.bodySmall ?? const TextStyle(),
+  );
+  return 2 * title + secondary + (badge ? secondary : 0);
+}
+
+/// Height of a compact touch row: [trackRowReservedContentHeight] inside
+/// [padding], at least [minHeight] (default the Density's row height). It
+/// follows the text scale, so rows with short and long titles are equally
+/// tall and lists do not jump when data loads.
+double trackRowReservedHeight(
+  BuildContext context, {
+  required EdgeInsetsGeometry padding,
+  bool badge = false,
+  double? minHeight,
+}) => math.max(
+  minHeight ?? NavisDensityScope.of(context).trackRowMinHeight,
+  padding.resolve(Directionality.of(context)).vertical +
+      trackRowReservedContentHeight(context, badge: badge),
+);
+
+/// The height a song skeleton row of [rowWidth] takes: that of a loaded
+/// compact touch row, or null where rows keep their own height.
+double? trackRowSkeletonHeight(
+  BuildContext context,
+  double rowWidth, {
+  bool badge = false,
+  EdgeInsets? padding,
+}) {
+  padding ??= NavisDensityScope.of(context).trackRowPadding;
+  return _isCompactTouch(context, rowWidth - padding.horizontal)
+      ? trackRowReservedHeight(context, padding: padding, badge: badge)
+      : null;
 }
 
 Widget _columns(List<Widget> children) {
@@ -174,6 +242,8 @@ class AdaptiveTrackRow extends StatelessWidget {
     this.showAlbumColumn = true,
     this.titleBadge,
     this.minHeight,
+    this.twoLineTitle = true,
+    this.reserveBadge = false,
     super.key,
   });
 
@@ -210,6 +280,15 @@ class AdaptiveTrackRow extends StatelessWidget {
   /// compact); numbered lists without artwork can be denser.
   final double? minHeight;
 
+  /// Whether a compact touch row (phones) shows up to two title lines and
+  /// reserves them, so every row is equally tall. False keeps one line, for
+  /// lists with fixed-height rows (Home shelves).
+  final bool twoLineTitle;
+
+  /// Reserves the [badge] line when this row has none, for lists where only
+  /// some rows have one (Artist top tracks), so every row is equally tall.
+  final bool reserveBadge;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -231,11 +310,8 @@ class AdaptiveTrackRow extends StatelessWidget {
           width,
           MediaQuery.textScalerOf(context),
         );
-        final titleStyle = (theme.textTheme.bodyMedium ?? const TextStyle())
-            .copyWith(
-              fontWeight: FontWeight.w600,
-              color: selected ? theme.colorScheme.primary : null,
-            );
+        final titleStyle = _rowTitleStyle(theme)
+            .copyWith(color: selected ? theme.colorScheme.primary : null);
         Widget metadata(String? value) => _TrackMetadata(
           value: value?.trim().isNotEmpty == true ? value! : '—',
           style: style ?? const TextStyle(),
@@ -352,8 +428,9 @@ class AdaptiveTrackRow extends StatelessWidget {
         } else {
           actionWidget = actions;
         }
-        final compactMobile =
-            crowded && !resolveAdaptiveContextFor(context).desktopRuntime;
+        final touchCompact = _isCompactTouch(context, width);
+        final compactMobile = touchCompact && (twoLineTitle || crowded);
+        final twoLines = compactMobile && twoLineTitle;
         final mobileTextWidth =
             width -
             leadingExtent -
@@ -366,7 +443,27 @@ class AdaptiveTrackRow extends StatelessWidget {
           title: title,
           style: titleStyle,
           selected: selected,
+          maxLines: twoLines ? 2 : 1,
         );
+        // Next to the more button the end inset shrinks, so its glyph sits
+        // 16 dp from the edge; explicit paddings keep theirs.
+        final rowPadding = twoLines && actions != null && this.padding == null
+            ? EdgeInsetsDirectional.fromSTEB(
+                insets.left,
+                insets.top,
+                insets.right - 8,
+                insets.bottom,
+              )
+            : padding;
+        final reservesBadge = badge != null || reserveBadge;
+        final rowMinHeight = twoLines
+            ? trackRowReservedHeight(
+                context,
+                padding: rowPadding,
+                badge: reservesBadge,
+                minHeight: minHeight,
+              )
+            : minHeight;
         final rowInformation = compactMobile
             ? _CompactTrackInformation(
                 title: compactTitle,
@@ -376,6 +473,12 @@ class AdaptiveTrackRow extends StatelessWidget {
                 style: style,
                 isRemote: isRemote,
                 badge: badge,
+                reservedHeight: twoLines
+                    ? trackRowReservedContentHeight(
+                        context,
+                        badge: reservesBadge,
+                      )
+                    : null,
               )
             : information;
         final body = Row(
@@ -413,9 +516,9 @@ class AdaptiveTrackRow extends StatelessWidget {
                 onSecondaryTapDown: onSecondaryTapDown,
                 borderRadius: NavisShapeData.of(context).mdAll,
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: minHeight),
+                  constraints: BoxConstraints(minHeight: rowMinHeight),
                   child: Padding(
-                    padding: padding,
+                    padding: rowPadding,
                     // The row may be taller than its content (minHeight); the
                     // highlight is the whole row, so centre the content in it.
                     child: Align(
@@ -458,8 +561,14 @@ class _CompactTrackInformation extends StatelessWidget {
     required this.style,
     required this.isRemote,
     required this.badge,
+    this.reservedHeight,
     this.status,
   });
+
+  /// With two-line titles: the block's height whatever the title length
+  /// (a short title is centred in it). A separate duration line adds its own,
+  /// so rows stay equally tall however the controls stack or wrap.
+  final double? reservedHeight;
 
   final Widget title;
 
@@ -521,7 +630,8 @@ class _CompactTrackInformation extends StatelessWidget {
             (secondary.isNotEmpty || isRemote) &&
             constraints.maxWidth - durationWidth - 8 - remoteWidth <
                 MediaQuery.textScalerOf(context).scale(24);
-        return Column(
+        final reserved = reservedHeight;
+        final column = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -550,6 +660,23 @@ class _CompactTrackInformation extends StatelessWidget {
               ),
             ?badge,
           ],
+        );
+        if (reserved == null) return column;
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight:
+                reserved +
+                (separateDuration
+                    ? textLineHeight(
+                        context,
+                        durationStyle ?? const TextStyle(),
+                      )
+                    : 0),
+          ),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: column,
+          ),
         );
       },
     );

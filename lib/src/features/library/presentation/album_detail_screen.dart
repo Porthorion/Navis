@@ -1479,7 +1479,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             // so from the start.
             loading: () => _isRemote(null)
                 ? _buildPendingBody(context, null)
-                : const ShimmerListPage(count: 8, leadingSize: 56),
+                : const ShimmerListPage(
+                    count: 8,
+                    leadingSize: 56,
+                    songRows: true,
+                  ),
             error: (error, _) =>
                 _buildPendingBody(context, null, libraryFailed: true),
           ),

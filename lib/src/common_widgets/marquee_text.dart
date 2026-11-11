@@ -30,6 +30,11 @@ const Duration kMarqueeEndPause = Duration(milliseconds: 800);
 /// "Song Name That Is L… (Radio Edit)", split by [splitTitleVersion] on the
 /// same line.
 ///
+/// With [maxLines] 2 the title wraps instead and never scrolls: a truncated
+/// one fills two lines and ends in one ellipsis, keeping a long version whole
+/// at the end of line 2 by the same rule. Phone rows use it; their height is
+/// reserved by `trackRowReservedHeight`.
+///
 /// [passes] limits how many times it scrolls before resting (null repeats for
 /// as long as it is shown), for text that stays on screen for long stretches.
 /// An inactive title ([active] false) never scrolls and creates no ticker, so
@@ -40,15 +45,19 @@ class MarqueeText extends StatelessWidget {
     required this.style,
     this.passes,
     this.active = true,
+    this.maxLines = 1,
     this.textAlign = TextAlign.start,
     this.strutStyle,
     super.key,
-  });
+  }) : assert(maxLines == 1 || maxLines == 2, 'One or two lines.');
 
   final String text;
   final TextStyle style;
   final int? passes;
   final bool active;
+
+  /// 1 (scrolls when [active]) or 2 (wraps, never scrolls).
+  final int maxLines;
 
   /// Alignment of a title that fits; a truncated one fills its width.
   final TextAlign textAlign;
@@ -61,8 +70,11 @@ class MarqueeText extends StatelessWidget {
       style: style,
       textAlign: textAlign,
       strutStyle: strutStyle,
+      maxLines: maxLines,
     );
-    if (!active || MotionPolicy.of(context).reduceMotion) return still;
+    if (maxLines > 1 || !active || MotionPolicy.of(context).reduceMotion) {
+      return still;
+    }
     final painter = _painter(context, text, style, strutStyle)..layout();
     final textWidth = painter.width.ceilToDouble();
     final lineHeight = painter.height;
@@ -98,8 +110,9 @@ TextPainter _painter(
   BuildContext context,
   String text,
   TextStyle style,
-  StrutStyle? strutStyle,
-) => TextPainter(
+  StrutStyle? strutStyle, [
+  int maxLines = 1,
+]) => TextPainter(
   text: TextSpan(
     text: text,
     style: DefaultTextStyle.of(context).style.merge(style),
@@ -107,8 +120,21 @@ TextPainter _painter(
   textDirection: Directionality.of(context),
   textScaler: MediaQuery.textScalerOf(context),
   strutStyle: strutStyle,
-  maxLines: 1,
+  maxLines: maxLines,
 );
+
+/// Height of one line of [style] in [context], measured like [MarqueeText]
+/// lays it out (ambient style merge, text scale, strut).
+double textLineHeight(
+  BuildContext context,
+  TextStyle style, [
+  StrutStyle? strutStyle,
+]) {
+  final painter = _painter(context, 'A', style, strutStyle)..layout();
+  final height = painter.height;
+  painter.dispose();
+  return height;
+}
 
 Text _oneLine(
   String text,
@@ -136,12 +162,14 @@ class _VersionKeepingLine extends StatelessWidget {
     required this.style,
     required this.textAlign,
     required this.strutStyle,
+    required this.maxLines,
   });
 
   final String text;
   final TextStyle style;
   final TextAlign textAlign;
   final StrutStyle? strutStyle;
+  final int maxLines;
 
   /// Share of the width a version may take before the whole title gets one
   /// plain ellipsis instead.
@@ -149,9 +177,19 @@ class _VersionKeepingLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final plain = _oneLine(text, style, textAlign, strutStyle);
+    final plain = maxLines > 1
+        ? Text(
+            text,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+            textAlign: textAlign,
+            strutStyle: strutStyle,
+          )
+        : _oneLine(text, style, textAlign, strutStyle);
     final (:base, :suffix) = splitTitleVersion(text);
     if (suffix.isEmpty || isTitleCredit(suffix)) return plain;
+    if (maxLines > 1) return _twoLines(context, plain, base, suffix);
     final painter = _painter(context, text, style, strutStyle)..layout();
     final textWidth = painter.width.ceilToDouble();
     painter.dispose();
@@ -195,6 +233,85 @@ class _VersionKeepingLine extends StatelessWidget {
       },
     );
   }
+
+  /// Two lines: a title that fits wraps as is; otherwise the base is cut at
+  /// the largest grapheme count whose "base… version" still lays out in two
+  /// lines, so the version ends line 2 whole. Laying candidates out (rather
+  /// than reading line geometry) is right for RTL, emoji and clusters.
+  Widget _twoLines(
+    BuildContext context,
+    Widget plain,
+    String base,
+    String suffix,
+  ) {
+    final suffixPainter = _painter(context, suffix, style, strutStyle)
+      ..layout();
+    final suffixWidth = suffixPainter.width.ceilToDouble();
+    suffixPainter.dispose();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        if (!constraints.hasBoundedWidth ||
+            suffixWidth > maxWidth * _maxSuffixShare) {
+          return plain;
+        }
+        final painter = _painter(context, text, style, strutStyle, maxLines);
+        bool fits(String candidate) {
+          painter
+            ..text = TextSpan(
+              text: candidate,
+              style: DefaultTextStyle.of(context).style.merge(style),
+            )
+            ..layout(maxWidth: maxWidth);
+          return !painter.didExceedMaxLines;
+        }
+
+        final graphemes = base.characters;
+        final cut = fits(text)
+            ? null
+            // ponytail: binary search per build, cache per width if row-build
+            // cost shows up in profiling.
+            : () {
+                var low = 0;
+                var high = graphemes.length;
+                while (low < high) {
+                  final mid = (low + high + 1) ~/ 2;
+                  if (fits('${_cut(graphemes, mid)}$suffix')) {
+                    low = mid;
+                  } else {
+                    high = mid - 1;
+                  }
+                }
+                return '${_cut(graphemes, low)}$suffix';
+              }();
+        painter.dispose();
+        if (cut == null) return plain;
+        // Follow the base's first strong character, not the surrounding
+        // layout or a foreign-script version word.
+        final direction = Bidi.startsWithRtl(base)
+            ? TextDirection.rtl
+            : Bidi.startsWithLtr(base)
+            ? TextDirection.ltr
+            : Directionality.of(context);
+        return Semantics(
+          label: text,
+          excludeSemantics: true,
+          child: Text(
+            cut,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+            textAlign: TextAlign.start,
+            strutStyle: strutStyle,
+            textDirection: direction,
+          ),
+        );
+      },
+    );
+  }
+
+  static String _cut(Characters base, int count) =>
+      '${base.take(count).toString().trimRight()}…';
 }
 
 class _MarqueeScroller extends StatefulWidget {

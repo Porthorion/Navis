@@ -1205,6 +1205,17 @@
   "commonLoading": "Loading…",
   "queueTitle": "Queue",
   "queueUnknownTrack": "Unknown track",
+  "queueSwipeRemoveLabel": "Remove from Queue",
+  "@queueSwipeRemoveLabel": {
+    "description": "Label revealed behind a Queue row as it is swiped left, and the screen-reader action that removes the row."
+  },
+  "queueRemovedNotice": "Removed \u201c{title}\u201d",
+  "@queueRemovedNotice": {
+    "description": "Notice after a song is removed from the Queue; has an Undo action.",
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
   "queueUnavailableTrackDescription": "This track is no longer available in your library.",
   "queueUnknownArtist": "Unknown artist",
   "queueTrackLoadError": "Error loading track",

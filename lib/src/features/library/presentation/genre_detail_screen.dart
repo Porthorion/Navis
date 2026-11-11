@@ -545,7 +545,9 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
             ),
           )
         else if (songs == null)
-          const SliverToBoxAdapter(child: ShimmerListPage(count: 6))
+          const SliverToBoxAdapter(
+            child: ShimmerListPage(count: 6, songRows: true),
+          )
         else if (songs.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,

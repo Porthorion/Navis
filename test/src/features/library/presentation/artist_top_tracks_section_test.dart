@@ -6,6 +6,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
@@ -54,9 +55,11 @@ ResolvedArtistTopTrack _track({
   required String id,
   required String title,
   ArtistTopTrackSource? source,
+  int? listeners,
 }) {
   return ResolvedArtistTopTrack(
     rank: rank,
+    listeners: listeners,
     title: title,
     artist: 'Test Artist',
     resolvedSong: _song(id, title),
@@ -69,7 +72,15 @@ Future<_QueueSpyController> _pumpTopTracksSection(
   required bool albumQueueEnabled,
   required List<ResolvedArtistTopTrack> tracks,
   PlaybackSnapshot? playbackSnapshot,
+  bool phone = false,
+  bool loading = false,
 }) async {
+  if (phone) {
+    tester.view
+      ..physicalSize = const Size(360, 800)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -78,7 +89,9 @@ Future<_QueueSpyController> _pumpTopTracksSection(
           const AsyncData(AppSettingsModel.defaults()),
         ),
         artistTopTracksProvider.overrideWith(
-          (ref, key) => Stream.value(tracks),
+          (ref, key) => loading
+              ? const Stream<List<ResolvedArtistTopTrack>>.empty()
+              : Stream.value(tracks),
         ),
         queueProvider.overrideWith(_QueueSpyController.new),
         songByIdProvider.overrideWith((ref, songId) => Stream.value(null)),
@@ -93,16 +106,23 @@ Future<_QueueSpyController> _pumpTopTracksSection(
         theme: testTheme(),
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const Scaffold(
-          body: ArtistTopTracksSection(
-            artistId: 'artist-1',
-            artistName: 'Test Artist',
+        home: AdaptiveContextScope(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: !phone,
+            viewportSize: phone ? const Size(360, 800) : const Size(800, 600),
+            safePadding: EdgeInsets.zero,
+          ),
+          child: const Scaffold(
+            body: ArtistTopTracksSection(
+              artistId: 'artist-1',
+              artistName: 'Test Artist',
+            ),
           ),
         ),
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await (loading ? tester.pump() : tester.pumpAndSettle());
 
   final context = tester.element(find.byType(ArtistTopTracksSection));
   return ProviderScope.containerOf(context).read(queueProvider.notifier)
@@ -174,6 +194,72 @@ void main() {
 
       expect(caption, findsNothing);
     });
+  });
+
+  testWidgets('phone rows with and without a listener count are equally tall', (
+    tester,
+  ) async {
+    await _pumpTopTracksSection(
+      tester,
+      albumQueueEnabled: false,
+      phone: true,
+      tracks: [
+        _track(rank: 1, id: 'song-1', title: 'First Song', listeners: 1200),
+        _track(rank: 2, id: 'song-2', title: 'Second Song'),
+        _track(
+          rank: 3,
+          id: 'song-3',
+          title:
+              'A very long song title that goes on and on and on and on and '
+              'on and on and on and on and on and on and on and on and on',
+        ),
+      ],
+    );
+    final heights = [
+      for (final title in ['First Song', 'Second Song'])
+        tester
+            .getSize(
+              find.ancestor(
+                of: find.text(title),
+                matching: find.byType(AdaptiveTrackRow),
+              ),
+            )
+            .height,
+      tester.getSize(find.byType(AdaptiveTrackRow).last).height,
+    ];
+    expect(heights[1], heights[0]);
+    expect(heights[2], heights[0]);
+  });
+
+  testWidgets('the phone skeleton is as tall as a row with a badge', (
+    tester,
+  ) async {
+    await _pumpTopTracksSection(
+      tester,
+      albumQueueEnabled: false,
+      phone: true,
+      tracks: [
+        _track(rank: 1, id: 'song-1', title: 'First Song', listeners: 1200),
+      ],
+    );
+    final loaded = tester.getSize(find.byType(AdaptiveTrackRow)).height;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpTopTracksSection(
+      tester,
+      albumQueueEnabled: false,
+      phone: true,
+      loading: true,
+      tracks: const [],
+    );
+    final skeleton = find
+        .ancestor(
+          of: find.byWidgetPredicate(
+            (w) => w.runtimeType.toString() == '_TopTracksShimmerRow',
+          ),
+          matching: find.byType(SizedBox),
+        )
+        .first;
+    expect(tester.getSize(skeleton).height, loaded);
   });
 
   testWidgets('marks the paused current artist top track', (tester) async {
