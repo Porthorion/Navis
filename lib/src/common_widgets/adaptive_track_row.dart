@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -23,11 +24,27 @@ class TrackRowModeScope extends InheritedWidget {
 /// Whether the enclosing track row is hovered or playing.
 ///
 /// Desktop row actions stay quiet until their row is emphasized so dense
-/// tables read as lists of songs rather than columns of icons.
+/// tables read as lists of songs rather than columns of icons. Long titles
+/// and columns scroll only while their row is [hovered] (or playing).
 class TrackRowEmphasisScope extends InheritedWidget {
-  const new({required this.emphasized, required super.child, super.key});
+  const new({
+    required this.emphasized,
+    required super.child,
+    this.hovered = false,
+    super.key,
+  });
 
   final bool emphasized;
+
+  /// Whether a pointer is over the row (always false on touch).
+  final bool hovered;
+
+  /// False outside a shared track row.
+  static bool hoveredOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<TrackRowEmphasisScope>()
+          ?.hovered ??
+      false;
 
   /// Null outside a shared track row, where actions keep full emphasis.
   static bool? maybeOf(BuildContext context) => context
@@ -36,7 +53,7 @@ class TrackRowEmphasisScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(TrackRowEmphasisScope oldWidget) =>
-      oldWidget.emphasized != emphasized;
+      oldWidget.emphasized != emphasized || oldWidget.hovered != hovered;
 }
 
 class _TrackRowHoverRegion extends StatefulWidget {
@@ -63,8 +80,45 @@ class _TrackRowHoverRegionState extends State<_TrackRowHoverRegion> {
     onExit: (_) => _setHovered(false),
     child: TrackRowEmphasisScope(
       emphasized: _hovered || widget.selected,
+      hovered: _hovered,
       child: widget.child,
     ),
+  );
+}
+
+/// A row title: it rests with its version visible and scrolls only when its
+/// row is hovered (looping) or playing (twice).
+class _TrackTitle extends StatelessWidget {
+  const new({required this.title, required this.style, required this.selected});
+
+  final String title;
+  final TextStyle style;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final hovered = TrackRowEmphasisScope.hoveredOf(context);
+    return MarqueeText(
+      title,
+      style: style,
+      active: hovered || selected,
+      passes: hovered ? null : 2,
+    );
+  }
+}
+
+/// An artist or album cell of a wide row: scrolls only while hovered.
+class _TrackMetadata extends StatelessWidget {
+  const new({required this.value, required this.style});
+
+  final String value;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) => MarqueeText(
+    value,
+    style: style,
+    active: TrackRowEmphasisScope.hoveredOf(context),
   );
 }
 
@@ -177,11 +231,14 @@ class AdaptiveTrackRow extends StatelessWidget {
           width,
           MediaQuery.textScalerOf(context),
         );
-        Widget metadata(String? value) => Text(
-          value?.trim().isNotEmpty == true ? value! : '—',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: style,
+        final titleStyle = (theme.textTheme.bodyMedium ?? const TextStyle())
+            .copyWith(
+              fontWeight: FontWeight.w600,
+              color: selected ? theme.colorScheme.primary : null,
+            );
+        Widget metadata(String? value) => _TrackMetadata(
+          value: value?.trim().isNotEmpty == true ? value! : '—',
+          style: style ?? const TextStyle(),
         );
         final secondary = switch (mode) {
           TrackRowMode.compact =>
@@ -204,14 +261,10 @@ class AdaptiveTrackRow extends StatelessWidget {
                 Flexible(
                   child: RemoteSourceMetadataLine(
                     isRemote: remoteOnTitle,
-                    metadata: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: selected ? theme.colorScheme.primary : null,
-                      ),
+                    metadata: _TrackTitle(
+                      title: title,
+                      style: titleStyle,
+                      selected: selected,
                     ),
                   ),
                 ),
@@ -309,14 +362,10 @@ class AdaptiveTrackRow extends StatelessWidget {
         final stackControls = compactMobile
             ? mobileTextWidth < MediaQuery.textScalerOf(context).scale(96)
             : crowded;
-        final compactTitle = Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: selected ? theme.colorScheme.primary : null,
-          ),
+        final compactTitle = _TrackTitle(
+          title: title,
+          style: titleStyle,
+          selected: selected,
         );
         final rowInformation = compactMobile
             ? _CompactTrackInformation(
