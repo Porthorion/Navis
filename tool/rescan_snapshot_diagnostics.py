@@ -20,6 +20,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -55,6 +56,17 @@ def check(condition, message):
     if not condition:
         raise SystemExit(f"FAILED: {message}")
     print(f"ok: {message}", flush=True)
+
+
+def replay_gain_filter_db(status):
+    """The dB of mpv's `@navis_rg` audio filter, or None when no transport has it."""
+    transports = (status.get("native") or {}).get("mediaKitTransport") or []
+    for entry in transports:
+        match = re.search(
+            r"@navis_rg.*?volume=(-?\d+(?:\.\d+)?)dB", entry.get("audioFilters") or "")
+        if match:
+            return float(match.group(1))
+    return None
 
 
 class Run:
@@ -174,13 +186,14 @@ class Run:
         return [r for r in self.get("/v1/sync/ledger")["durableRuns"] if r["targetKind"] == "catalog"]
 
     def play_sample(self, label):
-        """One playback status read: the heard song, its ReplayGain decision
-        and the volume the player applies."""
+        """One playback status read: the heard song, its ReplayGain decision,
+        the mpv `@navis_rg` filter gain and the player's volume."""
         status = self.get("/v1/playback/status")
         row = {
             "label": label, "songId": status["songId"], "playing": status["playing"],
             "positionMs": status["positionMs"], "replayGain": status["replayGain"],
             "volume": status["effectivePlayerVolume"], "userVolume": status["userVolume"],
+            "gain": replay_gain_filter_db(status),
         }
         self.samples.append(row)
         print("playback sample:", row, flush=True)
@@ -195,17 +208,17 @@ class Run:
             time.sleep(1)
         raise SystemExit(f"FAILED: {song_id} never played")
 
-    def wait_volume(self, label, expected, timeout=15):
-        """Poll the playback status until the applied volume is [expected]."""
+    def wait_gain(self, label, expected, timeout=15):
+        """Poll the playback status until the mpv ReplayGain filter is [expected] dB."""
         deadline = time.monotonic() + timeout
-        volume = None
+        gain = None
         while time.monotonic() < deadline:
             row = self.play_sample(label)
-            volume = row["volume"]
-            if math.isclose(volume, expected, abs_tol=0.002):
+            gain = row["gain"]
+            if gain is not None and math.isclose(gain, expected, abs_tol=0.01):
                 return row
             time.sleep(0.5)
-        raise SystemExit(f"FAILED: {label} volume never reached {expected} (got {volume})")
+        raise SystemExit(f"FAILED: {label} gain never reached {expected} dB (got {gain})")
 
     def sink_inputs(self):
         """The clone's PulseAudio playback streams."""
@@ -335,11 +348,14 @@ def main():
         check(later["positionMs"] > after["positionMs"] > before["positionMs"], "song 1 position advanced (it was not restarted)")
         check(before["replayGain"] == after["replayGain"] == later["replayGain"], "song 1 ReplayGain decision unchanged by the sync")
         check(before["volume"] == after["volume"] == later["volume"], f"song 1 applied volume unchanged ({before['volume']})")
-        # mpv's volume is cubic, so the app scales it by 10^(cut dB / 60).
+        check(before["gain"] is not None and before["gain"] == after["gain"] == later["gain"], f"song 1 filter gain unchanged ({before['gain']} dB)")
+        # Linux applies ReplayGain in mpv's `@navis_rg` filter: the player
+        # volume stays at the user's level and the filter carries the cut.
         cut_db = before["replayGain"]["cutDb"]
-        check(cut_db == -9.0 and math.isclose(
-            before["volume"], before["userVolume"] * 10 ** (cut_db / 60), abs_tol=0.002),
-            f"song 1 volume is userVolume * 10^(-9.0/60) ({before['volume']})")
+        check(cut_db == -9.0
+              and math.isclose(before["volume"], before["userVolume"], abs_tol=0.002)
+              and math.isclose(before["gain"], cut_db, abs_tol=0.01),
+              f"song 1 applies its -9.0 dB cut in the mpv filter ({before['gain']} dB, volume {before['volume']})")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id IN ('rs-s5','rs-s7')")[0][0] == 0, "removed songs are gone")
         check(run.sql("SELECT COUNT(*) FROM albums WHERE id='rs-a7'")[0][0] == 0, "removed album is gone")
         check(run.sql("SELECT album_id FROM songs WHERE id='rs-s2'")[0][0] == "rs-a3", "moved song follows its album")
@@ -358,19 +374,21 @@ def main():
         # (c) join song 2 naturally, then skip to song 3 (its gain was cleared).
         run.post("/v1/playback/seek", {"positionMs": (RESCAN_SONG_SECONDS - 3) * 1000})
         run.wait_song(PLAY_QUEUE[1], timeout=30)
-        joined = run.wait_volume("joined-song-2", first["userVolume"] * 10 ** (-3.5 / 60))
+        joined = run.wait_gain("joined-song-2", -3.5)
         check(joined["songId"] == PLAY_QUEUE[1], "the natural join reached song 2")
         check(joined["replayGain"]["db"] == -3.5, f"song 2 uses the new -3.5 dB gain, not -7.0 ({joined['replayGain']})")
-        check(math.isclose(joined["volume"], joined["userVolume"] * 10 ** (-3.5 / 60), abs_tol=0.002), f"song 2 volume follows -3.5 dB ({joined['volume']})")
-        check(abs(joined["volume"] - joined["userVolume"] * 10 ** (-7.0 / 60)) > 0.004, "song 2 volume is not the stale -7.0 dB level")
+        check(math.isclose(joined["volume"], joined["userVolume"], abs_tol=0.002)
+              and math.isclose(joined["gain"], -3.5, abs_tol=0.01), f"song 2 applies -3.5 dB in the mpv filter ({joined['gain']} dB)")
         run.post("/v1/playback/next")
         run.wait_song(PLAY_QUEUE[2], timeout=30)
-        skipped = run.wait_volume("skipped-song-3", first["userVolume"] * 10 ** (-8.0 / 60))
+        skipped = run.wait_gain("skipped-song-3", -8.0)
         # Phase B's library has fewer than replayGainMinTaggedSongs (20), so
         # Automatic takes the fixed -8.0 dB untagged fallback, not a median.
         check(skipped["songId"] == PLAY_QUEUE[2] and skipped["replayGain"]["source"] == "untagged", f"song 3 lost its gain ({skipped['replayGain']})")
         check(skipped["replayGain"]["db"] == -8.0, f"song 3 takes the -8.0 dB untagged fallback ({skipped['replayGain']})")
-        check(math.isclose(skipped["volume"], skipped["userVolume"] * 10 ** (skipped["replayGain"]["db"] / 60), abs_tol=0.002), f"song 3 volume follows its untagged level ({skipped['volume']})")
+        check(math.isclose(skipped["volume"], skipped["userVolume"], abs_tol=0.002)
+              and math.isclose(skipped["gain"], skipped["replayGain"]["db"], abs_tol=0.01),
+              f"song 3 applies its untagged -8.0 dB in the mpv filter ({skipped['gain']} dB)")
         run.post("/v1/playback/pause")
         json.dump(run.samples, open(OUT / "playback-samples.json", "w"), indent=1)
 
