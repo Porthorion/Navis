@@ -59,6 +59,10 @@ Future<T?> showDesktopAnchoredPopover<T>({
       final colors = Theme.of(context).colorScheme;
       final radius = NavisShapeData.of(context).xl;
       final border = colors.outlineVariant.withValues(alpha: 0.4);
+      // Album Color publishes its fill through PopupMenuTheme (the card and
+      // its tail must match).
+      final fill =
+          PopupMenuTheme.of(context).color ?? colors.surfaceContainerHigh;
       return CustomMultiChildLayout(
         delegate: _AnchoredPopoverLayout(
           anchor: anchorRect,
@@ -72,7 +76,7 @@ Future<T?> showDesktopAnchoredPopover<T>({
             id: _PopoverSlot.card,
             child: Material(
               key: const ValueKey<String>('desktopAnchoredPopover'),
-              color: colors.surfaceContainerHigh,
+              color: fill,
               elevation: 12,
               // Flat drops the hand-set black shadow.
               shadowColor: NavisColorStyleData.of(context).flatSurfaces
@@ -96,7 +100,7 @@ Future<T?> showDesktopAnchoredPopover<T>({
             child: CustomPaint(
               size: _tailSize,
               painter: _TailPainter(
-                fill: colors.surfaceContainerHigh,
+                fill: fill,
                 edge: border,
                 pointsDown: tailPointsDown,
               ),

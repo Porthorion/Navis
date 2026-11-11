@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
@@ -907,7 +908,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
         ),
       );
     } else {
-      await showModalBottomSheet<void>(
+      await showNavisModalSheet<void>(
         context: context,
         isScrollControlled: true,
         showDragHandle: true,

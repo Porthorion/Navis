@@ -1,11 +1,12 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 
 Future<void> showPlaybackRecoverySheet(BuildContext context) {
-  return showModalBottomSheet<void>(
+  return showNavisModalSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,

@@ -5,6 +5,7 @@ import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
@@ -975,7 +976,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
       return;
     }
 
-    await showModalBottomSheet<void>(
+    await showNavisModalSheet<void>(
       context: context,
       builder: (sheetContext) {
         return SafeArea(

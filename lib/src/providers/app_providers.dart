@@ -101,6 +101,7 @@ import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
@@ -3263,6 +3264,15 @@ final nowPlayingBackgroundProvider = Provider<NowPlayingBackground>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.nowPlayingBackground;
+});
+
+/// Fill of Now Playing sheets and menus, defaulting to Match Now Playing
+/// while settings load.
+final sheetStyleProvider = Provider<SheetStyle>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.sheetStyle;
 });
 
 /// Whether lyrics should open in fullscreen mode by default.

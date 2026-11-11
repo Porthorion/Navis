@@ -426,3 +426,19 @@ target. Version-1 JSON reads layout keys again; missing keys preserve current
 settings and act as wildcards when matching, without changing strict snapshot
 equality or migrating saved JSON. There are no built-in Looks to change. See
 [the current contract](../architecture.md).
+
+### Sheets and menus: Album Color (2026-11-11, #560)
+
+Album Color mixes the playing cover's seed into the sheet's own surface
+(`surfaceContainerLow`, OLED `surfaceContainer`) at 16 %, then 10 %, then 5 %
+(OLED 8, 5, 3 %), and keeps the first mix that leaves `onSurface` and
+`onSurfaceVariant` at `min(4.5, their ratio on the untinted surface)`; if none
+does, the theme surface is used. The relative floor exists because a colour
+style can already leave `onSurfaceVariant` under 4.5. The baseline over four
+seeds, four styles and light/dark/OLED is 12.7:1 or better for `onSurface`
+and 6.5:1 or better for `onSurfaceVariant`, so 4.5 applies everywhere today.
+The fill reaches bottom sheets, popup menus, MenuAnchor menus and the desktop
+popover; dialogs stay theme-coloured. It is not put in `ThemeData`, which
+would rebuild every `Theme.of` listener on each song, and a sheet keeps the
+fill it opened with. With accent-from-album on, the scheme is already
+album-seeded, so the mix stays subtle and the contrast is still checked.
