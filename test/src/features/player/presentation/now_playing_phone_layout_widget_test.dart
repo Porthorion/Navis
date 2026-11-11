@@ -6,6 +6,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_phone_layout.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
@@ -59,6 +60,14 @@ const _japanese = MediaItem(
   album: '東京の夜景とメロディ',
 );
 
+const _versioned = MediaItem(
+  id: 'song-1',
+  title:
+      'A Very Long Song Title That Cannot Possibly Fit On A Phone (Radio Edit)',
+  artist: 'The Night Owls',
+  album: 'City Lights',
+);
+
 const _statusBar = 24.0;
 const _handle = 18.0;
 
@@ -81,6 +90,8 @@ Future<void> _pump(
   MediaItem item = _item,
   TextTheme? textTheme,
   VoidCallback? onCollapse,
+  bool reduceMotion = false,
+  bool settle = true,
 }) async {
   setAdaptiveTestViewport(tester, size);
   final padding = FakeViewPadding(top: _statusBar, bottom: bottomInset);
@@ -107,8 +118,10 @@ Future<void> _pump(
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(textScale)),
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(textScale),
+            disableAnimations: reduceMotion,
+          ),
           child: child!,
         ),
         home: Scaffold(
@@ -127,7 +140,11 @@ Future<void> _pump(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 Finder _byType(String name) =>
@@ -536,6 +553,81 @@ void main() {
       await expectLater(
         find.byType(NowPlayingScreen),
         matchesGoldenFile('goldens/now_playing_phone_390x844_radio.png'),
+      );
+    }, skip: !sqliteAvailable);
+  });
+
+  group('long titles', () {
+    Finder titleMarquee() => find
+        .descendant(
+          of: _byType('_TrackInfo'),
+          matching: find.byType(MarqueeText),
+        )
+        .first;
+    double strutLine(WidgetTester tester) {
+      final strut = tester.widget<MarqueeText>(titleMarquee()).strutStyle!;
+      return strut.fontSize! * strut.height!;
+    }
+
+    final scrolling = find.descendant(
+      of: _byType('_TrackInfo'),
+      matching: find.byType(Transform),
+    );
+
+    testWidgets('a long title keeps its version, scrolls 3 times, then rests', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const Size(390, 844),
+        item: _versioned,
+        settle: false,
+      );
+      expect(find.text(' (Radio Edit)'), findsOneWidget);
+      expect(scrolling, findsNothing);
+
+      await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+      expect(scrolling, findsWidgets);
+
+      await tester.pumpAndSettle();
+      expect(scrolling, findsNothing);
+      expect(find.text(' (Radio Edit)'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('reduced motion keeps the title still', (tester) async {
+      await _pump(
+        tester,
+        const Size(390, 844),
+        item: _versioned,
+        reduceMotion: true,
+        settle: false,
+      );
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
+      expect(scrolling, findsNothing);
+      expect(find.text(' (Radio Edit)'), findsOneWidget);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('title line height stays the forced strut and short titles '
+        'are centred', (tester) async {
+      await _pump(tester, const Size(390, 844));
+      final shortHeight = tester.getSize(titleMarquee()).height;
+      expect(shortHeight, closeTo(strutLine(tester), 1));
+      expect(tester.getRect(titleMarquee()).center.dx, closeTo(390 / 2, 0.5));
+      expect(tester.widget<MarqueeText>(titleMarquee()).strutStyle, isNotNull);
+      expect(
+        tester.widget<MarqueeText>(titleMarquee()).textAlign,
+        TextAlign.center,
+      );
+    }, skip: !sqliteAvailable);
+
+    testWidgets('a CJK title keeps the same forced line height', (
+      tester,
+    ) async {
+      await _pump(tester, const Size(390, 844), item: _japanese);
+      expect(
+        tester.getSize(titleMarquee()).height,
+        closeTo(strutLine(tester), 1),
       );
     }, skip: !sqliteAvailable);
   });

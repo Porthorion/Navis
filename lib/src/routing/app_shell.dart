@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/settings/presentation/settings_scroll_provider.dart';
 import 'package:navis/src/routing/app_routes.dart';

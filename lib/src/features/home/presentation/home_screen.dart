@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
@@ -2829,12 +2830,12 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                Text(
+                                MarqueeText(
                                   album.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium!
+                                      .copyWith(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w700,
                                         shadows: const <Shadow>[

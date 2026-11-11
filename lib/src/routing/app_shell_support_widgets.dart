@@ -290,3 +290,29 @@ class SideInsetsConsumed extends StatelessWidget {
         )
       : child;
 }
+
+/// Tracks whether a mouse pointer is over [builder]'s subtree, rebuilding only
+/// that subtree. Touch never hovers.
+class _PointerHover extends StatefulWidget {
+  const new({required this.builder});
+
+  final Widget Function(BuildContext context, bool hovered) builder;
+
+  @override
+  State<_PointerHover> createState() => _PointerHoverState();
+}
+
+class _PointerHoverState extends State<_PointerHover> {
+  bool _hovered = false;
+
+  void _set(bool value) {
+    if (_hovered != value) setState(() => _hovered = value);
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => _set(true),
+    onExit: (_) => _set(false),
+    child: widget.builder(context, _hovered),
+  );
+}
