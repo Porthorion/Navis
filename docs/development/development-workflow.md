@@ -384,7 +384,7 @@ data; that a held large removal (phases F, G) is confirmed by the first Repair
 Library press even after a new scan; and that a metered network makes
 no `getScanStatus` or bulk song request. It also plays a three-song queue through the
 phase B sync (ReplayGain on, 90 s fixture songs on a null audio sink) and asserts the playing song's
-decision and applied volume do not change, while the retagged queued song takes its new gain at the
+decision and mpv `@navis_rg` filter gain do not change, while the retagged queued song takes its new gain at the
 next song. It needs `pactl` and a running PulseAudio/PipeWire server: it creates a
 private null sink, pins the clone's mpv device to it, and fails if the app's
 stream is not on that sink. Run it alone: it builds the profile
