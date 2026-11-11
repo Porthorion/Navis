@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'The mini player shows more of the song title and no longer grows '
+        'taller for remote songs. Swipe it left or right for the next or '
+        'previous song; on a phone held upright the skip buttons are gone',
+      ),
+      ChangelogEntry(
         'Auto theme can now follow a schedule instead of your device: in '
         'Settings › Appearance, choose Scheduled under Auto and set when '
         'dark starts and ends. Outside that window the app is light',
