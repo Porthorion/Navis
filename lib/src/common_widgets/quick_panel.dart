@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_anchored_popover.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
@@ -40,7 +41,7 @@ Future<void> showQuickPanel(
     );
   }
   final screenHeight = MediaQuery.sizeOf(anchorContext).height;
-  return showModalBottomSheet<void>(
+  return showNavisModalSheet<void>(
     context: anchorContext,
     useRootNavigator: true,
     useSafeArea: true,

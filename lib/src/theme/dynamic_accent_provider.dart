@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -21,11 +22,11 @@ final dynamicAccentEnabledProvider = Provider<bool>((ref) {
 /// provider holds its previous value instead of resolving.
 const _pendingDynamicAccentSource = 'pending';
 
-final _dynamicAccentSourceProvider = Provider<String?>((ref) {
-  if (!ref.watch(dynamicAccentEnabledProvider)) {
-    return null;
-  }
-
+/// Source of the playing cover's colour (`id:<cover>`, `url:<radio art>`,
+/// the pending sentinel, or `null` for nothing usable), whatever the settings.
+/// The accent gate sits in [_dynamicAccentSourceProvider]; Album Color sheets
+/// read the same source through [albumSurfaceSeedProvider].
+final playingArtworkSourceProvider = Provider<String?>((ref) {
   final playback = ref.watch(
     playerStateProvider.select(
       (snapshot) => (
@@ -71,6 +72,13 @@ final _dynamicAccentSourceProvider = Provider<String?>((ref) {
   return coverArtId.isEmpty ? null : 'id:$coverArtId';
 });
 
+final _dynamicAccentSourceProvider = Provider<String?>((ref) {
+  if (!ref.watch(dynamicAccentEnabledProvider)) {
+    return null;
+  }
+  return ref.watch(playingArtworkSourceProvider);
+});
+
 final dynamicAccentColorCacheProvider = Provider<DynamicAccentColorCache>((_) {
   return DynamicAccentColorCache();
 });
@@ -103,6 +111,33 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
     api: api,
     cacheManager: ref.watch(coverArtCacheManagerProvider),
   );
+});
+
+/// Seed colour of the playing cover for Album Color sheets and menus: live
+/// when [SheetStyle.albumColor] is chosen (or accent-from-album already reads
+/// the same cover), `null` otherwise. It resolves through the one shared
+/// [DynamicAccentColorCache], so a song is extracted once however many
+/// consumers ask. It is separate from [effectiveColorSchemeSeedProvider], so
+/// Album Color never re-seeds the app theme.
+final albumSurfaceSeedProvider = FutureProvider<int?>((ref) async {
+  final wanted =
+      ref.watch(sheetStyleProvider) == SheetStyle.albumColor ||
+      ref.watch(dynamicAccentEnabledProvider);
+  final source = wanted ? ref.watch(playingArtworkSourceProvider) : null;
+  if (source == null) {
+    return null;
+  }
+  if (source == _pendingDynamicAccentSource) {
+    // Stay loading so `.value` keeps the previous album's seed.
+    return await Completer<int?>().future;
+  }
+  return await ref
+      .watch(dynamicAccentColorCacheProvider)
+      .resolve(
+        source: source,
+        api: ref.watch(subsonicApiProvider),
+        cacheManager: ref.watch(coverArtCacheManagerProvider),
+      );
 });
 
 /// Whether a cover may be fetched only to read its colour: the same

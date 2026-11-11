@@ -11,7 +11,7 @@ Future<void> showBatteryOptimizationSheet(
   required Future<void> Function() onOpenSettings,
   Future<void> Function()? onSnooze,
 }) async {
-  final openedSettings = await showModalBottomSheet<bool>(
+  final openedSettings = await showNavisModalSheet<bool>(
     context: context,
     useRootNavigator: true,
     useSafeArea: true,

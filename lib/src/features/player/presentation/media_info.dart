@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -106,7 +107,7 @@ Future<void> showMediaInfo(BuildContext context) {
     );
   }
   final screenHeight = MediaQuery.sizeOf(context).height;
-  return showModalBottomSheet<void>(
+  return showNavisModalSheet<void>(
     context: context,
     useRootNavigator: true,
     useSafeArea: true,

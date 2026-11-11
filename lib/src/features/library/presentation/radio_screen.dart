@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/internet_radio_station.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -384,7 +385,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
         ],
       );
     } else {
-      action = await showModalBottomSheet<_StationAction>(
+      action = await showNavisModalSheet<_StationAction>(
         context: context,
         builder: (sheetContext) => SafeArea(
           child: Column(

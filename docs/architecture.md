@@ -1048,9 +1048,24 @@ target-selection rules.
   - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
     `app_settings.sheet_style` (`match_now_playing` default, `album_color` or
     `theme`): the fill of Now Playing sheets and menus (#560). It is a Look
-    field: `SheetStyle`, `updateSheetStyle` and the
+    field: `SheetStyle`, `sheetStyleProvider`, `updateSheetStyle` and the
     `sheetStyle` diagnostics key mirror `NowPlayingBackground`; an older Look
     or export without the key leaves the setting unchanged.
+    Album Color (`SheetStyle.albumColor`) tints sheets, popup menus, MenuAnchor
+    menus and the desktop popover, never dialogs and never `ThemeData`.
+    `playingArtworkSourceProvider` (ungated) feeds both the accent gate and
+    `albumSurfaceSeedProvider` (resolves when Album Color or accent-from-album
+    is on, through the one `DynamicAccentColorCache`), so Album Color never
+    changes `effectiveColorSchemeSeedProvider`. `AlbumSurfaceScope`, inserted
+    in `MaterialApp.builder`, listens to the seed, mixes it into the sheet
+    surface with `albumSheetSurface` (steps 0.16 / 0.10 / 0.05, OLED lower; the
+    first mix whose `onSurface` and `onSurfaceVariant` stay at
+    `min(4.5, untinted ratio)` wins, else the theme surface) and always inserts
+    `PopupMenuTheme` and `MenuTheme`, varying only the colour. The sheet helper
+    `showNavisModalSheet` and the popover read the fill back from
+    `PopupMenuTheme.of(context).color` once, at open, so an open sheet keeps
+    its fill across a track change and theme change. Every modal sheet opens
+    through that helper (`navis_modal_sheet_audit_test.dart`).
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
     theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
     `auto_dark_start_minutes` (1200) and `auto_dark_end_minutes` (420), plus

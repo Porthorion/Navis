@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -91,7 +92,7 @@ void showSearchSongMenu(
     );
     return;
   }
-  showModalBottomSheet<void>(
+  showNavisModalSheet<void>(
     context: context,
     builder: (sheetContext) => SafeArea(
       child: Column(

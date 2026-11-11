@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Variable;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -498,7 +499,7 @@ class _ReviewCard extends ConsumerWidget {
     if (!context.mounted) {
       return null;
     }
-    return await showModalBottomSheet<T>(
+    return await showNavisModalSheet<T>(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: ListView.builder(
