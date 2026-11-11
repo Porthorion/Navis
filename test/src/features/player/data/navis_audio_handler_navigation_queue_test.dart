@@ -3156,7 +3156,20 @@ void main() {
 
     await handler.reorderQueue(5, 1);
     await handler.skipToNext();
-    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    // The real 300 ms debounce, awaited through its completed write.
+    await until(
+      () =>
+          (((handler.collectPlaybackDiagnostics()['persistence']!
+                      as Map<String, Object?>)['byContext']!
+                  as Map<String, int>)['reorder queue'] ??
+              0) >=
+          1,
+      cap: const Duration(seconds: 5),
+      reason: 'the reorder is written despite the skip',
+    );
+    // Later saves (the skip's 250 ms transport write) must not undo it: keep
+    // a window of three debounce periods past the write.
+    await Future<void>.delayed(const Duration(milliseconds: 900));
 
     expect(handler.snapshot.queueSongIds, isNot(ids));
     expect(
