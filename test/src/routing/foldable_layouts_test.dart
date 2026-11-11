@@ -446,10 +446,10 @@ ScrollableState _pageScrollable(WidgetTester tester) {
   return best!;
 }
 
-/// The mini player strip: the outermost ink well above its skip button.
+/// The mini player strip: the outermost ink well above its play/pause button.
 Finder _miniPlayerStrip() => find
     .ancestor(
-      of: find.byIcon(Icons.skip_next_rounded),
+      of: find.byIcon(Icons.pause_rounded),
       matching: find.byType(InkWell),
     )
     .last;
@@ -1857,11 +1857,11 @@ void main() {
               reason: '${element.widget.runtimeType} $rect',
             );
           }
-          final skip = tester.getRect(find.byIcon(Icons.skip_next_rounded));
+          final skip = tester.getRect(find.byIcon(Icons.pause_rounded));
           expect(
             skip.bottom,
             lessThanOrEqualTo(viewport.size.height - viewport.padding.bottom),
-            reason: 'mini player skip $skip',
+            reason: 'mini player play/pause $skip',
           );
         });
       }
@@ -2131,7 +2131,7 @@ void main() {
     ) async {
       await _pumpApp(tester, _duoFolded, playback: null);
 
-      expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
+      expect(find.byIcon(Icons.pause_rounded), findsNothing);
       expect(pageRect(tester).bottom, 678 - 34);
     });
 

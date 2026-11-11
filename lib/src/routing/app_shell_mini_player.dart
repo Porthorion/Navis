@@ -70,7 +70,6 @@ Widget _miniPlayerTrackText(
   BuildContext context, {
   required String? title,
   required String? artist,
-  required bool isExternalSource,
   required bool large,
 }) {
   final l10n = AppLocalizations.of(context)!;
@@ -93,10 +92,6 @@ Widget _miniPlayerTrackText(
           fontWeight: FontWeight.w600,
         ),
       ),
-      if (isExternalSource)
-        const RemoteSourceIndicator(
-          variant: RemoteSourceIndicatorVariant.inline,
-        ),
       SizedBox(height: large ? 3 : 2),
       Text(
         (artist == null || artist.trim().isEmpty)
@@ -710,6 +705,7 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
     required this.onTap,
     this.flattenWideStyle = false,
     this.compactWideLandscapeMode = false,
+    this.showSkipButtons = false,
     this.bottomInset = 0,
     this.enableVerticalExpandGesture = true,
     this.songTitle,
@@ -725,6 +721,10 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
   final VoidCallback onTap;
   final bool flattenWideStyle;
   final bool compactWideLandscapeMode;
+
+  /// Previous and Next buttons around Play. The portrait phone strip drops
+  /// them for title room; it still swipes and has semantics actions.
+  final bool showSkipButtons;
 
   /// A system inset (home indicator, status strip) below the compact wide
   /// strip; its content stays above it and the background runs through it.
@@ -744,6 +744,11 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
 
 class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
   static const double _expandSwipeDistance = 56;
+  // Skip on a flick (px/s) or a slow drag past this distance; the only way to
+  // skip from the strip, so a slow deliberate drag has to count too.
+  static const double _skipSwipeVelocity = 300;
+  static const double _skipSwipeDistance = 56;
+  double _horizontalDragDistance = 0;
   double _verticalDragDistance = 0;
   bool _expandedFromDrag = false;
 
@@ -789,6 +794,26 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
     _resetVerticalDragState();
   }
 
+  void _handleHorizontalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final distance = _horizontalDragDistance;
+    _horizontalDragDistance = 0;
+    final flicked = velocity.abs() >= _skipSwipeVelocity;
+    if (!flicked && distance.abs() < _skipSwipeDistance) {
+      return;
+    }
+    final handler = ref.read(audioHandlerProvider);
+    if (handler == null) {
+      return;
+    }
+    NavisHaptics.firm(HapticCategory.playerGestures);
+    if ((flicked ? velocity : distance) < 0) {
+      unawaited(handler.skipToNext());
+    } else {
+      unawaited(handler.skipToPrevious());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final playback = widget.playback;
@@ -814,315 +839,327 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
     final compactControls = viewportWidth < 380;
     final isPlaying = playback.playing;
 
-    return GestureDetector(
-      onHorizontalDragEnd: isRadio
-          ? null
-          : (details) {
-              final velocity = details.primaryVelocity ?? 0;
-              if (velocity.abs() < 300) {
-                return;
-              }
-              final handler = ref.read(audioHandlerProvider);
-              if (handler == null) {
-                return;
-              }
-              if (velocity < 0) {
-                NavisHaptics.firm(HapticCategory.playerGestures);
-                unawaited(handler.skipToNext());
-              } else {
-                NavisHaptics.firm(HapticCategory.playerGestures);
-                unawaited(handler.skipToPrevious());
-              }
+    return Semantics(
+      key: const ValueKey<String>('miniPlayerSwipeSemantics'),
+      // Previous/Next stay reachable for screen readers, buttons or not.
+      customSemanticsActions: isRadio
+          ? const <CustomSemanticsAction, VoidCallback>{}
+          : <CustomSemanticsAction, VoidCallback>{
+              CustomSemanticsAction(label: l10n.nowPlayingPrevious): () =>
+                  _miniSkipPrevious(ref),
+              CustomSemanticsAction(label: l10n.nowPlayingNext): () =>
+                  _miniSkipNext(ref),
             },
-      onVerticalDragStart: enableVerticalExpandGesture
-          ? _handleVerticalDragStart
-          : null,
-      onVerticalDragUpdate: enableVerticalExpandGesture
-          ? _handleVerticalDragUpdate
-          : null,
-      onVerticalDragEnd: enableVerticalExpandGesture
-          ? _handleVerticalDragEnd
-          : null,
-      onVerticalDragCancel: enableVerticalExpandGesture
-          ? _resetVerticalDragState
-          : null,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: (flattenWideStyle && !compactWideLandscapeMode && !oled)
-              ? null
-              : Border(
-                  top: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.5),
-                    width: 1,
-                  ),
-                ),
-        ),
-        child: Material(
-          color: compactWideLandscapeMode
-              ? miniPlayerColor
-              : (flattenWideStyle ? Colors.transparent : miniPlayerColor),
-          child: InkWell(
-            onTap: onTap,
-            child: compactWideLandscapeMode
-                ? Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      10,
-                      10,
-                      10 + widget.bottomInset,
+      child: GestureDetector(
+        onHorizontalDragStart: isRadio
+            ? null
+            : (_) => _horizontalDragDistance = 0,
+        onHorizontalDragUpdate: isRadio
+            ? null
+            : (details) => _horizontalDragDistance += details.primaryDelta ?? 0,
+        onHorizontalDragCancel: isRadio
+            ? null
+            : () => _horizontalDragDistance = 0,
+        onHorizontalDragEnd: isRadio ? null : _handleHorizontalDragEnd,
+        onVerticalDragStart: enableVerticalExpandGesture
+            ? _handleVerticalDragStart
+            : null,
+        onVerticalDragUpdate: enableVerticalExpandGesture
+            ? _handleVerticalDragUpdate
+            : null,
+        onVerticalDragEnd: enableVerticalExpandGesture
+            ? _handleVerticalDragEnd
+            : null,
+        onVerticalDragCancel: enableVerticalExpandGesture
+            ? _resetVerticalDragState
+            : null,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: (flattenWideStyle && !compactWideLandscapeMode && !oled)
+                ? null
+                : Border(
+                    top: BorderSide(
+                      color: cs.outlineVariant.withValues(alpha: 0.5),
+                      width: 1,
                     ),
-                    child: Row(
-                      children: <Widget>[
-                        _miniPlayerArtwork(
-                          isRadio: isRadio,
-                          radioArtUrl: radioArtUrl,
-                          coverArtId: coverArtId,
-                          coverArtUrl: coverArtUrl,
-                          isExternalSource: widget.isExternalSource,
-                          size: 64,
-                          placeholderSize: 48,
-                          colorScheme: cs,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _miniPlayerTrackText(
-                            context,
-                            title: songTitle,
-                            artist: songArtist,
+                  ),
+          ),
+          child: Material(
+            color: compactWideLandscapeMode
+                ? miniPlayerColor
+                : (flattenWideStyle ? Colors.transparent : miniPlayerColor),
+            child: InkWell(
+              onTap: onTap,
+              child: compactWideLandscapeMode
+                  ? Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        10,
+                        10,
+                        10 + widget.bottomInset,
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          _miniPlayerArtwork(
+                            isRadio: isRadio,
+                            radioArtUrl: radioArtUrl,
+                            coverArtId: coverArtId,
+                            coverArtUrl: coverArtUrl,
                             isExternalSource: widget.isExternalSource,
-                            large: true,
+                            size: 64,
+                            placeholderSize: 48,
+                            colorScheme: cs,
                           ),
-                        ),
-                        if (!isRadio)
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _miniPlayerTrackText(
+                              context,
+                              title: songTitle,
+                              artist: songArtist,
+                              large: true,
+                            ),
+                          ),
+                          if (widget.showSkipButtons && !isRadio)
+                            IconButton(
+                              tooltip: l10n.nowPlayingPrevious,
+                              onPressed: () => _miniSkipPrevious(ref),
+                              icon: const Icon(
+                                Icons.skip_previous_rounded,
+                                size: 28,
+                              ),
+                            ),
                           IconButton(
-                            tooltip: l10n.nowPlayingPrevious,
-                            onPressed: () => _miniSkipPrevious(ref),
-                            icon: const Icon(
-                              Icons.skip_previous_rounded,
+                            tooltip: isPlaying
+                                ? l10n.miniPlayerPause
+                                : l10n.miniPlayerPlay,
+                            style: IconButton.styleFrom(
+                              backgroundColor: playFill,
+                              foregroundColor: onPlayFill,
+                              side: colorStyle.controlEdgeSide,
+                              shape: const CircleBorder(),
+                              minimumSize: const Size(52, 52),
+                              padding: const EdgeInsets.all(8),
+                            ),
+                            onPressed: () =>
+                                togglePlayPause(ref, isPlaying: isPlaying),
+                            icon: _remoteLoadingPlayPauseIcon(
+                              isExternalSource: widget.isExternalSource,
+                              playback: playback,
+                              isPlaying: isPlaying,
+                              loadingColor: onPlayFill,
                               size: 28,
                             ),
                           ),
-                        IconButton(
-                          tooltip: isPlaying
-                              ? l10n.miniPlayerPause
-                              : l10n.miniPlayerPlay,
-                          style: IconButton.styleFrom(
-                            backgroundColor: playFill,
-                            foregroundColor: onPlayFill,
-                            side: colorStyle.controlEdgeSide,
-                            shape: const CircleBorder(),
-                            minimumSize: const Size(52, 52),
-                            padding: const EdgeInsets.all(8),
-                          ),
-                          onPressed: () =>
-                              togglePlayPause(ref, isPlaying: isPlaying),
-                          icon: _remoteLoadingPlayPauseIcon(
-                            isExternalSource: widget.isExternalSource,
-                            playback: playback,
-                            isPlaying: isPlaying,
-                            loadingColor: onPlayFill,
-                            size: 28,
-                          ),
-                        ),
-                        if (!isRadio)
-                          IconButton(
-                            tooltip: l10n.miniPlayerSkipNext,
-                            onPressed: () => _miniSkipNext(ref),
-                            icon: const Icon(Icons.skip_next_rounded, size: 28),
-                          )
-                        else
-                          IconButton(
-                            tooltip: l10n.radioStopStation,
-                            onPressed: () => _miniStopRadio(ref),
-                            icon: const Icon(Icons.stop_rounded, size: 28),
-                          ),
-                        if (!isRadio)
-                          _remoteLikeSemantics(
-                            playback.currentSongId,
-                            widget.isExternalSource,
+                          if (widget.showSkipButtons && !isRadio)
                             IconButton(
-                              tooltip:
-                                  _isRemoteSong(
-                                    playback.currentSongId,
-                                    widget.isExternalSource,
-                                  )
-                                  ? l10n.actionLikeUnavailableRemote
-                                  : playback.isCurrentSongLiked
-                                  ? l10n.actionLiked
-                                  : l10n.actionLike,
-                              onPressed: () => _miniToggleLike(
-                                context,
-                                ref,
-                                playback.currentSongId,
-                                widget.isExternalSource,
+                              tooltip: l10n.miniPlayerSkipNext,
+                              onPressed: () => _miniSkipNext(ref),
+                              icon: const Icon(
+                                Icons.skip_next_rounded,
+                                size: 28,
                               ),
-                              icon: Icon(
-                                playback.isCurrentSongLiked
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 26,
-                                color:
+                            ),
+                          if (isRadio)
+                            IconButton(
+                              tooltip: l10n.radioStopStation,
+                              onPressed: () => _miniStopRadio(ref),
+                              icon: const Icon(Icons.stop_rounded, size: 28),
+                            ),
+                          if (!isRadio)
+                            _remoteLikeSemantics(
+                              playback.currentSongId,
+                              widget.isExternalSource,
+                              IconButton(
+                                tooltip:
                                     _isRemoteSong(
                                       playback.currentSongId,
                                       widget.isExternalSource,
                                     )
-                                    ? cs.onSurface.withValues(alpha: 0.38)
+                                    ? l10n.actionLikeUnavailableRemote
                                     : playback.isCurrentSongLiked
-                                    ? cs.primary
-                                    : cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  )
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Padding(
-                        padding: EdgeInsets.only(
-                          left: 12,
-                          // The strip's background runs edge to edge; its
-                          // buttons stay clear of a right system strip.
-                          right: 4 + rightSystemInsetFor(context),
-                          top: 7,
-                          bottom: 6,
-                        ),
-                        child: Row(
-                          children: <Widget>[
-                            _miniPlayerArtwork(
-                              isRadio: isRadio,
-                              radioArtUrl: radioArtUrl,
-                              coverArtId: coverArtId,
-                              coverArtUrl: coverArtUrl,
-                              isExternalSource: widget.isExternalSource,
-                              size: 48,
-                              colorScheme: cs,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _miniPlayerTrackText(
-                                context,
-                                title: songTitle,
-                                artist: songArtist,
-                                isExternalSource: widget.isExternalSource,
-                                large: false,
-                              ),
-                            ),
-                            if (!isRadio)
-                              IconButton(
-                                tooltip: l10n.nowPlayingPrevious,
-                                constraints: const BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
+                                    ? l10n.actionLiked
+                                    : l10n.actionLike,
+                                onPressed: () => _miniToggleLike(
+                                  context,
+                                  ref,
+                                  playback.currentSongId,
+                                  widget.isExternalSource,
                                 ),
-                                padding: EdgeInsets.zero,
-                                onPressed: () => _miniSkipPrevious(ref),
-                                icon: const Icon(
-                                  Icons.skip_previous_rounded,
-                                  size: 19,
-                                ),
-                              ),
-                            IconButton(
-                              tooltip: isPlaying
-                                  ? l10n.miniPlayerPause
-                                  : l10n.miniPlayerPlay,
-                              style: IconButton.styleFrom(
-                                backgroundColor: playFill,
-                                foregroundColor: onPlayFill,
-                                side: colorStyle.controlEdgeSide,
-                                shape: const CircleBorder(),
-                                minimumSize: Size(
-                                  compactControls ? 40 : 46,
-                                  compactControls ? 40 : 46,
-                                ),
-                                padding: const EdgeInsets.all(6),
-                              ),
-                              onPressed: () =>
-                                  togglePlayPause(ref, isPlaying: isPlaying),
-                              icon: _remoteLoadingPlayPauseIcon(
-                                isExternalSource: widget.isExternalSource,
-                                playback: playback,
-                                isPlaying: isPlaying,
-                                loadingColor: onPlayFill,
-                                size: 22,
-                              ),
-                            ),
-                            if (!isRadio)
-                              IconButton(
-                                tooltip: l10n.miniPlayerSkipNext,
-                                constraints: const BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
-                                ),
-                                padding: EdgeInsets.zero,
-                                onPressed: () => _miniSkipNext(ref),
-                                icon: const Icon(
-                                  Icons.skip_next_rounded,
-                                  size: 19,
-                                ),
-                              )
-                            else
-                              IconButton(
-                                tooltip: l10n.radioStopStation,
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.fromLTRB(4, 6, 6, 6),
-                                onPressed: () => _miniStopRadio(ref),
-                                icon: const Icon(Icons.stop_rounded, size: 20),
-                              ),
-                            if (!isRadio)
-                              _remoteLikeSemantics(
-                                playback.currentSongId,
-                                widget.isExternalSource,
-                                IconButton(
-                                  tooltip:
+                                icon: Icon(
+                                  playback.isCurrentSongLiked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  size: 26,
+                                  color:
                                       _isRemoteSong(
                                         playback.currentSongId,
                                         widget.isExternalSource,
                                       )
-                                      ? l10n.actionLikeUnavailableRemote
+                                      ? cs.onSurface.withValues(alpha: 0.38)
                                       : playback.isCurrentSongLiked
-                                      ? l10n.actionLiked
-                                      : l10n.actionLike,
+                                      ? cs.primary
+                                      : cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Padding(
+                          padding: EdgeInsets.only(
+                            left: 12,
+                            // The strip's background runs edge to edge; its
+                            // buttons stay clear of a right system strip.
+                            right: 4 + rightSystemInsetFor(context),
+                            top: 7,
+                            bottom: 6,
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              _miniPlayerArtwork(
+                                isRadio: isRadio,
+                                radioArtUrl: radioArtUrl,
+                                coverArtId: coverArtId,
+                                coverArtUrl: coverArtUrl,
+                                isExternalSource: widget.isExternalSource,
+                                size: 48,
+                                colorScheme: cs,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _miniPlayerTrackText(
+                                  context,
+                                  title: songTitle,
+                                  artist: songArtist,
+                                  large: false,
+                                ),
+                              ),
+                              if (widget.showSkipButtons && !isRadio)
+                                IconButton(
+                                  tooltip: l10n.nowPlayingPrevious,
                                   constraints: const BoxConstraints(
                                     minWidth: 36,
                                     minHeight: 36,
                                   ),
                                   padding: EdgeInsets.zero,
-                                  onPressed: () => _miniToggleLike(
-                                    context,
-                                    ref,
-                                    playback.currentSongId,
-                                    widget.isExternalSource,
-                                  ),
-                                  icon: Icon(
-                                    playback.isCurrentSongLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
+                                  onPressed: () => _miniSkipPrevious(ref),
+                                  icon: const Icon(
+                                    Icons.skip_previous_rounded,
                                     size: 19,
-                                    color:
+                                  ),
+                                ),
+                              IconButton(
+                                tooltip: isPlaying
+                                    ? l10n.miniPlayerPause
+                                    : l10n.miniPlayerPlay,
+                                style: IconButton.styleFrom(
+                                  backgroundColor: playFill,
+                                  foregroundColor: onPlayFill,
+                                  side: colorStyle.controlEdgeSide,
+                                  shape: const CircleBorder(),
+                                  minimumSize: Size(
+                                    compactControls ? 40 : 46,
+                                    compactControls ? 40 : 46,
+                                  ),
+                                  padding: const EdgeInsets.all(6),
+                                ),
+                                onPressed: () =>
+                                    togglePlayPause(ref, isPlaying: isPlaying),
+                                icon: _remoteLoadingPlayPauseIcon(
+                                  isExternalSource: widget.isExternalSource,
+                                  playback: playback,
+                                  isPlaying: isPlaying,
+                                  loadingColor: onPlayFill,
+                                  size: 22,
+                                ),
+                              ),
+                              if (widget.showSkipButtons && !isRadio)
+                                IconButton(
+                                  tooltip: l10n.miniPlayerSkipNext,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  onPressed: () => _miniSkipNext(ref),
+                                  icon: const Icon(
+                                    Icons.skip_next_rounded,
+                                    size: 19,
+                                  ),
+                                ),
+                              if (isRadio)
+                                IconButton(
+                                  tooltip: l10n.radioStopStation,
+                                  constraints: const BoxConstraints(),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    4,
+                                    6,
+                                    6,
+                                    6,
+                                  ),
+                                  onPressed: () => _miniStopRadio(ref),
+                                  icon: const Icon(
+                                    Icons.stop_rounded,
+                                    size: 20,
+                                  ),
+                                ),
+                              if (!isRadio)
+                                _remoteLikeSemantics(
+                                  playback.currentSongId,
+                                  widget.isExternalSource,
+                                  IconButton(
+                                    tooltip:
                                         _isRemoteSong(
                                           playback.currentSongId,
                                           widget.isExternalSource,
                                         )
-                                        ? cs.onSurface.withValues(alpha: 0.38)
+                                        ? l10n.actionLikeUnavailableRemote
                                         : playback.isCurrentSongLiked
-                                        ? cs.primary
-                                        : cs.onSurfaceVariant,
+                                        ? l10n.actionLiked
+                                        : l10n.actionLike,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 36,
+                                      minHeight: 36,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    onPressed: () => _miniToggleLike(
+                                      context,
+                                      ref,
+                                      playback.currentSongId,
+                                      widget.isExternalSource,
+                                    ),
+                                    icon: Icon(
+                                      playback.isCurrentSongLiked
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      size: 19,
+                                      color:
+                                          _isRemoteSong(
+                                            playback.currentSongId,
+                                            widget.isExternalSource,
+                                          )
+                                          ? cs.onSurface.withValues(alpha: 0.38)
+                                          : playback.isCurrentSongLiked
+                                          ? cs.primary
+                                          : cs.onSurfaceVariant,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            SizedBox(width: compactControls ? 0 : 4),
-                          ],
+                              SizedBox(width: compactControls ? 0 : 4),
+                            ],
+                          ),
                         ),
-                      ),
-                      if (!flattenWideStyle)
-                        _LivePlaybackProgressBar(
-                          playback: playback,
-                          isRadio: isRadio,
-                        ),
-                    ],
-                  ),
+                        if (!flattenWideStyle)
+                          _LivePlaybackProgressBar(
+                            playback: playback,
+                            isRadio: isRadio,
+                          ),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),
