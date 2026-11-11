@@ -23,6 +23,7 @@ class TrackListTile extends ConsumerWidget {
     this.horizontalTitleGap,
     this.contentPadding,
     this.actionExtent,
+    this.twoLineTitle = true,
   });
 
   final SongsTableData song;
@@ -47,6 +48,9 @@ class TrackListTile extends ConsumerWidget {
 
   /// See [AdaptiveTrackRow.showAlbumColumn].
   final bool showAlbumColumn;
+
+  /// See [AdaptiveTrackRow.twoLineTitle].
+  final bool twoLineTitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -97,6 +101,7 @@ class TrackListTile extends ConsumerWidget {
       artist: song.artistName,
       album: song.albumName,
       showAlbumColumn: showAlbumColumn,
+      twoLineTitle: twoLineTitle,
       duration: song.duration,
       leading: leading,
       leadingExtent: showAlbumArt ? cover : 32,

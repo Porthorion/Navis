@@ -16,6 +16,7 @@ Widget _host({
   bool tickers = true,
   int? passes,
   bool active = true,
+  int maxLines = 1,
   TextAlign textAlign = TextAlign.start,
   StrutStyle? strutStyle,
   double textScale = 1,
@@ -39,6 +40,7 @@ Widget _host({
                 style: _style,
                 passes: passes,
                 active: active,
+                maxLines: maxLines,
                 textAlign: textAlign,
                 strutStyle: strutStyle,
               ),
@@ -592,6 +594,137 @@ void main() {
         findsNothing,
       );
       expect(_exceeds(tester, texts), isTrue);
+    });
+  });
+
+  group('two lines', () {
+    final texts = find.descendant(
+      of: find.byType(MarqueeText),
+      matching: find.byType(Text),
+    );
+
+    testWidgets('a title that fits in two lines is one plain Text', (
+      tester,
+    ) async {
+      const title = 'A long song title that wraps once (Radio Edit)';
+      await tester.pumpWidget(
+        _host(text: title, width: 400, maxLines: 2, active: true),
+      );
+      final text = tester.widget<Text>(texts);
+      expect(text.data, title);
+      expect(text.maxLines, 2);
+      expect(_exceeds(tester, texts), isFalse);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('never scrolls, even when active', (tester) async {
+      await tester.pumpWidget(_host(width: 120, maxLines: 2));
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
+      expect(_scrollers, findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('a long base keeps its version whole at the end of line 2', (
+      tester,
+    ) async {
+      const title =
+          'A very long song title that cannot possibly fit in two short '
+          'lines of this narrow box (Radio Edit)';
+      await tester.pumpWidget(_host(text: title, width: 400, maxLines: 2));
+      final shown = tester.widget<Text>(texts).data!;
+      expect(shown.endsWith('… (Radio Edit)'), isTrue, reason: shown);
+      expect('…'.allMatches(shown), hasLength(1));
+      expect(_exceeds(tester, texts), isFalse);
+      expect(tester.getSize(texts).height, lessThan(2.5 * 13 * 1.5));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a credit ends line 2 in one plain ellipsis', (tester) async {
+      const title = 'Dearly Beloved (From "Kingdom Hearts" and more things)';
+      await tester.pumpWidget(_host(text: title, width: 130, maxLines: 2));
+      expect(texts, findsOneWidget);
+      expect(tester.widget<Text>(texts).data, title);
+      expect(_exceeds(tester, texts), isTrue);
+    });
+
+    testWidgets('a version over 55 percent of the width gives one ellipsis', (
+      tester,
+    ) async {
+      const title = 'Song (A remix with a really very long descriptive name)';
+      await tester.pumpWidget(_host(text: title, width: 100, maxLines: 2));
+      expect(tester.widget<Text>(texts).data, title);
+    });
+
+    testWidgets('a grapheme cluster is never split', (tester) async {
+      const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+      final base = List.filled(30, family).join();
+      await tester.pumpWidget(
+        _host(text: '$base (Radio Edit)', width: 400, maxLines: 2),
+      );
+      final shown = tester.widget<Text>(texts).data!;
+      final kept = shown.substring(0, shown.indexOf('…'));
+      expect(kept, isNotEmpty);
+      expect(kept.characters.every((c) => c == family), isTrue, reason: kept);
+      expect(shown.endsWith('… (Radio Edit)'), isTrue);
+    });
+
+    testWidgets('the full title is one semantics node', (tester) async {
+      final handle = tester.ensureSemantics();
+      const title =
+          'A very long song title that cannot possibly fit in two short '
+          'lines of this narrow box (Radio Edit)';
+      await tester.pumpWidget(_host(text: title, width: 400, maxLines: 2));
+      expect(find.bySemanticsLabel(title), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('an Arabic title keeps its version last in a right-to-left run', (
+      tester,
+    ) async {
+      const title =
+          'عنوان أغنية طويل جدا لا يتسع في هذا العرض الضيق أبدا ولا في سطرين (ريمكس)';
+      await tester.pumpWidget(
+        _host(
+          text: title,
+          width: 400,
+          maxLines: 2,
+          direction: TextDirection.ltr,
+        ),
+      );
+      final text = tester.widget<Text>(texts);
+      expect(text.data!.endsWith('… (ريمكس)'), isTrue, reason: text.data);
+      expect(text.textDirection, TextDirection.rtl);
+    });
+
+    testWidgets('a Latin title in an RTL ambient keeps its version right', (
+      tester,
+    ) async {
+      const title =
+          'A very long song title that cannot possibly fit in two short '
+          'lines of this narrow box (Radio Edit)';
+      await tester.pumpWidget(
+        _host(
+          text: title,
+          width: 400,
+          maxLines: 2,
+          direction: TextDirection.rtl,
+        ),
+      );
+      final text = tester.widget<Text>(texts);
+      expect(text.data!.endsWith('… (Radio Edit)'), isTrue);
+      expect(text.textDirection, TextDirection.ltr);
+    });
+
+    testWidgets('a Latin title with an Arabic version stays left to right', (
+      tester,
+    ) async {
+      const title =
+          'A very long song title that cannot possibly fit in two short '
+          'lines of this narrow box (ريمكس)';
+      await tester.pumpWidget(_host(text: title, width: 400, maxLines: 2));
+      final text = tester.widget<Text>(texts);
+      expect(text.data!.endsWith('… (ريمكس)'), isTrue);
+      expect(text.textDirection, TextDirection.ltr);
     });
   });
 }
