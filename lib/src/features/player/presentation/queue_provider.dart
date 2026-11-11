@@ -646,11 +646,6 @@ class QueueController extends Notifier<List<String>> {
     await handler.reorderQueue(oldIndex, newIndex);
   }
 
-  Future<void> removeAt(int index) async {
-    final handler = _requireHandler();
-    await handler.removeAt(index);
-  }
-
   Future<T> _inRemovalOrder<T>(Future<T> Function() task) {
     final previous = _removalTail;
     final complete = Completer<void>();
@@ -660,10 +655,13 @@ class QueueController extends Notifier<List<String>> {
 
   /// Removes the row at [index] if it still holds [songId], one removal at a
   /// time, and returns what [undoRemoval] needs once the queue shows the
-  /// change. Null means nothing was removed: a stale row or a failed removal
-  /// (reported). If the handler removed the row but the queue did not show it
-  /// within 2 s, the removal is returned anyway with the queue as it reads
-  /// now; the content guard of [undoRemoval] covers the lag.
+  /// change. At its turn, a row that moved (an earlier removal shifted it) is
+  /// found again by [songId] when that song occurs exactly once; with no copy
+  /// or several copies nothing is removed, because the swiped row cannot be
+  /// told apart. Null means nothing was removed: a stale row or a failed
+  /// removal (reported). If the handler removed the row but the queue did not
+  /// show it within 2 s, the removal is returned anyway with the queue as it
+  /// reads now; the content guard of [undoRemoval] covers the lag.
   ///
   /// ponytail: both guards read the published queue, not the handler's. An
   /// edit already in the handler's `_enqueueQueueEdit` lane but not yet
@@ -672,11 +670,13 @@ class QueueController extends Notifier<List<String>> {
   /// with the successor anchor resolved inside the lane. The removal lane has
   /// no bound on a hung handler call (a hung handler blocks playback edits
   /// anyway).
-  Future<QueueRemoval?> removeForUndo(int index, String songId) {
+  Future<QueueRemoval?> removeForUndo(int requestedIndex, String songId) {
     return _inRemovalOrder(() async {
       final before = state;
+      var index = requestedIndex;
       if (index < 0 || index >= before.length || before[index] != songId) {
-        return null;
+        index = before.indexOf(songId);
+        if (index < 0 || index != before.lastIndexOf(songId)) return null;
       }
       final epoch = _regularSelectionEpoch;
       final successorId = index + 1 < before.length ? before[index + 1] : null;

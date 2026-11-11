@@ -165,9 +165,12 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
     _releaseSwipeLock();
     try {
       await widget.onRemove();
-      // A dismissed Dismissible must leave the tree for one built frame
-      // before the row may come back (a refused removal answers at once).
+      // A refused removal answers before any frame, but a dismissed
+      // Dismissible must leave the tree for one built frame before the row
+      // may come back; without this wait the row would reappear under it.
       await WidgetsBinding.instance.endOfFrame;
+    } catch (_) {
+      // runReportingErrors already reported it; the row comes back below.
     } finally {
       // Removed rows are gone from the list by now; a refused or failed
       // removal brings the row back.

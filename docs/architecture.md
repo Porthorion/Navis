@@ -179,9 +179,12 @@ Located in `lib/src/providers/app_providers.dart`:
 
 `QueueController.removeForUndo` removes a row through a serial lane
 (`_removalTail`, like `_recommendationCommitTail`), so rapid swipes run one at
-a time. At its turn it re-reads the queue and removes nothing if the row no
-longer holds the song id, then waits (2 s at most) until the queue shows the
-change and returns a `QueueRemoval` (index, successor id, selection epoch,
+a time. At its turn it re-reads the queue; a row that no longer holds the
+song id (an earlier removal shifted it) is found again by the song id when that
+song occurs exactly once, and nothing is removed for a song with no copy or
+several copies (so a rapid swipe of a duplicated song can still bounce back).
+It then waits (2 s at most) until the queue shows the change and returns a
+`QueueRemoval` (index, successor id, selection epoch,
 queue after, only-row flag). Null means nothing was removed (stale row or a
 reported failure); if the handler removed the row but the queue did not show it
 in time, the removal is still returned with the queue as it reads then, so the
@@ -215,14 +218,20 @@ must do), releases the sheet's swipe lock and awaits
 completes once the published queue changed, so a duplicate song's surviving row
 never inherits the hidden state) and shows "Removed “title”" for 5 s with an
 Undo action. A refused or failed removal (stale row, reported error) shows the
-row again after one frame. The notice has no Undo for the only row, for a
+row again after one frame (a refused removal answers before any frame, and a
+dismissed `Dismissible` must leave the tree for one built frame first); an
+exception from the removal is caught there too. The notice has no Undo for the
+only row, for a
 handler that is not a `QueueBatchEditor`, or while an error notice is up (the
 notice controller drops info notices then); a newer removal replaces the notice,
 so only the last removal can be undone. Undo holds only the `QueueController`
 and the notice controller, so it works after the Queue sheet closed. The same
 removal path serves the screen-reader custom action "Remove from Queue" (absent
 while a logical queue is still loading) and the desktop trash button; phone
-rows have no trash button. Error rows (`song` lookup failed) keep theirs.
+rows have no trash button. Error rows (`song` lookup failed) keep theirs. The
+notice needs an `AppNoticeScope` above the list: the phone sheet has one, but
+the full-screen desktop `QueueScreen` (mini-player route on the root navigator)
+has none, so there a removal shows no notice and no Undo.
 
 **queue_current_row_centering.dart**: `QueueSheet` (phone overlay, compact-wide
 overlay, embedded and wide Now Playing panels) and `QueueScreen` wrap their

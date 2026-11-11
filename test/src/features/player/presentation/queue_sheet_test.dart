@@ -14,6 +14,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_screen.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -36,11 +37,6 @@ class _QueueSpyController extends QueueController {
   @override
   Future<void> reorder(int oldIndex, int newIndex) async {
     reorderCalls.add((oldIndex, newIndex));
-  }
-
-  @override
-  Future<void> removeAt(int index) async {
-    removeCalls++;
   }
 
   @override
@@ -445,13 +441,21 @@ void main() {
     testWidgets('a failed removal brings the row back and reports', (
       tester,
     ) async {
-      final h = await _pumpRemovable(tester, failRemove: true);
+      final locks = <bool>[];
+      final h = await _pumpRemovable(
+        tester,
+        failRemove: true,
+        onLock: locks.add,
+      );
       await tester.drag(find.text('Track b'), const Offset(-300, 0));
       await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
       expect(find.text('Track b'), findsOneWidget);
       expect(find.textContaining('Removed'), findsNothing);
       expect(h.errors.single.error, isA<StateError>());
+      // The row survives, so only _commitRemoval can have released the lock.
+      expect(locks, isNotEmpty);
+      expect(locks.last, isFalse);
       await h.end(tester);
     });
 
@@ -466,6 +470,46 @@ void main() {
       expect(h.queue, ['b', 'a']);
       expect(find.text('Track a'), findsOneWidget);
       expect(find.text('Track b'), findsOneWidget);
+      await h.end(tester);
+    });
+
+    testWidgets('a second swipe during a slow removal still removes its row', (
+      tester,
+    ) async {
+      final h = await _pumpRemovable(
+        tester,
+        ids: const ['a', 'b', 'c', 'd'],
+        removeDelay: const Duration(milliseconds: 300),
+      );
+      await tester.drag(find.text('Track b'), const Offset(-300, 0));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.drag(find.text('Track d'), const Offset(-300, 0));
+      // The handler's delayed removals are timers, not frames.
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(h.queue, ['a', 'c']);
+      expect(h.removed, [1, 2]);
+      expect(find.text('Track a'), findsOneWidget);
+      expect(find.text('Track c'), findsOneWidget);
+      expect(find.text('Track b'), findsNothing);
+      expect(find.text('Track d'), findsNothing);
+      await h.end(tester);
+    });
+
+    testWidgets('the full Queue screen removes without a notice scope', (
+      tester,
+    ) async {
+      final h = await _pumpRemovable(tester, screen: true, noticeScope: false);
+      await tester.drag(find.text('Track b'), const Offset(-300, 0));
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+
+      expect(h.removed, [1]);
+      expect(h.queue, ['a', 'c']);
+      expect(find.text('Track b'), findsNothing);
+      expect(find.textContaining('Removed'), findsNothing);
+      expect(tester.takeException(), isNull);
       await h.end(tester);
     });
 
@@ -620,6 +664,9 @@ Future<_Removable> _pumpRemovable(
   bool batch = true,
   bool database = false,
   bool failRemove = false,
+  Duration removeDelay = Duration.zero,
+  bool noticeScope = true,
+  bool screen = false,
   bool desktop = false,
   bool reduceMotion = false,
   bool pendingLogicalQueue = false,
@@ -652,6 +699,7 @@ Future<_Removable> _pumpRemovable(
   when(() => handler.snapshotStream).thenAnswer((_) => snapshots.stream);
   when(() => handler.snapshot).thenAnswer((_) => snap());
   when(() => handler.removeAt(any())).thenAnswer((invocation) async {
+    if (removeDelay > Duration.zero) await Future<void>.delayed(removeDelay);
     if (failRemove) throw StateError('remove failed');
     final index = invocation.positionalArguments.first as int;
     h.removed.add(index);
@@ -713,15 +761,17 @@ Future<_Removable> _pumpRemovable(
             textScaler: TextScaler.linear(textScale),
             disableAnimations: reduceMotion,
           ),
-          child: AppNoticeScope(
-            notifier: notices,
-            child: Stack(
-              children: [
-                child!,
-                AppNoticeHost(controller: notices),
-              ],
-            ),
-          ),
+          child: noticeScope
+              ? AppNoticeScope(
+                  notifier: notices,
+                  child: Stack(
+                    children: [
+                      child!,
+                      AppNoticeHost(controller: notices),
+                    ],
+                  ),
+                )
+              : child!,
         ),
         home: AdaptiveContextScope(
           adaptiveContext: resolveAdaptiveContext(
@@ -729,17 +779,19 @@ Future<_Removable> _pumpRemovable(
             viewportSize: Size(width, 844),
             safePadding: EdgeInsets.zero,
           ),
-          child: Scaffold(
-            body: ValueListenableBuilder<bool>(
-              valueListenable: h.hideSheet,
-              builder: (context, hidden, _) => hidden
-                  ? const SizedBox()
-                  : QueueSheet(
-                      scrollController: ScrollController(),
-                      onItemSwipeActiveChanged: onLock,
-                    ),
-            ),
-          ),
+          child: screen
+              ? const QueueScreen()
+              : Scaffold(
+                  body: ValueListenableBuilder<bool>(
+                    valueListenable: h.hideSheet,
+                    builder: (context, hidden, _) => hidden
+                        ? const SizedBox()
+                        : QueueSheet(
+                            scrollController: ScrollController(),
+                            onItemSwipeActiveChanged: onLock,
+                          ),
+                  ),
+                ),
         ),
       ),
     ),
