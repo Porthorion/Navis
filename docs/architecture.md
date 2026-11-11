@@ -1059,6 +1059,12 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
+    `app_settings.sheet_style` (`match_now_playing` default, `album_color` or
+    `theme`): the fill of Now Playing sheets and menus (#560). It is a Look
+    field: `SheetStyle`, `updateSheetStyle` and the
+    `sheetStyle` diagnostics key mirror `NowPlayingBackground`; an older Look
+    or export without the key leaves the setting unchanged.
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
     theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
     `auto_dark_start_minutes` (1200) and `auto_dark_end_minutes` (420), plus
@@ -1707,10 +1713,19 @@ under Flat text over artwork. An album title is never more than one line:
 `MarqueeText` (`marquee_text.dart`) is a plain `Text` when it fits, otherwise it
 rests ~1.75 s, scrolls to the end at 35 px/s, rests ~0.8 s and snaps back, with
 one `AnimationController` inside a `RepaintBoundary`. It runs only while
-visible (`TickerMode` plus `VisibilityDetector`), becomes a still ellipsised line
-under reduced motion (`MotionPolicy`), and exposes the full title as its
-semantics label. Subtitles stay single-line ellipsis. A scrolling title never
-settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
+visible (`TickerMode` plus `VisibilityDetector`) and exposes the full title as
+its semantics label. Whenever it is not moving (`active: false`, reduced motion
+through `MotionPolicy`, the start pause, after the last of `passes`) a truncated
+title shows its still form: `splitTitleVersion` (`metadata_normalization.dart`)
+splits the last trailing `(…)`, `[…]`, full-width or ` - ` qualifier off the
+title, the base is ellipsised and the version kept whole on the same line
+("Long Song Na… (Radio Edit)"; a version over 60% of the width is ellipsised
+too, in the title's own direction), so edits of one song stay distinguishable.
+Track rows (`AdaptiveTrackRow`) make the title active only while the row is
+hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes), and the
+wide artist and album cells only while hovered; the compact secondary
+"Artist · Album" line and subtitles stay single-line ellipsis. A hovered or
+looping title never settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
 `VisibilityDetector` debounce so tests leave no pending timer. The Home
 Recently added / Frequent carousel card is `AlbumCardContent`, the raw-field
 body that `AlbumCard` wraps, so it shares `AlbumCardLabel` and

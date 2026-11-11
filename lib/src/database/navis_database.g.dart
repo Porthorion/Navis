@@ -1430,6 +1430,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         requiredDuringInsert: false,
         defaultValue: const Constant('tinted'),
       );
+  static const VerificationMeta _sheetStyleMeta = const VerificationMeta(
+    'sheetStyle',
+  );
+  @override
+  late final GeneratedColumn<String> sheetStyle = GeneratedColumn<String>(
+    'sheet_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('match_now_playing'),
+  );
   static const VerificationMeta _dynamicAlbumColorEnabledMeta =
       const VerificationMeta('dynamicAlbumColorEnabled');
   @override
@@ -2212,6 +2224,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     artTintedNowPlaying,
     cornerStyle,
     nowPlayingBackground,
+    sheetStyle,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
@@ -2852,6 +2865,12 @@ class $AppSettingsTableTable extends AppSettingsTable
           data['now_playing_background']!,
           _nowPlayingBackgroundMeta,
         ),
+      );
+    }
+    if (data.containsKey('sheet_style')) {
+      context.handle(
+        _sheetStyleMeta,
+        sheetStyle.isAcceptableOrUnknown(data['sheet_style']!, _sheetStyleMeta),
       );
     }
     if (data.containsKey('dynamic_album_color_enabled')) {
@@ -3627,6 +3646,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}now_playing_background'],
       )!,
+      sheetStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sheet_style'],
+      )!,
       dynamicAlbumColorEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}dynamic_album_color_enabled'],
@@ -4014,6 +4037,9 @@ class AppSettingsTableData extends DataClass
   /// Now Playing background: tinted, artwork or plain.
   final String nowPlayingBackground;
 
+  /// Fill of sheets and menus: match_now_playing, album_color or theme.
+  final String sheetStyle;
+
   /// When true, app accent color follows the currently playing album art.
   final bool dynamicAlbumColorEnabled;
 
@@ -4266,6 +4292,7 @@ class AppSettingsTableData extends DataClass
     required this.artTintedNowPlaying,
     required this.cornerStyle,
     required this.nowPlayingBackground,
+    required this.sheetStyle,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
@@ -4430,6 +4457,7 @@ class AppSettingsTableData extends DataClass
     map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying);
     map['corner_style'] = Variable<String>(cornerStyle);
     map['now_playing_background'] = Variable<String>(nowPlayingBackground);
+    map['sheet_style'] = Variable<String>(sheetStyle);
     map['dynamic_album_color_enabled'] = Variable<bool>(
       dynamicAlbumColorEnabled,
     );
@@ -4635,6 +4663,7 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: Value(artTintedNowPlaying),
       cornerStyle: Value(cornerStyle),
       nowPlayingBackground: Value(nowPlayingBackground),
+      sheetStyle: Value(sheetStyle),
       dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
       updateCheckEnabled: Value(updateCheckEnabled),
       updateChannel: Value(updateChannel),
@@ -4844,6 +4873,7 @@ class AppSettingsTableData extends DataClass
       nowPlayingBackground: serializer.fromJson<String>(
         json['nowPlayingBackground'],
       ),
+      sheetStyle: serializer.fromJson<String>(json['sheetStyle']),
       dynamicAlbumColorEnabled: serializer.fromJson<bool>(
         json['dynamicAlbumColorEnabled'],
       ),
@@ -5056,6 +5086,7 @@ class AppSettingsTableData extends DataClass
       'artTintedNowPlaying': serializer.toJson<bool>(artTintedNowPlaying),
       'cornerStyle': serializer.toJson<String>(cornerStyle),
       'nowPlayingBackground': serializer.toJson<String>(nowPlayingBackground),
+      'sheetStyle': serializer.toJson<String>(sheetStyle),
       'dynamicAlbumColorEnabled': serializer.toJson<bool>(
         dynamicAlbumColorEnabled,
       ),
@@ -5212,6 +5243,7 @@ class AppSettingsTableData extends DataClass
     bool? artTintedNowPlaying,
     String? cornerStyle,
     String? nowPlayingBackground,
+    String? sheetStyle,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
@@ -5366,6 +5398,7 @@ class AppSettingsTableData extends DataClass
     artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
     cornerStyle: cornerStyle ?? this.cornerStyle,
     nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
+    sheetStyle: sheetStyle ?? this.sheetStyle,
     dynamicAlbumColorEnabled:
         dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
     updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -5658,6 +5691,9 @@ class AppSettingsTableData extends DataClass
       nowPlayingBackground: data.nowPlayingBackground.present
           ? data.nowPlayingBackground.value
           : this.nowPlayingBackground,
+      sheetStyle: data.sheetStyle.present
+          ? data.sheetStyle.value
+          : this.sheetStyle,
       dynamicAlbumColorEnabled: data.dynamicAlbumColorEnabled.present
           ? data.dynamicAlbumColorEnabled.value
           : this.dynamicAlbumColorEnabled,
@@ -5897,6 +5933,7 @@ class AppSettingsTableData extends DataClass
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
           ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
+          ..write('sheetStyle: $sheetStyle, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
@@ -6031,6 +6068,7 @@ class AppSettingsTableData extends DataClass
     artTintedNowPlaying,
     cornerStyle,
     nowPlayingBackground,
+    sheetStyle,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
@@ -6160,6 +6198,7 @@ class AppSettingsTableData extends DataClass
           other.artTintedNowPlaying == this.artTintedNowPlaying &&
           other.cornerStyle == this.cornerStyle &&
           other.nowPlayingBackground == this.nowPlayingBackground &&
+          other.sheetStyle == this.sheetStyle &&
           other.dynamicAlbumColorEnabled == this.dynamicAlbumColorEnabled &&
           other.updateCheckEnabled == this.updateCheckEnabled &&
           other.updateChannel == this.updateChannel &&
@@ -6291,6 +6330,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> artTintedNowPlaying;
   final Value<String> cornerStyle;
   final Value<String> nowPlayingBackground;
+  final Value<String> sheetStyle;
   final Value<bool> dynamicAlbumColorEnabled;
   final Value<bool> updateCheckEnabled;
   final Value<String> updateChannel;
@@ -6414,6 +6454,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.artTintedNowPlaying = const Value.absent(),
     this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
+    this.sheetStyle = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
@@ -6538,6 +6579,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.artTintedNowPlaying = const Value.absent(),
     this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
+    this.sheetStyle = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
@@ -6662,6 +6704,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? artTintedNowPlaying,
     Expression<String>? cornerStyle,
     Expression<String>? nowPlayingBackground,
+    Expression<String>? sheetStyle,
     Expression<bool>? dynamicAlbumColorEnabled,
     Expression<bool>? updateCheckEnabled,
     Expression<String>? updateChannel,
@@ -6814,6 +6857,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (cornerStyle != null) 'corner_style': cornerStyle,
       if (nowPlayingBackground != null)
         'now_playing_background': nowPlayingBackground,
+      if (sheetStyle != null) 'sheet_style': sheetStyle,
       if (dynamicAlbumColorEnabled != null)
         'dynamic_album_color_enabled': dynamicAlbumColorEnabled,
       if (updateCheckEnabled != null)
@@ -6972,6 +7016,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? artTintedNowPlaying,
     Value<String>? cornerStyle,
     Value<String>? nowPlayingBackground,
+    Value<String>? sheetStyle,
     Value<bool>? dynamicAlbumColorEnabled,
     Value<bool>? updateCheckEnabled,
     Value<String>? updateChannel,
@@ -7110,6 +7155,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
       cornerStyle: cornerStyle ?? this.cornerStyle,
       nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
+      sheetStyle: sheetStyle ?? this.sheetStyle,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -7429,6 +7475,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         nowPlayingBackground.value,
       );
     }
+    if (sheetStyle.present) {
+      map['sheet_style'] = Variable<String>(sheetStyle.value);
+    }
     if (dynamicAlbumColorEnabled.present) {
       map['dynamic_album_color_enabled'] = Variable<bool>(
         dynamicAlbumColorEnabled.value,
@@ -7723,6 +7772,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
           ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
+          ..write('sheetStyle: $sheetStyle, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
@@ -36934,6 +36984,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> artTintedNowPlaying,
       Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
+      Value<String> sheetStyle,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
@@ -37059,6 +37110,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> artTintedNowPlaying,
       Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
+      Value<String> sheetStyle,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
@@ -37454,6 +37506,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get nowPlayingBackground => $composableBuilder(
     column: $table.nowPlayingBackground,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sheetStyle => $composableBuilder(
+    column: $table.sheetStyle,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38078,6 +38135,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sheetStyle => $composableBuilder(
+    column: $table.sheetStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get dynamicAlbumColorEnabled => $composableBuilder(
     column: $table.dynamicAlbumColorEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -38692,6 +38754,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get sheetStyle => $composableBuilder(
+    column: $table.sheetStyle,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get dynamicAlbumColorEnabled => $composableBuilder(
     column: $table.dynamicAlbumColorEnabled,
     builder: (column) => column,
@@ -39074,6 +39141,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> artTintedNowPlaying = const Value.absent(),
                 Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
+                Value<String> sheetStyle = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
@@ -39202,6 +39270,7 @@ class $$AppSettingsTableTableTableManager
                 artTintedNowPlaying: artTintedNowPlaying,
                 cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
+                sheetStyle: sheetStyle,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
@@ -39328,6 +39397,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> artTintedNowPlaying = const Value.absent(),
                 Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
+                Value<String> sheetStyle = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
@@ -39456,6 +39526,7 @@ class $$AppSettingsTableTableTableManager
                 artTintedNowPlaying: artTintedNowPlaying,
                 cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
+                sheetStyle: sheetStyle,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,

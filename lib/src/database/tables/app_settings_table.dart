@@ -213,6 +213,10 @@ class AppSettingsTable extends Table {
   TextColumn get nowPlayingBackground =>
       text().withDefault(const Constant('tinted'))();
 
+  /// Fill of sheets and menus: match_now_playing, album_color or theme.
+  TextColumn get sheetStyle =>
+      text().withDefault(const Constant('match_now_playing'))();
+
   /// When true, app accent color follows the currently playing album art.
   BoolColumn get dynamicAlbumColorEnabled =>
       boolean().withDefault(const Constant(false))();

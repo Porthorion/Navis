@@ -158,6 +158,8 @@ void main() {
       await pump(tester, visible: true, message: long);
       // The marquee never settles; let the banner finish arriving.
       await tester.pump(const Duration(seconds: 1));
+      // It rests at its start first, then travels.
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
 
       expect(find.byType(MarqueeText), findsOneWidget);
       expect(

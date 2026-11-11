@@ -5058,6 +5058,8 @@ void main() {
 
     testWidgets('a long title is one scrolling line', (tester) async {
       await pumpRecentlyAdded(tester, mode: AlbumTitleShade.dark);
+      // It rests at its start first, then travels as one unwrapped line.
+      await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
 
       expect(find.byType(MarqueeText), findsOneWidget);
       final title = tester.widget<Text>(find.text(album.name));

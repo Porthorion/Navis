@@ -13,6 +13,7 @@ import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:path/path.dart' as p;
@@ -776,6 +777,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             nowPlayingBackground: snapshot.nowPlayingBackground == null
                 ? const Value.absent()
                 : Value(snapshot.nowPlayingBackground!),
+            sheetStyle: snapshot.sheetStyle == null
+                ? const Value.absent()
+                : Value(snapshot.sheetStyle!),
             updatedAt: Value(DateTime.now()),
           ),
         );
@@ -949,6 +953,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     return _writeSettings(
       AppSettingsTableCompanion(
         nowPlayingBackground: Value(background.storageKey),
+      ),
+    );
+  }
+
+  /// Writes the canonical Sheets & Menus style.
+  Future<void> updateSheetStyle(String value) {
+    return _writeSettings(
+      AppSettingsTableCompanion(
+        sheetStyle: Value(SheetStyle.parse(value).storageKey),
       ),
     );
   }
