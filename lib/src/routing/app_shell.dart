@@ -2017,24 +2017,29 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                           0,
                                                                           1,
                                                                         ),
-                                                                  child: NowPlayingScreen(
-                                                                    wideEmbeddedMode:
-                                                                        true,
-                                                                    compactWideLandscapeMode:
-                                                                        useCompactWideLandscape,
-                                                                    onShowQueue: () =>
-                                                                        NavService.showQueue(
-                                                                          context,
-                                                                          ref,
-                                                                        ),
-                                                                    onCollapse: () => ref
-                                                                        .read(
-                                                                          playerOverlayStackProvider
-                                                                              .notifier,
-                                                                        )
-                                                                        .collapse(),
-                                                                    onBackInterceptorChanged:
-                                                                        _setNowPlayingBackInterceptor,
+                                                                  // The fullscreen queue covers Now Playing; stop its
+                                                                  // endless title marquee and other tickers meanwhile.
+                                                                  child: TickerMode(
+                                                                    enabled:
+                                                                        !showQueueOverlay,
+                                                                    child: NowPlayingScreen(
+                                                                      wideEmbeddedMode:
+                                                                          true,
+                                                                      compactWideLandscapeMode:
+                                                                          useCompactWideLandscape,
+                                                                      onShowQueue: () =>
+                                                                          NavService.showQueue(
+                                                                            context,
+                                                                            ref,
+                                                                          ),
+                                                                      onCollapse: () => ref
+                                                                          .read(
+                                                                            playerOverlayStackProvider.notifier,
+                                                                          )
+                                                                          .collapse(),
+                                                                      onBackInterceptorChanged:
+                                                                          _setNowPlayingBackInterceptor,
+                                                                    ),
                                                                   ),
                                                                 ),
                                                               ),
