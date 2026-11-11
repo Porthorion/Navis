@@ -2711,6 +2711,30 @@ void main() {
       expect(tester.getSize(mini).height, lessThan(72));
     });
 
+    testWidgets('the title keeps a 12 dp gap before the play button', (
+      tester,
+    ) async {
+      await pumpMini(tester);
+      final mini = strip();
+      final title = find.descendant(
+        of: mini,
+        matching: find.byWidgetPredicate(
+          (w) => w is MarqueeText && w.text == remoteSong.title,
+        ),
+      );
+      final play = find.descendant(
+        of: mini,
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is IconButton && (w.tooltip == 'Play' || w.tooltip == 'Pause'),
+        ),
+      );
+      expect(
+        tester.getRect(play).left - tester.getRect(title).right,
+        greaterThanOrEqualTo(12),
+      );
+    });
+
     testWidgets('swipe left skips to next, swipe right to previous', (
       tester,
     ) async {
@@ -6381,6 +6405,14 @@ void main() {
     const desktopBackdropKey = ValueKey<String>('nowPlayingArtworkBackground');
     final coverSong = _longMetadataSong.copyWith(coverArt: const Value('c-1'));
 
+    // The long title on Now Playing scrolls forever (#569), so
+    // `pumpAndSettle` would never return: run two seconds of frames instead.
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
     Future<ImageProvider<Object>> solidCover() async {
       final recorder = ui.PictureRecorder();
       Canvas(recorder).drawRect(
@@ -6465,7 +6497,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: testNavisApp),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       return container;
     }
 
@@ -6476,7 +6508,7 @@ void main() {
         );
         await tester.pump();
       }
-      await tester.pumpAndSettle();
+      await settle(tester);
     }
 
     Future<void> unmountShell(
@@ -6520,7 +6552,7 @@ void main() {
         final cache = container.read(nowPlayingArtworkCacheProvider);
         expect(cache.debugRenderCount, 0);
         background.value = NowPlayingBackground.artwork;
-        await tester.pumpAndSettle();
+        await settle(tester);
         await settleImages(tester);
         expect(container.read(playerSheetExpandedProvider), isFalse);
         expect(cache.debugRenderCount, 1);
@@ -6528,12 +6560,12 @@ void main() {
           currentSongId: 'song-2',
           currentIndex: 1,
         );
-        await tester.pumpAndSettle();
+        await settle(tester);
         await settleImages(tester);
         expect(container.read(playerSheetExpandedProvider), isFalse);
         expect(cache.debugRenderCount, 2);
         container.read(playerOverlayStackProvider.notifier).expand();
-        await tester.pumpAndSettle();
+        await settle(tester);
         await settleImages(tester);
         final body = find.byWidgetPredicate(
           (widget) => widget.runtimeType.toString() == '_NowPlayingBody',
@@ -6545,7 +6577,7 @@ void main() {
           NowPlayingBackground.artwork,
         ]) {
           background.value = mode;
-          await tester.pumpAndSettle();
+          await settle(tester);
           await settleImages(tester);
           expect(tester.state(body), same(state));
           expect(cache.debugRenderCount, 2);
@@ -6566,10 +6598,10 @@ void main() {
       expect(container.read(playerSheetExpandedProvider), isFalse);
       expect(cache.debugRenderCount, 1);
       container.read(playerOverlayStackProvider.notifier).expand();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
       container.read(playerOverlayStackProvider.notifier).showQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(queueBackdropKey), findsOneWidget);
@@ -6609,13 +6641,13 @@ void main() {
       );
 
       container.read(playerOverlayStackProvider.notifier).hideQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       container.read(playerOverlayStackProvider.notifier).collapse();
-      await tester.pumpAndSettle();
-      await tester.pumpAndSettle();
+      await settle(tester);
+      await settle(tester);
       expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
       container.read(playerOverlayStackProvider.notifier).showQueueOnly();
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.byKey(queueBackdropKey), findsNothing);
       expect(queuePanelFill(tester).a, 1);
       await unmountShell(tester, container);
@@ -6627,10 +6659,10 @@ void main() {
       ProviderContainer container,
     ) async {
       container.read(playerOverlayStackProvider.notifier).expand();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
       container.read(playerOverlayStackProvider.notifier).showQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
     }
 
@@ -6710,7 +6742,7 @@ void main() {
         background: NowPlayingBackground.artwork,
       );
       container.read(playerOverlayStackProvider.notifier).showQueueOnly();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(container.read(playerSheetExpandedProvider), isFalse);
@@ -6729,7 +6761,7 @@ void main() {
         background: NowPlayingBackground.tinted,
       );
       container.read(playerOverlayStackProvider.notifier).showQueue();
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(queueBackdropKey), findsNothing);
@@ -6786,7 +6818,7 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(desktopBackdropKey), findsOneWidget);
@@ -6822,7 +6854,7 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       await settleImages(tester);
 
       expect(find.byKey(desktopBackdropKey), findsNothing);
@@ -6854,7 +6886,7 @@ void main() {
           await tester.tap(
             find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
           );
-          await tester.pumpAndSettle();
+          await settle(tester);
           await settleImages(tester);
           final surface = tester.widget<AnimatedContainer>(
             find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),
