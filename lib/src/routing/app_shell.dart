@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
 import 'package:flutter/gestures.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
@@ -1920,6 +1921,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                       true,
                                                                   compactWideLandscapeMode:
                                                                       true,
+                                                                  showSkipButtons:
+                                                                      true,
                                                                   bottomInset:
                                                                       compactMiniPlayerBottomInset,
                                                                   enableVerticalExpandGesture:
@@ -2168,6 +2171,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                             : _MiniPlayerStrip(
                                                 playback: playback,
                                                 flattenWideStyle:
+                                                    useWideMiniPlayerStyle,
+                                                showSkipButtons:
                                                     useWideMiniPlayerStyle,
                                                 enableVerticalExpandGesture:
                                                     false,
