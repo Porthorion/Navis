@@ -65,7 +65,11 @@ Future<void> _pump(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  // A title wider than its line scrolls forever (#569): bounded pumps, inside
+  // the marquee's start pause, where it still shows its resting form.
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 void main() {

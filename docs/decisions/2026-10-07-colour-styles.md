@@ -444,8 +444,12 @@ fill it opened with. With accent-from-album on, the scheme is already
 album-seeded, so the mix stays subtle and the contrast is still checked.
 
 Sheets & Menus has three modes (owner, 2026-11-11). **Match Now Playing**
-(default) leaves menus and sheets on the theme and makes the phone queue follow
-the Now Playing background, now including Art-Tinted. **Album Color** gives the
+(default) leaves menus on the theme and makes the phone queue follow the Now
+Playing background, now including Art-Tinted. Bottom sheets opened while Now
+Playing is expanded (settings, song menu, speed panel) also take it, as a solid
+`albumSheetSurface` seeded from the published `tintColor` or Artwork cover
+average (owner, 2026-11-11, #560); sheets opened elsewhere, dialogs and
+popovers keep the theme. **Album Color** gives the
 queue, menus and sheets the tint above, opaque, and never a blur. **Theme**
 draws the queue as an opaque theme surface. The setting is a Look field, has no
 setup step and no "New" tag.

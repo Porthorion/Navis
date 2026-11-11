@@ -1086,7 +1086,11 @@ target-selection rules.
     `PopupMenuTheme` and `MenuTheme`, varying only the colour. The sheet helper
     `showNavisModalSheet` and the popover read the fill back from
     `PopupMenuTheme.of(context).color` once, at open, so an open sheet keeps
-    its fill across a track change and theme change. Every modal sheet opens
+    its fill across a track change and theme change. In Match Now Playing,
+    `showNavisModalSheet` (sheets only) falls back to `albumSheetSurface`
+    seeded from `nowPlayingPublishedBackdropProvider` (`tintColor`, else
+    `coverAverage`) when `playerSheetExpandedProvider` is true; nothing
+    published (Plain/Flat, no art) or Now Playing collapsed keeps the theme. Every modal sheet opens
     through that helper (`navis_modal_sheet_audit_test.dart`).
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
     theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
@@ -1751,9 +1755,11 @@ wide artist and album cells only while hovered; the compact secondary
 surfaces always scroll a truncated title a few times per track, then rest in
 the still form: 2 passes on the phone mini player, the desktop player bar, the
 desktop Mini Player, the rail mini player, the lyrics headers and the wide
-panel header, 3 on Now Playing (title, single artist and album lines; the
-multi-link and folded artist rows hold several tap targets and stay
-ellipsised, and the Now Playing line keeps its `titleStrut`/`artistStrut` and
+panel header, 3 on the Now Playing single artist and album lines, while the
+Now Playing title repeats (`passes` null: rest, travel, rest) for as long as
+Now Playing is visible, still muted by `TickerMode`, `VisibilityDetector` and
+reduced motion (the multi-link and folded artist rows hold several tap targets
+and stay ellipsised, and the Now Playing line keeps its `titleStrut`/`artistStrut` and
 centring). The mini players' and the desktop bar's artist lines are still
 form only (`active: false`), except on desktop, where one `MouseRegion` (`_PointerHover`) per surface makes the title
 loop and the artist scroll while the pointer is over the text. A new track,
@@ -2122,7 +2128,8 @@ strip shows a Remote tag, so a remote song keeps the same two-line height. Every
 strip also swipes: left skips to the next song, right to the previous one (a
 flick over 300 px/s, or a drag of 56 px counted after touch slop; none for
 radio). Previous and Next stay available to screen readers as semantics custom
-actions.
+actions. Where Play directly follows the text (the portrait phone strip, and
+radio on any strip) a 12 dp gap keeps the title and artist clear of the button.
 
 - **Panel.** The full player stays mounted but hidden (`Offstage`, tickers off)
   while collapsed, so opening is instant. A layout delegate places it: its top
