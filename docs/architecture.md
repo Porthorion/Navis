@@ -203,6 +203,16 @@ handler's: an edit still in the handler's queue lane can shift indices
 An Android Auto or media-session replacement does not bump the epoch; the
 content guard limits the damage.
 
+**queue_track_row.dart** (touch row layout): off desktop (`desktopRuntime` false) a
+`QueueTrackRow` uses the phone song-row typography: a two-line `MarqueeText`
+title (`active: false`, bodyMedium w600, primary when selected) over a bodySmall
+artist line, both in the `ListTile` title slot (a `ListTile` subtitle is placed
+by fixed baselines and ignores `minTileHeight` once the text is tall), with
+12 dp / 4 dp directional insets and `minTileHeight` from
+`trackRowReservedHeight`, so short and long titles give equally tall rows at
+any text scale; a disabled row dims both lines. Desktop and the loading, unknown
+and error rows keep the plain `ListTile`.
+
 **queue_track_row.dart** (swipe to remove): a normal `QueueTrackRow` is a
 `Dismissible` in the end-to-start direction only (a left swipe in LTR, directional
 in RTL). It commits at 45% of the row width or on any fling in that direction,
