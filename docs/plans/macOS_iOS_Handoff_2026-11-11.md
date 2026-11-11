@@ -53,7 +53,7 @@ Branch `fix/i527b-cut-transcode` at `da8c49f3f`, worktree `/Users/khalifaalzaroo
 
 ## Remaining #527 items
 
-- Empty queue after a failed first load.
+- Update (successor coordinator, 2026-11-11): I41b merged in #564 (`fbad2ea2`); the empty queue after a failed first load (I41c) merged in #566 (`55a09e43`). Only the restart-only case below remains.
 - Restart-only playback break: waiting on owner diagnostics export after the next occurrence. Hypothesis: media services reset.
 
 ## Owed device checks (owner, hands-on)
