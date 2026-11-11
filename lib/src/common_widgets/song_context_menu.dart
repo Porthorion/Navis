@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
+import 'package:navis/src/common_widgets/song_sheet_header.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
@@ -74,6 +75,14 @@ Future<void> showSongContextMenu(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    SongSheetHeader(
+                      title: song.title,
+                      artist: song.artistName,
+                      album: song.albumName,
+                      coverArtId: song.coverArt,
+                      coverArtRevision: song.coverArtRevision ?? 0,
+                      isExternal: song.isExternal,
+                    ),
                     if (_hasGenreChips(song)) ...<Widget>[
                       Align(
                         alignment: AlignmentDirectional.centerStart,

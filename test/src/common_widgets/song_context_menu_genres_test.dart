@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
+import 'package:navis/src/common_widgets/song_sheet_header.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -71,6 +72,10 @@ void main() {
         tester,
         _song(),
         anchor: anchored ? const Offset(300, 300) : null,
+      );
+      expect(
+        find.byType(SongSheetHeader),
+        anchored ? findsNothing : findsOneWidget,
       );
       expect(find.byType(GenreChips), findsOneWidget);
       expect(find.text('Hip Hop'), findsOneWidget);
