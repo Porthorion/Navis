@@ -43,18 +43,6 @@
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
     },
     {
-      "kind": "declaration",
-      "path": "lib/src/features/player/presentation/queue_provider.dart",
-      "name": "QueueController.removeForUndo",
-      "reason": "deliberate: swipe-remove with Undo (F5 P5b) is its only caller; delete this entry when that lands"
-    },
-    {
-      "kind": "declaration",
-      "path": "lib/src/features/player/presentation/queue_provider.dart",
-      "name": "QueueController.undoRemoval",
-      "reason": "deliberate: swipe-remove with Undo (F5 P5b) is its only caller; delete this entry when that lands"
-    },
-    {
       "kind": "dependency",
       "path": "pubspec.yaml",
       "name": "cupertino_icons",

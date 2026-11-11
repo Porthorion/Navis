@@ -111,8 +111,8 @@ void main() {
       await start(_BatchHandler(), ['a', 'b', 'c']);
 
       expect(await controller().removeForUndo(1, 'x'), isNull);
-      expect(await controller().removeForUndo(5, 'c'), isNull);
-      expect(await controller().removeForUndo(-1, 'a'), isNull);
+      expect(await controller().removeForUndo(5, 'x'), isNull);
+      expect(await controller().removeForUndo(-1, 'x'), isNull);
 
       expect(removed, isEmpty);
     }, skip: !sqliteAvailable);
@@ -166,6 +166,47 @@ void main() {
       expect(await first, isNotNull);
       expect(await second, isNull);
       expect(removed, [1]);
+    }, skip: !sqliteAvailable);
+
+    test('a row shifted by an earlier removal falls back to its only copy', () async {
+      removeDelay = const Duration(milliseconds: 20);
+      await start(_BatchHandler(), ['a', 'b', 'c', 'd']);
+
+      final first = controller().removeForUndo(1, 'b');
+      // Swiped while 'b' was still listed: index 3 is out of range by its turn.
+      final second = controller().removeForUndo(3, 'd');
+
+      expect((await first)!.idsAfter, ['a', 'c', 'd']);
+      final removal = (await second)!;
+      expect(removal.index, 2);
+      expect(removal.songId, 'd');
+      expect(removal.idsAfter, ['a', 'c']);
+      expect(removed, [1, 2]);
+    }, skip: !sqliteAvailable);
+
+    test('a shifted row is refused after the queue was replaced', () async {
+      removeDelay = const Duration(milliseconds: 20);
+      await start(_BatchHandler(), ['a', 'b', 'c', 'd']);
+
+      final first = controller().removeForUndo(1, 'b');
+      final second = controller().removeForUndo(3, 'd');
+      controller().reserveSelection();
+
+      expect(await first, isNotNull);
+      expect(await second, isNull);
+      expect(removed, [1]);
+    }, skip: !sqliteAvailable);
+
+    test('a shifted row of a duplicated song is refused', () async {
+      removeDelay = const Duration(milliseconds: 20);
+      await start(_BatchHandler(), ['a', 'x', 'b', 'x']);
+
+      final first = controller().removeForUndo(0, 'a');
+      final second = controller().removeForUndo(3, 'x');
+
+      expect(await first, isNotNull);
+      expect(await second, isNull);
+      expect(removed, [0]);
     }, skip: !sqliteAvailable);
 
     test('a failed removal reports the error and returns null', () async {
