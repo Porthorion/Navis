@@ -1275,7 +1275,7 @@ Missing controls fail explicitly; primary diagnostics reject every mutation.
 `play` invokes the first mounted shared row's production tap callback, so the
 Downloaded tab exercises `playSongIdInCollection` and its Album Queue setting.
 `download` finds the row download icon (`SongDownloadStatusIcon`) on desktop rows only; phone rows show a
-non-tappable glyph and download from the ⋯ menu, so the action fails explicitly there.
+non-tappable mark before the artist and download from the ⋯ menu, so the action fails explicitly there.
 Relative `POST /v1/presentation/scroll {"by": n}` sends a Flutter pointer-scroll
 signal to cancel initial queue centring, then moves the selected scroll owner
 without scrolling a nested child. Lists whose centre is covered by a shell

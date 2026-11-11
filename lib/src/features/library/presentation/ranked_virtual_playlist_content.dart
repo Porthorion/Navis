@@ -411,7 +411,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
               _showMenu(context, ref, song, anchor: details.globalPosition),
             ),
       // Desktop keeps the download button: this row has no desktop branch.
-      trailingStatus: song == null || desktopRuntime
+      downloadStatus: song == null || desktopRuntime
           ? null
           : SongDownloadStatusGlyph(songId: song.id),
       actions: song == null

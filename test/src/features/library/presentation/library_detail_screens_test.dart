@@ -1610,9 +1610,16 @@ void main() {
         of: find.byType(AdaptiveTrackRow),
         matching: find.byIcon(icon),
       );
-      expect(inRows(Icons.check_circle), findsOneWidget);
+      expect(inRows(Icons.download_for_offline), findsOneWidget);
       expect(inRows(Icons.download_outlined), findsNothing);
       expect(inRows(Icons.more_vert), findsNWidgets(2));
+      // On line 2, after the title's left edge, not beside the track number.
+      final mark = tester.getRect(inRows(Icons.download_for_offline));
+      final title = tester.getRect(find.text('Done song'));
+      final number = tester.getRect(find.text('1'));
+      expect(mark.top, greaterThanOrEqualTo(title.bottom - 1));
+      expect(mark.left, greaterThan(number.right));
+      expect(mark.left, closeTo(title.left, 1));
     });
 
     testWidgets('mobile album keeps numbered controls beside 64 px tracks', (
