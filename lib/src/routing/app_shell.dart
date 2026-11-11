@@ -2210,20 +2210,24 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         // Now Playing reads the live snapshot. The shell's
                                         // deduped `playback` skips seek settlement and
                                         // queue edits, so it must not be passed down.
-                                        fullPlayer: NowPlayingScreen(
-                                          onShowQueue: () =>
-                                              NavService.showQueue(
-                                                context,
-                                                ref,
-                                              ),
-                                          onCollapse: () => ref
-                                              .read(
-                                                playerOverlayStackProvider
-                                                    .notifier,
-                                              )
-                                              .collapse(),
-                                          onBackInterceptorChanged:
-                                              _setNowPlayingBackInterceptor,
+                                        // Paused under the fullscreen queue (endless title marquee).
+                                        fullPlayer: TickerMode(
+                                          enabled: !showQueueOverlay,
+                                          child: NowPlayingScreen(
+                                            onShowQueue: () =>
+                                                NavService.showQueue(
+                                                  context,
+                                                  ref,
+                                                ),
+                                            onCollapse: () => ref
+                                                .read(
+                                                  playerOverlayStackProvider
+                                                      .notifier,
+                                                )
+                                                .collapse(),
+                                            onBackInterceptorChanged:
+                                                _setNowPlayingBackInterceptor,
+                                          ),
                                         ),
                                       ),
                                 ),
