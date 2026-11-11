@@ -402,7 +402,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         entry.playlistIndex,
                         anchor: details.globalPosition,
                       ),
-                      trailingStatus: desktopMode
+                      downloadStatus: desktopMode
                           ? null
                           : SongDownloadStatusGlyph(songId: song.id),
                       trailing: desktopMode
@@ -455,7 +455,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         index,
                         anchor: details.globalPosition,
                       ),
-                      trailingStatus: desktopMode
+                      downloadStatus: desktopMode
                           ? null
                           : SongDownloadStatusGlyph(songId: song.id),
                       trailing: desktopMode

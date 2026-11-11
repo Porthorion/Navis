@@ -2083,7 +2083,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       return TrackListTile(
                         song: song,
                         actionExtent: desktopMode ? null : 96,
-                        trailingStatus: desktopMode
+                        downloadStatus: desktopMode
                             ? null
                             : SongDownloadStatusGlyph(songId: song.id),
                         trailing: desktopMode

@@ -459,7 +459,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 anchor: details.globalPosition,
                               ),
                             ),
-                            trailingStatus: desktopMode
+                            downloadStatus: desktopMode
                                 ? null
                                 : song.isExternal
                                 ? const SizedBox.shrink()
