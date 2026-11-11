@@ -349,7 +349,13 @@ class AdaptiveTrackRow extends StatelessWidget {
         // so remote rows keep the height and title position of local rows.
         final remoteOnTitle = isRemote && secondary.isEmpty;
         final touchCompact = _isCompactTouch(context, width);
-        final inlineStatus = touchCompact ? downloadStatus : null;
+        // The mark rides on line 2 only: rows without secondary text show it
+        // only when they are two-line rows (their height is reserved), and
+        // remote rows never show it, whatever the caller passes.
+        final inlineStatus =
+            touchCompact && !isRemote && (secondary.isNotEmpty || twoLineTitle)
+            ? downloadStatus
+            : null;
         final titleColumn = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,9 +392,7 @@ class AdaptiveTrackRow extends StatelessWidget {
                   ),
                   isRemote: isRemote,
                 ),
-              )
-            else
-              ?inlineStatus,
+              ),
             ?badge,
           ],
         );
@@ -416,7 +420,7 @@ class AdaptiveTrackRow extends StatelessWidget {
         final boxedStatus = touchCompact ? null : downloadStatus;
         // Inline mark: [actionExtent] still counts the status box callers
         // reserved, so the actions take their natural width instead.
-        final naturalActions = inlineStatus != null;
+        final naturalActions = touchCompact && downloadStatus != null;
         final estimatedActions = naturalActions
             ? (actions == null
                   ? 0.0

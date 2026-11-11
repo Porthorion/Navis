@@ -39,6 +39,7 @@ void main() {
     SongDownloadState? status,
     VoidCallback? onTap,
     bool rtl = false,
+    bool realGlyphWhenRemote = false,
   }) async {
     setAdaptiveTestViewport(tester, size);
     await tester.pumpWidget(
@@ -90,7 +91,7 @@ void main() {
                           actionExtent: buttons * 48,
                           downloadStatus: status == null
                               ? null
-                              : remote
+                              : remote && !realGlyphWhenRemote
                               ? const SizedBox.shrink()
                               : const SongDownloadStatusGlyph(songId: 'row'),
                           actions: buttons == 0
@@ -328,6 +329,7 @@ void main() {
 
         final plain = await measure(SongDownloadState.none);
         final marked = await measure(downloaded);
+        expect(indicatorFinder, findsOneWidget);
         expect(marked, plain);
         expect(tester.takeException(), isNull);
       });
@@ -414,6 +416,53 @@ void main() {
     await render(tester, status: downloaded, remote: true);
     expect(indicatorFinder, findsNothing);
   });
+
+  testWidgets('a remote row ignores a real glyph its caller passes', (
+    tester,
+  ) async {
+    await render(
+      tester,
+      status: downloaded,
+      remote: true,
+      realGlyphWhenRemote: true,
+    );
+    expect(indicatorFinder, findsNothing);
+    await render(
+      tester,
+      status: downloaded,
+      remote: true,
+      realGlyphWhenRemote: true,
+      artist: null,
+      album: null,
+    );
+    expect(indicatorFinder, findsNothing);
+  });
+
+  for (final width in [420.0, 480.0, 560.0]) {
+    testWidgets('one-line rows without metadata show no mark at $width', (
+      tester,
+    ) async {
+      Future<Rect> title(SongDownloadState state) async {
+        await render(
+          tester,
+          size: Size(width, 844),
+          twoLineTitle: false,
+          artist: null,
+          album: null,
+          status: state,
+        );
+        return tester.getRect(
+          find.text('A long song title that must truncate'),
+        );
+      }
+
+      final plain = await title(SongDownloadState.none);
+      final marked = await title(downloaded);
+      expect(indicatorFinder, findsNothing);
+      expect(marked, plain);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('a row without metadata keeps its height and shows the mark', (
     tester,
