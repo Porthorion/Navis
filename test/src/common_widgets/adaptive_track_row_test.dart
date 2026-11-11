@@ -580,7 +580,7 @@ void main() {
 
   group('long titles', () {
     const title = 'A very long song title that cannot fit in a narrow row';
-    const version = ' (Radio Edit)';
+    const version = ' (Edit)';
     const away = Offset(200, 550);
     const longAlbum =
         'An album name that is far too long for its column to hold';

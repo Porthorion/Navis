@@ -126,8 +126,10 @@ Text _oneLine(
   textDirection: textDirection,
 );
 
-/// The title at rest. Without a version, or when it fits, a plain [Text];
-/// a truncated title with a version ellipsizes only its base.
+/// The title at rest. Without a version, when it fits, with a credit
+/// ("feat. X", "From X") or with a version over [_maxSuffixShare] of the
+/// width, a plain [Text] with one ellipsis; otherwise a truncated title
+/// ellipsizes only its base and keeps its version whole.
 class _VersionKeepingLine extends StatelessWidget {
   const new({
     required this.text,
@@ -141,20 +143,27 @@ class _VersionKeepingLine extends StatelessWidget {
   final TextAlign textAlign;
   final StrutStyle? strutStyle;
 
-  /// Share of the width a version may take before it is ellipsized too.
-  static const double _maxSuffixShare = 0.6;
+  /// Share of the width a version may take before the whole title gets one
+  /// plain ellipsis instead.
+  static const double _maxSuffixShare = 0.55;
 
   @override
   Widget build(BuildContext context) {
     final plain = _oneLine(text, style, textAlign, strutStyle);
     final (:base, :suffix) = splitTitleVersion(text);
-    if (suffix.isEmpty) return plain;
+    if (suffix.isEmpty || isTitleCredit(suffix)) return plain;
     final painter = _painter(context, text, style, strutStyle)..layout();
     final textWidth = painter.width.ceilToDouble();
     painter.dispose();
+    final suffixPainter = _painter(context, suffix, style, strutStyle)
+      ..layout();
+    final suffixWidth = suffixPainter.width.ceilToDouble();
+    suffixPainter.dispose();
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (!constraints.hasBoundedWidth || textWidth <= constraints.maxWidth) {
+        if (!constraints.hasBoundedWidth ||
+            textWidth <= constraints.maxWidth ||
+            suffixWidth > constraints.maxWidth * _maxSuffixShare) {
           return plain;
         }
         // Follow the base's first strong character, not the surrounding
@@ -179,18 +188,7 @@ class _VersionKeepingLine extends StatelessWidget {
                   direction,
                 ),
               ),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth * _maxSuffixShare,
-                ),
-                child: _oneLine(
-                  suffix,
-                  style,
-                  TextAlign.start,
-                  strutStyle,
-                  direction,
-                ),
-              ),
+              _oneLine(suffix, style, TextAlign.start, strutStyle, direction),
             ],
           ),
         );

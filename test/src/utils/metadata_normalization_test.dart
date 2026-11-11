@@ -275,4 +275,39 @@ void main() {
       }
     });
   });
+
+  group('isTitleCredit', () {
+    test('is true for feat., From, with and prod. credits', () {
+      for (final suffix in [
+        ' (From "Kingdom Hearts")',
+        ' [From Kingdom Hearts]',
+        ' (feat. X)',
+        ' [ft. X]',
+        ' (with X)',
+        ' (prod. X)',
+        ' (prod by X)',
+        ' - From X',
+        ' (FROM X)',
+        ' (Feat X)',
+      ]) {
+        expect(isTitleCredit(suffix), isTrue, reason: suffix);
+      }
+    });
+
+    test('is false for versions and look-alike words', () {
+      for (final suffix in [
+        ' (Remastered 1999)',
+        ' (Radio Edit)',
+        ' (3rd Climax Mix)',
+        ' (Live)',
+        ' (Without You)',
+        ' (Fromage)',
+        ' (Production Mix)',
+        ' - Live',
+        '',
+      ]) {
+        expect(isTitleCredit(suffix), isFalse, reason: suffix);
+      }
+    });
+  });
 }

@@ -235,7 +235,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        _host(text: _versioned, width: 300, active: false),
+        _host(text: _versioned, width: 320, active: false),
       );
 
       final host = rect(tester, find.byType(MarqueeText));
@@ -298,7 +298,7 @@ void main() {
 
     testWidgets('reduced motion shows the same still form', (tester) async {
       await tester.pumpWidget(
-        _host(text: _versioned, width: 300, reduceMotion: true),
+        _host(text: _versioned, width: 320, reduceMotion: true),
       );
       expect(find.text(_suffix), findsOneWidget);
       expect(_exceeds(tester, find.text(_suffix)), isFalse);
@@ -309,7 +309,7 @@ void main() {
     testWidgets('active: still form at rest, full text while travelling', (
       tester,
     ) async {
-      await tester.pumpWidget(_host(text: _versioned, width: 300, passes: 1));
+      await tester.pumpWidget(_host(text: _versioned, width: 320, passes: 1));
 
       // The start pause shows the version.
       await tester.pump(kMarqueeStartPause ~/ 2);
@@ -329,7 +329,7 @@ void main() {
     testWidgets('the full title is one semantics node', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _host(text: _versioned, width: 300, active: false),
+        _host(text: _versioned, width: 320, active: false),
       );
 
       expect(find.bySemanticsLabel(_versioned), findsOneWidget);
@@ -365,7 +365,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           text: _versioned,
-          width: 300,
+          width: 320,
           active: false,
           direction: TextDirection.rtl,
         ),
@@ -382,30 +382,83 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        _host(text: 'Song (ريمكس)', width: 100, active: false),
+        _host(text: 'A long song (ريمكس)', width: 200, active: false),
       );
       final suffix = rect(tester, find.text(' (ريمكس)'));
-      final base = rect(tester, find.text('Song'));
+      final base = rect(tester, find.text('A long song'));
       expect(suffix.center.dx, greaterThan(base.center.dx));
     });
 
-    testWidgets('a suffix wider than 60 percent is ellipsized too', (
+    testWidgets('a suffix wider than 55 percent gives one plain ellipsis', (
       tester,
     ) async {
       const title = 'Song (A remix with a really very long descriptive name)';
       await tester.pumpWidget(_host(text: title, width: 200, active: false));
 
-      final host = rect(tester, find.byType(MarqueeText));
-      final suffix = find.text(
-        ' (A remix with a really very long descriptive name)',
+      final texts = find.descendant(
+        of: find.byType(MarqueeText),
+        matching: find.byType(Text),
       );
-      expect(_exceeds(tester, suffix), isTrue);
+      expect(texts, findsOneWidget);
+      expect(tester.widget<Text>(texts).data, title);
       expect(
-        rect(tester, suffix).width,
-        lessThanOrEqualTo(host.width * 0.6 + 0.5),
+        find.descendant(
+          of: find.byType(MarqueeText),
+          matching: find.byType(Row),
+        ),
+        findsNothing,
       );
-      expect(rect(tester, suffix).right, lessThanOrEqualTo(host.right + 0.5));
+      expect(_exceeds(tester, texts), isTrue);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a credit suffix never splits', (tester) async {
+      const title = 'Dearly Beloved (From "Kingdom Hearts")';
+      await tester.pumpWidget(_host(text: title, width: 181, active: false));
+
+      final texts = find.descendant(
+        of: find.byType(MarqueeText),
+        matching: find.byType(Text),
+      );
+      expect(texts, findsOneWidget);
+      expect(tester.widget<Text>(texts).data, title);
+      expect(_exceeds(tester, texts), isTrue);
+      expect(
+        find.descendant(
+          of: find.byType(MarqueeText),
+          matching: find.byType(Row),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('a short tag under 55 percent stays pinned', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          text: 'Dearly Beloved Reprise (Radio Edit)',
+          width: 320,
+          active: false,
+        ),
+      );
+
+      final suffix = find.text(' (Radio Edit)');
+      expect(suffix, findsOneWidget);
+      expect(_exceeds(tester, suffix), isFalse);
+      final host = rect(tester, find.byType(MarqueeText));
+      expect(rect(tester, suffix).right, lessThanOrEqualTo(host.right + 0.5));
+    });
+
+    testWidgets('only the last suffix of a title is tested for a credit', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          text: 'A very long song title (feat. X) (Remix)',
+          width: 320,
+          active: false,
+        ),
+      );
+      expect(find.text(' (Remix)'), findsOneWidget);
     });
 
     testWidgets('centred text that fits is centred', (tester) async {
@@ -424,11 +477,11 @@ void main() {
     ) async {
       const strut = StrutStyle(fontSize: 13, height: 3, forceStrutHeight: true);
       await tester.pumpWidget(
-        _host(text: _versioned, width: 300, active: false, strutStyle: strut),
+        _host(text: _versioned, width: 320, active: false, strutStyle: strut),
       );
       expect(tester.getSize(find.byType(MarqueeText)).height, closeTo(39, 0.5));
       await tester.pumpWidget(
-        _host(text: _versioned, width: 300, strutStyle: strut),
+        _host(text: _versioned, width: 320, strutStyle: strut),
       );
       expect(tester.getSize(find.byType(MarqueeText)).height, closeTo(39, 0.5));
       await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));

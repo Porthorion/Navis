@@ -1746,8 +1746,10 @@ through `MotionPolicy`, the start pause, after the last of `passes`) a truncated
 title shows its still form: `splitTitleVersion` (`metadata_normalization.dart`)
 splits the last trailing `(…)`, `[…]`, full-width or ` - ` qualifier off the
 title, the base is ellipsised and the version kept whole on the same line
-("Long Song Na… (Radio Edit)"; a version over 60% of the width is ellipsised
-too, in the title's own direction), so edits of one song stay distinguishable.
+("Long Song Na… (Radio Edit)"), so edits of one song stay distinguishable. A
+credit (`isTitleCredit`: `feat.`/`ft.`, `From …`, `with …`, `prod. …`) is never
+pinned, and neither is a version over 55% of the width: the whole title gets one
+plain ellipsis, so base and version are never both ellipsised.
 Track rows (`AdaptiveTrackRow`) make the title active only while the row is
 hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes), and the
 wide artist and album cells only while hovered; the compact secondary

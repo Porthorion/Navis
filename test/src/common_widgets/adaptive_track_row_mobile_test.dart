@@ -292,8 +292,8 @@ void main() {
           child: Scaffold(
             body: Column(
               children: [
-                row('A Very Long Song Name For Testing (Radio Edit)'),
-                row('A Very Long Song Name For Testing (Extended Mix)'),
+                row('A Very Long Song Name For Testing (Edit)'),
+                row('A Very Long Song Name For Testing (Mix)'),
               ],
             ),
           ),
@@ -303,10 +303,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final rows = find.byType(AdaptiveTrackRow);
-    for (final (index, suffix) in [
-      ' (Radio Edit)',
-      ' (Extended Mix)',
-    ].indexed) {
+    for (final (index, suffix) in [' (Edit)', ' (Mix)'].indexed) {
       final text = find.text(suffix);
       expect(text, findsOneWidget, reason: suffix);
       final rect = tester.getRect(text);
