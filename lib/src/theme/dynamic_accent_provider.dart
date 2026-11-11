@@ -114,15 +114,13 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
 });
 
 /// Seed colour of the playing cover for Album Color sheets and menus: live
-/// when [SheetStyle.albumColor] is chosen (or accent-from-album already reads
-/// the same cover), `null` otherwise. It resolves through the one shared
-/// [DynamicAccentColorCache], so a song is extracted once however many
-/// consumers ask. It is separate from [effectiveColorSchemeSeedProvider], so
+/// only when [SheetStyle.albumColor] is chosen, `null` otherwise. It resolves
+/// through the one shared [DynamicAccentColorCache], which also dedupes
+/// in-flight work, so a song is extracted once even while the accent seed
+/// asks for the same cover. It is separate from [effectiveColorSchemeSeedProvider], so
 /// Album Color never re-seeds the app theme.
 final albumSurfaceSeedProvider = FutureProvider<int?>((ref) async {
-  final wanted =
-      ref.watch(sheetStyleProvider) == SheetStyle.albumColor ||
-      ref.watch(dynamicAccentEnabledProvider);
+  final wanted = ref.watch(sheetStyleProvider) == SheetStyle.albumColor;
   final source = wanted ? ref.watch(playingArtworkSourceProvider) : null;
   if (source == null) {
     return null;
@@ -212,16 +210,49 @@ class DynamicAccentColorCache {
   int? peekArtwork(ArtworkSeedRequest request) =>
       peek('id:${request.coverArtId}') ?? peek(artworkSource(request));
 
+  final Map<String, Future<int?>> _pending = <String, Future<int?>>{};
+
+  /// The seed for [source]. A finished seed is cached; concurrent callers of
+  /// the same source share one [extract]. A `null` result (or a throw) is not
+  /// cached, so a later call retries.
   Future<int?> resolve({
     required String source,
     required SubsonicApiClient? api,
     required BaseCacheManager cacheManager,
-  }) async {
+  }) {
     final cached = _seedBySource[source];
     if (cached != null) {
-      return cached;
+      return Future<int?>.value(cached);
     }
+    return _pending[source] ??= _extractOnce(source, api, cacheManager);
+  }
 
+  Future<int?> _extractOnce(
+    String source,
+    SubsonicApiClient? api,
+    BaseCacheManager cacheManager,
+  ) async {
+    try {
+      final seed = await extract(
+        source: source,
+        api: api,
+        cacheManager: cacheManager,
+      );
+      if (seed != null) _seedBySource[source] = seed;
+      return seed;
+    } finally {
+      unawaited(_pending.remove(source));
+    }
+  }
+
+  /// Reads the colour from the artwork; `null` when there is none. The one
+  /// seam [resolve] dedupes around.
+  @visibleForTesting
+  Future<int?> extract({
+    required String source,
+    required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
+  }) async {
     final image = _toImageProvider(
       source: source,
       api: api,
@@ -237,10 +268,7 @@ class DynamicAccentColorCache {
         brightness: Brightness.light,
         dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
       );
-      if (scheme == null) return null;
-      final seed = scheme.primary.toARGB32();
-      _seedBySource[source] = seed;
-      return seed;
+      return scheme?.primary.toARGB32();
     } on Object {
       return null;
     }

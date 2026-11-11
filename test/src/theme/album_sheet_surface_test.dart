@@ -61,6 +61,15 @@ void main() {
           if (mode == 'oled') {
             expect(fill.computeLuminance(), lessThan(0.08));
           }
+          // Pin the share set: OLED mixes only 0.08 / 0.05 / 0.03 of the seed.
+          final tint = Color(entry.value).withValues(alpha: 1);
+          final steps = mode == 'oled'
+              ? const [0.08, 0.05, 0.03]
+              : const [0.16, 0.10, 0.05];
+          expect(
+            steps.map((step) => Color.lerp(_base(theme), tint, step)),
+            contains(fill),
+          );
         });
       }
     }

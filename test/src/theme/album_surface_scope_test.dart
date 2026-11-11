@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file/file.dart' show File;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,14 +49,51 @@ class _Cache extends DynamicAccentColorCache {
   }
 }
 
+/// The real cache and its dedupe; only the extraction is stubbed.
+class _ExtractCache extends DynamicAccentColorCache {
+  final extracted = <String>[];
+
+  @override
+  Future<int?> extract({
+    required String source,
+    required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
+  }) async {
+    extracted.add(source);
+    return source == 'id:a' ? _seedA : null;
+  }
+}
+
+class _ThrowOnceCache extends DynamicAccentColorCache {
+  var _calls = 0;
+
+  @override
+  Future<int?> extract({
+    required String source,
+    required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
+  }) async {
+    if (_calls++ == 0) throw StateError('boom');
+    return _seedA;
+  }
+}
+
 class _UnusedFileSystem implements FileSystem {
   @override
   Future<File> createFile(String name) => throw UnimplementedError();
 }
 
+CacheManager _cacheManager() => CacheManager(
+  Config(
+    'navis-album-surface-test',
+    repo: NonStoringObjectProvider(),
+    fileSystem: _UnusedFileSystem(),
+  ),
+);
+
 List<Override> _overrides(
   SheetStyle style,
-  _Cache cache, {
+  DynamicAccentColorCache cache, {
   String? source = 'id:a',
 }) => [
   appSettingsProvider.overrideWithValue(
@@ -62,15 +101,7 @@ List<Override> _overrides(
   ),
   colorSchemeSeedProvider.overrideWith((_) => _selected),
   subsonicApiProvider.overrideWithValue(null),
-  coverArtCacheManagerProvider.overrideWithValue(
-    CacheManager(
-      Config(
-        'navis-album-surface-test',
-        repo: NonStoringObjectProvider(),
-        fileSystem: _UnusedFileSystem(),
-      ),
-    ),
-  ),
+  coverArtCacheManagerProvider.overrideWithValue(_cacheManager()),
   dynamicAccentColorCacheProvider.overrideWithValue(cache),
   playingArtworkSourceProvider.overrideWith(
     (ref) => source == null ? null : ref.watch(_sourceProvider),
@@ -323,6 +354,141 @@ void main() {
     });
   }
 
+  // The album seed is overridden so these pin the scope itself, not the
+  // provider's own gating.
+  for (final style in [SheetStyle.theme, SheetStyle.matchNowPlaying]) {
+    testWidgets('accent on, seed available, ${style.name}: no tint', (
+      tester,
+    ) async {
+      final theme = _theme('dark');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ..._overrides(style, _Cache()),
+            dynamicAccentEnabledProvider.overrideWith((_) => true),
+            albumSurfaceSeedProvider.overrideWith((_) async => _seedA),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            builder: (context, child) => AlbumSurfaceScope(child: child!),
+            home: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showNavisModalSheet<void>(
+                  context: context,
+                  builder: (_) => const SizedBox(height: 100),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(
+        _materialColor(tester, find.byType(BottomSheet)),
+        theme.colorScheme.surfaceContainerLow,
+      );
+    });
+  }
+
+  group('song change', () {
+    final theme = _theme('dark');
+    late Completer<int?> nextSeed;
+
+    Future<void> pumpApp(WidgetTester tester, Widget home) async {
+      nextSeed = Completer<int?>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ..._overrides(SheetStyle.albumColor, _Cache()),
+            albumSurfaceSeedProvider.overrideWith((ref) async {
+              final source = ref.watch(_sourceProvider);
+              return source == 'id:a' ? _seedA : await nextSeed.future;
+            }),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            builder: (context, child) => AlbumSurfaceScope(child: child!),
+            home: home,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    void changeSong(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
+            .read(_sourceProvider.notifier)
+            .set('id:b');
+
+    Iterable<Color?> popupColors(WidgetTester tester) => tester
+        .widgetList<Material>(
+          find.ancestor(
+            of: find.text('popup item'),
+            matching: find.byType(Material),
+          ),
+        )
+        .map((m) => m.color);
+
+    testWidgets('menus keep the previous tint while the new seed loads', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PopupMenuButton<int>(
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 1, child: Text('popup item')),
+            ],
+          ),
+        ),
+      );
+      changeSong(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(PopupMenuButton<int>));
+      await tester.pumpAndSettle();
+      expect(popupColors(tester), contains(_tintFor(theme, _seedA)));
+      await tester.tapAt(const Offset(2, 2));
+      await tester.pumpAndSettle();
+
+      nextSeed.complete(_seedB);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(PopupMenuButton<int>));
+      await tester.pumpAndSettle();
+      expect(popupColors(tester), contains(_tintFor(theme, _seedB)));
+    });
+
+    testWidgets('an open sheet keeps its fill across a song change', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showNavisModalSheet<void>(
+                context: context,
+                builder: (_) => const SizedBox(height: 100),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final tintA = _tintFor(theme, _seedA);
+      expect(_materialColor(tester, find.byType(BottomSheet)), tintA);
+
+      changeSong(tester);
+      nextSeed.complete(_seedB);
+      await tester.pumpAndSettle();
+      expect(_materialColor(tester, find.byType(BottomSheet)), tintA);
+    });
+  });
+
   group('colour source', () {
     ProviderContainer container(SheetStyle style, _Cache cache) {
       final c = ProviderContainer(
@@ -347,6 +513,65 @@ void main() {
       final cache = _Cache();
       final c = container(SheetStyle.albumColor, cache);
       expect(await c.read(albumSurfaceSeedProvider.future), _seedA);
+    });
+
+    test('accent on + Album Color extracts a song once', () async {
+      final cache = _ExtractCache();
+      final c = ProviderContainer(
+        overrides: [
+          ..._overrides(SheetStyle.albumColor, cache),
+          dynamicAccentEnabledProvider.overrideWith((_) => true),
+        ],
+      );
+      addTearDown(c.dispose);
+      final accent = c.listen(dynamicAccentSeedColorProvider, (_, _) {});
+      final album = c.listen(albumSurfaceSeedProvider, (_, _) {});
+      addTearDown(accent.close);
+      addTearDown(album.close);
+      expect(await c.read(dynamicAccentSeedColorProvider.future), _seedA);
+      expect(await c.read(albumSurfaceSeedProvider.future), _seedA);
+      expect(cache.extracted, ['id:a']);
+    });
+
+    test('accent on + another style: no album extraction', () async {
+      for (final style in [SheetStyle.matchNowPlaying, SheetStyle.theme]) {
+        final cache = _ExtractCache();
+        final c = ProviderContainer(
+          overrides: [
+            ..._overrides(style, cache),
+            dynamicAccentEnabledProvider.overrideWith((_) => true),
+          ],
+        );
+        addTearDown(c.dispose);
+        expect(await c.read(albumSurfaceSeedProvider.future), isNull);
+        expect(cache.extracted, isEmpty);
+      }
+    });
+
+    test('a failed extraction is not cached and is retried', () async {
+      final cache = _ExtractCache();
+      Future<int?> ask(String source) => cache.resolve(
+        source: source,
+        api: null,
+        cacheManager: _cacheManager(),
+      );
+      expect(await ask('id:x'), isNull);
+      expect(await ask('id:x'), isNull);
+      expect(cache.extracted, ['id:x', 'id:x']);
+      expect(await ask('id:a'), _seedA);
+      expect(await ask('id:a'), _seedA);
+      expect(cache.extracted, ['id:x', 'id:x', 'id:a']);
+    });
+
+    test('a throwing extraction does not poison later calls', () async {
+      final cache = _ThrowOnceCache();
+      Future<int?> ask() => cache.resolve(
+        source: 'id:a',
+        api: null,
+        cacheManager: _cacheManager(),
+      );
+      await expectLater(ask(), throwsStateError);
+      expect(await ask(), _seedA);
     });
 
     test('a song change leaves the app theme seed alone', () async {

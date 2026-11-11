@@ -7,7 +7,7 @@ import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// Tints popup menus and MenuAnchor menus in Album Color mode, and publishes
-/// the one fill that sheets ([showNavisModalSheet]) and the desktop popover
+/// the one fill that sheets (`showNavisModalSheet`) and the desktop popover
 /// read back through `PopupMenuTheme.of(context).color`.
 ///
 /// It lives below `MaterialApp`'s theme, not in `ThemeData`: a song change
