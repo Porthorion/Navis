@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show ValueKey, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show ValueKey, immutable, listEquals, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -10,6 +11,8 @@ import 'package:navis/src/features/library/data/provisional_search_songs.dart';
 import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/playback_source_resolver.dart'
+    show PlaybackSourceUnavailableException;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -99,8 +102,42 @@ class RetainedArtistQueue extends Notifier<List<SongsTableData>> {
   void clear() => state = const [];
 }
 
+/// What [QueueController.removeForUndo] removed, enough to put it back with
+/// [QueueController.undoRemoval] even if the queue changed in between.
+@immutable
+class QueueRemoval {
+  const new({
+    required this.index,
+    required this.songId,
+    required this.successorId,
+    required this.epoch,
+    required this.idsAfter,
+    required this.wasOnly,
+  });
+
+  final int index;
+  final String songId;
+
+  /// The song that followed the removed row, or null when it was last.
+  final String? successorId;
+
+  /// [QueueController.selectionGeneration] at removal.
+  final int epoch;
+
+  /// The queue as it read once the removal showed.
+  final List<String> idsAfter;
+
+  /// The removed row was the only one: nothing is left to anchor an Undo.
+  final bool wasOnly;
+}
+
 class QueueController extends Notifier<List<String>> {
   Future<void> _recommendationCommitTail = Future<void>.value();
+  Future<void> _removalTail = Future<void>.value();
+
+  /// Set while a removal waits for the queue to show it. `ref.listen` made
+  /// in a method would be closed by the rebuild that delivers the change.
+  void Function(List<String> queue)? _onQueueState;
   int _regularSelectionEpoch = 0;
 
   /// Reserves a selection before its metadata is ready to replace the queue.
@@ -112,6 +149,7 @@ class QueueController extends Notifier<List<String>> {
 
   @override
   List<String> build() {
+    listenSelf((_, next) => _onQueueState?.call(next));
     // Only the queue ids: play/pause and loading changes must not rebuild
     // every queue listener. The handler publishes an unmodifiable list and
     // reuses it until the queue changes, so this neither copies nor rebuilds
@@ -613,6 +651,106 @@ class QueueController extends Notifier<List<String>> {
     await handler.removeAt(index);
   }
 
+  Future<T> _inRemovalOrder<T>(Future<T> Function() task) {
+    final previous = _removalTail;
+    final complete = Completer<void>();
+    _removalTail = complete.future;
+    return previous.then((_) => task()).whenComplete(complete.complete);
+  }
+
+  /// Removes the row at [index] if it still holds [songId], one removal at a
+  /// time, and returns what [undoRemoval] needs once the queue shows the
+  /// change. Null: stale row, failed removal (reported) or no change seen.
+  Future<QueueRemoval?> removeForUndo(int index, String songId) {
+    return _inRemovalOrder(() async {
+      final before = state;
+      if (index < 0 || index >= before.length || before[index] != songId) {
+        return null;
+      }
+      final epoch = _regularSelectionEpoch;
+      final successorId = index + 1 < before.length ? before[index + 1] : null;
+      final ok = await runReportingErrors(
+        () => _requireHandler().removeAt(index),
+        label: 'remove from queue',
+      );
+      if (!ok) return null;
+      final after = await _queueChangedFrom(before);
+      if (after == null) return null;
+      return QueueRemoval(
+        index: index,
+        songId: songId,
+        successorId: successorId,
+        epoch: epoch,
+        idsAfter: after,
+        wasOnly: before.length == 1,
+      );
+    });
+  }
+
+  /// The queue once it differs from [before], or null after a short wait.
+  Future<List<String>?> _queueChangedFrom(List<String> before) async {
+    if (!listEquals(state, before)) return state;
+    final changed = Completer<List<String>?>();
+    _onQueueState = (next) {
+      if (!changed.isCompleted && !listEquals(next, before)) {
+        changed.complete(next);
+      }
+    };
+    try {
+      return await changed.future.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
+    } finally {
+      _onQueueState = null;
+    }
+  }
+
+  /// Puts a removed song back where it was, judged by the queue's content now.
+  ///
+  /// ponytail: an Android Auto or media-session queue replacement does not
+  /// bump the selection epoch; the content guard limits the damage. Upgrade
+  /// path: compare the handler's queue identity.
+  Future<void> undoRemoval(QueueRemoval r) {
+    return _inRemovalOrder(() async {
+      if (r.wasOnly || !ownsSelection(r.epoch) || state.isEmpty) return;
+      // Never the append fallback of insertRuns: that is a wrong-index undo.
+      final handler = _requireHandler();
+      if (handler is! QueueBatchEditor) return;
+      await runReportingErrors(() async {
+        final songs = await ref
+            .read(navisDatabaseProvider)
+            .libraryDao
+            .getSongsByIds(<String>[r.songId]);
+        if (songs.isEmpty || !ownsSelection(r.epoch)) return;
+        final ids = state;
+        final target = listEquals(ids, r.idsAfter)
+            ? r.index
+            : _indexBefore(ids, r.successorId, r.index);
+        final result = await (handler as QueueBatchEditor).insertQueueRuns([
+          QueueInsertRun(target, songs),
+        ]);
+        _relinkLater(_remoteRowIds(songs));
+        if (result.skippedSongIds.isNotEmpty) {
+          throw const PlaybackSourceUnavailableException(
+            'The removed song has no playable source to restore.',
+          );
+        }
+      }, label: 'undo queue removal');
+    });
+  }
+
+  /// Before the song that followed the removed row: its copy at or after
+  /// [index] first, then any copy, else [index] clamped.
+  static int _indexBefore(List<String> ids, String? successorId, int index) {
+    final fallback = index.clamp(0, ids.length);
+    if (successorId == null) return fallback;
+    final near = ids.indexOf(successorId, fallback);
+    if (near >= 0) return near;
+    final any = ids.indexOf(successorId);
+    return any >= 0 ? any : fallback;
+  }
+
   Future<void> playFromIndex(int index) async {
     final handler = _requireHandler();
     await handler.playFromIndex(index);
@@ -702,20 +840,27 @@ class QueueController extends Notifier<List<String>> {
         .add(PlaybackActionError(error: error, action: action));
   }
 
-  /// Fire-and-forget wrapper: runs [action] and routes errors to
-  /// [playbackActionErrorProvider] instead of throwing.
+  /// Runs [action] and routes errors to [playbackActionErrorProvider]
+  /// instead of throwing. Returns whether it completed; a superseded action
+  /// returns false without an error.
+  Future<bool> runReportingErrors(
+    Future<void> Function() action, {
+    String? label,
+  }) async {
+    try {
+      await action();
+      return true;
+    } on OperationCancelledException {
+      // Superseded — not an error.
+    } on Object catch (error) {
+      _emitError(error, action: label);
+    }
+    return false;
+  }
+
+  /// Fire-and-forget wrapper around [runReportingErrors].
   void fireAndForget(Future<void> Function() action, {String? label}) {
-    unawaited(
-      Future<void>(() async {
-        try {
-          await action();
-        } on OperationCancelledException {
-          // Superseded — not an error.
-        } on Object catch (error) {
-          _emitError(error, action: label);
-        }
-      }),
-    );
+    unawaited(runReportingErrors(action, label: label));
   }
 }
 

@@ -177,6 +177,23 @@ Located in `lib/src/providers/app_providers.dart`:
 - `queueProvider` - Current play queue controller
 - `reorderQueueProvider` - Reorder queue items
 
+`QueueController.removeForUndo` removes a row through a serial lane
+(`_removalTail`, like `_recommendationCommitTail`), so rapid swipes run one at
+a time. At its turn it re-reads the queue and removes nothing if the row no
+longer holds the song id, then waits (2 s at most) until the queue shows the
+change and returns a `QueueRemoval` (index, successor id, selection epoch,
+queue after, only-row flag). `undoRemoval` runs on the same lane, so an Undo
+never overtakes a later removal. It re-inserts through
+`QueueBatchEditor.insertQueueRuns` (never the appending `insertRuns`
+fallback), at the old index if the queue is unchanged, else before the song
+that followed the removed one, else at the clamped old index. It does nothing
+after the queue was replaced or cleared (`ownsSelection(epoch)`, checked again
+after the database read), for a handler without batched edits, and for the
+only row (there is no queue to insert into). A song with no playable source is
+reported through the playback action error path. An Android Auto or
+media-session replacement does not bump the epoch; the content guard limits
+the damage.
+
 **queue_current_row_centering.dart**: `QueueSheet` (phone overlay, compact-wide
 overlay, embedded and wide Now Playing panels) and `QueueScreen` wrap their
 list in `QueueCurrentRowCentering`, which once per open jumps (no animation,
