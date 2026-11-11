@@ -660,7 +660,18 @@ class QueueController extends Notifier<List<String>> {
 
   /// Removes the row at [index] if it still holds [songId], one removal at a
   /// time, and returns what [undoRemoval] needs once the queue shows the
-  /// change. Null: stale row, failed removal (reported) or no change seen.
+  /// change. Null means nothing was removed: a stale row or a failed removal
+  /// (reported). If the handler removed the row but the queue did not show it
+  /// within 2 s, the removal is returned anyway with the queue as it reads
+  /// now; the content guard of [undoRemoval] covers the lag.
+  ///
+  /// ponytail: both guards read the published queue, not the handler's. An
+  /// edit already in the handler's `_enqueueQueueEdit` lane but not yet
+  /// published can shift indices, so `removeAt(index)` may hit another song
+  /// (pre-existing). Upgrade path: handler-side `removeAt(index, expectedId)`
+  /// with the successor anchor resolved inside the lane. The removal lane has
+  /// no bound on a hung handler call (a hung handler blocks playback edits
+  /// anyway).
   Future<QueueRemoval?> removeForUndo(int index, String songId) {
     return _inRemovalOrder(() async {
       final before = state;
@@ -674,8 +685,7 @@ class QueueController extends Notifier<List<String>> {
         label: 'remove from queue',
       );
       if (!ok) return null;
-      final after = await _queueChangedFrom(before);
-      if (after == null) return null;
+      final after = await _queueChangedFrom(before) ?? state;
       return QueueRemoval(
         index: index,
         songId: songId,
@@ -710,14 +720,15 @@ class QueueController extends Notifier<List<String>> {
   ///
   /// ponytail: an Android Auto or media-session queue replacement does not
   /// bump the selection epoch; the content guard limits the damage. Upgrade
-  /// path: compare the handler's queue identity.
+  /// path: compare the handler's queue identity. The insert index is judged
+  /// on the published queue too (see [removeForUndo]).
   Future<void> undoRemoval(QueueRemoval r) {
-    return _inRemovalOrder(() async {
-      if (r.wasOnly || !ownsSelection(r.epoch) || state.isEmpty) return;
-      // Never the append fallback of insertRuns: that is a wrong-index undo.
-      final handler = _requireHandler();
-      if (handler is! QueueBatchEditor) return;
-      await runReportingErrors(() async {
+    return _inRemovalOrder(
+      () => runReportingErrors(() async {
+        if (r.wasOnly || !ownsSelection(r.epoch) || state.isEmpty) return;
+        // Never the append fallback of insertRuns: that is a wrong-index undo.
+        final handler = _requireHandler();
+        if (handler is! QueueBatchEditor) return;
         final songs = await ref
             .read(navisDatabaseProvider)
             .libraryDao
@@ -736,8 +747,8 @@ class QueueController extends Notifier<List<String>> {
             'The removed song has no playable source to restore.',
           );
         }
-      }, label: 'undo queue removal');
-    });
+      }, label: 'undo queue removal'),
+    );
   }
 
   /// Before the song that followed the removed row: its copy at or after

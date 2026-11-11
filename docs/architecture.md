@@ -182,17 +182,23 @@ Located in `lib/src/providers/app_providers.dart`:
 a time. At its turn it re-reads the queue and removes nothing if the row no
 longer holds the song id, then waits (2 s at most) until the queue shows the
 change and returns a `QueueRemoval` (index, successor id, selection epoch,
-queue after, only-row flag). `undoRemoval` runs on the same lane, so an Undo
-never overtakes a later removal. It re-inserts through
-`QueueBatchEditor.insertQueueRuns` (never the appending `insertRuns`
+queue after, only-row flag). Null means nothing was removed (stale row or a
+reported failure); if the handler removed the row but the queue did not show it
+in time, the removal is still returned with the queue as it reads then, so the
+caller shows Undo and the content guard covers the lag. `undoRemoval` runs on
+the same lane, so an Undo never overtakes a later removal. It re-inserts
+through `QueueBatchEditor.insertQueueRuns` (never the appending `insertRuns`
 fallback), at the old index if the queue is unchanged, else before the song
 that followed the removed one, else at the clamped old index. It does nothing
 after the queue was replaced or cleared (`ownsSelection(epoch)`, checked again
-after the database read), for a handler without batched edits, and for the
-only row (there is no queue to insert into). A song with no playable source is
-reported through the playback action error path. An Android Auto or
-media-session replacement does not bump the epoch; the content guard limits
-the damage.
+after the database read), for a handler without batched edits, and for the only
+row (there is no queue to insert into). A song with no playable source is
+reported through the playback action error path, as is a missing handler (Undo
+never rejects its future). Both guards read the published queue, not the
+handler's: an edit still in the handler's queue lane can shift indices
+(accepted; a handler-side `removeAt(index, expectedId)` is the upgrade path).
+An Android Auto or media-session replacement does not bump the epoch; the
+content guard limits the damage.
 
 **queue_current_row_centering.dart**: `QueueSheet` (phone overlay, compact-wide
 overlay, embedded and wide Now Playing panels) and `QueueScreen` wrap their

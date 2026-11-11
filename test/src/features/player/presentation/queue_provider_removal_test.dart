@@ -13,9 +13,9 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
 
-class _Handler extends Mock implements NavisPlaybackHandler {}
+class _Handler extends Mock implements NavisPlaybackHandler;
 
-class _BatchHandler extends _Handler implements QueueBatchEditor {}
+class _BatchHandler extends _Handler implements QueueBatchEditor;
 
 void main() {
   late NavisDatabase database;
@@ -179,11 +179,34 @@ void main() {
       expect(errors.single.error, isA<StateError>());
     }, skip: !sqliteAvailable);
 
-    test('a removal the queue never shows returns null', () async {
+    test('a removal the queue never shows still returns the removal', () async {
       removePublishes = false;
       await start(_BatchHandler(), ['a', 'b']);
 
-      expect(await controller().removeForUndo(0, 'a'), isNull);
+      final removal = await controller().removeForUndo(0, 'a');
+
+      expect(removed, [0]);
+      expect(removal, isNotNull);
+      expect(removal!.index, 0);
+      expect(removal.songId, 'a');
+      expect(removal.successorId, 'b');
+      expect(removal.idsAfter, ['a', 'b']);
+      expect(removal.wasOnly, isFalse);
+      expect(errors, isEmpty);
+    }, skip: !sqliteAvailable);
+
+    test('a lagging removal is undone before its successor', () async {
+      removePublishes = false;
+      await start(_BatchHandler(), ['a', 'b', 'c']);
+      final removal = (await controller().removeForUndo(1, 'b'))!;
+      // The queue catches up with the removal after the wait.
+      publish(['a', 'c']);
+      await pumpEventQueue();
+
+      await controller().undoRemoval(removal);
+
+      expect(inserted.single.index, 1);
+      expect(inserted.single.songs.map((s) => s.id), ['b']);
     }, skip: !sqliteAvailable);
   });
 
@@ -313,6 +336,50 @@ void main() {
       expect(container.read(queueProvider), ['b', 'c', 'd']);
     }, skip: !sqliteAvailable);
   });
+
+  test(
+    'undoRemoval without a handler emits an error instead of throwing',
+    () async {
+      final noHandler = ProviderContainer(
+        overrides: [
+          ...withTestDatabase(database),
+          audioHandlerProvider.overrideWithValue(null),
+          playbackSnapshotProvider.overrideWith(
+            (ref) => Stream.value(
+              const PlaybackSnapshot.idle().copyWith(
+                queueSongIds: const ['a', 'c'],
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(noHandler.dispose);
+      noHandler.listen(queueProvider, (_, _) {});
+      final seen = <PlaybackActionError>[];
+      noHandler.listen(
+        playbackActionErrorProvider,
+        (_, next) => next.whenData(seen.add),
+      );
+      await pumpEventQueue();
+
+      await noHandler
+          .read(queueProvider.notifier)
+          .undoRemoval(
+            const QueueRemoval(
+              index: 1,
+              songId: 'b',
+              successorId: 'c',
+              epoch: 0,
+              idsAfter: ['a', 'c'],
+              wasOnly: false,
+            ),
+          );
+      await pumpEventQueue();
+
+      expect(seen.single.error, isA<PlaybackUnavailableException>());
+    },
+    skip: !sqliteAvailable,
+  );
 
   group('runReportingErrors', () {
     test(

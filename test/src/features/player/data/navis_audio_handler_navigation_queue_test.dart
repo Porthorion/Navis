@@ -4334,10 +4334,10 @@ void main() {
             expect(player.sourceLoads, loads);
             expect(player.seekCalls, seeks);
             expect(player.playedFrom, hasLength(starts));
-            expect(
-              player.position,
-              greaterThanOrEqualTo(const Duration(seconds: 42)),
-            );
+            final after = player.position;
+            expect(after, greaterThanOrEqualTo(const Duration(seconds: 42)));
+            await Future<void>.delayed(const Duration(milliseconds: 60));
+            expect(player.position, greaterThan(after));
             expectNativeMirrorsQueue(handler, player);
           });
         }
@@ -4354,6 +4354,7 @@ void main() {
           expect(handler.snapshot.currentIndex, 2);
           final starts = player.playedFrom.length;
           final loads = player.sourceLoads;
+          final seeks = player.seekCalls;
 
           await handler.insertQueueRuns(<QueueInsertRun>[
             QueueInsertRun(2, songs),
@@ -4372,8 +4373,86 @@ void main() {
           expect(player.playing, isTrue);
           expect(player.sourceLoads, loads);
           expect(player.playedFrom, hasLength(starts));
+          expect(player.seekCalls, seeks);
+          final after = player.position;
+          expect(after, isNot(Duration.zero));
+          await Future<void>.delayed(const Duration(milliseconds: 60));
+          expect(player.position, greaterThan(after));
           expectNativeMirrorsQueue(handler, player);
         });
+
+        if (crossfade) {
+          // Undo while a fade runs: the fade may be cut short, but the song
+          // that is playing must never restart.
+          Future<ControllableAudioPlayer> fading(
+            NavisAudioHandler handler,
+          ) async {
+            await handler.debugStartCrossfade();
+            return handler.debugInactiveDeck! as ControllableAudioPlayer;
+          }
+
+          for (final (label, at) in [('at', 2), ('before', 1)]) {
+            test('$label the current index during a fade keeps the song '
+                'playing', () async {
+              final (handler, player, database) = await playing(2);
+              final deck = await fading(handler);
+              final loads = player.sourceLoads;
+              final seeks = player.seekCalls;
+              final starts = player.playedFrom.length;
+              final songs = await database.libraryDao.getSongsByIds(<String>[
+                'song-7',
+              ]);
+
+              await handler.insertQueueRuns(<QueueInsertRun>[
+                QueueInsertRun(at, songs),
+              ]);
+              await handler.debugCompleteCrossfade();
+              await pumpEventQueue();
+
+              expect(handler.snapshot.currentSongId, 'song-2');
+              expect(handler.snapshot.queueSongIds.indexOf('song-7'), at);
+              expect(player.sourceLoads, loads);
+              expect(player.seekCalls, seeks);
+              expect(player.playedFrom, hasLength(starts));
+              // The deck missed the edit: the fade is cancelled (deck_mismatch)
+              // and the active player keeps playing at full volume.
+              expect(handler.snapshot.currentIndex, 3);
+              expect(player.playing, isTrue);
+              expect(player.volume, 1.0);
+              expect(deck.playing, isFalse);
+            });
+          }
+
+          test('between the current and incoming song during a fade lets '
+              'it finish', () async {
+            final (handler, player, database) = await playing(2);
+            final deck = await fading(handler);
+            final songs = await database.libraryDao.getSongsByIds(<String>[
+              'song-7',
+            ]);
+
+            await handler.insertQueueRuns(<QueueInsertRun>[
+              QueueInsertRun(3, songs),
+            ]);
+            await handler.debugCompleteCrossfade();
+            await pumpEventQueue();
+
+            // The incoming song's index moved with the insert: the fade
+            // completes and the deck takes over.
+            expect(handler.snapshot.currentSongId, 'song-3');
+            expect(handler.snapshot.queueSongIds, <String>[
+              'song-0',
+              'song-1',
+              'song-2',
+              'song-7',
+              'song-3',
+              'song-4',
+            ]);
+            expect(deck.playing, isTrue);
+            expect(deck.volume, 1.0);
+            expect(player.playing, isFalse);
+          });
+        }
       });
     }
   });
