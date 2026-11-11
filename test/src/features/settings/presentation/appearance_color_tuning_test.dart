@@ -16,7 +16,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
@@ -730,7 +730,7 @@ class _App extends ConsumerWidget {
           child: child!,
         ),
       ),
-      home: const AppearanceSettingsScreen(),
+      home: const ThemesSettingsScreen(),
     );
   }
 }

@@ -22,7 +22,8 @@ import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/settings_collapsible_group.dart';
 import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
@@ -730,7 +731,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final colorStyle = NavisColorStyle.parse(draft.colorStyle);
     final previewOled = _previewOled(context, draft);
     final optionTitleStyle = theme.textTheme.titleMedium;
-    // The same builders as Settings > Appearance, fed from the draft.
+    // The same builders as Settings > Themes, fed from the draft.
     final options = AppearanceOptionSet(
       oledForAutoVisible: draft.themeMode == 'system',
       oledForAuto: draft.oledForAuto,

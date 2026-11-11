@@ -133,6 +133,38 @@ void main() {
     },
   );
 
+  testWidgets('lists Themes and Interface in Other, in that order', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1200, 1000));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _noHighlights,
+        child: MaterialApp(
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Appearance'), findsNothing);
+    expect(find.text('Looks, colors, shapes and layout.'), findsOneWidget);
+    expect(
+      find.text('Home sections, library pages and navigation.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.getTopLeft(find.text('Themes')).dy,
+      lessThan(tester.getTopLeft(find.text('Interface')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Interface')).dy,
+      lessThan(tester.getTopLeft(find.text('Run Quick Customization')).dy),
+    );
+  });
+
   testWidgets('places quick customization in Other before About', (
     tester,
   ) async {
@@ -242,7 +274,8 @@ void main() {
           200,
           scrollable: find.byType(Scrollable).first,
         );
-        expect(find.byType(NewFeatureTag), findsNWidgets(2));
+        // Themes, Interface (Genres) and Quick Customization.
+        expect(find.byType(NewFeatureTag), findsNWidgets(3));
       });
 
       testWidgets('is absent on the ${entry.key} layout when none pending', (
@@ -253,41 +286,53 @@ void main() {
       });
     }
 
-    testWidgets('Appearance and Quick Customization say "Has new options"', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await pump(tester, const Size(390, 1600), SetupHighlight.values.toSet());
-      await tester.scrollUntilVisible(
-        find.text('Run Quick Customization'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
+    testWidgets(
+      'Themes, Interface and Quick Customization say "Has new options"',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(
+          tester,
+          const Size(390, 1600),
+          SetupHighlight.values.toSet(),
+        );
+        await tester.scrollUntilVisible(
+          find.text('Run Quick Customization'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
 
-      for (final title in <String>['Appearance', 'Run Quick Customization']) {
-        final row = find.ancestor(
-          of: find.text(title),
-          matching: find.byType(ListTile),
-        );
+        for (final title in <String>[
+          'Themes',
+          'Interface',
+          'Run Quick Customization',
+        ]) {
+          final row = find.ancestor(
+            of: find.text(title),
+            matching: find.byType(ListTile),
+          );
+          expect(
+            find.descendant(
+              of: row.first,
+              matching: find.byType(NewFeatureTag),
+            ),
+            findsOneWidget,
+            reason: title,
+          );
+        }
         expect(
-          find.descendant(of: row.first, matching: find.byType(NewFeatureTag)),
-          findsOneWidget,
-          reason: title,
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.label == 'Has new options',
+          ),
+          findsNWidgets(3),
         );
-      }
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics &&
-              widget.properties.label == 'Has new options',
-        ),
-        findsNWidgets(2),
-      );
-      handle.dispose();
-    });
+        handle.dispose();
+      },
+    );
 
     testWidgets(
-      'the Genres highlight tags Appearance, not Quick Customization',
+      'the Genres highlight tags Interface, not Themes or Quick Customization',
       (tester) async {
         await pump(tester, const Size(390, 1600), const <SetupHighlight>{
           SetupHighlight.genresPage,
@@ -304,7 +349,8 @@ void main() {
               .first,
           matching: find.byType(NewFeatureTag),
         );
-        expect(tagIn('Appearance'), findsOneWidget);
+        expect(tagIn('Interface'), findsOneWidget);
+        expect(tagIn('Themes'), findsNothing);
         expect(tagIn('Run Quick Customization'), findsNothing);
       },
     );
@@ -321,7 +367,7 @@ void main() {
         SetupHighlight.oledForAuto,
       });
       await tester.scrollUntilVisible(
-        find.text('Appearance'),
+        find.text('Themes'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
@@ -342,7 +388,7 @@ void main() {
         SetupHighlight.flatAreas,
       }, flatSurfaces: true);
       await tester.scrollUntilVisible(
-        find.text('Appearance'),
+        find.text('Themes'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
@@ -355,7 +401,7 @@ void main() {
         SetupHighlight.flatSurfaces,
       }, themeMode: 'dark');
       await tester.scrollUntilVisible(
-        find.text('Appearance'),
+        find.text('Themes'),
         200,
         scrollable: find.byType(Scrollable).first,
       );

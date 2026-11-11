@@ -17,12 +17,12 @@ void main() {
             icon: Icons.visibility_off_outlined,
             title: 'No library pages enabled',
             subtitle:
-                'Enable a page in Appearance settings to browse your library.',
+                'Enable a page in Interface settings to browse your library.',
             action: hasRecoveryAction
                 ? FilledButton.tonalIcon(
                     onPressed: () {},
                     icon: const Icon(Icons.tune_outlined),
-                    label: const Text('Open Appearance settings'),
+                    label: const Text('Open Interface Settings'),
                   )
                 : null,
           ),
@@ -43,14 +43,14 @@ void main() {
     );
   });
 
-  testWidgets('library-disabled after offers Appearance settings directly', (
+  testWidgets('library-disabled after offers Interface settings directly', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(390, 480));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await pump(tester, hasRecoveryAction: true);
     expect(
-      find.widgetWithText(FilledButton, 'Open Appearance settings'),
+      find.widgetWithText(FilledButton, 'Open Interface Settings'),
       findsOneWidget,
     );
     await expectLater(

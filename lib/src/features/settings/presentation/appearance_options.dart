@@ -181,7 +181,7 @@ class AppearanceSubOptionReveal extends StatelessWidget {
 }
 
 /// "Use OLED when dark" for Auto mode, revealed under the theme mode picker
-/// while [visible]. Shared by Appearance settings and setup.
+/// while [visible]. Shared by Themes settings and setup.
 class OledForAutoOption extends StatelessWidget {
   const new({
     required this.visible,
@@ -462,7 +462,7 @@ String _formatMinutes(BuildContext context, int minutes) =>
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
     );
 
-/// Flat Surfaces switch. Shared by Appearance settings and setup.
+/// Flat Surfaces switch. Shared by Themes settings and setup.
 class FlatSurfacesOption extends StatelessWidget {
   const new({
     required this.value,
@@ -492,7 +492,7 @@ class FlatSurfacesOption extends StatelessWidget {
 
 /// The areas Flat Surfaces applies to, revealed under the Flat Surfaces
 /// switch while [visible]. The tag, if any, sits on the first switch. Shared
-/// by Appearance settings and setup.
+/// by Themes settings and setup.
 class FlatAreasOption extends StatelessWidget {
   const new({
     required this.visible,
@@ -567,7 +567,7 @@ class FlatAreasOption extends StatelessWidget {
 
 /// Fine-Tune Colors: one row, like its neighbours, whose subtitle sums up the
 /// current tuning and which opens the panel with the rulers.
-/// Shared by Appearance settings and setup.
+/// Shared by Themes settings and setup.
 class ColorTuningOption extends StatelessWidget {
   const new({
     required this.tuning,
@@ -607,7 +607,7 @@ class ColorTuningOption extends StatelessWidget {
 
 /// Album Art Shade switch with its Use Cover Color sub-switch, revealed while
 /// Shade is on. Both are disabled with a note while Flat text over artwork
-/// puts album titles below the art. Shared by Appearance settings and setup.
+/// puts album titles below the art. Shared by Themes settings and setup.
 class AlbumArtShadeOption extends StatelessWidget {
   const new({
     required this.shade,
@@ -855,7 +855,7 @@ class _ScheduleWindowRow extends StatelessWidget {
 }
 
 /// A titled option with an optional [adornment] (a "New" tag), a one-line
-/// [description] and a [selector] below. Shared by Appearance settings and
+/// [description] and a [selector] below. Shared by Themes settings and
 /// setup, which differ only in their [AppearanceLayout].
 class AppearanceChoiceSection extends StatelessWidget {
   const new({
@@ -921,7 +921,7 @@ class AppearanceChoiceSection extends StatelessWidget {
 }
 
 /// Now Playing Background: Art-Tinted, Artwork or Plain, with a description
-/// of the selected look. Shared by Appearance settings and setup.
+/// of the selected look. Shared by Themes settings and setup.
 class NowPlayingBackgroundOption extends StatelessWidget {
   const new({
     required this.value,
@@ -1045,7 +1045,7 @@ class SheetStyleOption extends StatelessWidget {
 }
 
 /// Density: Comfortable or Compact spacing for Home, track lists and library
-/// rows. Shared by Appearance settings and setup.
+/// rows. Shared by Themes settings and setup.
 class DensityOption extends StatelessWidget {
   const new({
     required this.value,
@@ -1378,7 +1378,7 @@ class AppearanceOptionSet {
 }
 
 /// Color Style heading (with its "New" tag) and the style tiles. Shared by
-/// Appearance settings and setup.
+/// Themes settings and setup.
 class ColorStyleOption extends StatelessWidget {
   const new({
     required this.currentStyle,

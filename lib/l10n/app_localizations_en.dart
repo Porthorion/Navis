@@ -264,11 +264,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Stream quality, gapless, crossfade and equalizer.';
 
   @override
-  String get settingsAppearanceTitle => 'Appearance';
+  String get settingsThemesTitle => 'Themes';
 
   @override
-  String get settingsAppearanceSubtitle =>
-      'Themes, colors and display preferences.';
+  String get settingsThemesSubtitle => 'Looks, colors, shapes and layout.';
+
+  @override
+  String get settingsInterfaceTitle => 'Interface';
+
+  @override
+  String get settingsInterfaceSubtitle =>
+      'Home sections, library pages and navigation.';
 
   @override
   String get hapticsTitle => 'Haptics';
@@ -2136,7 +2142,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAppearanceNewOptionsSemantics => 'Has new options';
 
   @override
-  String get appearanceSectionTheme => 'Theme';
+  String get appearanceSectionTheme => 'Mode';
 
   @override
   String get appearanceSectionColor => 'Color';
@@ -2337,10 +2343,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libraryNoPagesEnabledSubtitle =>
-      'Enable a page in Appearance settings to browse your library.';
+      'Enable a page in Interface settings to browse your library.';
 
   @override
-  String get libraryNoPagesEnabledAction => 'Open Appearance Settings';
+  String get libraryNoPagesEnabledAction => 'Open Interface Settings';
 
   @override
   String get libraryLikedOnlyEmptySubtitle =>
@@ -3910,9 +3916,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get remoteSourceLabel => 'Remote';
 
   @override
-  String get appearanceTitle => 'Appearance';
-
-  @override
   String get appearanceThemeModeLabel => 'Theme Mode';
 
   @override
@@ -4022,7 +4025,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceColorTuningLooksHint =>
-      'Save this as part of a Look in Appearance.';
+      'Save this as part of a Look in Themes.';
 
   @override
   String get appearanceColorTuningHintNoAccent =>
@@ -6302,7 +6305,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingAppearanceDescription =>
-      'Choose your theme, style, accent and layout. You can change them later in Appearance settings.';
+      'Choose your theme, style, accent and layout. You can change them later in Settings › Themes.';
 
   @override
   String get onboardingMoreAppearanceOptions => 'More Appearance Options';
@@ -6312,7 +6315,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingAppearanceColorPickerHint =>
-      'This is the full color picker from Appearance settings. You can revisit it there at any time.';
+      'This is the full color picker from Themes settings. You can revisit it there at any time.';
 
   @override
   String get onboardingListeningTitle => 'Tune Your Listening';

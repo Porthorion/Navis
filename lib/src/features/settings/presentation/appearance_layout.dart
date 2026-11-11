@@ -49,7 +49,7 @@ enum AppearanceHeadingLevel {
   option,
 }
 
-/// The one heading used across Appearance settings and setup, with an
+/// The one heading used across Themes settings and setup, with an
 /// optional [adornment] such as a "New" tag.
 class AppearanceHeading extends StatelessWidget {
   const new({

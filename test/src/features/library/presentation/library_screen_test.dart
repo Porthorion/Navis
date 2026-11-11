@@ -320,8 +320,9 @@ Widget _buildLibraryScreenRouter({
         ],
       ),
       GoRoute(
-        path: '/settings/appearance',
-        builder: (context, state) => const Text('Appearance settings'),
+        path: '/settings/interface',
+        builder: (context, state) =>
+            Text('Interface settings ${state.uri.queryParameters['focus']}'),
       ),
     ],
   );
@@ -578,7 +579,7 @@ void main() {
   });
 
   _testWidgetsWithCleanup(
-    'disabled library pages offer a direct Appearance settings recovery',
+    'disabled library pages offer a direct Interface settings recovery',
     (tester) async {
       await tester.pumpWidget(
         _buildLibraryScreenRouter(
@@ -595,13 +596,13 @@ void main() {
       expect(find.text('No Library Pages Enabled'), findsOneWidget);
       final recovery = find.widgetWithText(
         FilledButton,
-        'Open Appearance Settings',
+        'Open Interface Settings',
       );
       expect(recovery, findsOneWidget);
 
       await tester.tap(recovery);
       await tester.pumpAndSettle();
-      expect(find.text('Appearance settings'), findsOneWidget);
+      expect(find.text('Interface settings libraryPages'), findsOneWidget);
     },
   );
 

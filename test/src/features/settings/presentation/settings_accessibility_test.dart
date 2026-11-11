@@ -8,7 +8,8 @@ import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
-import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/interface_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/privacy_screen.dart';
@@ -36,7 +37,8 @@ void main() {
   final screens = <String, Widget>{
     'Settings': const SettingsScreen(),
     'Playback settings': const PlaybackSettingsScreen(),
-    'Appearance': const AppearanceSettingsScreen(),
+    'Themes': const ThemesSettingsScreen(),
+    'Interface': const InterfaceSettingsScreen(),
     'Sync': const SyncSettingsScreen(),
     'Privacy': const PrivacyScreen(),
   };
@@ -61,7 +63,12 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        // Interface shows the endlessly blinking Page Visibility icon.
+        if (entry.key == 'Interface') {
+          await tester.pump(const Duration(seconds: 1));
+        } else {
+          await tester.pumpAndSettle();
+        }
         expect(tester.takeException(), isNull);
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
         await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
@@ -74,7 +81,7 @@ void main() {
   }
 
   for (final reduce in [true, false]) {
-    testWidgets('Appearance blinking icon respects Reduce Motion=$reduce', (
+    testWidgets('Interface blinking icon respects Reduce Motion=$reduce', (
       tester,
     ) async {
       setAdaptiveTestViewport(tester, const Size(390, 4000));
@@ -88,7 +95,7 @@ void main() {
               data: MediaQuery.of(context).copyWith(disableAnimations: reduce),
               child: child!,
             ),
-            home: const AppearanceSettingsScreen(),
+            home: const InterfaceSettingsScreen(),
           ),
         ),
       );

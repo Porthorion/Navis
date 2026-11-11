@@ -34,7 +34,8 @@ enum SettingsPage {
   sync(AppRoutes.settingsSyncSegment),
   playback(AppRoutes.settingsPlaybackSegment),
   equalizer(AppRoutes.settingsEqualizerSegment),
-  appearance(AppRoutes.settingsAppearanceSegment),
+  themes(AppRoutes.settingsThemesSegment),
+  interface(AppRoutes.settingsInterfaceSegment),
   haptics(AppRoutes.settingsHapticsSegment),
   about(AppRoutes.settingsAboutSegment),
   desktopWindow(AppRoutes.settingsDesktopWindowSegment),
@@ -118,16 +119,16 @@ abstract final class AppRoutes {
   /// The page of one genre; [key] is its merge key (`genreKey`).
   static String genre(String key) => '$library/genres/${_encode(key)}';
 
-  /// Query parameter naming the Appearance group to open and highlight.
-  static const appearanceFocusParam = 'focus';
+  /// Query parameter naming the Interface group to open and highlight.
+  static const interfaceFocusParam = 'focus';
 
-  /// [appearanceFocusParam] value for the Library pages group.
-  static const appearanceFocusLibraryPages = 'libraryPages';
+  /// [interfaceFocusParam] value for the Library pages group.
+  static const interfaceFocusLibraryPages = 'libraryPages';
 
-  /// Appearance settings opened on the Library pages group.
-  static String get appearanceLibraryPages => _withQuery(
-    SettingsPage.appearance.location,
-    <String, String>{appearanceFocusParam: appearanceFocusLibraryPages},
+  /// Interface settings opened on the Library pages group.
+  static String get interfaceLibraryPages => _withQuery(
+    SettingsPage.interface.location,
+    <String, String>{interfaceFocusParam: interfaceFocusLibraryPages},
   );
 
   /// Query parameter naming the Playback section to scroll to.
@@ -159,7 +160,8 @@ abstract final class AppRoutes {
   static const settingsSyncSegment = 'sync';
   static const settingsPlaybackSegment = 'playback';
   static const settingsEqualizerSegment = 'equalizer';
-  static const settingsAppearanceSegment = 'appearance';
+  static const settingsThemesSegment = 'themes';
+  static const settingsInterfaceSegment = 'interface';
   static const settingsHapticsSegment = 'haptics';
   static const settingsAboutSegment = 'about';
   static const settingsDesktopWindowSegment = 'desktop-window';
@@ -174,6 +176,7 @@ abstract final class AppRoutes {
   static const retiredSettingsSegments = <String, SettingsPage>{
     'group-listening': SettingsPage.server,
     'external-services': SettingsPage.integrations,
+    'appearance': SettingsPage.themes,
   };
 
   static String get equalizer => SettingsPage.equalizer.location;
