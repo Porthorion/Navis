@@ -210,7 +210,9 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Long song titles keep their version, such as (Radio Edit), visible '
         'in lists, and scroll on the playing song and, on desktop, under the '
-        'pointer, and in the player',
+        'pointer, and in the player. Long titles show a single ellipsis, and '
+        'feat. or From credits trail off with the title instead of splitting '
+        'it',
       ),
       ChangelogEntry(
         'Song menus on phones show the whole song title, with its cover and '

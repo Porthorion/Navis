@@ -177,6 +177,29 @@ Located in `lib/src/providers/app_providers.dart`:
 - `queueProvider` - Current play queue controller
 - `reorderQueueProvider` - Reorder queue items
 
+`QueueController.removeForUndo` removes a row through a serial lane
+(`_removalTail`, like `_recommendationCommitTail`), so rapid swipes run one at
+a time. At its turn it re-reads the queue and removes nothing if the row no
+longer holds the song id, then waits (2 s at most) until the queue shows the
+change and returns a `QueueRemoval` (index, successor id, selection epoch,
+queue after, only-row flag). Null means nothing was removed (stale row or a
+reported failure); if the handler removed the row but the queue did not show it
+in time, the removal is still returned with the queue as it reads then, so the
+caller shows Undo and the content guard covers the lag. `undoRemoval` runs on
+the same lane, so an Undo never overtakes a later removal. It re-inserts
+through `QueueBatchEditor.insertQueueRuns` (never the appending `insertRuns`
+fallback), at the old index if the queue is unchanged, else before the song
+that followed the removed one, else at the clamped old index. It does nothing
+after the queue was replaced or cleared (`ownsSelection(epoch)`, checked again
+after the database read), for a handler without batched edits, and for the only
+row (there is no queue to insert into). A song with no playable source is
+reported through the playback action error path, as is a missing handler (Undo
+never rejects its future). Both guards read the published queue, not the
+handler's: an edit still in the handler's queue lane can shift indices
+(accepted; a handler-side `removeAt(index, expectedId)` is the upgrade path).
+An Android Auto or media-session replacement does not bump the epoch; the
+content guard limits the damage.
+
 **queue_current_row_centering.dart**: `QueueSheet` (phone overlay, compact-wide
 overlay, embedded and wide Now Playing panels) and `QueueScreen` wrap their
 list in `QueueCurrentRowCentering`, which once per open jumps (no animation,
@@ -1746,8 +1769,10 @@ through `MotionPolicy`, the start pause, after the last of `passes`) a truncated
 title shows its still form: `splitTitleVersion` (`metadata_normalization.dart`)
 splits the last trailing `(…)`, `[…]`, full-width or ` - ` qualifier off the
 title, the base is ellipsised and the version kept whole on the same line
-("Long Song Na… (Radio Edit)"; a version over 60% of the width is ellipsised
-too, in the title's own direction), so edits of one song stay distinguishable.
+("Long Song Na… (Radio Edit)"), so edits of one song stay distinguishable. A
+credit (`isTitleCredit`: `feat.`/`ft.`, `From …`, `with …`, `prod. …`) is never
+pinned, and neither is a version over 55% of the width: the whole title gets one
+plain ellipsis, so base and version are never both ellipsised.
 Track rows (`AdaptiveTrackRow`) make the title active only while the row is
 hovered (loops; `TrackRowEmphasisScope.hovered`) or playing (2 passes), and the
 wide artist and album cells only while hovered; the compact secondary

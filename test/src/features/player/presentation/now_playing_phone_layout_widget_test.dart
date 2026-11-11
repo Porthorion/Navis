@@ -62,8 +62,7 @@ const _japanese = MediaItem(
 
 const _versioned = MediaItem(
   id: 'song-1',
-  title:
-      'A Very Long Song Title That Cannot Possibly Fit On A Phone (Radio Edit)',
+  title: 'A Very Long Song Title That Cannot Possibly Fit On A Phone (Edit)',
   artist: 'The Night Owls',
   album: 'City Lights',
 );
@@ -587,7 +586,7 @@ void main() {
         item: _versioned,
         settle: false,
       );
-      expect(find.text(' (Radio Edit)'), findsOneWidget);
+      expect(find.text(' (Edit)'), findsOneWidget);
       final titleTravel = find.descendant(
         of: titleMarquee(),
         matching: find.byType(Transform),
@@ -624,7 +623,7 @@ void main() {
       );
       await tester.pump(kMarqueeStartPause + const Duration(seconds: 1));
       expect(scrolling, findsNothing);
-      expect(find.text(' (Radio Edit)'), findsOneWidget);
+      expect(find.text(' (Edit)'), findsOneWidget);
     }, skip: !sqliteAvailable);
 
     testWidgets('title line height stays the forced strut and short titles '
