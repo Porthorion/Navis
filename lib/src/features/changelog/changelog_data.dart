@@ -210,7 +210,6 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'The queue, menus and sheets now always use your theme colors, also '
         'over Now Playing, instead of taking on its background',
-        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Long song titles keep their version, such as (Radio Edit), visible '

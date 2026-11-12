@@ -1031,9 +1031,9 @@ target-selection rules.
   a clone until disposal. The app shell watches
   `nowPlayingArtworkPrewarmProvider` on Artwork setting and track/source
   changes, outside the paused player sheet, with background cover-load
-  interest. Both the player and queue keep their Stack and artwork scope
-  mounted across tinted/Artwork/plain changes, retaining body state. The layer
-  lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
+  interest. The player keeps its Stack and artwork scope mounted across
+  tinted/Artwork/plain changes, retaining body state; the queue has
+  neither. The layer lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
   (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
   title at 5.0:1 against the shared cover field's usable-cell average (from
   `coverColourFieldProvider((id, revision))`), within dark 0.30-0.80, OLED

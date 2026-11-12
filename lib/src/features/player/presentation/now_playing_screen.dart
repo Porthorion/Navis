@@ -2800,11 +2800,17 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         var rightPanePanelHeightFactor = 0.6;
         Widget? rightPanePanelChild;
         var usePanelHeader = true;
+        var rightPanePanelColor = colorScheme.surfaceContainerHigh;
 
         if (supportsSplitPanelOverlay) {
           if (_widePanel == _WideNowPlayingPanel.settings) {
             rightPanePanelTitle = l10n.settingsTitle;
             rightPanePanelHeightFactor = 0.52;
+            // Now Playing's own panel follows its background; the queue never does.
+            rightPanePanelColor = nowPlayingArtworkPanelFill(
+              context,
+              colorScheme.surfaceContainerHigh,
+            );
             rightPanePanelChild = _NowPlayingSettingsPanel(
               song: song,
               transportQuickActionsShown: _transportQuickActionsShown,
@@ -2838,6 +2844,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 subtitle: rightPanePanelSubtitle,
                 heightFactor: rightPanePanelHeightFactor,
                 useHeader: usePanelHeader,
+                color: rightPanePanelColor,
                 onClose: () => _updateWideOverlayState(() {
                   _widePanel = _WideNowPlayingPanel.none;
                 }),

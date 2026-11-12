@@ -26,6 +26,7 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
     required this.useHeader,
     required this.onClose,
     required this.child,
+    required this.color,
     this.title,
     this.subtitle,
     super.key,
@@ -35,6 +36,10 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
   final bool useHeader;
   final VoidCallback onClose;
   final Widget child;
+
+  /// The sheet fill: opaque for the queue, see-through for Settings over the
+  /// Artwork layer.
+  final Color color;
   final String? title;
   final String? subtitle;
 
@@ -66,7 +71,7 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
                 }
               },
               child: Material(
-                color: colorScheme.surfaceContainerHigh,
+                color: color,
                 elevation: 14,
                 shape: RoundedRectangleBorder(
                   borderRadius: NavisShapeData.of(context).sheetTop,
