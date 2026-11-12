@@ -253,7 +253,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'GitHub releases now include an unsigned IPA for AltStore and '
-        'SideStore. It tells you when a newer version is out and links to '
+        'SideStore. Navis tells you when a newer version is out and links to '
         'its release page; App Store and TestFlight builds do not check for '
         'updates',
         platforms: {ChangelogPlatform.ios},
@@ -393,9 +393,9 @@ const List<ChangelogVersion> changelogs = [
         'Tag changes on the server (ReplayGain, titles, genres, removed '
         'songs) now reach Navis after the server rescans, without Repair '
         'Library, and songs already in your queue pick up changed '
-        'ReplayGain from the next song. Automatic sync checks at most once '
-        'a day on Wi-Fi, never on mobile data without your permission, and '
-        'a large removal waits for your confirmation in Settings › Sync',
+        'ReplayGain from the next song. The full library check behind this '
+        'runs at most once a day and only on Wi-Fi, and a large removal '
+        'waits for your confirmation in Settings › Sync',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -432,7 +432,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Album pages no longer show "Could not load" while another window '
+        'Album pages no longer show Could Not Load Albums while another window '
         'has focus',
         platforms: ChangelogPlatform.desktop,
         type: ChangelogEntryType.fix,
