@@ -201,115 +201,62 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
-        'Appearance is now two pages: Themes holds everything a Look saves, '
-        'with Looks at the top, and Interface holds Song Titles, Home '
-        'sections, page visibility and desktop navigation, all open instead '
-        'of in dropdowns',
+        'Search puts the most popular matches first and shows Top Results '
+        '(Deezer; switch in Integrations): the best match as a large card '
+        'with Play, Shuffle or Like, and its artist, album or top song as '
+        'tiles',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'The queue, menus and sheets now always use your theme colors, also '
-        'over Now Playing, instead of taking on its background',
-      ),
-      ChangelogEntry(
-        'Long song titles keep their version, such as (Radio Edit), visible '
-        'in lists, and on desktop and tablets scroll on the playing song and '
-        'under the pointer, and in the player. Long titles show a single '
-        'ellipsis, and feat. or From credits trail off with the title instead '
-        'of splitting it',
-      ),
-      ChangelogEntry(
-        'Settings › Interface › Keep Song Versions Visible: turn off to '
-        'shorten long titles at the end instead',
+        'Settings › Haptics turns vibration off entirely or per kind, such '
+        'as Player Gestures or Sliders & Rulers',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Song titles in phone lists, including the queue, show up to two full '
-        'lines; rows have one even height',
-      ),
-      ChangelogEntry(
-        'Downloaded songs show a small green download mark before the artist '
-        'name on phones, and a ring shows while a song downloads. Download and '
-        'Delete Download are in the song\'s ⋯ menu',
-      ),
-      ChangelogEntry(
-        'Swipe a queue song left to remove it, with Undo; the trash button is '
-        'gone on phones',
-      ),
-      ChangelogEntry(
-        'Song menus on phones show the whole song title, with its cover and '
-        'artist, at the top',
-      ),
-      ChangelogEntry(
-        'The mini player shows more of the song title and no longer grows '
-        'taller for remote songs. Swipe it left or right for the next or '
-        'previous song; on a phone held upright the skip buttons are gone',
-      ),
-      ChangelogEntry(
-        'Auto theme can now follow a schedule instead of your device: in '
-        'Settings › Themes, choose Scheduled under Auto and set when '
-        'dark starts and ends. Outside that window the app is light',
+        'Auto theme can follow a schedule: in Settings › Themes choose '
+        'Scheduled under Auto and set when dark starts and ends',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Auto can use a different saved preset for light and dark: in '
-        'Settings › Themes, turn on Use Different Presets for Auto and '
-        'pick a Light Mode and a Dark Mode preset',
+        'Auto can use a different saved preset for light and dark: turn on '
+        'Use Different Presets for Auto in Settings › Themes',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Volume normalization (ReplayGain) has a new Smart mode, the default '
-        "for new installs: it keeps an album's own balance when you play it "
-        'in order and levels songs one by one for shuffles and mixes. Songs '
-        'without ReplayGain tags are now levelled too, with a level you '
-        'choose in 0.1 dB steps. Your current choice stays as it is',
+        'Volume normalization (ReplayGain) has a new Smart mode, the '
+        "default for new installs: it keeps an album's own balance when you "
+        'play it in order and levels songs one by one for shuffles and '
+        'mixes. Quiet songs with ReplayGain tags are turned up when there '
+        "is room, stopping 1 dB below the song's peak so nothing distorts; "
+        'songs without tags are levelled to a level you choose in 0.1 dB '
+        'steps and are only turned down. Your current choice stays as it is',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Volume normalization now turns quiet songs up when their tags show '
-        "room, stopping 1 dB below the song's peak so nothing distorts. Songs "
-        'without ReplayGain data are only ever turned down',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Now Playing shows how much ReplayGain is turning the song up or '
-        'down; hold it (or click it on desktop) to open Playback settings, '
-        'which now explain each mode and count your songs with ReplayGain '
-        'data',
+        'Now Playing shows how much ReplayGain turns the song up or down; '
+        'hold it (click on desktop) to open Playback settings, which '
+        'explain each mode',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Track Info shows where a song plays from and what the file is: '
-        'downloaded, server stream, transcoded or remote, with its format, '
-        'bitrate, sample rate and size. Hold the quality line in Now Playing '
-        'or use the info button on desktop',
+        'downloaded, server stream, transcoded or remote, with format, '
+        'bitrate, sample rate and size. Hold the quality line in Now '
+        'Playing, or use the info button on desktop',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'You can now change the pitch without changing the speed, or '
-        'lock the pitch to the speed, in the speed and pitch controls. Pitch '
-        'works with the equalizer on or off and does not break gapless '
-        'playback',
+        'You can now change the pitch without changing the speed, or lock '
+        'the pitch to the speed, in Speed & Pitch',
         platforms: {ChangelogPlatform.ios},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'GitHub releases now include an unsigned IPA for AltStore and '
-        'SideStore, which tells you when a newer version is out and links to '
-        'its release page',
+        'SideStore. Navis tells you when a newer version is out and links to '
+        'its release page; App Store and TestFlight builds do not check for '
+        'updates',
         platforms: {ChangelogPlatform.ios},
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Closing the window keeps music playing; click the Dock icon '
-        'to reopen. The Dock menu shows the current track with Play/Pause, '
-        'Next and Previous',
-        platforms: {ChangelogPlatform.macos},
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'A Controls menu in the menu bar plays, pauses and skips',
-        platforms: {ChangelogPlatform.macos},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -319,16 +266,60 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Downloads now appear in the Files app under On My iPhone › '
-        'Navis, and downloads stay out of iCloud and computer backups',
+        'Downloads now appear in the Files app under On My iPhone › Navis, '
+        'and stay out of iCloud and computer backups',
         platforms: {ChangelogPlatform.ios},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'The equalizer and fast seeking now work, and stream '
-        "connections use the system's trusted certificates",
+        'Closing the window keeps music playing; click the Dock icon to '
+        'reopen. The Dock menu shows the current track with Play/Pause, '
+        'Next and Previous, and a Controls menu in the menu bar plays, '
+        'pauses and skips',
         platforms: {ChangelogPlatform.macos},
         type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The equalizer and fast seeking now work',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Appearance settings are now two pages: Themes (Looks, colors, '
+        'shapes) and Interface (Song Titles, Home sections, pages, '
+        'navigation), with every option open instead of in dropdowns',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The queue, menus and sheets now use your theme colors over Now '
+        'Playing instead of its background',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Long song titles keep their version, such as (Radio Edit), visible '
+        'and show a single ellipsis, with feat. credits trailing off with '
+        'the title; phone lists and the queue show up to two lines, and '
+        'song menus show the whole title. Turn off Settings › Interface › '
+        'Keep Song Versions Visible to shorten long titles at the end '
+        'instead',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Downloaded songs show a small download mark before the artist on '
+        'phones, and a ring while downloading; Download and Delete Download '
+        "are in the song's ⋯ menu",
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Swipe a queue song left to remove it, with Undo; the trash button '
+        'is gone on phones',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The mini player shows more of the song title and keeps its height '
+        'for remote songs; swipe it left or right for the next or previous '
+        'song (the skip buttons are gone on an upright phone)',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Hold the Speed & Pitch or Queue line in Now Playing to open its '
@@ -336,92 +327,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Turning a loud song down for ReplayGain now starts with the '
-        "song's first note instead of a moment later",
-        platforms: {ChangelogPlatform.ios},
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'The Light, Dark, OLED and Auto theme mode buttons show their whole '
-        'names at large text sizes on phones',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
-        'takes effect right away during playback, and songs already in your '
-        'queue pick up changed ReplayGain after a sync, from the next song on',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A download on a drive that is briefly unavailable is no longer '
-        'replaced by a streamed copy when a sync matches the song to the '
-        'server, and a desktop upgrade interrupted while moving the library '
-        'database no longer loses its latest changes',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Radio always plays at normal speed and original pitch, whatever '
-        'your Speed & Pitch setting is, and your setting comes back when '
-        'songs play. Radio controls now have an Equalizer button next to '
-        'Play',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The Now Playing cover fills its space on tablets, in landscape and '
-        'in split-screen windows, instead of showing small',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Settings › Haptics turns vibration off entirely or per kind, such '
-        'as Player Gestures, Sliders & Rulers or Notifications, so you can '
-        'keep the ones you like',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
         'Taps and gestures now feel like what they do: switches click, Play '
-        'and Pause differ, pull to refresh ticks and confirms, and liking, '
-        'skipping, reordering and long presses each have their own feel. '
-        "Your phone's touch feedback setting still applies",
-        platforms: {ChangelogPlatform.android},
+        'and Pause differ, pull to refresh ticks, and liking, skipping, '
+        "reordering and long presses each have their own feel. Your phone's "
+        'touch feedback setting still applies',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Taps and gestures now feel like what they do: liking confirms, '
-        'refusing buzzes, and switches, Play and Pause, pull to refresh, '
-        'reordering and long presses each have their own feel',
-        platforms: {ChangelogPlatform.ios},
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Tag changes on the server, such as ReplayGain, titles, genres and '
-        'removed songs, now reach Navis after the server rescans, without '
-        'Repair Library. Automatic sync checks at most once a day on Wi-Fi, '
-        'never on mobile data without your permission, and a large removal '
-        'waits for your confirmation in Settings › Sync',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Same Vibes and Instant Mix keep adding songs instead of stopping '
-        'after the first batch. If Same Vibes runs out on the last song, it '
-        'tells you',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Search puts the most popular matches first and shows Top Results '
-        '(Deezer; switch in Integrations): the best match as a large card '
-        'with Play, Shuffle or Like, and its artist, album or top song as '
-        'tiles',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'A song from Deezer that you already own now links to the song in '
-        'your library once you play, queue or download it, even when Deezer has '
-        'it as a single and you have it on an album: Search lists it once and '
-        'shows your own file’s quality. Songs that are only on Deezer can’t '
-        'be liked, because they aren’t on your server, so their heart is '
-        'greyed out; anything you liked on a Deezer copy before moves to your '
-        'library copy',
-        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',
@@ -429,46 +340,82 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Turning on Auto-Download Liked asks first, showing how many songs '
-        'and roughly how much space it will use, and queues a large library '
-        'in one step without queueing a song twice',
+        'and roughly how much space it will use',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Now Playing, the mini player and Settings stay usable at the largest '
-        'accessibility text size, with bigger buttons and dropdowns that no '
-        'longer overflow; the Appearance blinking icon stops with Reduce '
-        'Motion',
+        'Now Playing, the mini player and Settings stay usable at the '
+        'largest accessibility text size, with bigger buttons, dropdowns '
+        'that no longer overflow and theme mode buttons that show their '
+        'whole names',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'App updates now restore the previous version if the new one '
-        'fails to start',
-        platforms: {ChangelogPlatform.macos},
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Navis now explains why it asks for local network '
-        'access when your server is on your home network',
+        'Navis now explains why it asks for local network access when your '
+        'server is on your home network',
         platforms: {ChangelogPlatform.ios, ChangelogPlatform.macos},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'The licences screen lists the bundled libmpv and FFmpeg '
-        'libraries',
-        platforms: {ChangelogPlatform.macos},
+        'Dynamic Album Color now fades smoothly between albums instead of '
+        'stepping partway through',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Dynamic Album Colour fades smoothly between albums instead of '
-        "stepping partway through, and the next track's colour is prepared "
-        'while the current one plays so the change starts sooner',
+        'Short landscape phone screens use the compact side rail and keep '
+        'more of the page; Now Playing hides the format pills there',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Downloads are steadier: downloads at a chosen quality no longer fail '
-        'partway, liked songs download from your library, the queue buttons '
-        'no longer wrap on phones, and a failed download can be long-pressed '
-        'to copy its error details',
+        'On short windows the player bar and the album, playlist and artist '
+        'headers shrink, and the header scrolls away with the track list',
+        platforms: ChangelogPlatform.desktop,
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Radio always plays at normal speed and pitch, whatever your Speed '
+        '& Pitch setting, and its controls have an Equalizer button next to '
+        'Play',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Radio stations you change on the server now show up after the next '
+        'sync and whenever you open Radio, without pulling to refresh',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
+        'now takes effect right away during playback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Tag changes on the server (ReplayGain, titles, genres, removed '
+        'songs) now reach Navis after the server rescans, without Repair '
+        'Library, and songs already in your queue pick up changed '
+        'ReplayGain from the next song. The full library check behind this '
+        'runs at most once a day and only on Wi-Fi, and a large removal '
+        'waits for your confirmation in Settings › Sync',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Same Vibes and Instant Mix keep adding songs instead of stopping '
+        'after the first batch; if Same Vibes runs out on the last song, it '
+        'tells you',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A song from Deezer that you already own now links to your library '
+        'copy once you play, queue or download it, and Search lists it once '
+        "with your file's quality. Songs only on Deezer cannot be liked, so "
+        'their heart is greyed out',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads are steadier: downloads at a chosen quality no longer '
+        'fail partway, liked songs download from your library, and a '
+        'download on a drive that is briefly unavailable is no longer '
+        'replaced by a streamed copy after a sync',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -476,111 +423,23 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Gapless playback works again with the equalizer; songs no '
-        'longer pause for almost a second between each other',
-        platforms: {ChangelogPlatform.ios},
+        'Foldables and tablets fit better: Library keeps your place when '
+        'the screen folds, unfolds or rotates, the artist letter bar '
+        'follows your scroll, Now Playing covers fill their space and fit '
+        'shorter screens, Library tabs and Search results are no longer cut '
+        'off, and Search fits short landscape screens with the keyboard '
+        'open',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'A launch where the app cannot update its saved download '
-        'locations no longer re-downloads finished songs, and moving a '
-        'download between volumes no longer leaves a half-written file in '
-        'the Downloads folder',
-        platforms: {ChangelogPlatform.ios},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Pausing from Control Center no longer shows the old '
-        'position for a moment',
-        platforms: {ChangelogPlatform.macos},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Control Center shows the right time when playing faster or '
-        'slower than normal',
-        platforms: {ChangelogPlatform.macos},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Navis keeps you signed in across restarts',
-        platforms: {ChangelogPlatform.macos},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A song that fails to load no longer shows as playing',
-        platforms: {ChangelogPlatform.macos},
+        'Album pages no longer show Could Not Load Albums while another window '
+        'has focus',
+        platforms: ChangelogPlatform.desktop,
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'No more click at the start of a song after a boosted Opus song',
         platforms: {ChangelogPlatform.android},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Foldables and tablets fit better: the artist letter bar follows your '
-        'scroll, Library keeps your place when the screen folds, unfolds or '
-        'rotates (the albums and artists grids stay on the same albums and '
-        'artists), Now Playing fits shorter screens, album covers on tablets '
-        'leave room for the songs, Library tabs and Top Results in Search '
-        'no longer get cut off or squeezed, the side rail keeps its normal '
-        'width when unfolded, and on the iPhone Duo every page stays clear of '
-        'the system strip on the right',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Search fits short landscape screens with the keyboard open, and the '
-        'artist letter bar in Library shows the letter you are looking at',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Short landscape phone screens at least 600 px wide use the compact '
-        'side rail, so a small iPhone, a folded Pixel Fold or the rotated '
-        'iPhone Duo cover screen keep more of the page; Now Playing there '
-        'hides the format pills on short screens, the player bar stays above '
-        'the system strip, and the player controls no longer overflow on '
-        'narrow portrait phones',
-        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'On the folded iPhone Duo cover screen the navigation now sits in the '
-        'side strip, below the status icons, so the page and the player bar '
-        'use the full height down to the home indicator; it steps aside '
-        'while the keyboard is open',
-        platforms: {ChangelogPlatform.ios},
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Short windows show more of the page: the player bar and the album, '
-        'playlist and artist headers shrink below 760 px high, and the header '
-        'scrolls away with the track list',
-        platforms: {
-          ChangelogPlatform.macos,
-          ChangelogPlatform.windows,
-          ChangelogPlatform.linux,
-        },
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Album pages no longer show "Could not load" while another window has '
-        'focus, and Recently Added on Home shows its play button on hover',
-        platforms: {
-          ChangelogPlatform.macos,
-          ChangelogPlatform.windows,
-          ChangelogPlatform.linux,
-        },
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Choosing a custom downloads folder (and importing/exporting EQ '
-        'presets) works again',
-        platforms: {ChangelogPlatform.macos},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Navis no longer crashes while VoiceOver or another accessibility '
-        'tool is running',
-        platforms: {ChangelogPlatform.macos},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -596,50 +455,22 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Haptics no longer lists the Notifications switch on iPhone and iPad, '
-        'where Navis has no download notifications to vibrate for',
-        platforms: {ChangelogPlatform.ios},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'iPhone and iPad builds no longer check for updates, because the App '
-        'Store or TestFlight delivers them',
-        platforms: {ChangelogPlatform.ios},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A new install no longer shows a “New” tag on Appearance after setup',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Radio stations you change on the server now show up in Navis after '
-        'the next sync and whenever you open Radio, without pulling to '
-        'refresh. The list stays in place while it updates',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Skipping to another song on a computer is now a plain jump. It no '
-        'longer stops playback and reloads the whole queue, which briefly '
-        'went silent and could start the new song at the wrong volume',
+        'Skipping to another song on a computer no longer stops playback '
+        'and reloads the whole queue',
         platforms: ChangelogPlatform.desktop,
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'A radio station that stalls or whose stream ends now reconnects by '
-        'itself. Before, it could stay silent, ignoring Play, until you '
-        'picked the station again',
+        'itself instead of staying silent until you pick it again',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'A transcoded song whose connection is cut partway now carries on from '
-        'where it was cut, instead of stopping or skipping to the next song',
-        platforms: {ChangelogPlatform.ios, ChangelogPlatform.android},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A song that cannot be loaded no longer empties the queue when it is '
-        'the only or last song; it stays queued and Play tries it again',
-        platforms: {ChangelogPlatform.ios, ChangelogPlatform.android},
+        'A transcoded song whose connection is cut partway now carries on '
+        'from where it was cut, and a song that cannot be loaded no longer '
+        'empties the queue when it is the only or last song; it stays '
+        'queued and Play tries it again',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
         type: ChangelogEntryType.fix,
       ),
     ],
