@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:navis/src/features/player/presentation/now_playing_menu_scope.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -202,7 +201,6 @@ class _NavisAppState extends ConsumerState<NavisApp>
           keepTitleVersion: keepTitleVersion,
           child: content,
         );
-        content = NowPlayingMenuScope(child: content);
         if (widget.requirePlaybackBootstrap) {
           content = _AppBootstrapOverlay(
             onDismissed: widget.onBootstrapOverlayDismissed,

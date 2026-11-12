@@ -446,7 +446,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       coverArtId: playback.isRadioMode ? null : song?.coverArt,
       coverArtRevision: song?.coverArtRevision ?? 0,
       artUrl: activeArtUrl,
-      publishToQueueOverlay: ref.watch(playerSheetExpandedProvider),
       // In compact-wide mode the overlay panels must cover the full
       // Material area including any safe-area insets, so we skip the
       // outer SafeArea here.  The body's compactPlayerPage applies the
@@ -2801,11 +2800,17 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         var rightPanePanelHeightFactor = 0.6;
         Widget? rightPanePanelChild;
         var usePanelHeader = true;
+        var rightPanePanelColor = colorScheme.surfaceContainerHigh;
 
         if (supportsSplitPanelOverlay) {
           if (_widePanel == _WideNowPlayingPanel.settings) {
             rightPanePanelTitle = l10n.settingsTitle;
             rightPanePanelHeightFactor = 0.52;
+            // Now Playing's own panel follows its background; the queue never does.
+            rightPanePanelColor = nowPlayingArtworkPanelFill(
+              context,
+              colorScheme.surfaceContainerHigh,
+            );
             rightPanePanelChild = _NowPlayingSettingsPanel(
               song: song,
               transportQuickActionsShown: _transportQuickActionsShown,
@@ -2839,6 +2844,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 subtitle: rightPanePanelSubtitle,
                 heightFactor: rightPanePanelHeightFactor,
                 useHeader: usePanelHeader,
+                color: rightPanePanelColor,
                 onClose: () => _updateWideOverlayState(() {
                   _widePanel = _WideNowPlayingPanel.none;
                 }),

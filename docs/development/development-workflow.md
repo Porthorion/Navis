@@ -1155,11 +1155,10 @@ targeted production DAO methods. The same endpoint also accepts `themeMode`
 (system/light/dark/oled), `colorStyle` (neutral/pastel/immersive/night),
 `colorSchemeSeed` (unsigned 32-bit integer or null to clear), `dynamicAlbumColor`,
 `oledForAuto` and `flatSurfaces` (booleans), `cornerStyle`
-(rounded/soft/square), `nowPlayingBackground` (tinted/artwork/plain), `queueBackground` and `menuBackground`
-(tinted/artwork/plain, used while `customizeQueueAndMenus` is on), and
+(rounded/soft/square), `nowPlayingBackground` (tinted/artwork/plain), and
 `density` (comfortable/compact). `flatAreas` is an integer mask 0–7;
-`albumArtShade`, `albumArtColoredShade`, `keepTitleVersionVisible` and
-`customizeQueueAndMenus` are booleans. Colour tuning uses
+`albumArtShade`, `albumArtColoredShade` and `keepTitleVersionVisible` are
+booleans. Colour tuning uses
 `colorVividness`, `surfaceDepthLight` and `surfaceDepthDark` (integers
 −5…+5, default 0), `surfaceTintLight` / `surfaceTintDark` (integers
 0…5, default 0), and `controlColor` (`accent` or `white`, default `accent`).

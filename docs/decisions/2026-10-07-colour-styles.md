@@ -459,3 +459,8 @@ Color sheets above are replaced by Customize Queue and Menus. Off, the queue,
 menus and sheets over Now Playing match its background; on, Queue and Menus
 each pick Tinted, Artwork or Plain. Menus take one solid fill (no blur); outside
 Now Playing everything uses the plain theme. See `docs/architecture.md`.
+
+Superseded 2026-11-12 (G4): queue and menus use the theme everywhere; G3's
+Customize Queue and Menus removed (owner). The queue, menus, sheets, Speed &
+Pitch and popovers ignore the Now Playing background, over expanded Now Playing
+too. The three legacy columns stay unused (schema 116, no migration).

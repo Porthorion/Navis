@@ -453,7 +453,7 @@ void main() {
       expect(await controller.update('partial'), isNull);
       final saved =
           (await repository.getSettings()).appearanceLooks.single.snapshot;
-      expect(saved.toJson(), hasLength(28));
+      expect(saved.toJson(), hasLength(27));
       await dao.updateDensity(NavisDensity.comfortable);
       final restarted = ProviderContainer(
         overrides: withTestDatabase(database),
@@ -528,11 +528,13 @@ void main() {
           'density': 'compact',
           'artistViewMode': 'list',
           'nowPlayingBackground': 'artwork',
+          // Legacy 1.5.2 dev keys are ignored (G4).
           'customizeQueueAndMenus': true,
           'queueBackground': 'plain',
           'menuBackground': 'artwork',
         });
-        expect(before.toJson(), hasLength(30));
+        expect(before.toJson(), hasLength(27));
+        expect(before.toJson(), isNot(contains('queueBackground')));
         await database.appSettingsDao.applyAppearanceSnapshot(before);
         String? previousLookId;
         if (matchedLook) {
@@ -559,9 +561,6 @@ void main() {
         expect(restored.themeMode, 'system');
         expect(restored.colorSchemeSeed, isNull);
         expect(restored.albumGridDensity, isNull);
-        expect(restored.customizeQueueAndMenus, isTrue);
-        expect(restored.queueBackground.storageKey, 'plain');
-        expect(restored.menuBackground.storageKey, 'artwork');
         expect(
           restored.colorTuning,
           const ColorTuning(

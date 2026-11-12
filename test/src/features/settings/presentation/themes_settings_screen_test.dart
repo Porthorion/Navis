@@ -82,7 +82,6 @@ void main() {
     bool clearWhenSeen = false,
     bool settle = true,
     NowPlayingBackground? nowPlayingBackground,
-    bool customizeQueueAndMenus = false,
     bool flatSurfaces = false,
     FlatAreas flatAreas = const FlatAreas(),
     bool albumArtShade = false,
@@ -104,7 +103,6 @@ void main() {
       themeMode: themeMode,
       colorStyle: colorStyle,
       nowPlayingBackground: nowPlayingBackground,
-      customizeQueueAndMenus: customizeQueueAndMenus,
       flatSurfaces: flatSurfaces,
       flatAreas: flatAreas,
       albumArtShade: albumArtShade,
@@ -597,7 +595,6 @@ void main() {
           l10n.appearanceArtistViewModeLabel,
           l10n.appearanceSectionNowPlaying,
           l10n.appearanceNowPlayingBackgroundLabel,
-          l10n.appearanceQueueMenusCustomizeLabel,
         ];
         for (final text in ordered) {
           expect(find.text(text), findsOneWidget, reason: text);
@@ -1324,87 +1321,22 @@ void main() {
       expect(settings?.nowPlayingBackground, 'artwork');
     });
 
-    testWidgets('Queue and Menus pickers are hidden while Customize is off', (
+    testWidgets('Now Playing has no Queue and Menus settings (G4)', (
       tester,
     ) async {
       await pumpAppearance(tester);
-      final toggle = find.byKey(
-        const ValueKey<String>('customizeQueueMenusSwitch'),
-      );
-      await scrollTo(tester, toggle);
-      expect(
-        find.text(l10n.appearanceQueueMenusCustomizeLabel),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey<String>('queueBackgroundSelector')),
-        findsNothing,
-      );
-      expect(
-        find.byKey(const ValueKey<String>('menuBackgroundSelector')),
-        findsNothing,
-      );
-    });
-
-    testWidgets('Customize sits under Now Playing Background and saves', (
-      tester,
-    ) async {
-      final container = await pumpAppearance(tester);
-      final toggle = find.byKey(
-        const ValueKey<String>('customizeQueueMenusSwitch'),
-      );
-      await scrollTo(tester, toggle);
-      expect(
-        tester
-            .getTopLeft(find.text(l10n.appearanceQueueMenusCustomizeLabel))
-            .dy,
-        greaterThan(
-          tester
-              .getTopLeft(find.text(l10n.appearanceNowPlayingBackgroundLabel))
-              .dy,
-        ),
-      );
-      await tester.tap(toggle);
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(
-        (await tester.runAsync(
-          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
-        ))?.customizeQueueMenus,
-        isTrue,
-      );
-    });
-
-    testWidgets('Queue and Menus pickers save their picks', (tester) async {
-      final container = await pumpAppearance(
+      await scrollTo(
         tester,
-        customizeQueueAndMenus: true,
+        find.byKey(const ValueKey<String>('nowPlayingBackgroundSelector')),
       );
-      final queue = find.byKey(
-        const ValueKey<String>('queueBackgroundSelector'),
-      );
-      final menus = find.byKey(
-        const ValueKey<String>('menuBackgroundSelector'),
-      );
-      await scrollTo(tester, queue);
-      expect(menus, findsOneWidget);
-      for (final (selector, label) in [
-        (queue, l10n.appearanceNowPlayingBackgroundArtwork),
-        (menus, l10n.appearanceNowPlayingBackgroundPlain),
+      for (final key in const [
+        'customizeQueueMenusSwitch',
+        'queueBackgroundSelector',
+        'menuBackgroundSelector',
       ]) {
-        final segment = find.descendant(
-          of: selector,
-          matching: find.text(label),
-        );
-        await tester.ensureVisible(segment);
-        await tester.pump(const Duration(milliseconds: 400));
-        await tester.tap(segment);
-        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.byKey(ValueKey<String>(key)), findsNothing, reason: key);
       }
-      final settings = await tester.runAsync(
-        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
-      );
-      expect(settings?.queueBackground, 'artwork');
-      expect(settings?.menuBackground, 'plain');
+      expect(find.text('Customize Queue and Menus'), findsNothing);
     });
 
     testWidgets('Density sits beside Artwork Size, not in Home Sections', (

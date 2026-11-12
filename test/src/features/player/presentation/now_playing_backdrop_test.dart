@@ -45,16 +45,10 @@ void main() {
     required NowPlayingBackground background,
     bool flat = false,
     bool oled = false,
-    bool publish = false,
-    ValueNotifier<bool>? publishing,
     ValueNotifier<NowPlayingBackground>? backgroundSetting,
     ImageProvider<Object>? image,
     Widget? body,
-    NowPlayingBackground? queue,
-    NowPlayingBackground? menu,
   }) async {
-    final publication = publishing ?? ValueNotifier(publish);
-    if (publishing == null) addTearDown(publication.dispose);
     final theme = oled
         ? buildOledTheme(
             const Color(0xFF3F7F6F),
@@ -75,12 +69,6 @@ void main() {
           ref.onDispose(() => backgroundSetting.removeListener(changed));
           return backgroundSetting.value;
         }),
-        nowPlayingQueueBackgroundProvider.overrideWith(
-          (ref) => queue ?? ref.watch(nowPlayingBackgroundProvider),
-        ),
-        nowPlayingMenuBackgroundProvider.overrideWith(
-          (ref) => menu ?? ref.watch(nowPlayingBackgroundProvider),
-        ),
         coverArtImageSourceProvider.overrideWith(
           (ref, key) async => image ?? cover,
         ),
@@ -95,25 +83,19 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: theme,
-          home: ValueListenableBuilder<bool>(
-            valueListenable: publication,
-            builder: (context, publish, _) => NowPlayingBackdrop(
-              hasActivePlayback: true,
-              coverArtId: 'cover-1',
-              coverArtRevision: 0,
-              artUrl: null,
-              publishToQueueOverlay: publish,
-              child:
-                  body ??
-                  Builder(
-                    builder: (context) => Text(
-                      NowPlayingArtworkLayerScope.of(context)
-                          ? 'scoped'
-                          : 'bare',
-                      textDirection: TextDirection.ltr,
-                    ),
+          home: NowPlayingBackdrop(
+            hasActivePlayback: true,
+            coverArtId: 'cover-1',
+            coverArtRevision: 0,
+            artUrl: null,
+            child:
+                body ??
+                Builder(
+                  builder: (context) => Text(
+                    NowPlayingArtworkLayerScope.of(context) ? 'scoped' : 'bare',
+                    textDirection: TextDirection.ltr,
                   ),
-            ),
+                ),
           ),
         ),
       ),
@@ -181,83 +163,15 @@ void main() {
     expect(decoration(tester).gradient, isNull);
   });
 
-  testWidgets('publishes the Artwork layer and clears it afterwards', (
-    tester,
-  ) async {
-    final container = await pump(
+  testWidgets('failed Artwork falls back to the tint', (tester) async {
+    await pump(
       tester,
       background: NowPlayingBackground.artwork,
-      publish: true,
-    );
-    final published = container.read(nowPlayingPublishedBackdropProvider);
-    expect(published, isNotNull);
-    expect(published!.imageKey, startsWith('id:cover-1'));
-    expect(published.coverAverage!.toARGB32(), 0xFF3F7F6F);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-  });
-
-  testWidgets('does not publish without the flag, under Flat or Tinted', (
-    tester,
-  ) async {
-    var container = await pump(
-      tester,
-      background: NowPlayingBackground.artwork,
-    );
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-    container = await pump(
-      tester,
-      background: NowPlayingBackground.artwork,
-      flat: true,
-      publish: true,
-    );
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-    container = await pump(
-      tester,
-      background: NowPlayingBackground.tinted,
-      publish: true,
-    );
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-  });
-
-  testWidgets('clears publication while the hidden backdrop stays mounted', (
-    tester,
-  ) async {
-    final publishing = ValueNotifier(true);
-    addTearDown(publishing.dispose);
-    final container = await pump(
-      tester,
-      background: NowPlayingBackground.artwork,
-      publishing: publishing,
-    );
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNotNull);
-    publishing.value = false;
-    await tester.pump();
-    expect(find.byKey(_artworkKey), findsOneWidget);
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-
-    publishing.value = true;
-    await tester.pump();
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNotNull);
-  });
-
-  testWidgets('failed Artwork falls back to tint and clears publication', (
-    tester,
-  ) async {
-    final container = await pump(
-      tester,
-      background: NowPlayingBackground.artwork,
-      publish: true,
       image: MemoryImage(Uint8List.fromList(<int>[0, 1, 2])),
     );
     expect(find.byKey(_artworkKey), findsNothing);
     expect(find.text('bare'), findsOneWidget);
     expect(decoration(tester).gradient, isNotNull);
-    // The queue stays opaque (no cover to paint); menus follow the fallback.
-    final published = container.read(nowPlayingPublishedBackdropProvider);
-    expect(published?.image, isNull);
-    expect(published?.tintColor, _tint);
     expect(tester.takeException(), isNull);
   });
 
@@ -287,145 +201,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.state(find.byType(_BodyIdentity)), same(state));
     }
-  });
-
-  testWidgets('switching away from Artwork clears the shared layer', (
-    tester,
-  ) async {
-    final background = ValueNotifier(NowPlayingBackground.artwork);
-    final container = await pump(
-      tester,
-      background: background.value,
-      backgroundSetting: background,
-      publish: true,
-    );
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNotNull);
-    background.value = NowPlayingBackground.tinted;
-    await tester.pumpAndSettle();
-    expect(find.byKey(_artworkKey), findsNothing);
-    expect(decoration(tester).gradient, isNotNull);
-    // A chosen Art-Tinted background publishes its tint for the queue.
-    final published = container.read(nowPlayingPublishedBackdropProvider)!;
-    expect(published.image, isNull);
-    expect(published.tintColor, _tint);
-    background.value = NowPlayingBackground.plain;
-    await tester.pumpAndSettle();
-    expect(decoration(tester).gradient, isNull);
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-    container.dispose();
-    background.dispose();
-  });
-
-  testWidgets('disposal clears a still-mounted external consumer', (
-    tester,
-  ) async {
-    final container = await pump(
-      tester,
-      background: NowPlayingBackground.artwork,
-      publish: true,
-    );
-    final backdrop = tester.widget<NowPlayingBackdrop>(
-      find.byType(NowPlayingBackdrop),
-    );
-    final theme = tester.widget<MaterialApp>(find.byType(MaterialApp)).theme!;
-    final visible = ValueNotifier(true);
-    addTearDown(visible.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme,
-          home: Stack(
-            fit: StackFit.expand,
-            children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: visible,
-                builder: (context, shown, _) =>
-                    shown ? backdrop : const SizedBox.expand(),
-              ),
-              Consumer(
-                builder: (context, ref, _) => Text(
-                  ref.watch(nowPlayingPublishedBackdropProvider) == null
-                      ? 'cleared'
-                      : 'published',
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('published'), findsOneWidget);
-    visible.value = false;
-    await tester.pumpAndSettle();
-    expect(find.text('cleared'), findsOneWidget);
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-    expect(tester.takeException(), isNull);
-  });
-
-  group('publishes for the queue and menu picks', () {
-    for (final (background, hasImage) in [
-      (NowPlayingBackground.artwork, true),
-      (NowPlayingBackground.tinted, false),
-    ]) {
-      testWidgets('toggle off publishes only the ${background.name} layer', (
-        tester,
-      ) async {
-        final c = await pump(tester, background: background, publish: true);
-        final b = c.read(nowPlayingPublishedBackdropProvider)!;
-        expect(b.image != null, hasImage);
-        expect(b.tintColor, hasImage ? isNull : _tint);
-      });
-    }
-
-    testWidgets('Plain Now Playing with an Artwork queue publishes the image', (
-      tester,
-    ) async {
-      final c = await pump(
-        tester,
-        background: NowPlayingBackground.plain,
-        queue: NowPlayingBackground.artwork,
-        publish: true,
-      );
-      final b = c.read(nowPlayingPublishedBackdropProvider)!;
-      expect(b.image, isNotNull);
-      expect(b.coverAverage, isNotNull);
-      expect(find.byKey(_artworkKey), findsNothing);
-      final theme = Theme.of(tester.element(find.byKey(_surfaceKey)));
-      expect(decoration(tester).color, theme.colorScheme.surface);
-    });
-
-    testWidgets('Artwork Now Playing with Tinted menus publishes both', (
-      tester,
-    ) async {
-      final c = await pump(
-        tester,
-        background: NowPlayingBackground.artwork,
-        menu: NowPlayingBackground.tinted,
-        publish: true,
-      );
-      final b = c.read(nowPlayingPublishedBackdropProvider)!;
-      expect(b.image, isNotNull);
-      expect(b.tintColor, _tint);
-      // Now Playing itself still draws the Artwork layer and no tint.
-      expect(find.byKey(_artworkKey), findsOneWidget);
-      expect(decoration(tester).gradient, isNull);
-    });
-
-    testWidgets('Flat Now Playing publishes a tint for Tinted menus', (
-      tester,
-    ) async {
-      final c = await pump(
-        tester,
-        background: NowPlayingBackground.plain,
-        menu: NowPlayingBackground.tinted,
-        flat: true,
-        publish: true,
-      );
-      expect(c.read(nowPlayingPublishedBackdropProvider)!.tintColor, _tint);
-    });
   });
 }
 

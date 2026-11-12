@@ -5,9 +5,13 @@
 // (expanded, as on an Android phone) with Android's touch slop, and drive the
 // info line the way a thumb does: anywhere on the visible chip, with a few
 // pixels of drift.
+import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:audio_service/audio_service.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -15,15 +19,19 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/media_info.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -85,9 +93,23 @@ final _infoIcon = find
     .descendant(of: _switcher, matching: find.byType(Icon))
     .first;
 
+Future<ImageProvider<Object>> _solidCover() async {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder).drawRect(
+    const Rect.fromLTWH(0, 0, 4, 4),
+    Paint()..color = const Color(0xFF3F7F6F),
+  );
+  final image = await recorder.endRecording().toImage(4, 4);
+  final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+  image.dispose();
+  return MemoryImage(Uint8List.view(bytes.buffer));
+}
+
 void main() {
   late ProviderContainer container;
   late GoRouter router;
+
+  ImageProvider<Object>? cover;
 
   Future<void> pumpSheet(
     WidgetTester tester, {
@@ -95,9 +117,11 @@ void main() {
     bool withSheet = true,
     bool wideEmbeddedMode = false,
     bool compactWide = false,
+    bool artwork = false,
     Size size = const Size(390, 844),
     VoidCallback? onCollapse,
   }) async {
+    if (artwork) cover = await tester.runAsync(_solidCover);
     setAdaptiveTestViewport(tester, size);
     tester.view.gestureSettings = const ui.GestureSettings(
       physicalTouchSlop: _androidTouchSlop,
@@ -105,7 +129,21 @@ void main() {
     addTearDown(tester.view.resetGestureSettings);
     container = createNowPlayingContainer(
       overrides: <Override>[
-        songByIdProvider.overrideWith((ref, id) => Stream.value(_song)),
+        songByIdProvider.overrideWith(
+          (ref, id) => Stream.value(
+            artwork ? _song.copyWith(coverArt: const Value('cover-1')) : _song,
+          ),
+        ),
+        if (artwork) ...<Override>[
+          nowPlayingBackgroundProvider.overrideWith(
+            (ref) => NowPlayingBackground.artwork,
+          ),
+          coverArtImageSourceProvider.overrideWith((ref, key) async => cover!),
+          backgroundCoverColourFieldProvider.overrideWith(
+            (ref, key) async =>
+                CoverColourField.uniform(const Color(0xFF3F7F6F)),
+          ),
+        ],
         songServerDetailsProvider.overrideWith((ref, id) async => null),
         songDownloadStateProvider.overrideWith(
           (ref, id) => SongDownloadState.none,
@@ -163,6 +201,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    if (artwork) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pumpAndSettle();
+    }
   }
 
   /// Cycles to the ReplayGain page (right after Quality).
@@ -449,6 +493,68 @@ void main() {
       }, skip: !sqliteAvailable);
     },
   );
+
+  group('wide right-pane panels over the Artwork layer', () {
+    // The cover widgets reach for the cache directory.
+    const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+    setUp(() {
+      final dir = Directory.systemTemp.createTempSync('navis-np-artwork-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathProvider, (_) async => dir.path);
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(pathProvider, null),
+      );
+    });
+
+    Color sheetColor(WidgetTester tester, String panel) => tester
+        .widget<Material>(
+          find
+              .descendant(
+                of: find.byKey(ValueKey('right-pane-panel-$panel')),
+                matching: find.byType(Material),
+              )
+              .first,
+        )
+        .color!;
+
+    testWidgets(
+      'the Queue sheet is opaque, the Settings sheet stays see-through',
+      (tester) async {
+        await pumpSheet(
+          tester,
+          withSheet: false,
+          wideEmbeddedMode: true,
+          artwork: true,
+          size: const Size(1400, 900),
+        );
+        final context = tester.element(find.byType(NowPlayingScreen));
+        final high = Theme.of(context).colorScheme.surfaceContainerHigh;
+        await tester.longPress(find.text('Playing 1 of 1'));
+        await tester.pumpAndSettle();
+        expect(
+          NowPlayingArtworkLayerScope.of(
+            tester.element(
+              find.byKey(const ValueKey('right-pane-panel-queue')),
+            ),
+          ),
+          isTrue,
+          reason: 'the fixture must activate the Artwork layer',
+        );
+        expect(sheetColor(tester, 'queue'), high);
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byTooltip('Settings').first);
+        await tester.tap(find.byTooltip('Settings').first);
+        await tester.pumpAndSettle();
+        final settings = sheetColor(tester, 'settings');
+        expect(settings, isNot(high));
+        expect(settings.a, closeTo(kNowPlayingArtworkPanelAlpha, 0.001));
+      },
+      skip: !sqliteAvailable,
+    );
+  });
 
   group('the chip keeps its other gestures', () {
     testWidgets('a tap still pages and a hold does not also page', (

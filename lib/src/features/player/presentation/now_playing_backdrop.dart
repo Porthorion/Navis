@@ -18,77 +18,6 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
-/// What Now Playing's visible background is drawing, published so surfaces
-/// outside its subtree (the phone queue overlay) can paint the same layer:
-/// the blurred cover of the Artwork background ([image], no second decode or
-/// fetch) or the Art-Tinted gradient's [tintColor].
-@immutable
-class NowPlayingPublishedBackdrop {
-  const new({
-    required this.owner,
-    required this.imageKey,
-    required this.image,
-    required this.coverAverage,
-    required this.useCoverAverage,
-    this.tintColor,
-  });
-
-  /// The [NowPlayingBackdrop] state that published this.
-  final Object owner;
-  final String? imageKey;
-
-  /// The blurred cover, or null while Art-Tinted publishes [tintColor].
-  final ImageProvider<Object>? image;
-  final Color? coverAverage;
-  final bool useCoverAverage;
-
-  /// The extracted art colour of an Art-Tinted background, null for Artwork.
-  final Color? tintColor;
-
-  @override
-  bool operator ==(Object other) =>
-      other is NowPlayingPublishedBackdrop &&
-      other.owner == owner &&
-      other.imageKey == imageKey &&
-      other.image == image &&
-      other.coverAverage == coverAverage &&
-      other.useCoverAverage == useCoverAverage &&
-      other.tintColor == tintColor;
-
-  @override
-  int get hashCode => Object.hash(
-    owner,
-    imageKey,
-    image,
-    coverAverage,
-    useCoverAverage,
-    tintColor,
-  );
-}
-
-/// Holds the published Artwork backdrop, or null while Now Playing shows none.
-class NowPlayingPublishedBackdropController
-    extends Notifier<NowPlayingPublishedBackdrop?> {
-  @override
-  NowPlayingPublishedBackdrop? build() => null;
-
-  /// Publishes an owned snapshot rather than exposing a writable property.
-  // ignore: use_setters_to_change_properties
-  void publish(NowPlayingPublishedBackdrop backdrop) => state = backdrop;
-
-  /// Clears the backdrop if [owner] still owns it.
-  void clear(Object owner) {
-    if (!ref.mounted) return;
-    if (state?.owner == owner) state = null;
-  }
-}
-
-final nowPlayingPublishedBackdropProvider =
-    NotifierProvider<
-      NowPlayingPublishedBackdropController,
-      NowPlayingPublishedBackdrop?
-    >(NowPlayingPublishedBackdropController.new);
-
 /// The Now Playing background: art-tinted surface, Artwork (blurred cover,
 /// veil and [NowPlayingArtworkLayerScope]) or plain surface, following the
 /// Now Playing Background setting, [NavisColorStyleData.flatNowPlaying] and
@@ -96,13 +25,6 @@ final nowPlayingPublishedBackdropProvider =
 ///
 /// Owns the tint lookup/prewarm and the backdrop image resolution, so the
 /// Now Playing screen and the desktop lyrics view share one implementation.
-/// With [publishToQueueOverlay] the backdrop is also published to
-/// [nowPlayingPublishedBackdropProvider] for what the queue overlay and menus
-/// need: the blurred cover when any of Now Playing, the effective queue and
-/// the effective menu background is Artwork, and the tint colour when the
-/// queue or menus show Tinted (menus also fall back to it from Artwork).
-/// Now Playing's own layer, veil and scope follow only its own background.
-/// With Customize Queue and Menus off the three coincide.
 class NowPlayingBackdrop extends ConsumerStatefulWidget {
   const new({
     required this.hasActivePlayback,
@@ -110,7 +32,6 @@ class NowPlayingBackdrop extends ConsumerStatefulWidget {
     required this.coverArtRevision,
     required this.artUrl,
     required this.child,
-    this.publishToQueueOverlay = false,
     this.textAcrossCover = false,
     super.key,
   });
@@ -123,7 +44,6 @@ class NowPlayingBackdrop extends ConsumerStatefulWidget {
 
   /// Art URL of the playing item (radio art or media-item art).
   final String? artUrl;
-  final bool publishToQueueOverlay;
 
   /// Text runs across the whole cover (the desktop lyrics view), so the
   /// Artwork veil keeps a higher floor than on Now Playing, where text sits
@@ -147,24 +67,6 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
   String? _artworkBackdropKey;
   ImageProvider<Object>? _artworkBackdropImage;
   final Set<String> _failedArtworkBackdropKeys = <String>{};
-
-  NowPlayingPublishedBackdrop? _published;
-  late final NowPlayingPublishedBackdropController _publisher;
-
-  @override
-  void initState() {
-    super.initState();
-    _publisher = ref.read(nowPlayingPublishedBackdropProvider.notifier);
-  }
-
-  @override
-  void dispose() {
-    // A pending post-frame clear may not have run before disposal.
-    // Consumers outside this subtree may still be mounted during tree cleanup.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _publisher.clear(this));
-    WidgetsBinding.instance.scheduleFrame();
-    super.dispose();
-  }
 
   /// Decodes the cached standard 600 px cover at a thumbnail width.
   ImageProvider<Object>? _artworkBackdropFor({
@@ -253,26 +155,9 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
     }
   }
 
-  void _publish(NowPlayingPublishedBackdrop? next) {
-    if (!widget.publishToQueueOverlay && _published == null) return;
-    if (next == _published) return;
-    _published = next;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _published != next) return;
-      if (next == null) {
-        _publisher.clear(this);
-      } else {
-        _publisher.publish(next);
-      }
-    });
-  }
-
   Widget _withArtworkBackground({
     required bool showArtworkLayer,
-    required NowPlayingBackground layer,
     required ImageProvider<Object>? image,
-    required ImageProvider<Object>? publishedImage,
-    required Color? publishedTint,
     required NavisColorStyleData colorStyle,
     required ColorScheme colors,
     required Duration fadeDuration,
@@ -280,7 +165,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
   }) {
     final id = widget.coverArtId?.trim();
     final hasCoverId = id != null && id.isNotEmpty;
-    final average = (showArtworkLayer || publishedImage != null) && hasCoverId
+    final average = showArtworkLayer && hasCoverId
         ? (ref
                       .watch(
                         backgroundCoverColourFieldProvider((
@@ -292,21 +177,6 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
                   peekCoverColourField(id))
               ?.average
         : null;
-    if (widget.publishToQueueOverlay &&
-        (publishedImage != null || publishedTint != null)) {
-      _publish(
-        NowPlayingPublishedBackdrop(
-          owner: this,
-          imageKey: publishedImage == null ? null : _artworkBackdropKey,
-          image: publishedImage,
-          coverAverage: publishedImage == null ? null : average,
-          useCoverAverage: publishedImage != null && hasCoverId,
-          tintColor: publishedTint,
-        ),
-      );
-    } else {
-      _publish(null);
-    }
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
@@ -338,8 +208,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         ),
         NowPlayingArtworkLayerScope(
           active: showArtworkLayer,
-          background: layer,
-          accent: !showArtworkLayer || average == null
+          accent: average == null
               ? null
               : nowPlayingArtworkAccent(
                   colorStyle: colorStyle,
@@ -361,30 +230,16 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
   Widget build(BuildContext context) {
     final motion = MotionPolicy.of(context);
     final background = ref.watch(nowPlayingBackgroundProvider);
-    // The queue overlay and menus may pick other backgrounds than Now
-    // Playing's own; they only matter while this backdrop is published.
-    final publishing = widget.publishToQueueOverlay;
-    final queuePick = publishing
-        ? ref.watch(nowPlayingQueueBackgroundProvider)
-        : NowPlayingBackground.plain;
-    final menuPick = publishing
-        ? ref.watch(nowPlayingMenuBackgroundProvider)
-        : NowPlayingBackground.plain;
     final brightness = Theme.of(context).brightness;
     final colors = Theme.of(context).colorScheme;
     final colorStyle = NavisColorStyleData.of(context);
-    final flat = colorStyle.flatNowPlaying;
     final hasActivePlayback = widget.hasActivePlayback;
     final coverArtId = widget.coverArtId;
     final activeArtUrl = widget.artUrl;
     // Artwork draws a blurred cover; Flat has no blur, and a cover that
     // cannot load falls back to the tinted look, so both still need a tint.
-    final needArtwork =
-        background == NowPlayingBackground.artwork ||
-        queuePick == NowPlayingBackground.artwork ||
-        menuPick == NowPlayingBackground.artwork;
     ImageProvider<Object>? artworkImage;
-    if (needArtwork && hasActivePlayback) {
+    if (background == NowPlayingBackground.artwork && hasActivePlayback) {
       artworkImage = _artworkBackdropFor(
         coverArtId: coverArtId,
         artUrl: activeArtUrl,
@@ -394,30 +249,17 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
       _artworkBackdropKey = null;
       _artworkBackdropImage = null;
     }
-    final artworkAvailable =
-        artworkImage != null &&
-        !_failedArtworkBackdropKeys.contains(_artworkBackdropKey);
     final showArtworkLayer = nowPlayingShowsArtworkLayer(
       background: background,
-      flat: flat,
-      hasImage: artworkAvailable,
+      flat: colorStyle.flatNowPlaying,
+      hasImage:
+          artworkImage != null &&
+          !_failedArtworkBackdropKeys.contains(_artworkBackdropKey),
     );
     final artTinted =
         background == NowPlayingBackground.tinted ||
         (background == NowPlayingBackground.artwork && !showArtworkLayer);
-    // What the queue and menus read from the published backdrop. The queue
-    // paints a chosen non-Flat Tinted or an available Artwork; menus also
-    // fall back from Artwork (Flat, no cover, radio) to the tint.
-    final artworkUsable = artworkAvailable && !flat;
-    final publishImage = publishing && artworkUsable && needArtwork;
-    final queueWantsTint = queuePick == NowPlayingBackground.tinted && !flat;
-    final menuWantsTint =
-        menuPick == NowPlayingBackground.tinted ||
-        (menuPick == NowPlayingBackground.artwork &&
-            (!artworkUsable || (coverArtId?.trim().isEmpty ?? true)));
-    final publishTint = publishing && (queueWantsTint || menuWantsTint);
-    final extractTint = artTinted || publishTint;
-    final cachedTintColor = extractTint
+    final cachedTintColor = artTinted
         ? nowPlayingCachedTintColor(
             brightness: brightness,
             coverArtId: coverArtId,
@@ -425,8 +267,8 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
           )
         : null;
 
-    // Trigger color extraction when a tint is needed.
-    if (extractTint) {
+    // Trigger color extraction when art-tinted mode is on.
+    if (artTinted) {
       if (!hasActivePlayback) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted &&
@@ -464,7 +306,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
 
     final surfaceColor = colors.surface;
     final extractedTintColor = cachedTintColor ?? _artTintColor;
-    if (extractTint &&
+    if (artTinted &&
         hasActivePlayback &&
         extractedTintColor != null &&
         extractedTintColor != _lastStableTintColor) {
@@ -474,11 +316,10 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         }
       });
     }
-    final tintColor = extractTint
+    final tintColor = artTinted
         ? (extractedTintColor ??
               (hasActivePlayback ? _lastStableTintColor : null))
         : null;
-    final surfaceTint = artTinted ? tintColor : null;
 
     return Material(
       color: surfaceColor,
@@ -487,20 +328,13 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         duration: motion.surface,
         curve: Curves.easeInOutCubic,
         decoration: nowPlayingSurfaceDecoration(
-          tintColor: surfaceTint,
+          tintColor: tintColor,
           colorStyle: colorStyle,
           surfaceColor: surfaceColor,
         ),
         child: _withArtworkBackground(
           showArtworkLayer: showArtworkLayer,
-          layer: showArtworkLayer
-              ? NowPlayingBackground.artwork
-              : artTinted
-              ? NowPlayingBackground.tinted
-              : NowPlayingBackground.plain,
           image: artworkImage,
-          publishedImage: publishImage ? artworkImage : null,
-          publishedTint: publishTint ? tintColor : null,
           colorStyle: colorStyle,
           colors: colors,
           fadeDuration: motion.surface,

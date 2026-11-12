@@ -277,28 +277,6 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('queue and menus writers round trip and keep the picks', () async {
-      final dao = database.appSettingsDao;
-      final initial = (await dao.getSettings())!;
-      expect(initial.customizeQueueMenus, isFalse);
-      expect(initial.queueBackground, 'tinted');
-      expect(initial.menuBackground, 'tinted');
-      await dao.updateCustomizeQueueAndMenus(enabled: true);
-      await dao.updateQueueBackground('artwork');
-      await dao.updateMenuBackground('plain');
-      var row = (await dao.getSettings())!;
-      expect(row.customizeQueueMenus, isTrue);
-      expect(row.queueBackground, 'artwork');
-      expect(row.menuBackground, 'plain');
-      expect(row.nowPlayingBackground, initial.nowPlayingBackground);
-      await dao.updateCustomizeQueueAndMenus(enabled: false);
-      await dao.updateQueueBackground('unknown');
-      row = (await dao.getSettings())!;
-      expect(row.customizeQueueMenus, isFalse);
-      expect(row.queueBackground, 'tinted');
-      expect(row.menuBackground, 'plain');
-    }, skip: !sqliteAvailable);
-
     test('keep title versions visible defaults on and toggles', () async {
       final dao = database.appSettingsDao;
       expect((await dao.getSettings())!.keepTitleVersionVisible, isTrue);
