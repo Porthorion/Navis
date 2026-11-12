@@ -8,6 +8,7 @@ import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/caption_tint.dart';
+import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/bounded_lru_map.dart';
@@ -139,10 +140,32 @@ BoxDecoration nowPlayingSurfaceDecoration({
   required NavisColorStyleData colorStyle,
   required Color surfaceColor,
 }) {
-  // OLED + Flat stays pure black: a solid tint would lift the whole screen
-  // off black, which defeats OLED. Non-flat OLED keeps its gradient.
+  final tint = nowPlayingTintTop(tintColor: tintColor, colorStyle: colorStyle);
+  if (tint == null) return BoxDecoration(color: surfaceColor);
+  if (colorStyle.flatNowPlaying) {
+    return BoxDecoration(color: Color.alphaBlend(tint, surfaceColor));
+  }
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: <Color>[tint, surfaceColor],
+      stops: const <double>[0, 0.7],
+    ),
+  );
+}
+
+/// The art-tinted background's top colour: [tintColor] adapted to the style,
+/// capped near black in OLED, at the style's alpha. Null when nothing is
+/// tinted: no [tintColor], or OLED + Flat, which stays pure black (a solid
+/// tint would lift the whole screen off black; non-flat OLED keeps its
+/// gradient).
+Color? nowPlayingTintTop({
+  required Color? tintColor,
+  required NavisColorStyleData colorStyle,
+}) {
   if (tintColor == null || (colorStyle.flatNowPlaying && colorStyle.oled)) {
-    return BoxDecoration(color: surfaceColor);
+    return null;
   }
   var adaptedTint = colorStyle.adaptArtColor(tintColor);
   if (colorStyle.oled) {
@@ -158,18 +181,81 @@ BoxDecoration nowPlayingSurfaceDecoration({
       );
     }
   }
-  final tint = adaptedTint.withValues(alpha: colorStyle.nowPlayingTintAlpha);
-  if (colorStyle.flatNowPlaying) {
-    return BoxDecoration(color: Color.alphaBlend(tint, surfaceColor));
+  return adaptedTint.withValues(alpha: colorStyle.nowPlayingTintAlpha);
+}
+
+/// What a surface that picked [pick] actually shows given what Now Playing
+/// [backdrop]ed: Artwork needs a cover image and a non-Flat style, else it
+/// falls back to Tinted; Tinted needs a tint colour, else Plain.
+NowPlayingBackground resolveNowPlayingLayer(
+  NowPlayingBackground pick,
+  NowPlayingPublishedBackdrop? backdrop, {
+  required bool flat,
+}) {
+  if (pick == NowPlayingBackground.artwork &&
+      !flat &&
+      backdrop?.image != null) {
+    return NowPlayingBackground.artwork;
   }
-  return BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: <Color>[tint, surfaceColor],
-      stops: const <double>[0, 0.7],
-    ),
-  );
+  return pick != NowPlayingBackground.plain && backdrop?.tintColor != null
+      ? NowPlayingBackground.tinted
+      : NowPlayingBackground.plain;
+}
+
+/// The layer the phone queue overlay paints for [pick]. Unlike menus it never
+/// falls back from Artwork to Tinted, and a Flat solid tint stays an opaque
+/// queue (#560).
+NowPlayingBackground nowPlayingQueueLayer(
+  NowPlayingBackground pick,
+  NowPlayingPublishedBackdrop? backdrop, {
+  required bool flat,
+}) {
+  final layer = resolveNowPlayingLayer(pick, backdrop, flat: flat);
+  return layer == pick && !(flat && layer == NowPlayingBackground.tinted)
+      ? layer
+      : NowPlayingBackground.plain;
+}
+
+/// One solid fill for menus, sheets and popovers over Now Playing, or null
+/// for the theme (popup menus and `MenuStyle` only take a colour).
+///
+/// Tinted: the Flat Now Playing colour. Artwork: the adaptive veil over the
+/// cover average (what the blurred cover averages to); with no average it
+/// uses the tinted fill. [layer] comes from [resolveNowPlayingLayer].
+Color? nowPlayingMenuFill({
+  required NowPlayingBackground layer,
+  required NowPlayingPublishedBackdrop? backdrop,
+  required ColorScheme scheme,
+  required NavisColorStyleData style,
+}) {
+  Color? tinted() {
+    final top = nowPlayingTintTop(
+      tintColor: backdrop?.tintColor,
+      colorStyle: style,
+    );
+    return top == null ? null : Color.alphaBlend(top, scheme.surface);
+  }
+
+  switch (layer) {
+    case NowPlayingBackground.plain:
+      return null;
+    case NowPlayingBackground.tinted:
+      return tinted();
+    case NowPlayingBackground.artwork:
+      final average = backdrop?.coverAverage;
+      if (average == null) return tinted();
+      final cover = average.withValues(alpha: 1);
+      return Color.alphaBlend(
+        nowPlayingAdaptiveVeil(
+          colorStyle: style,
+          surface: scheme.surface,
+          onSurface: scheme.onSurface,
+          average: cover,
+          onSurfaceVariant: scheme.onSurfaceVariant,
+        ),
+        cover,
+      );
+  }
 }
 
 /// Blurred, veiled cover behind Now Playing (the Artwork background).

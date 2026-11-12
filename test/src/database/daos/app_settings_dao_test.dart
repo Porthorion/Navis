@@ -277,19 +277,26 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('sheet style round trips through its targeted writer', () async {
+    test('queue and menus writers round trip and keep the picks', () async {
       final dao = database.appSettingsDao;
       final initial = (await dao.getSettings())!;
-      expect(initial.sheetStyle, 'match_now_playing');
-      for (final value in ['album_color', 'theme', 'match_now_playing']) {
-        await dao.updateSheetStyle(value);
-        final row = (await dao.getSettings())!;
-        expect(row.sheetStyle, value);
-        expect(row.nowPlayingBackground, initial.nowPlayingBackground);
-      }
-      await dao.updateSheetStyle('theme');
-      await dao.updateSheetStyle('unknown');
-      expect((await dao.getSettings())!.sheetStyle, 'match_now_playing');
+      expect(initial.customizeQueueMenus, isFalse);
+      expect(initial.queueBackground, 'tinted');
+      expect(initial.menuBackground, 'tinted');
+      await dao.updateCustomizeQueueAndMenus(enabled: true);
+      await dao.updateQueueBackground('artwork');
+      await dao.updateMenuBackground('plain');
+      var row = (await dao.getSettings())!;
+      expect(row.customizeQueueMenus, isTrue);
+      expect(row.queueBackground, 'artwork');
+      expect(row.menuBackground, 'plain');
+      expect(row.nowPlayingBackground, initial.nowPlayingBackground);
+      await dao.updateCustomizeQueueAndMenus(enabled: false);
+      await dao.updateQueueBackground('unknown');
+      row = (await dao.getSettings())!;
+      expect(row.customizeQueueMenus, isFalse);
+      expect(row.queueBackground, 'tinted');
+      expect(row.menuBackground, 'plain');
     }, skip: !sqliteAvailable);
 
     test('keep title versions visible defaults on and toggles', () async {

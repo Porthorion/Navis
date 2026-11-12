@@ -801,10 +801,9 @@ void main() {
         'cornerStyle',
         'density',
         'nowPlayingBackground',
-        'sheetStyle',
       ]);
-      // Sheets & Menus is Settings-only: the default needs no setup step.
-      expect(find.text('Sheets & Menus'), findsNothing);
+      // Customize Queue and Menus is Settings-only: no setup step.
+      expect(find.text('Customize Queue and Menus'), findsNothing);
     });
 
     testWidgets('headings and controls share one left edge', (tester) async {

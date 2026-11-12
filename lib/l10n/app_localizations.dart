@@ -6663,47 +6663,29 @@ abstract class AppLocalizations {
   /// **'The plain background of your theme, with no album color.'**
   String get appearanceNowPlayingBackgroundPlainSub;
 
-  /// No description provided for @appearanceSheetStyleLabel.
+  /// No description provided for @appearanceQueueMenusCustomizeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Sheets & Menus'**
-  String get appearanceSheetStyleLabel;
+  /// **'Customize Queue and Menus'**
+  String get appearanceQueueMenusCustomizeLabel;
 
-  /// No description provided for @appearanceSheetStyleMatchNowPlaying.
+  /// No description provided for @appearanceQueueMenusCustomizeSub.
   ///
   /// In en, this message translates to:
-  /// **'Match Now Playing'**
-  String get appearanceSheetStyleMatchNowPlaying;
+  /// **'Off: the queue, menus and sheets over Now Playing match its background.'**
+  String get appearanceQueueMenusCustomizeSub;
 
-  /// No description provided for @appearanceSheetStyleAlbumColor.
+  /// No description provided for @appearanceQueueBackgroundLabel.
   ///
   /// In en, this message translates to:
-  /// **'Album Color'**
-  String get appearanceSheetStyleAlbumColor;
+  /// **'Queue'**
+  String get appearanceQueueBackgroundLabel;
 
-  /// No description provided for @appearanceSheetStyleTheme.
+  /// No description provided for @appearanceMenuBackgroundLabel.
   ///
   /// In en, this message translates to:
-  /// **'Theme'**
-  String get appearanceSheetStyleTheme;
-
-  /// No description provided for @appearanceSheetStyleMatchNowPlayingSub.
-  ///
-  /// In en, this message translates to:
-  /// **'Sheets over Now Playing follow it; menus use your theme.'**
-  String get appearanceSheetStyleMatchNowPlayingSub;
-
-  /// No description provided for @appearanceSheetStyleAlbumColorSub.
-  ///
-  /// In en, this message translates to:
-  /// **'The queue, menus and sheets take on the color of the playing album. Dialogs keep your theme.'**
-  String get appearanceSheetStyleAlbumColorSub;
-
-  /// No description provided for @appearanceSheetStyleThemeSub.
-  ///
-  /// In en, this message translates to:
-  /// **'Plain theme colors everywhere, including the queue.'**
-  String get appearanceSheetStyleThemeSub;
+  /// **'Menus'**
+  String get appearanceMenuBackgroundLabel;
 
   /// No description provided for @appearanceOledForAutoLabel.
   ///
@@ -7796,6 +7778,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.'**
   String get appearanceKeepTitleVersionSub;
+
+  /// No description provided for @interfaceSongTitlesHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Song Titles'**
+  String get interfaceSongTitlesHeading;
 
   /// No description provided for @desktopNavbarSectionLabel.
   ///

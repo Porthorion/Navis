@@ -13,7 +13,6 @@ import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:path/path.dart' as p;
@@ -777,12 +776,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             nowPlayingBackground: snapshot.nowPlayingBackground == null
                 ? const Value.absent()
                 : Value(snapshot.nowPlayingBackground!),
-            sheetStyle: snapshot.sheetStyle == null
+            customizeQueueMenus: snapshot.customizeQueueAndMenus == null
                 ? const Value.absent()
-                : Value(snapshot.sheetStyle!),
-            keepTitleVersionVisible: snapshot.keepTitleVersionVisible == null
+                : Value(snapshot.customizeQueueAndMenus!),
+            queueBackground: snapshot.queueBackground == null
                 ? const Value.absent()
-                : Value(snapshot.keepTitleVersionVisible!),
+                : Value(snapshot.queueBackground!),
+            menuBackground: snapshot.menuBackground == null
+                ? const Value.absent()
+                : Value(snapshot.menuBackground!),
             updatedAt: Value(DateTime.now()),
           ),
         );
@@ -960,11 +962,27 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Writes the canonical Sheets & Menus style.
-  Future<void> updateSheetStyle(String value) {
+  /// Customize Queue and Menus on or off. The picks are kept while off.
+  Future<void> updateCustomizeQueueAndMenus({required bool enabled}) {
+    return _writeSettings(
+      AppSettingsTableCompanion(customizeQueueMenus: Value(enabled)),
+    );
+  }
+
+  /// Writes the canonical queue background pick.
+  Future<void> updateQueueBackground(String value) {
     return _writeSettings(
       AppSettingsTableCompanion(
-        sheetStyle: Value(SheetStyle.parse(value).storageKey),
+        queueBackground: Value(NowPlayingBackground.parse(value).storageKey),
+      ),
+    );
+  }
+
+  /// Writes the canonical menus background pick.
+  Future<void> updateMenuBackground(String value) {
+    return _writeSettings(
+      AppSettingsTableCompanion(
+        menuBackground: Value(NowPlayingBackground.parse(value).storageKey),
       ),
     );
   }

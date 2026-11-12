@@ -283,7 +283,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 115;
+  static const currentSchemaVersion = 116;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -459,6 +459,7 @@ class NavisDatabase extends _$NavisDatabase {
       from112To113,
       from113To114,
       from114To115,
+      from115To116,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -539,8 +540,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
-  /// Sheets & Menus style (`app_settings.sheet_style`). Adds one column that
-  /// defaults to match_now_playing, so every profile keeps its current look.
+  /// Sheets & Menus style (`app_settings.sheet_style`, retired by G3). Adds one
+  /// column that defaults to match_now_playing, so every profile keeps its
+  /// current look.
   Future<void> from113To114(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'sheet_style')) {
       await migrator.addColumn(appSettingsTable, appSettingsTable.sheetStyle);
@@ -556,6 +558,35 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.keepTitleVersionVisible,
       );
     }
+  }
+
+  /// Customize Queue and Menus: three columns replace the legacy
+  /// `sheet_style`. Only when the toggle column was absent (first run) the old
+  /// choice maps once: album_color becomes on with Tinted picks, theme becomes
+  /// on with Plain picks, anything else stays off. Re-runs never overwrite a
+  /// later user change.
+  Future<void> from115To116(Migrator migrator) async {
+    final first = !await _columnExists('app_settings', 'customize_queue_menus');
+    final table = appSettingsTable;
+    for (final (name, column) in <(String, GeneratedColumn<Object>)>[
+      ('customize_queue_menus', table.customizeQueueMenus),
+      ('queue_background', table.queueBackground),
+      ('menu_background', table.menuBackground),
+    ]) {
+      if (!await _columnExists('app_settings', name)) {
+        await migrator.addColumn(table, column);
+      }
+    }
+    if (!first) return;
+    await customStatement(
+      'UPDATE app_settings SET customize_queue_menus = 1, '
+      "queue_background = 'plain', menu_background = 'plain' "
+      "WHERE sheet_style = 'theme'",
+    );
+    await customStatement(
+      'UPDATE app_settings SET customize_queue_menus = 1 '
+      "WHERE sheet_style = 'album_color'",
+    );
   }
 
   /// Search ranking by Deezer popularity (`deezer.searchRanking`) is on by
