@@ -6663,30 +6663,6 @@ abstract class AppLocalizations {
   /// **'The plain background of your theme, with no album color.'**
   String get appearanceNowPlayingBackgroundPlainSub;
 
-  /// No description provided for @appearanceQueueMenusCustomizeLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Customize Queue and Menus'**
-  String get appearanceQueueMenusCustomizeLabel;
-
-  /// No description provided for @appearanceQueueMenusCustomizeSub.
-  ///
-  /// In en, this message translates to:
-  /// **'Off: the queue, menus and sheets over Now Playing match its background.'**
-  String get appearanceQueueMenusCustomizeSub;
-
-  /// No description provided for @appearanceQueueBackgroundLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Queue'**
-  String get appearanceQueueBackgroundLabel;
-
-  /// No description provided for @appearanceMenuBackgroundLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Menus'**
-  String get appearanceMenuBackgroundLabel;
-
   /// No description provided for @appearanceOledForAutoLabel.
   ///
   /// In en, this message translates to:

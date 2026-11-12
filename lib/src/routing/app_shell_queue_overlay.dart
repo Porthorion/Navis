@@ -354,10 +354,12 @@ class _QueueOverlayState extends State<_QueueOverlay>
                 clipBehavior: Clip.antiAlias,
                 child: queueContent,
               )
-            : _QueueArtworkSurface(
-                fullscreen: widget.fullscreen,
-                child: queueContent,
-              );
+            : widget.fullscreen
+            ? Material(
+                color: Theme.of(context).colorScheme.surface,
+                child: SizedBox.expand(child: queueContent),
+              )
+            : queueContent;
 
         return FocusScope(
           autofocus: true,
@@ -444,95 +446,5 @@ class _QueueOverlayState extends State<_QueueOverlay>
         );
       },
     );
-  }
-}
-
-/// Surface of the phone queue overlay, following the effective queue
-/// background.
-///
-/// While Now Playing is expanded and its published backdrop (see
-/// [NowPlayingBackdrop]) can show the queue's pick, the queue paints that
-/// layer: the Artwork layer's blurred cover or the Art-Tinted gradient. It
-/// marks the content with [NowPlayingArtworkLayerScope] so the queue's panel
-/// fill turns translucent or transparent and the layer shows through.
-/// Otherwise (Plain, Now Playing collapsed, nothing published) the content's
-/// own opaque fill (see `queuePanelFill`) is the theme surface.
-class _QueueArtworkSurface extends ConsumerWidget {
-  const new({required this.fullscreen, required this.child});
-
-  final bool fullscreen;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).colorScheme;
-    final nowPlayingExpanded = ref.watch(playerSheetExpandedProvider);
-    final published = ref.watch(nowPlayingPublishedBackdropProvider);
-    final backdrop = nowPlayingExpanded ? published : null;
-    final layer = nowPlayingQueueLayer(
-      ref.watch(nowPlayingQueueBackgroundProvider),
-      backdrop,
-      flat: NavisColorStyleData.of(context).flatNowPlaying,
-    );
-    final show = layer != NowPlayingBackground.plain;
-    final tintColor = layer == NowPlayingBackground.tinted
-        ? backdrop?.tintColor
-        : null;
-    final surface = Material(
-      color: show
-          ? Colors.transparent
-          : (fullscreen ? colors.surface : Colors.transparent),
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Positioned.fill(
-            child: !show
-                ? const SizedBox.shrink()
-                : tintColor != null
-                ? DecoratedBox(
-                    key: const ValueKey<String>('queueTintBackground'),
-                    decoration: nowPlayingSurfaceDecoration(
-                      tintColor: tintColor,
-                      colorStyle: NavisColorStyleData.of(context),
-                      surfaceColor: colors.surface,
-                    ),
-                  )
-                : NowPlayingArtworkBackground(
-                    key: const ValueKey<String>('queueArtworkBackground'),
-                    imageKey: backdrop!.imageKey,
-                    image: backdrop.image,
-                    coverAverage: backdrop.coverAverage,
-                    useCoverAverage: backdrop.useCoverAverage,
-                    colorStyle: NavisColorStyleData.of(context),
-                    surfaceColor: colors.surface,
-                    onSurfaceColor: colors.onSurface,
-                    accentColor: colors.primary,
-                    onSurfaceVariantColor: colors.onSurfaceVariant,
-                    fadeDuration: Duration.zero,
-                  ),
-          ),
-          NowPlayingArtworkLayerScope(
-            active: show,
-            background: layer,
-            tinted: tintColor != null,
-            child: child,
-          ),
-        ],
-      ),
-    );
-    return fullscreen
-        ? surface
-        : SafeArea(
-            top: show,
-            left: show,
-            right: show,
-            bottom: false,
-            child: ClipRRect(
-              borderRadius: show
-                  ? NavisShapeData.of(context).sheetTop
-                  : BorderRadius.zero,
-              child: surface,
-            ),
-          );
   }
 }

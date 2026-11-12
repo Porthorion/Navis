@@ -861,46 +861,6 @@ void main() {
           expect(c.read(nowPlayingBackgroundProvider).storageKey, 'tinted'),
     ),
 
-    _Control(
-      'Customize Queue and Menus: switch',
-      writers: {'updateCustomizeQueueAndMenus'},
-      columns: {'customizeQueueMenus'},
-      // Turning it on also brings the two picks into the Look.
-      fields: {'customizeQueueAndMenus', 'queueBackground', 'menuBackground'},
-      act: (t) => tap(
-        t,
-        find.byKey(const ValueKey<String>('customizeQueueMenusSwitch')),
-      ),
-      effect: (c) => expect(c.read(customizeQueueAndMenusProvider), isTrue),
-    ),
-    for (final (name, label) in <(String, String)>[
-      ('artwork', l10n.appearanceNowPlayingBackgroundArtwork),
-      ('plain', l10n.appearanceNowPlayingBackgroundPlain),
-    ]) ...<_Control>[
-      _Control(
-        'Customize Queue and Menus: queue $name',
-        writers: {'updateQueueBackground'},
-        columns: {'queueBackground'},
-        fields: {'queueBackground'},
-        seed: (db) =>
-            db.appSettingsDao.updateCustomizeQueueAndMenus(enabled: true),
-        act: (t) => tap(t, inSelector('queueBackgroundSelector', label)),
-        effect: (c) =>
-            expect(c.read(nowPlayingQueueBackgroundProvider).storageKey, name),
-      ),
-      _Control(
-        'Customize Queue and Menus: menus $name',
-        writers: {'updateMenuBackground'},
-        columns: {'menuBackground'},
-        fields: {'menuBackground'},
-        seed: (db) =>
-            db.appSettingsDao.updateCustomizeQueueAndMenus(enabled: true),
-        act: (t) => tap(t, inSelector('menuBackgroundSelector', label)),
-        effect: (c) =>
-            expect(c.read(nowPlayingMenuBackgroundProvider).storageKey, name),
-      ),
-    ],
-
     // Not part of a Look: the Look must stay selected.
     _Control(
       'Keep Song Versions Visible',
@@ -1245,11 +1205,8 @@ void main() {
     });
 
     test('every Look field has a control, except the stated ones', () {
-      // The Queue and Menus picks only enter a Look while Customize is on.
       final fields = AppearanceSnapshot.capture(
-        const AppSettingsModel.defaults().copyWith(
-          customizeQueueAndMenus: true,
-        ),
+        const AppSettingsModel.defaults(),
       ).toJson().keys.toSet();
       final covered = {for (final c in controls) ...c.fields};
       // albumGridDensity is a legacy column: nothing reads or writes it

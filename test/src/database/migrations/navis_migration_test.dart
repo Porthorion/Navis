@@ -365,8 +365,11 @@ void main() {
 
     test('re-running never overwrites a later user change', () async {
       final db = await upgraded115('theme');
-      await db.appSettingsDao.updateCustomizeQueueAndMenus(enabled: false);
-      await db.appSettingsDao.updateQueueBackground('artwork');
+      // The columns have no DAO writer since G4.
+      await db.customStatement(
+        'UPDATE app_settings SET customize_queue_menus = 0, '
+        "queue_background = 'artwork'",
+      );
       await db.from115To116(Migrator(db));
       final again = (await db.appSettingsDao.getSettings())!;
       expect(again.customizeQueueMenus, isFalse);

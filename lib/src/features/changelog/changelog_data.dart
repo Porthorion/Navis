@@ -208,10 +208,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'The queue, menus and sheets over Now Playing now match its '
-        'background. Settings › Themes › Customize Queue and Menus picks '
-        'Tinted, Artwork or Plain for the queue and for the menus',
-        type: ChangelogEntryType.newFeature,
+        'The queue, menus and sheets now always use your theme colors, also '
+        'over Now Playing, instead of taking on its background',
       ),
       ChangelogEntry(
         'Long song titles keep their version, such as (Radio Edit), visible '

@@ -1031,9 +1031,9 @@ target-selection rules.
   a clone until disposal. The app shell watches
   `nowPlayingArtworkPrewarmProvider` on Artwork setting and track/source
   changes, outside the paused player sheet, with background cover-load
-  interest. Both the player and queue keep their Stack and artwork scope
-  mounted across tinted/Artwork/plain changes, retaining body state. The layer
-  lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
+  interest. The player keeps its Stack and artwork scope mounted across
+  tinted/Artwork/plain changes, retaining body state; the queue has
+  neither. The layer lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
   (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
   title at 5.0:1 against the shared cover field's usable-cell average (from
   `coverColourFieldProvider((id, revision))`), within dark 0.30-0.80, OLED
@@ -1055,31 +1055,18 @@ target-selection rules.
   external art uses the same allowed-artwork path as the tint, and with no
   image Artwork falls back to the tinted look. Tint extraction only runs when a
   tint is drawn. While the Artwork layer is shown, the split-layout lyrics
-  and right panes, the embedded queue sheet and the wide side-panel sheets
-  paint a translucent veil (`nowPlayingArtworkVeilBase` at 0.45) instead of
-  an opaque surface so the art stays visible: `NowPlayingArtworkLayerScope`
-  (`now_playing_artwork_scope.dart`) is set around the Now Playing body and
-  panels read it through `nowPlayingArtworkPanelFill`. Without the layer, and
-  under Flat, they stay opaque. The expanded Now Playing backdrop publishes its
-  image provider, source key and cover average after the frame through
-  `nowPlayingPublishedBackdropProvider`, with owner-checked cleanup when hidden,
-  switched away from Artwork, or disposed. The phone queue overlay outside the
-  Now Playing subtree reuses that same prepared blur through the shared cache in
-  `NowPlayingArtworkBackground` beneath its own active artwork scope. A queue
-  opened from Home with Now Playing collapsed, or under Flat, stays opaque.
-  The effective queue background (`nowPlayingQueueBackgroundProvider`: Now
-  Playing's own, or the Queue pick while Customize Queue and Menus is on)
-  decides what the queue draws. `NowPlayingBackdrop` publishes what the queue
-  and menus need (the cover when any of the three is Artwork, the tint when the
-  queue or menus show Tinted) even when Now Playing itself is Plain.
-  `nowPlayingQueueLayer` resolves the pick: Artwork needs a cover and non-Flat,
-  Tinted needs a tint and non-Flat (a Flat solid tint stays opaque, #560),
-  otherwise Plain is the opaque theme surface. The overlay paints that layer
-  and `NowPlayingArtworkLayerScope(background:)` records it; `queuePanelFill`
-  keeps the see-through panel fill when the pick is Artwork and equals the layer
-  behind the panel; Tinted stays opaque as before, Plain stays opaque, and any
-  other pick gets the solid menu fill.
-  The pickers sit under Now Playing in Settings > Themes (no setup step).
+  and right panes paint a translucent veil (`nowPlayingArtworkVeilBase` at
+  0.45) instead of an opaque surface so the art stays visible:
+  `NowPlayingArtworkLayerScope` (`now_playing_artwork_scope.dart`) is set
+  around the Now Playing body and those panes read it through
+  `nowPlayingArtworkPanelFill`. Without the layer, and under Flat, they stay
+  opaque. The queue and menus never follow the Now Playing background (G4,
+  owner 2026-11-12): the phone queue overlay, the embedded queue sheet, the
+  wide Now Playing queue panels, popup and MenuAnchor menus, modal sheets
+  (`showNavisModalSheet`), Speed & Pitch and the desktop popover all paint the
+  plain theme colours, over expanded Now Playing as anywhere else. Dynamic
+  Album Color tints them only through the theme, like every other surface.
+  Nothing is published from the backdrop to surfaces outside its subtree.
   The adaptive veil keeps `onSurface`,
   `onSurfaceVariant` and the accent title at 5.0:1 within its range. When the
   cap is hit and the title is under 3.0:1, `nowPlayingArtworkAccent` shifts the
@@ -1144,29 +1131,18 @@ target-selection rules.
     (`updateKeepTitleVersionVisible`). It is not a Look field (it left Looks in
     1.5.2): `AppearanceSnapshot` ignores a saved `keepTitleVersionVisible` key
     and applying a Look never touches the setting.
-  - Schema 116 (`from115To116`, guarded by `_columnExists`) adds Customize
-    Queue and Menus (G3): `customize_queue_menus` (off), `queue_background` and
-    `menu_background` (`NowPlayingBackground` keys, default tinted). Off, the
-    queue and everything opened over expanded Now Playing follow Now Playing's
-    background; on, the Queue and Menus picks apply. The three are Look fields
-    (a hidden pick is not captured while off); an older Look with the retired
-    `sheetStyle` key maps like the migration. `sheet_style` (schema 114, dev
-    builds only) stays as an unused legacy column that `from115To116` reads
-    once: album_color becomes on/tinted/tinted, theme becomes on/plain/plain.
-    The step runs inside `onUpgrade`'s single transaction, so an interrupted
-    upgrade rolls the columns and `user_version` back and the mapping is never
-    skipped (`navis_migration_test.dart` "an interrupted upgrade").
-    `NowPlayingMenuScope`, inserted in `MaterialApp.builder`, gives popup menus
-    and MenuAnchor menus one solid fill (`nowPlayingMenuFill`) only while
-    `playerSheetExpandedProvider` is true (desktop Now Playing uses the same
-    overlay stack and publishes the same backdrop): Tinted is the Flat Now
-    Playing colour, Artwork the adaptive veil over the cover average, Plain
-    the theme. It always inserts `PopupMenuTheme` and `MenuTheme`, varying only
-    the colour, and never touches dialogs or `ThemeData`. `showNavisModalSheet`,
-    Speed & Pitch and the desktop popover read the fill back from
-    `PopupMenuTheme.of(context).color` once, at open, so an open sheet keeps its
-    fill across a track change and collapse. Every modal sheet opens through that
-    helper (`navis_modal_sheet_audit_test.dart`).
+  - Schema 116 (`from115To116`, guarded by `_columnExists`) added Customize
+    Queue and Menus in 1.5.2 dev builds (G3); G4 removed the feature without a
+    new migration, so the schema stays 116. `customize_queue_menus`,
+    `queue_background` and `menu_background` (and `sheet_style`, schema 114) are
+    legacy columns: nothing reads or writes them, no DAO writer or model field
+    exists, and `from115To116` still creates them (and maps `sheet_style` once)
+    so fresh and upgraded schemas match. The queue and menus use the theme
+    everywhere. `AppearanceSnapshot` ignores a saved `customizeQueueAndMenus`,
+    `queueBackground`, `menuBackground` or `sheetStyle` key, so an old Look
+    still loads and is not Custom because of them, and the diagnostics API
+    treats those keys as unknown. Every modal sheet opens through
+    `showNavisModalSheet` (`navis_modal_sheet_audit_test.dart`).
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
     theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
     `auto_dark_start_minutes` (1200) and `auto_dark_end_minutes` (420), plus

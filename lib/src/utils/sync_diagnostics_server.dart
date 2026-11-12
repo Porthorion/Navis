@@ -878,9 +878,6 @@ class SyncDiagnosticsServer {
           final keepVersion = body['keepTitleVersionVisible'];
           final corners = body['cornerStyle'];
           final background = body['nowPlayingBackground'];
-          final customizeQueueMenus = body['customizeQueueAndMenus'];
-          final queueBackground = body['queueBackground'];
-          final menuBackground = body['menuBackground'];
           final density = body['density'];
           final choices = <String, Iterable<String>>{
             'themeMode': ['system', 'light', 'dark', 'oled'],
@@ -889,12 +886,6 @@ class SyncDiagnosticsServer {
             ),
             'cornerStyle': NavisCornerStyle.values.map((style) => style.name),
             'nowPlayingBackground': NowPlayingBackground.values.map(
-              (value) => value.storageKey,
-            ),
-            'queueBackground': NowPlayingBackground.values.map(
-              (value) => value.storageKey,
-            ),
-            'menuBackground': NowPlayingBackground.values.map(
               (value) => value.storageKey,
             ),
             'density': NavisDensity.values.map((value) => value.storageKey),
@@ -913,7 +904,6 @@ class SyncDiagnosticsServer {
             'albumArtShade',
             'albumArtColoredShade',
             'keepTitleVersionVisible',
-            'customizeQueueAndMenus',
           ]) {
             if (body.containsKey(key) && body[key] is! bool) {
               throw const FormatException();
@@ -1022,9 +1012,6 @@ class SyncDiagnosticsServer {
                   'keepTitleVersionVisible',
                   'cornerStyle',
                   'nowPlayingBackground',
-                  'customizeQueueAndMenus',
-                  'queueBackground',
-                  'menuBackground',
                   'density',
                   'gridArtworkSize',
                   'homeRecommendationsAutoAdvance',
@@ -1125,17 +1112,6 @@ class SyncDiagnosticsServer {
           if (background is String) {
             await dao.updateNowPlayingBackground(background);
           }
-          if (customizeQueueMenus is bool) {
-            await dao.updateCustomizeQueueAndMenus(
-              enabled: customizeQueueMenus,
-            );
-          }
-          if (queueBackground is String) {
-            await dao.updateQueueBackground(queueBackground);
-          }
-          if (menuBackground is String) {
-            await dao.updateMenuBackground(menuBackground);
-          }
           if (density is String) {
             await dao.updateDensity(NavisDensity.parse(density));
           }
@@ -1216,12 +1192,6 @@ class SyncDiagnosticsServer {
           'nowPlayingBackground': NowPlayingBackground.parse(
             settings?.nowPlayingBackground,
           ).storageKey,
-          'customizeQueueAndMenus': settings?.customizeQueueMenus ?? false,
-          'queueBackground': NowPlayingBackground.parse(
-            settings?.queueBackground,
-          ).storageKey,
-          'menuBackground': NowPlayingBackground.parse(settings?.menuBackground)
-              .storageKey,
           'cornerStyle': NavisCornerStyle.parse(settings?.cornerStyle).name,
           'density': NavisDensity.parse(settings?.homeDensity).storageKey,
           'artistCardShape': settings?.artistCardShape ?? 'circle',
@@ -5275,9 +5245,6 @@ class SyncDiagnosticsServer {
       'setupHighlightsSeenRelease': settings.setupHighlightsSeenRelease,
       'setupCardDismissedRelease': settings.setupCardDismissedRelease,
       'nowPlayingBackground': settings.nowPlayingBackground.storageKey,
-      'customizeQueueAndMenus': settings.customizeQueueAndMenus,
-      'queueBackground': settings.queueBackground.storageKey,
-      'menuBackground': settings.menuBackground.storageKey,
       'cornerStyle': settings.cornerStyle.name,
       'density': settings.density.storageKey,
       'services': <String, Object?>{
