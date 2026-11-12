@@ -398,18 +398,6 @@ class ThemesSettingsScreen extends ConsumerWidget {
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.density,
                 ]),
-                NavisSwitchListTile(
-                  contentPadding: appearanceSwitchPadding(context),
-                  title: Text(l10n.appearanceKeepTitleVersionLabel),
-                  subtitle: Text(l10n.appearanceKeepTitleVersionSub),
-                  value: ref.watch(keepTitleVersionVisibleProvider),
-                  onChanged: (enabled) async {
-                    final db = ref.read(navisDatabaseProvider);
-                    await db.appSettingsDao.updateKeepTitleVersionVisible(
-                      enabled: enabled,
-                    );
-                  },
-                ),
                 AppearanceHeading(
                   title: l10n.appearanceArtistViewModeLabel,
                   topPadding: NavisSpace.md,
@@ -580,6 +568,10 @@ class ThemeModeSelector extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 440;
+        // Large text: four icon+label segments no longer fit a phone, so the
+        // icons go and a label may take two lines instead of an ellipsis.
+        final largeText =
+            compact && MediaQuery.textScalerOf(context).scale(14) > 14 * 1.3;
         return Padding(
           padding: EdgeInsets.symmetric(
             horizontal: AppearanceLayout.gutterOf(context),
@@ -592,11 +584,12 @@ class ThemeModeSelector extends StatelessWidget {
                     value: e.$1,
                     label: Text(
                       e.$2,
-                      maxLines: 1,
+                      maxLines: largeText ? 2 : 1,
+                      textAlign: largeText ? TextAlign.center : null,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: compact ? 11 : null),
                     ),
-                    icon: Icon(e.$3),
+                    icon: largeText ? null : Icon(e.$3),
                   ),
                 )
                 .toList(),

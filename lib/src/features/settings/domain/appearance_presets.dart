@@ -40,7 +40,6 @@ class AppearanceSnapshot {
     this.customizeQueueAndMenus,
     this.queueBackground,
     this.menuBackground,
-    this.keepTitleVersionVisible,
     this.clearColorSchemeSeed = false,
     this.clearAlbumGridDensity = false,
   });
@@ -82,7 +81,6 @@ class AppearanceSnapshot {
     menuBackground: s.customizeQueueAndMenus
         ? s.menuBackground.storageKey
         : null,
-    keepTitleVersionVisible: s.keepTitleVersionVisible,
     clearColorSchemeSeed: s.colorSchemeSeed == null,
     clearAlbumGridDensity: s.albumGridDensity == null,
   );
@@ -158,7 +156,6 @@ class AppearanceSnapshot {
     menuBackground:
         _legacySheetStyle(raw)?.$2 ??
         _choice(raw['menuBackground'], _backgrounds),
-    keepTitleVersionVisible: _boolean(raw['keepTitleVersionVisible']),
     clearColorSchemeSeed:
         raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
     clearAlbumGridDensity:
@@ -215,7 +212,6 @@ class AppearanceSnapshot {
   final bool? customizeQueueAndMenus;
   final String? queueBackground;
   final String? menuBackground;
-  final bool? keepTitleVersionVisible;
   final bool clearColorSchemeSeed;
   final bool clearAlbumGridDensity;
 
@@ -259,8 +255,6 @@ class AppearanceSnapshot {
       'customizeQueueAndMenus': customizeQueueAndMenus,
     if (queueBackground != null) 'queueBackground': queueBackground,
     if (menuBackground != null) 'menuBackground': menuBackground,
-    if (keepTitleVersionVisible != null)
-      'keepTitleVersionVisible': keepTitleVersionVisible,
   };
 
   @override

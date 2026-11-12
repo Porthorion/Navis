@@ -785,9 +785,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             menuBackground: snapshot.menuBackground == null
                 ? const Value.absent()
                 : Value(snapshot.menuBackground!),
-            keepTitleVersionVisible: snapshot.keepTitleVersionVisible == null
-                ? const Value.absent()
-                : Value(snapshot.keepTitleVersionVisible!),
             updatedAt: Value(DateTime.now()),
           ),
         );

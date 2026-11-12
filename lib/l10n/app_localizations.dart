@@ -7779,6 +7779,12 @@ abstract class AppLocalizations {
   /// **'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.'**
   String get appearanceKeepTitleVersionSub;
 
+  /// No description provided for @interfaceSongTitlesHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Song Titles'**
+  String get interfaceSongTitlesHeading;
+
   /// No description provided for @desktopNavbarSectionLabel.
   ///
   /// In en, this message translates to:

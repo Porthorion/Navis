@@ -1,10 +1,11 @@
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
-import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
@@ -236,6 +237,46 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final (scale, width) in <(double, double)>[(1.0, 390), (2.0, 360)]) {
+    testWidgets('Theme Mode labels are whole at ${scale}x text on a phone '
+        '(#611)', (tester) async {
+      setAdaptiveTestViewport(tester, Size(width, 800));
+      // The test font (Ahem) is far wider than a real one.
+      await tester.runAsync(
+        (FontLoader(
+          'TestInter',
+        )..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'))).load,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(fontFamily: 'TestInter'),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: ThemeModeSelector(currentMode: 'system', onChanged: (_) {}),
+          ),
+        ),
+      );
+      for (final label in <String>['Light', 'Dark', 'OLED', 'Auto']) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text(label),
+        );
+        expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+      }
+      // Icons stay at normal text sizes and go when the text is huge.
+      expect(
+        find.byIcon(Icons.light_mode_outlined),
+        scale == 1.0 ? findsOneWidget : findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('uses white for implicit default', (tester) async {
     await pumpAppearance(tester);
 
@@ -448,34 +489,12 @@ void main() {
     expect(tester.getTopLeft(dynamicRow).dy, greaterThan(custom.dy));
   });
 
-  testWidgets('Keep Song Versions Visible starts on and turns off', (
+  testWidgets('Keep Song Versions Visible is not on the Themes page', (
     tester,
   ) async {
-    final container = await pumpAppearance(tester);
+    await pumpAppearance(tester);
     final l10n = lookupAppLocalizations(const Locale('en'));
-    final label = find.text(l10n.appearanceKeepTitleVersionLabel);
-    await tester.scrollUntilVisible(
-      label,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(l10n.appearanceKeepTitleVersionLabel, 'Keep Song Versions Visible');
-    expect(find.text(l10n.appearanceKeepTitleVersionSub), findsOneWidget);
-    final tile = find.ancestor(
-      of: label,
-      matching: find.byType(NavisSwitchListTile),
-    );
-    expect(tester.widget<NavisSwitchListTile>(tile).value, isTrue);
-    expect(container.read(keepTitleVersionVisibleProvider), isTrue);
-    await tester.tap(label);
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
-    await tester.pump();
-    final database = container.read(navisDatabaseProvider);
-    final settings = await tester.runAsync(database.appSettingsDao.getSettings);
-    expect(settings?.keepTitleVersionVisible, isFalse);
+    expect(find.text(l10n.appearanceKeepTitleVersionLabel), findsNothing);
   });
 
   testWidgets('artwork choices wrap and save on a phone with large text', (
@@ -566,7 +585,6 @@ void main() {
           l10n.appearanceCoverArtShapeLabel,
           l10n.appearanceArtworkSizeLabel,
           l10n.appearanceDensityLabel,
-          l10n.appearanceKeepTitleVersionLabel,
           l10n.appearanceArtistViewModeLabel,
           l10n.appearanceSectionNowPlaying,
           l10n.appearanceNowPlayingBackgroundLabel,
@@ -576,6 +594,7 @@ void main() {
           expect(find.text(text), findsOneWidget, reason: text);
         }
         expect(find.text(l10n.appearanceHomeSectionsLabel), findsNothing);
+        expect(find.text(l10n.appearanceKeepTitleVersionLabel), findsNothing);
         expect(find.text(l10n.appearancePagesSectionLabel), findsNothing);
         for (var i = 1; i < ordered.length; i++) {
           expect(

@@ -66,7 +66,7 @@ void main() {
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      31,
+      30,
     ); // Every Look setting; tuning is Custom.
     await dao.applyAppearanceSnapshot(
       AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
@@ -86,8 +86,9 @@ void main() {
     expect(restored.menuBackground, NowPlayingBackground.artwork);
     expect(original.toJson()['queueBackground'], 'plain');
     expect(original.toJson()['menuBackground'], 'artwork');
-    expect(restored.keepTitleVersionVisible, isFalse);
-    expect(original.toJson()['keepTitleVersionVisible'], isFalse);
+    // Song Titles lives on the Interface page, not in a Look.
+    expect(original.toJson().containsKey('keepTitleVersionVisible'), isFalse);
+    expect(restored.keepTitleVersionVisible, isTrue);
     final container = ProviderContainer(overrides: withTestDatabase(database));
     addTearDown(container.dispose);
     // Language, saved swatches and recommendation auto-advance are not part
@@ -190,7 +191,7 @@ void main() {
     expect(off.menuBackground, NowPlayingBackground.plain);
   }, skip: !sqliteAvailable);
 
-  test('an older Look without keepTitleVersionVisible leaves it', () async {
+  test('a saved Look with keepTitleVersionVisible ignores it', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
     final dao = database.appSettingsDao;
@@ -198,17 +199,18 @@ void main() {
     await dao.getSettings();
     final full = AppearanceSnapshot.capture(await repository.getSettings())
         .toJson();
-    final old = AppearanceSnapshot.fromJson(
-      full..remove('keepTitleVersionVisible'),
-    );
-    expect(old.keepTitleVersionVisible, isNull);
+    final old = AppearanceSnapshot.fromJson({
+      ...full,
+      'keepTitleVersionVisible': false,
+    });
+    expect(old.toJson().containsKey('keepTitleVersionVisible'), isFalse);
+    await dao.applyAppearanceSnapshot(old);
+    expect((await repository.getSettings()).keepTitleVersionVisible, isTrue);
     await dao.updateKeepTitleVersionVisible(enabled: false);
     await dao.applyAppearanceSnapshot(old);
     expect((await repository.getSettings()).keepTitleVersionVisible, isFalse);
-    await dao.applyAppearanceSnapshot(
-      AppearanceSnapshot.fromJson({...full, 'keepTitleVersionVisible': true}),
-    );
-    expect((await repository.getSettings()).keepTitleVersionVisible, isTrue);
+    // The setting is not part of a Look, so the Look is not Custom.
+    expect(AppearanceSnapshot.capture(await repository.getSettings()), old);
   }, skip: !sqliteAvailable);
 
   for (final legacyDensity in <int?>[null, 6]) {

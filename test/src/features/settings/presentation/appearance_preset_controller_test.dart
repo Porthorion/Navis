@@ -453,7 +453,7 @@ void main() {
       expect(await controller.update('partial'), isNull);
       final saved =
           (await repository.getSettings()).appearanceLooks.single.snapshot;
-      expect(saved.toJson(), hasLength(29));
+      expect(saved.toJson(), hasLength(28));
       await dao.updateDensity(NavisDensity.comfortable);
       final restarted = ProviderContainer(
         overrides: withTestDatabase(database),
@@ -531,9 +531,8 @@ void main() {
           'customizeQueueAndMenus': true,
           'queueBackground': 'plain',
           'menuBackground': 'artwork',
-          'keepTitleVersionVisible': false,
         });
-        expect(before.toJson(), hasLength(31));
+        expect(before.toJson(), hasLength(30));
         await database.appSettingsDao.applyAppearanceSnapshot(before);
         String? previousLookId;
         if (matchedLook) {
@@ -563,7 +562,6 @@ void main() {
         expect(restored.customizeQueueAndMenus, isTrue);
         expect(restored.queueBackground.storageKey, 'plain');
         expect(restored.menuBackground.storageKey, 'artwork');
-        expect(restored.keepTitleVersionVisible, isFalse);
         expect(
           restored.colorTuning,
           const ColorTuning(

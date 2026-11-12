@@ -4935,6 +4935,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.';
 
   @override
+  String get interfaceSongTitlesHeading => 'Song Titles';
+
+  @override
   String get desktopNavbarSectionLabel => 'Desktop Navigation';
 
   @override

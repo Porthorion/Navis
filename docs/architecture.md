@@ -1139,9 +1139,10 @@ target-selection rules.
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
   - Schema 115 (`from114To115`, guarded by `_columnExists`) adds
     `app_settings.keep_title_version_visible` (boolean, default true): Settings >
-    Themes > Shape & Layout > Keep Song Versions Visible. It is a Look field
-    (`updateKeepTitleVersionVisible`, `AppearanceSnapshot.keepTitleVersionVisible`);
-    an older Look or export without the key leaves the setting unchanged.
+    Interface > Song Titles > Keep Song Versions Visible
+    (`updateKeepTitleVersionVisible`). It is not a Look field (it left Looks in
+    1.5.2): `AppearanceSnapshot` ignores a saved `keepTitleVersionVisible` key
+    and applying a Look never touches the setting.
   - Schema 116 (`from115To116`, guarded by `_columnExists`) adds Customize
     Queue and Menus (G3): `customize_queue_menus` (off), `queue_background` and
     `menu_background` (`NowPlayingBackground` keys, default tinted). Off, the
@@ -1642,9 +1643,11 @@ target-selection rules.
     the chosen style the switch is locked off and says so. `app.dart` re-checks
     the scheduled style when the app resumes.
   - Settings › Interface (`interface_settings_screen.dart`) holds everything
-    else: Language (when the language control is enabled), then the collapsed
-    Home Sections, Page Visibility and, on desktop only, Desktop Navigation
-    groups (`SettingsCollapsibleGroup`, `settings_collapsible_group.dart`).
+    else: Language (when the language control is enabled), then Song Titles (Keep
+    Song Versions Visible), Home Sections, Page Visibility and, on desktop
+    only, Desktop Navigation. Each is an always-open section under an
+    `AppearanceHeading`; the page has no dropdowns
+    (`SettingsCollapsibleGroup` remains for setup only).
     Page rule: Themes = `AppearanceSnapshot` fields + Looks + Auto
     sub-options; Interface = everything else, so changing an Interface
     control never flips the selected Look to Custom. Enforced by
@@ -1832,7 +1835,7 @@ title, the base is ellipsised and the version kept whole on the same line
 credit (`isTitleCredit`: `feat.`/`ft.`, `From …`, `with …`, `prod. …`) is never
 pinned, and neither is a version over 55% of the width: the whole title gets one
 plain ellipsis, so base and version are never both ellipsised. Settings >
-Appearance > Keep Song Versions Visible (default on; `keepTitleVersionVisible`,
+Interface > Keep Song Versions Visible (default on; `keepTitleVersionVisible`,
 `keepTitleVersionVisibleProvider`) turns the version rule off: the still form is
 then always one plain ellipsis (`Text`, one or two lines). `app.dart` carries the
 flag in `NavisDensityScope.keepTitleVersion` and `MarqueeText` reads it with

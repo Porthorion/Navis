@@ -268,7 +268,6 @@ void main() {
     of: find.byType(ThemeModeSelector),
     matching: find.text(label),
   );
-  Finder headerOf(String title) => find.text(title);
   Finder panelKey(String name) =>
       find.byKey(ValueKey<String>('colorTuning-$name'));
 
@@ -281,10 +280,6 @@ void main() {
     await steps();
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
     await settle(tester);
-  }
-
-  Future<void> expandGroup(WidgetTester tester, String title) async {
-    await tap(tester, headerOf(title));
   }
 
   Future<void> pickHex(WidgetTester tester, String hex, String button) async {
@@ -715,14 +710,6 @@ void main() {
         effect: (c) => expect(c.read(cornerStyleProvider).name, name),
       ),
     _Control(
-      'Keep Song Versions Visible',
-      writers: {'updateKeepTitleVersionVisible'},
-      columns: {'keepTitleVersionVisible'},
-      fields: {'keepTitleVersionVisible'},
-      act: (t) => tap(t, find.text(l10n.appearanceKeepTitleVersionLabel)),
-      effect: (c) => expect(c.read(keepTitleVersionVisibleProvider), isFalse),
-    ),
-    _Control(
       'Corner style: Pill',
       writers: {'updateCornerStyle'},
       columns: {'cornerStyle'},
@@ -916,12 +903,19 @@ void main() {
 
     // Not part of a Look: the Look must stay selected.
     _Control(
+      'Keep Song Versions Visible',
+      page: _Page.interface,
+      writers: {'updateKeepTitleVersionVisible'},
+      columns: {'keepTitleVersionVisible'},
+      act: (t) => tap(t, find.text(l10n.appearanceKeepTitleVersionLabel)),
+      effect: (c) => expect(c.read(keepTitleVersionVisibleProvider), isFalse),
+    ),
+    _Control(
       'Home: automatic recommendations',
       page: _Page.interface,
       writers: {'updateHomeRecommendationsAutoAdvance'},
       columns: {'homeRecommendationsAutoAdvance'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(t, find.text(l10n.appearanceRecommendationsAutoAdvance));
       },
       effect: (c) =>
@@ -933,7 +927,6 @@ void main() {
       writers: {'updateHomeSectionsHidden'},
       columns: {'homeSectionsHidden'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(
           t,
           find
@@ -959,7 +952,6 @@ void main() {
       columns: {'homeSectionsHidden'},
       seed: (db) => db.appSettingsDao.updateHomeSectionsHidden(hiddenOnce),
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(
           t,
           find
@@ -988,7 +980,6 @@ void main() {
       writers: {'updateHomeSectionsHidden', 'updateHomeSectionOrder'},
       columns: {'homeSectionsHidden', 'homeSectionOrder'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(
           t,
           find
@@ -1016,7 +1007,6 @@ void main() {
       writers: {'updateHomeSectionOrder'},
       columns: {'homeSectionOrder'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await t.drag(
           find
               .descendant(
@@ -1058,7 +1048,6 @@ void main() {
         },
         columns: {column},
         act: (t) async {
-          await expandGroup(t, l10n.appearancePagesSectionLabel);
           await tap(
             t,
             find.descendant(
@@ -1078,7 +1067,6 @@ void main() {
       writers: {'updateLibraryPageOrder'},
       columns: {'libraryPageOrder'},
       act: (t) async {
-        await expandGroup(t, l10n.appearancePagesSectionLabel);
         await t.drag(
           find.descendant(
             of: find.byKey(const ValueKey<String>('library-page-albums')),
@@ -1102,7 +1090,6 @@ void main() {
         writers: {'updateDesktopNavbarStyle'},
         columns: {'desktopNavbarStyle'},
         act: (t) async {
-          await expandGroup(t, l10n.desktopNavbarSectionLabel);
           await tap(t, find.widgetWithText(FilledButton, label));
         },
         effect: (c) => expect(c.read(desktopNavbarStyleProvider), value),
@@ -1114,7 +1101,6 @@ void main() {
       writers: {'updateDesktopNavbarAutohide'},
       columns: {'desktopNavbarAutohide'},
       act: (t) async {
-        await expandGroup(t, l10n.desktopNavbarSectionLabel);
         await tap(t, find.text(l10n.desktopNavbarAutohideLabel));
       },
       effect: (c) => expect(c.read(desktopNavbarAutohideProvider), isTrue),

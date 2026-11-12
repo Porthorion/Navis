@@ -2339,6 +2339,7 @@
   "appearanceDensityCompact": "Compact",
   "appearanceKeepTitleVersionLabel": "Keep Song Versions Visible",
   "appearanceKeepTitleVersionSub": "Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.",
+  "interfaceSongTitlesHeading": "Song Titles",
 
   "desktopNavbarSectionLabel": "Desktop Navigation",
   "desktopNavbarStyleLabel": "Navigation Style",
