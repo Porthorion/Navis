@@ -15,7 +15,6 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
-import 'package:navis/src/features/settings/presentation/settings_collapsible_group.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -26,7 +25,7 @@ import 'package:navis/src/theme/motion_policy.dart';
 class InterfaceSettingsScreen extends ConsumerStatefulWidget {
   const new({this.focusLibraryPages = false, super.key});
 
-  /// Opens the Library pages group, scrolls to it and briefly highlights the
+  /// Scrolls to the Library pages section and briefly highlights the
   /// Genres row (the link from a genre chip while the page is hidden).
   final bool focusLibraryPages;
 
@@ -109,7 +108,7 @@ class _InterfaceSettingsScreenState
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1040),
             child: ListView(
-              // A deep link to the Library pages group needs it built to
+              // A deep link to the Library pages section needs it built to
               // scroll to. The extent is finite: an infinite one breaks the
               // semantics tree.
               scrollCacheExtent: widget.focusLibraryPages
@@ -129,86 +128,92 @@ class _InterfaceSettingsScreenState
                   ),
                   const SizedBox(height: 8),
                 ],
-                SettingsCollapsibleGroup(
-                  leading: const Icon(Icons.home_outlined),
-                  title: l10n.appearanceHomeSectionsLabel,
-                  initiallyExpanded: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      if (!resolveAdaptiveContextFor(context).desktopRuntime)
-                        NavisSwitchListTile(
-                          title: Text(
-                            l10n.appearanceRecommendationsAutoAdvance,
-                          ),
-                          subtitle: Text(
-                            l10n.appearanceRecommendationsAutoAdvanceSub,
-                          ),
-                          value: ref.watch(
-                            homeRecommendationsAutoAdvanceProvider,
-                          ),
-                          onChanged: (value) async {
-                            await ref
-                                .read(navisDatabaseProvider)
-                                .appSettingsDao
-                                .updateHomeRecommendationsAutoAdvance(
-                                  enabled: value,
-                                );
-                          },
-                        ),
-                      _HomeSectionReorder(
-                        order: displayOrder,
-                        hidden: sanitizedHidden,
-                        onReorder: (newOrder) async {
-                          final db = ref.read(navisDatabaseProvider);
-                          await db.appSettingsDao.updateHomeSectionOrder(
-                            jsonEncode(newOrder),
-                          );
-                        },
-                        onToggleVisibility:
-                            (sectionId, {required visible}) async {
-                              final db = ref.read(navisDatabaseProvider);
-                              final current = List<String>.from(
-                                sanitizedHidden,
-                              );
-                              if (visible) {
-                                current.remove(sectionId);
-                              } else {
-                                if (!current.contains(sectionId)) {
-                                  current.add(sectionId);
-                                }
-                              }
-                              // [] is "hide nothing"; null would bring the
-                              // built-in hidden sections back.
-                              await db.appSettingsDao.updateHomeSectionsHidden(
-                                jsonEncode(current),
-                              );
-                              // A hidden-by-default section the user has never
-                              // seen resolves hidden again unless the order
-                              // marks it as seen (see resolveHidden).
-                              if (visible &&
-                                  HomeSectionIds.resolveHidden(
-                                    current,
-                                    persistedOrder: persistedOrder,
-                                  ).contains(sectionId)) {
-                                await db.appSettingsDao.updateHomeSectionOrder(
-                                  jsonEncode(sanitizedOrder),
-                                );
-                              }
-                            },
-                      ),
-                    ],
-                  ),
+                AppearanceHeading(
+                  title: l10n.interfaceSongTitlesHeading,
+                  level: AppearanceHeadingLevel.section,
                 ),
-                const Divider(height: 24),
-
-                SettingsCollapsibleGroup(
+                NavisSwitchListTile(
+                  contentPadding: appearanceSwitchPadding(context),
+                  title: Text(l10n.appearanceKeepTitleVersionLabel),
+                  subtitle: Text(l10n.appearanceKeepTitleVersionSub),
+                  value: ref.watch(keepTitleVersionVisibleProvider),
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateKeepTitleVersionVisible(
+                      enabled: enabled,
+                    );
+                  },
+                ),
+                AppearanceHeading(
+                  title: l10n.appearanceHomeSectionsLabel,
+                  level: AppearanceHeadingLevel.section,
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    if (!resolveAdaptiveContextFor(context).desktopRuntime)
+                      NavisSwitchListTile(
+                        title: Text(l10n.appearanceRecommendationsAutoAdvance),
+                        subtitle: Text(
+                          l10n.appearanceRecommendationsAutoAdvanceSub,
+                        ),
+                        value: ref.watch(
+                          homeRecommendationsAutoAdvanceProvider,
+                        ),
+                        onChanged: (value) async {
+                          await ref
+                              .read(navisDatabaseProvider)
+                              .appSettingsDao
+                              .updateHomeRecommendationsAutoAdvance(
+                                enabled: value,
+                              );
+                        },
+                      ),
+                    _HomeSectionReorder(
+                      order: displayOrder,
+                      hidden: sanitizedHidden,
+                      onReorder: (newOrder) async {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateHomeSectionOrder(
+                          jsonEncode(newOrder),
+                        );
+                      },
+                      onToggleVisibility:
+                          (sectionId, {required visible}) async {
+                            final db = ref.read(navisDatabaseProvider);
+                            final current = List<String>.from(sanitizedHidden);
+                            if (visible) {
+                              current.remove(sectionId);
+                            } else {
+                              if (!current.contains(sectionId)) {
+                                current.add(sectionId);
+                              }
+                            }
+                            // [] is "hide nothing"; null would bring the
+                            // built-in hidden sections back.
+                            await db.appSettingsDao.updateHomeSectionsHidden(
+                              jsonEncode(current),
+                            );
+                            // A hidden-by-default section the user has never
+                            // seen resolves hidden again unless the order
+                            // marks it as seen (see resolveHidden).
+                            if (visible &&
+                                HomeSectionIds.resolveHidden(
+                                  current,
+                                  persistedOrder: persistedOrder,
+                                ).contains(sectionId)) {
+                              await db.appSettingsDao.updateHomeSectionOrder(
+                                jsonEncode(sanitizedOrder),
+                              );
+                            }
+                          },
+                    ),
+                  ],
+                ),
+                AppearanceHeading(
                   key: _libraryPagesKey,
-                  leading: const _BlinkingEyeIcon(),
                   title: l10n.appearancePagesSectionLabel,
-                  initiallyExpanded: widget.focusLibraryPages,
-                  // The tagged row is inside the group; the tag has to be
-                  // visible while the group is closed.
+                  level: AppearanceHeadingLevel.section,
                   adornment: Consumer(
                     builder: (context, ref, _) =>
                         AppearanceVisitScope.isTagged(
@@ -219,79 +224,75 @@ class _InterfaceSettingsScreenState
                         ? const NewFeatureTag()
                         : const SizedBox.shrink(),
                   ),
-                  child: _LibraryPageReorder(
-                    highlighted: _highlightGenres
-                        ? LibrarySection.genres
-                        : null,
-                    order: libraryPageOrder,
-                    visibleSections: visibleLibrarySections(
-                      orderedSections: libraryPageOrder,
-                      showAlbums: ref.watch(showAlbumsPageProvider),
-                      showLiked: ref.watch(showLikedPageProvider),
-                      showArtists: ref.watch(showArtistsPageProvider),
-                      showGenres: ref.watch(showGenresPageProvider),
-                      showPlaylists: ref.watch(showPlaylistsPageProvider),
-                      showRadio: ref.watch(showRadioPageProvider),
-                    ).toSet(),
-                    onReorder: (newOrder) async {
-                      final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateLibraryPageOrder(
-                        jsonEncode(
-                          newOrder.map((section) => section.name).toList(),
-                        ),
-                      );
-                    },
-                    onToggleVisibility: (section, {required visible}) async {
-                      final db = ref.read(navisDatabaseProvider);
-                      switch (section) {
-                        case LibrarySection.albums:
-                          await db.appSettingsDao.updateShowAlbumsPage(
-                            enabled: visible,
-                          );
-                        case LibrarySection.liked:
-                          await db.appSettingsDao.updateShowLikedPage(
-                            enabled: visible,
-                          );
-                        case LibrarySection.artists:
-                          await db.appSettingsDao.updateShowArtistsPage(
-                            enabled: visible,
-                          );
-                        case LibrarySection.genres:
-                          await db.appSettingsDao.updateShowGenresPage(
-                            enabled: visible,
-                          );
-                        case LibrarySection.playlists:
-                          await db.appSettingsDao.updateShowPlaylistsPage(
-                            enabled: visible,
-                          );
-                        case LibrarySection.radio:
-                          await db.appSettingsDao.updateShowRadioPage(
-                            enabled: visible,
-                          );
-                      }
-                    },
-                  ),
+                ),
+                _LibraryPageReorder(
+                  highlighted: _highlightGenres ? LibrarySection.genres : null,
+                  order: libraryPageOrder,
+                  visibleSections: visibleLibrarySections(
+                    orderedSections: libraryPageOrder,
+                    showAlbums: ref.watch(showAlbumsPageProvider),
+                    showLiked: ref.watch(showLikedPageProvider),
+                    showArtists: ref.watch(showArtistsPageProvider),
+                    showGenres: ref.watch(showGenresPageProvider),
+                    showPlaylists: ref.watch(showPlaylistsPageProvider),
+                    showRadio: ref.watch(showRadioPageProvider),
+                  ).toSet(),
+                  onReorder: (newOrder) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateLibraryPageOrder(
+                      jsonEncode(
+                        newOrder.map((section) => section.name).toList(),
+                      ),
+                    );
+                  },
+                  onToggleVisibility: (section, {required visible}) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    switch (section) {
+                      case LibrarySection.albums:
+                        await db.appSettingsDao.updateShowAlbumsPage(
+                          enabled: visible,
+                        );
+                      case LibrarySection.liked:
+                        await db.appSettingsDao.updateShowLikedPage(
+                          enabled: visible,
+                        );
+                      case LibrarySection.artists:
+                        await db.appSettingsDao.updateShowArtistsPage(
+                          enabled: visible,
+                        );
+                      case LibrarySection.genres:
+                        await db.appSettingsDao.updateShowGenresPage(
+                          enabled: visible,
+                        );
+                      case LibrarySection.playlists:
+                        await db.appSettingsDao.updateShowPlaylistsPage(
+                          enabled: visible,
+                        );
+                      case LibrarySection.radio:
+                        await db.appSettingsDao.updateShowRadioPage(
+                          enabled: visible,
+                        );
+                    }
+                  },
                 ),
                 if (isDesktop) ...[
-                  const Divider(height: 24),
-                  SettingsCollapsibleGroup(
-                    leading: const Icon(Icons.view_sidebar_outlined),
+                  AppearanceHeading(
                     title: l10n.desktopNavbarSectionLabel,
-                    initiallyExpanded: false,
-                    child: _DesktopNavbarSettings(
-                      currentStyle: ref.watch(desktopNavbarStyleProvider),
-                      autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
-                      onStyleChanged: (style) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateDesktopNavbarStyle(style);
-                      },
-                      onAutohideChanged: (enabled) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateDesktopNavbarAutohide(
-                          enabled,
-                        );
-                      },
-                    ),
+                    level: AppearanceHeadingLevel.section,
+                  ),
+                  _DesktopNavbarSettings(
+                    currentStyle: ref.watch(desktopNavbarStyleProvider),
+                    autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
+                    onStyleChanged: (style) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      await db.appSettingsDao.updateDesktopNavbarStyle(style);
+                    },
+                    onAutohideChanged: (enabled) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      await db.appSettingsDao.updateDesktopNavbarAutohide(
+                        enabled,
+                      );
+                    },
                   ),
                 ],
               ],
@@ -348,67 +349,6 @@ class _LanguageSelector extends StatelessWidget {
         ],
         onChanged: enabled ? onChanged : null,
       ),
-    );
-  }
-}
-
-class _BlinkingEyeIcon extends StatefulWidget {
-  const new();
-
-  @override
-  State<_BlinkingEyeIcon> createState() => _BlinkingEyeIconState();
-}
-
-class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reduce Motion: a still eye instead of an endless blink.
-    if (MotionPolicy.of(context).reduceMotion) {
-      _controller.stop();
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  double _lerp(double a, double b, double t) => a + (b - a) * t;
-
-  double _blinkScaleY(double t) {
-    if (t < 0.78) return 1;
-    if (t < 0.86) return _lerp(1, 0.1, (t - 0.78) / 0.08);
-    if (t < 0.94) return _lerp(0.1, 1, (t - 0.86) / 0.08);
-    return 1;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Transform.scale(
-          scaleY: _blinkScaleY(_controller.value),
-          child: child,
-        );
-      },
-      child: const Icon(Icons.remove_red_eye_outlined),
     );
   }
 }

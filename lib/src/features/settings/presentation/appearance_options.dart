@@ -17,7 +17,6 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -964,32 +963,7 @@ class NowPlayingBackgroundOption extends StatelessWidget {
         key: const ValueKey<String>('nowPlayingBackgroundSelector'),
         showSelectedIcon: false,
         expandedInsets: EdgeInsets.zero,
-        segments: <ButtonSegment<NowPlayingBackground>>[
-          ButtonSegment<NowPlayingBackground>(
-            value: NowPlayingBackground.tinted,
-            label: Text(
-              l10n.appearanceNowPlayingBackgroundTinted,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          ButtonSegment<NowPlayingBackground>(
-            value: NowPlayingBackground.artwork,
-            label: Text(
-              l10n.appearanceNowPlayingBackgroundArtwork,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          ButtonSegment<NowPlayingBackground>(
-            value: NowPlayingBackground.plain,
-            label: Text(
-              l10n.appearanceNowPlayingBackgroundPlain,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+        segments: _backgroundSegments(l10n),
         selected: <NowPlayingBackground>{value},
         onSelectionChanged: (selection) => onChanged(selection.first),
       ),
@@ -997,49 +971,88 @@ class NowPlayingBackgroundOption extends StatelessWidget {
   }
 }
 
-/// Sheets & Menus: Match Now Playing, Album Color or Theme, with a
-/// description of the selected look. Settings only, not part of setup.
-class SheetStyleOption extends StatelessWidget {
-  const new({required this.value, required this.onChanged, super.key});
+/// The Art-Tinted, Artwork and Plain segments of the Now Playing, Queue and
+/// Menus pickers.
+List<ButtonSegment<NowPlayingBackground>> _backgroundSegments(
+  AppLocalizations l10n,
+) => <ButtonSegment<NowPlayingBackground>>[
+  for (final (value, label) in <(NowPlayingBackground, String)>[
+    (NowPlayingBackground.tinted, l10n.appearanceNowPlayingBackgroundTinted),
+    (NowPlayingBackground.artwork, l10n.appearanceNowPlayingBackgroundArtwork),
+    (NowPlayingBackground.plain, l10n.appearanceNowPlayingBackgroundPlain),
+  ])
+    ButtonSegment<NowPlayingBackground>(
+      value: value,
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+    ),
+];
 
-  final SheetStyle value;
-  final ValueChanged<SheetStyle> onChanged;
+/// Customize Queue and Menus: off, the queue and everything opened over Now
+/// Playing follow the Now Playing background; on, separate Queue and Menus
+/// pickers appear. Settings only, not part of setup.
+class NowPlayingQueueMenusOption extends StatelessWidget {
+  const new({
+    required this.customize,
+    required this.onCustomizeChanged,
+    required this.queue,
+    required this.onQueueChanged,
+    required this.menus,
+    required this.onMenusChanged,
+    super.key,
+  });
+
+  final bool customize;
+  final ValueChanged<bool> onCustomizeChanged;
+  final NowPlayingBackground queue;
+  final ValueChanged<NowPlayingBackground> onQueueChanged;
+  final NowPlayingBackground menus;
+  final ValueChanged<NowPlayingBackground> onMenusChanged;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    String name(SheetStyle style) => switch (style) {
-      SheetStyle.matchNowPlaying => l10n.appearanceSheetStyleMatchNowPlaying,
-      SheetStyle.albumColor => l10n.appearanceSheetStyleAlbumColor,
-      SheetStyle.theme => l10n.appearanceSheetStyleTheme,
-    };
-    return AppearanceChoiceSection(
-      title: l10n.appearanceSheetStyleLabel,
-      description: switch (value) {
-        SheetStyle.matchNowPlaying =>
-          l10n.appearanceSheetStyleMatchNowPlayingSub,
-        SheetStyle.albumColor => l10n.appearanceSheetStyleAlbumColorSub,
-        SheetStyle.theme => l10n.appearanceSheetStyleThemeSub,
-      },
-      selector: SegmentedButton<SheetStyle>(
-        key: const ValueKey<String>('sheetStyleSelector'),
+    Widget picker(
+      String title,
+      String selectorKey,
+      NowPlayingBackground value,
+      ValueChanged<NowPlayingBackground> onChanged,
+    ) => AppearanceChoiceSection(
+      title: title,
+      selector: SegmentedButton<NowPlayingBackground>(
+        key: ValueKey<String>(selectorKey),
         showSelectedIcon: false,
         expandedInsets: EdgeInsets.zero,
-        segments: <ButtonSegment<SheetStyle>>[
-          for (final style in SheetStyle.values)
-            ButtonSegment<SheetStyle>(
-              value: style,
-              label: Text(
-                name(style),
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-        ],
-        selected: <SheetStyle>{value},
+        segments: _backgroundSegments(l10n),
+        selected: <NowPlayingBackground>{value},
         onSelectionChanged: (selection) => onChanged(selection.first),
       ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        NavisSwitchListTile(
+          key: const ValueKey<String>('customizeQueueMenusSwitch'),
+          contentPadding: appearanceSwitchPadding(context),
+          title: Text(l10n.appearanceQueueMenusCustomizeLabel),
+          subtitle: Text(l10n.appearanceQueueMenusCustomizeSub),
+          value: customize,
+          onChanged: onCustomizeChanged,
+        ),
+        if (customize) ...<Widget>[
+          picker(
+            l10n.appearanceQueueBackgroundLabel,
+            'queueBackgroundSelector',
+            queue,
+            onQueueChanged,
+          ),
+          picker(
+            l10n.appearanceMenuBackgroundLabel,
+            'menuBackgroundSelector',
+            menus,
+            onMenusChanged,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1172,7 +1185,7 @@ class CornerStyleOption extends StatelessWidget {
 /// The options that Settings and setup both show, in the order they share.
 ///
 /// Setup lists them under "More appearance options" except Night Schedule,
-/// which sits beside Color Style, and Sheets & Menus, which is Settings only.
+/// which sits beside Color Style.
 /// Settings spreads them over its Theme, Color, Shape & Layout and Now Playing
 /// sections. Both keep this relative order,
 /// which a test pins.
@@ -1183,8 +1196,7 @@ enum AppearanceOptionKind {
   flatSurfaces(SetupHighlight.flatSurfaces),
   cornerStyle(SetupHighlight.cornerStyle),
   density(null),
-  nowPlayingBackground(SetupHighlight.nowPlayingBackground),
-  sheetStyle(null);
+  nowPlayingBackground(SetupHighlight.nowPlayingBackground);
 
   new(this.highlight);
 
@@ -1218,8 +1230,6 @@ class AppearanceOptionSet {
     required this.onDensityChanged,
     required this.nowPlayingBackground,
     required this.onNowPlayingBackgroundChanged,
-    required this.sheetStyle,
-    required this.onSheetStyleChanged,
     required this.colorTuning,
     required this.onOpenColorTuning,
     required this.previewBrightness,
@@ -1250,8 +1260,6 @@ class AppearanceOptionSet {
   final ValueChanged<NavisDensity> onDensityChanged;
   final NowPlayingBackground nowPlayingBackground;
   final ValueChanged<NowPlayingBackground> onNowPlayingBackgroundChanged;
-  final SheetStyle sheetStyle;
-  final ValueChanged<SheetStyle> onSheetStyleChanged;
 
   /// The saved (or drafted) Fine-Tune Colors values for the row's summary.
   final ColorTuning colorTuning;
@@ -1345,10 +1353,6 @@ class AppearanceOptionSet {
           adornment: adornment,
           onChanged: onNowPlayingBackgroundChanged,
         ),
-      ),
-      AppearanceOptionKind.sheetStyle => SheetStyleOption(
-        value: sheetStyle,
-        onChanged: onSheetStyleChanged,
       ),
     };
   }

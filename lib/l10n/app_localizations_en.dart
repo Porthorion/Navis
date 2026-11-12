@@ -4252,28 +4252,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'The plain background of your theme, with no album color.';
 
   @override
-  String get appearanceSheetStyleLabel => 'Sheets & Menus';
+  String get appearanceQueueMenusCustomizeLabel => 'Customize Queue and Menus';
 
   @override
-  String get appearanceSheetStyleMatchNowPlaying => 'Match Now Playing';
+  String get appearanceQueueMenusCustomizeSub =>
+      'Off: the queue, menus and sheets over Now Playing match its background.';
 
   @override
-  String get appearanceSheetStyleAlbumColor => 'Album Color';
+  String get appearanceQueueBackgroundLabel => 'Queue';
 
   @override
-  String get appearanceSheetStyleTheme => 'Theme';
-
-  @override
-  String get appearanceSheetStyleMatchNowPlayingSub =>
-      'Sheets over Now Playing follow it; menus use your theme.';
-
-  @override
-  String get appearanceSheetStyleAlbumColorSub =>
-      'The queue, menus and sheets take on the color of the playing album. Dialogs keep your theme.';
-
-  @override
-  String get appearanceSheetStyleThemeSub =>
-      'Plain theme colors everywhere, including the queue.';
+  String get appearanceMenuBackgroundLabel => 'Menus';
 
   @override
   String get appearanceOledForAutoLabel => 'Use OLED When Dark';
@@ -4944,6 +4933,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appearanceKeepTitleVersionSub =>
       'Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.';
+
+  @override
+  String get interfaceSongTitlesHeading => 'Song Titles';
 
   @override
   String get desktopNavbarSectionLabel => 'Desktop Navigation';

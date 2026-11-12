@@ -63,12 +63,7 @@ void main() {
             ),
           ),
         );
-        // Interface shows the endlessly blinking Page Visibility icon.
-        if (entry.key == 'Interface') {
-          await tester.pump(const Duration(seconds: 1));
-        } else {
-          await tester.pumpAndSettle();
-        }
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
         await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
@@ -78,40 +73,5 @@ void main() {
         handle.dispose();
       });
     }
-  }
-
-  for (final reduce in [true, false]) {
-    testWidgets('Interface blinking icon respects Reduce Motion=$reduce', (
-      tester,
-    ) async {
-      setAdaptiveTestViewport(tester, const Size(390, 4000));
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: _overrides(database),
-          child: MaterialApp(
-            localizationsDelegates: navisLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(disableAnimations: reduce),
-              child: child!,
-            ),
-            home: const InterfaceSettingsScreen(),
-          ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      // The endless blink stops under Reduce Motion.
-      final blink = tester.widget<AnimatedBuilder>(
-        find
-            .ancestor(
-              of: find.byIcon(Icons.remove_red_eye_outlined),
-              matching: find.byType(AnimatedBuilder),
-            )
-            .first,
-      );
-      expect((blink.animation as AnimationController).isAnimating, !reduce);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 3));
-    });
   }
 }

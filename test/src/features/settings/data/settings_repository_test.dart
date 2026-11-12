@@ -6,7 +6,6 @@ import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -537,27 +536,29 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
-    test('sheet style maps, saves and watches', () async {
-      expect(
-        (await repository.getSettings()).sheetStyle,
-        SheetStyle.matchNowPlaying,
-      );
-      for (final style in SheetStyle.values) {
-        await database.appSettingsDao.updateSheetStyle(style.storageKey);
-        final settings = await repository.getSettings();
-        expect(settings.sheetStyle, style);
-        expect((await repository.watchSettings().first).sheetStyle, style);
-        await repository.saveSettings(
-          settings.copyWith(scrobbleEnabled: false),
-        );
-        expect((await repository.getSettings()).sheetStyle, style);
-      }
+    test('queue and menus settings map, save and watch', () async {
+      final fresh = await repository.getSettings();
+      expect(fresh.customizeQueueAndMenus, isFalse);
+      expect(fresh.queueBackground, NowPlayingBackground.tinted);
+      expect(fresh.menuBackground, NowPlayingBackground.tinted);
+      final dao = database.appSettingsDao;
+      await dao.updateCustomizeQueueAndMenus(enabled: true);
+      await dao.updateQueueBackground('artwork');
+      await dao.updateMenuBackground('plain');
+      final watched = await repository.watchSettings().first;
+      expect(watched.customizeQueueAndMenus, isTrue);
+      expect(watched.queueBackground, NowPlayingBackground.artwork);
+      expect(watched.menuBackground, NowPlayingBackground.plain);
+      await repository.saveSettings(watched.copyWith(scrobbleEnabled: false));
+      final saved = await repository.getSettings();
+      expect(saved.queueBackground, NowPlayingBackground.artwork);
+      expect(saved.menuBackground, NowPlayingBackground.plain);
       await database.customStatement(
-        "UPDATE app_settings SET sheet_style = 'unknown'",
+        "UPDATE app_settings SET queue_background = 'unknown'",
       );
       expect(
-        (await repository.getSettings()).sheetStyle,
-        SheetStyle.matchNowPlaying,
+        (await repository.getSettings()).queueBackground,
+        NowPlayingBackground.tinted,
       );
     }, skip: !sqliteAvailable);
 

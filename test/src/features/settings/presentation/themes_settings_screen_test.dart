@@ -1,10 +1,11 @@
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
-import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
@@ -14,7 +15,6 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
@@ -82,7 +82,7 @@ void main() {
     bool clearWhenSeen = false,
     bool settle = true,
     NowPlayingBackground? nowPlayingBackground,
-    SheetStyle? sheetStyle,
+    bool customizeQueueAndMenus = false,
     bool flatSurfaces = false,
     FlatAreas flatAreas = const FlatAreas(),
     bool albumArtShade = false,
@@ -104,7 +104,7 @@ void main() {
       themeMode: themeMode,
       colorStyle: colorStyle,
       nowPlayingBackground: nowPlayingBackground,
-      sheetStyle: sheetStyle,
+      customizeQueueAndMenus: customizeQueueAndMenus,
       flatSurfaces: flatSurfaces,
       flatAreas: flatAreas,
       albumArtShade: albumArtShade,
@@ -236,6 +236,55 @@ void main() {
     expect(find.text('Auto'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final scale in <double>[1.0, 1.3, 2.0, 3.0]) {
+    for (final width in <double>[320, 360, 412]) {
+      testWidgets('Theme Mode labels are whole at ${scale}x on $width dp '
+          '(#611)', (tester) async {
+        setAdaptiveTestViewport(tester, Size(width, 800));
+        // The test font (Ahem) is far wider than a real one.
+        await tester.runAsync(
+          (FontLoader(
+            'TestInter',
+          )..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'))).load,
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(fontFamily: 'TestInter'),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: ThemeModeSelector(currentMode: 'system', onChanged: (_) {}),
+            ),
+          ),
+        );
+        for (final label in <String>['Light', 'Dark', 'OLED', 'Auto']) {
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.text(label),
+          );
+          expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+          final oneLine = TextPainter(
+            text: paragraph.text,
+            textDirection: TextDirection.ltr,
+            textScaler: paragraph.textScaler,
+          )..layout();
+          expect(
+            paragraph.size.height,
+            moreOrLessEquals(oneLine.height, epsilon: 0.5),
+            reason: '$label wrapped',
+          );
+        }
+        // Phones never show the segment icons.
+        expect(find.byIcon(Icons.light_mode_outlined), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   testWidgets('uses white for implicit default', (tester) async {
     await pumpAppearance(tester);
@@ -449,34 +498,12 @@ void main() {
     expect(tester.getTopLeft(dynamicRow).dy, greaterThan(custom.dy));
   });
 
-  testWidgets('Keep Song Versions Visible starts on and turns off', (
+  testWidgets('Keep Song Versions Visible is not on the Themes page', (
     tester,
   ) async {
-    final container = await pumpAppearance(tester);
+    await pumpAppearance(tester);
     final l10n = lookupAppLocalizations(const Locale('en'));
-    final label = find.text(l10n.appearanceKeepTitleVersionLabel);
-    await tester.scrollUntilVisible(
-      label,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(l10n.appearanceKeepTitleVersionLabel, 'Keep Song Versions Visible');
-    expect(find.text(l10n.appearanceKeepTitleVersionSub), findsOneWidget);
-    final tile = find.ancestor(
-      of: label,
-      matching: find.byType(NavisSwitchListTile),
-    );
-    expect(tester.widget<NavisSwitchListTile>(tile).value, isTrue);
-    expect(container.read(keepTitleVersionVisibleProvider), isTrue);
-    await tester.tap(label);
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
-    await tester.pump();
-    final database = container.read(navisDatabaseProvider);
-    final settings = await tester.runAsync(database.appSettingsDao.getSettings);
-    expect(settings?.keepTitleVersionVisible, isFalse);
+    expect(find.text(l10n.appearanceKeepTitleVersionLabel), findsNothing);
   });
 
   testWidgets('artwork choices wrap and save on a phone with large text', (
@@ -567,16 +594,16 @@ void main() {
           l10n.appearanceCoverArtShapeLabel,
           l10n.appearanceArtworkSizeLabel,
           l10n.appearanceDensityLabel,
-          l10n.appearanceKeepTitleVersionLabel,
           l10n.appearanceArtistViewModeLabel,
           l10n.appearanceSectionNowPlaying,
           l10n.appearanceNowPlayingBackgroundLabel,
-          l10n.appearanceSheetStyleLabel,
+          l10n.appearanceQueueMenusCustomizeLabel,
         ];
         for (final text in ordered) {
           expect(find.text(text), findsOneWidget, reason: text);
         }
         expect(find.text(l10n.appearanceHomeSectionsLabel), findsNothing);
+        expect(find.text(l10n.appearanceKeepTitleVersionLabel), findsNothing);
         expect(find.text(l10n.appearancePagesSectionLabel), findsNothing);
         for (var i = 1; i < ordered.length; i++) {
           expect(
@@ -1297,55 +1324,87 @@ void main() {
       expect(settings?.nowPlayingBackground, 'artwork');
     });
 
-    for (final style in SheetStyle.values) {
-      testWidgets('Sheets & Menus describes ${style.name}', (tester) async {
-        final descriptions = <SheetStyle, String>{
-          SheetStyle.matchNowPlaying:
-              l10n.appearanceSheetStyleMatchNowPlayingSub,
-          SheetStyle.albumColor: l10n.appearanceSheetStyleAlbumColorSub,
-          SheetStyle.theme: l10n.appearanceSheetStyleThemeSub,
-        };
-        await pumpAppearance(tester, sheetStyle: style);
-        await scrollTo(
-          tester,
-          find.byKey(const ValueKey<String>('sheetStyleSelector')),
-        );
-        expect(find.text(l10n.appearanceSheetStyleLabel), findsOneWidget);
-        for (final entry in descriptions.entries) {
-          expect(
-            find.text(entry.value),
-            entry.key == style ? findsOneWidget : findsNothing,
-          );
-        }
-      });
-    }
+    testWidgets('Queue and Menus pickers are hidden while Customize is off', (
+      tester,
+    ) async {
+      await pumpAppearance(tester);
+      final toggle = find.byKey(
+        const ValueKey<String>('customizeQueueMenusSwitch'),
+      );
+      await scrollTo(tester, toggle);
+      expect(
+        find.text(l10n.appearanceQueueMenusCustomizeLabel),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('queueBackgroundSelector')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('menuBackgroundSelector')),
+        findsNothing,
+      );
+    });
 
-    testWidgets('Sheets & Menus sits under Now Playing Background and saves', (
+    testWidgets('Customize sits under Now Playing Background and saves', (
       tester,
     ) async {
       final container = await pumpAppearance(tester);
-      final selector = find.byKey(const ValueKey<String>('sheetStyleSelector'));
-      await scrollTo(tester, selector);
+      final toggle = find.byKey(
+        const ValueKey<String>('customizeQueueMenusSwitch'),
+      );
+      await scrollTo(tester, toggle);
       expect(
-        tester.getTopLeft(find.text(l10n.appearanceSheetStyleLabel)).dy,
+        tester
+            .getTopLeft(find.text(l10n.appearanceQueueMenusCustomizeLabel))
+            .dy,
         greaterThan(
           tester
               .getTopLeft(find.text(l10n.appearanceNowPlayingBackgroundLabel))
               .dy,
         ),
       );
-      final album = find.descendant(
-        of: selector,
-        matching: find.text(l10n.appearanceSheetStyleAlbumColor),
-      );
-      await tester.ensureVisible(album);
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(album);
+      await tester.tap(toggle);
       await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        (await tester.runAsync(
+          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+        ))?.customizeQueueMenus,
+        isTrue,
+      );
+    });
+
+    testWidgets('Queue and Menus pickers save their picks', (tester) async {
+      final container = await pumpAppearance(
+        tester,
+        customizeQueueAndMenus: true,
+      );
+      final queue = find.byKey(
+        const ValueKey<String>('queueBackgroundSelector'),
+      );
+      final menus = find.byKey(
+        const ValueKey<String>('menuBackgroundSelector'),
+      );
+      await scrollTo(tester, queue);
+      expect(menus, findsOneWidget);
+      for (final (selector, label) in [
+        (queue, l10n.appearanceNowPlayingBackgroundArtwork),
+        (menus, l10n.appearanceNowPlayingBackgroundPlain),
+      ]) {
+        final segment = find.descendant(
+          of: selector,
+          matching: find.text(label),
+        );
+        await tester.ensureVisible(segment);
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.tap(segment);
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       final settings = await tester.runAsync(
         container.read(navisDatabaseProvider).appSettingsDao.getSettings,
       );
-      expect(settings?.sheetStyle, 'album_color');
+      expect(settings?.queueBackground, 'artwork');
+      expect(settings?.menuBackground, 'plain');
     });
 
     testWidgets('Density sits beside Artwork Size, not in Home Sections', (

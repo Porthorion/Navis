@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/interface_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/settings_collapsible_group.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -93,19 +95,67 @@ void main() {
         ),
       ),
     );
-    // The Page Visibility icon blinks forever, so the page never settles.
-    if (adaptiveContext == null) {
-      await tester.pump(const Duration(milliseconds: 500));
-    } else {
-      await tester.pump();
-    }
+    await tester.pump(const Duration(milliseconds: 500));
     return container;
   }
+
+  testWidgets('no section is a dropdown: every control is visible untapped', (
+    tester,
+  ) async {
+    tallView(tester);
+    await pumpInterface(tester);
+    expect(find.byType(SettingsCollapsibleGroup), findsNothing);
+    for (final heading in <String>[
+      l10n.appearanceHomeSectionsLabel,
+      l10n.appearancePagesSectionLabel,
+      l10n.interfaceSongTitlesHeading,
+    ]) {
+      expect(find.text(heading), findsOneWidget);
+    }
+    expect(find.text(l10n.homeSectionRecentlyAdded), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('library-page-albums')),
+      findsOneWidget,
+    );
+    expect(find.byType(ExpansionTile), findsNothing);
+  });
+
+  testWidgets(
+    'Keep Song Versions Visible sits under Song Titles and turns off',
+    (tester) async {
+      tallView(tester);
+      final container = await pumpInterface(tester);
+      final label = find.text(l10n.appearanceKeepTitleVersionLabel);
+      expect(label, findsOneWidget);
+      expect(find.text(l10n.appearanceKeepTitleVersionSub), findsOneWidget);
+      expect(
+        tester.getTopLeft(label).dy,
+        greaterThan(
+          tester.getTopLeft(find.text(l10n.interfaceSongTitlesHeading)).dy,
+        ),
+      );
+      final tile = find.ancestor(
+        of: label,
+        matching: find.byType(NavisSwitchListTile),
+      );
+      expect(tester.widget<NavisSwitchListTile>(tile).value, isTrue);
+      await tester.tap(label);
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump();
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.keepTitleVersionVisible, isFalse);
+    },
+  );
 
   testWidgets('a phone shows Home Sections and Page Visibility, never empty', (
     tester,
   ) async {
-    setAdaptiveTestViewport(tester, const Size(390, 844));
+    setAdaptiveTestViewport(tester, const Size(390, 2400));
     await pumpInterface(tester);
     expect(find.text('Interface'), findsOneWidget); // the AppBar title
     expect(find.text(l10n.appearanceHomeSectionsLabel), findsOneWidget);
@@ -118,12 +168,12 @@ void main() {
 
   testWidgets('desktop adds Desktop Navigation, keeps the back button and '
       'the 1040 width', (tester) async {
-    setAdaptiveTestViewport(tester, const Size(1280, 800));
+    setAdaptiveTestViewport(tester, const Size(1280, 1600));
     await pumpInterface(
       tester,
       adaptiveContext: resolveAdaptiveContext(
         desktopRuntime: true,
-        viewportSize: const Size(1280, 800),
+        viewportSize: const Size(1280, 1600),
         safePadding: EdgeInsets.zero,
       ),
     );
@@ -162,8 +212,6 @@ void main() {
   testWidgets('fits a phone at 2.0x text without overflow', (tester) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     await pumpInterface(tester, textScaler: const TextScaler.linear(2));
-    await tester.tap(find.text(l10n.appearanceHomeSectionsLabel));
-    await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);
   });
 
@@ -177,7 +225,6 @@ void main() {
       'opens Library pages, scrolls to the Genres row and highlights it',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(390, 844));
-        // The group's eye icon blinks forever, so pump by time, not settle.
         await pumpInterface(
           tester,
           focusLibraryPages: true,
@@ -225,13 +272,6 @@ void main() {
       expect(material(tester).color, colors.primary.withValues(alpha: 0.22));
       await tester.pump(const Duration(seconds: 3));
     });
-
-    testWidgets('without the link the group stays closed', (tester) async {
-      setAdaptiveTestViewport(tester, const Size(390, 844));
-      await pumpInterface(tester);
-
-      expect(genresRow.hitTestable(), findsNothing);
-    });
   });
 
   testWidgets(
@@ -245,11 +285,6 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.ensureVisible(home);
-      await tester.pump();
-      await tester.tap(home);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
       final control = find.widgetWithText(
         SwitchListTile,
         'Automatically Advance Recommendations',
@@ -304,8 +339,6 @@ void main() {
         200,
         scrollable: page,
       );
-      await tester.tap(find.text('Home Sections'));
-      await tester.pump(const Duration(milliseconds: 500));
       await tester.scrollUntilVisible(
         find.text('New Releases'),
         200,
@@ -324,61 +357,42 @@ void main() {
   );
 
   group('New tags', () {
-    testWidgets('the Library pages group header carries the Genres tag', (
+    testWidgets('the Page Visibility heading carries the Genres tag', (
       tester,
     ) async {
       tallView(tester);
-      final header = find
-          .ancestor(
-            of: find.text(l10n.appearancePagesSectionLabel),
-            matching: find.byType(InkWell),
-          )
-          .first;
       await pumpInterface(
         tester,
         highlights: <SetupHighlight>{SetupHighlight.genresPage},
       );
-      await tester.pump(const Duration(milliseconds: 500));
+      final heading = find
+          .ancestor(
+            of: find.text(l10n.appearancePagesSectionLabel),
+            matching: find.byType(Row),
+          )
+          .first;
       expect(
-        find.descendant(of: header, matching: find.byType(NewFeatureTag)),
+        find.descendant(of: heading, matching: find.byType(NewFeatureTag)),
         findsOneWidget,
       );
     });
 
-    testWidgets('the group header has no tag when nothing is pending', (
+    testWidgets('the heading has no tag when nothing is pending', (
       tester,
     ) async {
       tallView(tester);
       await pumpInterface(tester);
-      await tester.pump(const Duration(milliseconds: 500));
-      final header = find
-          .ancestor(
-            of: find.text(l10n.appearancePagesSectionLabel),
-            matching: find.byType(InkWell),
-          )
-          .first;
-      expect(
-        find.descendant(of: header, matching: find.byType(NewFeatureTag)),
-        findsNothing,
-      );
+      expect(find.byType(NewFeatureTag), findsNothing);
     });
 
-    testWidgets('the Genres tag clears only once its group is open', (
-      tester,
-    ) async {
+    testWidgets('the Genres tag clears once the page shows it', (tester) async {
       tallView(tester);
       await pumpInterface(
         tester,
         highlights: <SetupHighlight>{SetupHighlight.genresPage},
       );
       await tester.pump(const Duration(milliseconds: 500));
-      expect(seenOptions, isEmpty);
-
-      await tester.ensureVisible(find.text(l10n.appearancePagesSectionLabel));
-      await tester.tap(find.text(l10n.appearancePagesSectionLabel));
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump();
       expect(seenOptions, <SetupHighlight>[SetupHighlight.genresPage]);
     });
   });

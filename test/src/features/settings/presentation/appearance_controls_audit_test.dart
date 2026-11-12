@@ -268,7 +268,6 @@ void main() {
     of: find.byType(ThemeModeSelector),
     matching: find.text(label),
   );
-  Finder headerOf(String title) => find.text(title);
   Finder panelKey(String name) =>
       find.byKey(ValueKey<String>('colorTuning-$name'));
 
@@ -281,10 +280,6 @@ void main() {
     await steps();
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
     await settle(tester);
-  }
-
-  Future<void> expandGroup(WidgetTester tester, String title) async {
-    await tap(tester, headerOf(title));
   }
 
   Future<void> pickHex(WidgetTester tester, String hex, String button) async {
@@ -715,14 +710,6 @@ void main() {
         effect: (c) => expect(c.read(cornerStyleProvider).name, name),
       ),
     _Control(
-      'Keep Song Versions Visible',
-      writers: {'updateKeepTitleVersionVisible'},
-      columns: {'keepTitleVersionVisible'},
-      fields: {'keepTitleVersionVisible'},
-      act: (t) => tap(t, find.text(l10n.appearanceKeepTitleVersionLabel)),
-      effect: (c) => expect(c.read(keepTitleVersionVisibleProvider), isFalse),
-    ),
-    _Control(
       'Corner style: Pill',
       writers: {'updateCornerStyle'},
       columns: {'cornerStyle'},
@@ -874,43 +861,61 @@ void main() {
           expect(c.read(nowPlayingBackgroundProvider).storageKey, 'tinted'),
     ),
 
-    for (final (name, label) in <(String, String)>[
-      ('album_color', l10n.appearanceSheetStyleAlbumColor),
-      ('theme', l10n.appearanceSheetStyleTheme),
-    ])
-      _Control(
-        'Sheets & Menus: $name',
-        writers: {'updateSheetStyle'},
-        columns: {'sheetStyle'},
-        fields: {'sheetStyle'},
-        act: (t) => tap(t, inSelector('sheetStyleSelector', label)),
-        effect: (c) => expect(c.read(sheetStyleProvider).storageKey, name),
-      ),
     _Control(
-      'Sheets & Menus: Match Now Playing',
-      writers: {'updateSheetStyle'},
-      columns: {'sheetStyle'},
-      fields: {'sheetStyle'},
-      seed: (db) => db.appSettingsDao.updateSheetStyle('theme'),
+      'Customize Queue and Menus: switch',
+      writers: {'updateCustomizeQueueAndMenus'},
+      columns: {'customizeQueueMenus'},
+      // Turning it on also brings the two picks into the Look.
+      fields: {'customizeQueueAndMenus', 'queueBackground', 'menuBackground'},
       act: (t) => tap(
         t,
-        inSelector(
-          'sheetStyleSelector',
-          l10n.appearanceSheetStyleMatchNowPlaying,
-        ),
+        find.byKey(const ValueKey<String>('customizeQueueMenusSwitch')),
       ),
-      effect: (c) =>
-          expect(c.read(sheetStyleProvider).storageKey, 'match_now_playing'),
+      effect: (c) => expect(c.read(customizeQueueAndMenusProvider), isTrue),
     ),
+    for (final (name, label) in <(String, String)>[
+      ('artwork', l10n.appearanceNowPlayingBackgroundArtwork),
+      ('plain', l10n.appearanceNowPlayingBackgroundPlain),
+    ]) ...<_Control>[
+      _Control(
+        'Customize Queue and Menus: queue $name',
+        writers: {'updateQueueBackground'},
+        columns: {'queueBackground'},
+        fields: {'queueBackground'},
+        seed: (db) =>
+            db.appSettingsDao.updateCustomizeQueueAndMenus(enabled: true),
+        act: (t) => tap(t, inSelector('queueBackgroundSelector', label)),
+        effect: (c) =>
+            expect(c.read(nowPlayingQueueBackgroundProvider).storageKey, name),
+      ),
+      _Control(
+        'Customize Queue and Menus: menus $name',
+        writers: {'updateMenuBackground'},
+        columns: {'menuBackground'},
+        fields: {'menuBackground'},
+        seed: (db) =>
+            db.appSettingsDao.updateCustomizeQueueAndMenus(enabled: true),
+        act: (t) => tap(t, inSelector('menuBackgroundSelector', label)),
+        effect: (c) =>
+            expect(c.read(nowPlayingMenuBackgroundProvider).storageKey, name),
+      ),
+    ],
 
     // Not part of a Look: the Look must stay selected.
+    _Control(
+      'Keep Song Versions Visible',
+      page: _Page.interface,
+      writers: {'updateKeepTitleVersionVisible'},
+      columns: {'keepTitleVersionVisible'},
+      act: (t) => tap(t, find.text(l10n.appearanceKeepTitleVersionLabel)),
+      effect: (c) => expect(c.read(keepTitleVersionVisibleProvider), isFalse),
+    ),
     _Control(
       'Home: automatic recommendations',
       page: _Page.interface,
       writers: {'updateHomeRecommendationsAutoAdvance'},
       columns: {'homeRecommendationsAutoAdvance'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(t, find.text(l10n.appearanceRecommendationsAutoAdvance));
       },
       effect: (c) =>
@@ -922,7 +927,6 @@ void main() {
       writers: {'updateHomeSectionsHidden'},
       columns: {'homeSectionsHidden'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(
           t,
           find
@@ -948,7 +952,6 @@ void main() {
       columns: {'homeSectionsHidden'},
       seed: (db) => db.appSettingsDao.updateHomeSectionsHidden(hiddenOnce),
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(
           t,
           find
@@ -977,7 +980,6 @@ void main() {
       writers: {'updateHomeSectionsHidden', 'updateHomeSectionOrder'},
       columns: {'homeSectionsHidden', 'homeSectionOrder'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await tap(
           t,
           find
@@ -1005,7 +1007,6 @@ void main() {
       writers: {'updateHomeSectionOrder'},
       columns: {'homeSectionOrder'},
       act: (t) async {
-        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
         await t.drag(
           find
               .descendant(
@@ -1047,7 +1048,6 @@ void main() {
         },
         columns: {column},
         act: (t) async {
-          await expandGroup(t, l10n.appearancePagesSectionLabel);
           await tap(
             t,
             find.descendant(
@@ -1067,7 +1067,6 @@ void main() {
       writers: {'updateLibraryPageOrder'},
       columns: {'libraryPageOrder'},
       act: (t) async {
-        await expandGroup(t, l10n.appearancePagesSectionLabel);
         await t.drag(
           find.descendant(
             of: find.byKey(const ValueKey<String>('library-page-albums')),
@@ -1091,7 +1090,6 @@ void main() {
         writers: {'updateDesktopNavbarStyle'},
         columns: {'desktopNavbarStyle'},
         act: (t) async {
-          await expandGroup(t, l10n.desktopNavbarSectionLabel);
           await tap(t, find.widgetWithText(FilledButton, label));
         },
         effect: (c) => expect(c.read(desktopNavbarStyleProvider), value),
@@ -1103,7 +1101,6 @@ void main() {
       writers: {'updateDesktopNavbarAutohide'},
       columns: {'desktopNavbarAutohide'},
       act: (t) async {
-        await expandGroup(t, l10n.desktopNavbarSectionLabel);
         await tap(t, find.text(l10n.desktopNavbarAutohideLabel));
       },
       effect: (c) => expect(c.read(desktopNavbarAutohideProvider), isTrue),
@@ -1248,8 +1245,11 @@ void main() {
     });
 
     test('every Look field has a control, except the stated ones', () {
+      // The Queue and Menus picks only enter a Look while Customize is on.
       final fields = AppearanceSnapshot.capture(
-        const AppSettingsModel.defaults(),
+        const AppSettingsModel.defaults().copyWith(
+          customizeQueueAndMenus: true,
+        ),
       ).toJson().keys.toSet();
       final covered = {for (final c in controls) ...c.fields};
       // albumGridDensity is a legacy column: nothing reads or writes it

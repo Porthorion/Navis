@@ -123,11 +123,6 @@ class ThemesSettingsScreen extends ConsumerWidget {
           background.storageKey,
         );
       },
-      sheetStyle: ref.watch(sheetStyleProvider),
-      onSheetStyleChanged: (style) async {
-        final db = ref.read(navisDatabaseProvider);
-        await db.appSettingsDao.updateSheetStyle(style.storageKey);
-      },
       colorTuning: tuningState.tuning,
       onOpenColorTuning: (anchor) => unawaited(_openColorTuning(anchor, ref)),
       previewBrightness: previewBrightness,
@@ -403,18 +398,6 @@ class ThemesSettingsScreen extends ConsumerWidget {
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.density,
                 ]),
-                NavisSwitchListTile(
-                  contentPadding: appearanceSwitchPadding(context),
-                  title: Text(l10n.appearanceKeepTitleVersionLabel),
-                  subtitle: Text(l10n.appearanceKeepTitleVersionSub),
-                  value: ref.watch(keepTitleVersionVisibleProvider),
-                  onChanged: (enabled) async {
-                    final db = ref.read(navisDatabaseProvider);
-                    await db.appSettingsDao.updateKeepTitleVersionVisible(
-                      enabled: enabled,
-                    );
-                  },
-                ),
                 AppearanceHeading(
                   title: l10n.appearanceArtistViewModeLabel,
                   topPadding: NavisSpace.md,
@@ -459,8 +442,24 @@ class ThemesSettingsScreen extends ConsumerWidget {
                 ),
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.nowPlayingBackground,
-                  AppearanceOptionKind.sheetStyle,
                 ]),
+                NowPlayingQueueMenusOption(
+                  customize: ref.watch(customizeQueueAndMenusProvider),
+                  onCustomizeChanged: (enabled) => ref
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .updateCustomizeQueueAndMenus(enabled: enabled),
+                  queue: ref.watch(queueBackgroundPickProvider),
+                  onQueueChanged: (value) => ref
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .updateQueueBackground(value.storageKey),
+                  menus: ref.watch(menuBackgroundPickProvider),
+                  onMenusChanged: (value) => ref
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .updateMenuBackground(value.storageKey),
+                ),
                 const SizedBox(height: 8),
               ],
             ),
@@ -569,11 +568,49 @@ class ThemeModeSelector extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 440;
+        final gutter = AppearanceLayout.gutterOf(context);
+        final style = DefaultTextStyle.of(context).style
+            .merge(Theme.of(context).textTheme.labelLarge)
+            .copyWith(fontSize: compact ? 11 : null);
+        final scaler = MediaQuery.textScalerOf(context);
+        // Compact layouts drop the icons. When a label still cannot sit on one
+        // line in its quarter of the row (segment padding ~ 24 dp), each option
+        // gets the full width as a radio row instead of being cut or broken.
+        final segmentWidth = (constraints.maxWidth - 2 * gutter) / 4 - 24;
+        final fits =
+            !compact ||
+            entries.every((e) {
+              final painter = TextPainter(
+                text: TextSpan(text: e.$2, style: style),
+                textDirection: Directionality.of(context),
+                textScaler: scaler,
+              )..layout();
+              return painter.width <= segmentWidth;
+            });
+        if (!fits) {
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: gutter, vertical: 8),
+            child: RadioGroup<String>(
+              groupValue: currentMode,
+              onChanged: (mode) {
+                if (mode != null) onChanged(mode);
+              },
+              child: Column(
+                children: [
+                  for (final e in entries)
+                    RadioListTile<String>(
+                      key: ValueKey<String>('themeMode-${e.$1}'),
+                      contentPadding: EdgeInsets.zero,
+                      value: e.$1,
+                      title: Text(e.$2),
+                    ),
+                ],
+              ),
+            ),
+          );
+        }
         return Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppearanceLayout.gutterOf(context),
-            vertical: 8,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: gutter, vertical: 8),
           child: SegmentedButton<String>(
             segments: entries
                 .map(
@@ -585,7 +622,7 @@ class ThemeModeSelector extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: compact ? 11 : null),
                     ),
-                    icon: Icon(e.$3),
+                    icon: compact ? null : Icon(e.$3),
                   ),
                 )
                 .toList(),
