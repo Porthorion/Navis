@@ -417,9 +417,6 @@ class SettingsRepository {
       nowPlayingBackground: NowPlayingBackground.parse(
         row.nowPlayingBackground,
       ),
-      customizeQueueAndMenus: row.customizeQueueMenus,
-      queueBackground: NowPlayingBackground.parse(row.queueBackground),
-      menuBackground: NowPlayingBackground.parse(row.menuBackground),
       keepTitleVersionVisible: row.keepTitleVersionVisible,
       cornerStyle: NavisCornerStyle.parse(row.cornerStyle),
       dynamicAlbumColorEnabled: row.dynamicAlbumColorEnabled,

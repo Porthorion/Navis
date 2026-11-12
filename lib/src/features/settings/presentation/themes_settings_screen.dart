@@ -443,23 +443,6 @@ class ThemesSettingsScreen extends ConsumerWidget {
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.nowPlayingBackground,
                 ]),
-                NowPlayingQueueMenusOption(
-                  customize: ref.watch(customizeQueueAndMenusProvider),
-                  onCustomizeChanged: (enabled) => ref
-                      .read(navisDatabaseProvider)
-                      .appSettingsDao
-                      .updateCustomizeQueueAndMenus(enabled: enabled),
-                  queue: ref.watch(queueBackgroundPickProvider),
-                  onQueueChanged: (value) => ref
-                      .read(navisDatabaseProvider)
-                      .appSettingsDao
-                      .updateQueueBackground(value.storageKey),
-                  menus: ref.watch(menuBackgroundPickProvider),
-                  onMenusChanged: (value) => ref
-                      .read(navisDatabaseProvider)
-                      .appSettingsDao
-                      .updateMenuBackground(value.storageKey),
-                ),
                 const SizedBox(height: 8),
               ],
             ),

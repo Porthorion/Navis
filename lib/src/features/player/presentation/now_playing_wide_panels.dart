@@ -20,7 +20,7 @@ class _NowPlayingSplitMetrics {
   final double artSize;
 }
 
-class _EmbeddedRightPaneBottomSheet extends ConsumerWidget {
+class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
   const new({
     required this.heightFactor,
     required this.useHeader,
@@ -39,7 +39,7 @@ class _EmbeddedRightPaneBottomSheet extends ConsumerWidget {
   final String? subtitle;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -66,12 +66,7 @@ class _EmbeddedRightPaneBottomSheet extends ConsumerWidget {
                 }
               },
               child: Material(
-                color: queuePanelFill(
-                  context,
-                  ref.watch(nowPlayingQueueBackgroundProvider),
-                  ref.watch(nowPlayingPublishedBackdropProvider),
-                  colorScheme.surfaceContainerHigh,
-                ),
+                color: colorScheme.surfaceContainerHigh,
                 elevation: 14,
                 shape: RoundedRectangleBorder(
                   borderRadius: NavisShapeData.of(context).sheetTop,

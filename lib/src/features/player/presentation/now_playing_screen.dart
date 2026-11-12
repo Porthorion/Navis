@@ -446,7 +446,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       coverArtId: playback.isRadioMode ? null : song?.coverArt,
       coverArtRevision: song?.coverArtRevision ?? 0,
       artUrl: activeArtUrl,
-      publishToQueueOverlay: ref.watch(playerSheetExpandedProvider),
       // In compact-wide mode the overlay panels must cover the full
       // Material area including any safe-area insets, so we skip the
       // outer SafeArea here.  The body's compactPlayerPage applies the

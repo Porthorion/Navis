@@ -963,96 +963,29 @@ class NowPlayingBackgroundOption extends StatelessWidget {
         key: const ValueKey<String>('nowPlayingBackgroundSelector'),
         showSelectedIcon: false,
         expandedInsets: EdgeInsets.zero,
-        segments: _backgroundSegments(l10n),
-        selected: <NowPlayingBackground>{value},
-        onSelectionChanged: (selection) => onChanged(selection.first),
-      ),
-    );
-  }
-}
-
-/// The Art-Tinted, Artwork and Plain segments of the Now Playing, Queue and
-/// Menus pickers.
-List<ButtonSegment<NowPlayingBackground>> _backgroundSegments(
-  AppLocalizations l10n,
-) => <ButtonSegment<NowPlayingBackground>>[
-  for (final (value, label) in <(NowPlayingBackground, String)>[
-    (NowPlayingBackground.tinted, l10n.appearanceNowPlayingBackgroundTinted),
-    (NowPlayingBackground.artwork, l10n.appearanceNowPlayingBackgroundArtwork),
-    (NowPlayingBackground.plain, l10n.appearanceNowPlayingBackgroundPlain),
-  ])
-    ButtonSegment<NowPlayingBackground>(
-      value: value,
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-    ),
-];
-
-/// Customize Queue and Menus: off, the queue and everything opened over Now
-/// Playing follow the Now Playing background; on, separate Queue and Menus
-/// pickers appear. Settings only, not part of setup.
-class NowPlayingQueueMenusOption extends StatelessWidget {
-  const new({
-    required this.customize,
-    required this.onCustomizeChanged,
-    required this.queue,
-    required this.onQueueChanged,
-    required this.menus,
-    required this.onMenusChanged,
-    super.key,
-  });
-
-  final bool customize;
-  final ValueChanged<bool> onCustomizeChanged;
-  final NowPlayingBackground queue;
-  final ValueChanged<NowPlayingBackground> onQueueChanged;
-  final NowPlayingBackground menus;
-  final ValueChanged<NowPlayingBackground> onMenusChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    Widget picker(
-      String title,
-      String selectorKey,
-      NowPlayingBackground value,
-      ValueChanged<NowPlayingBackground> onChanged,
-    ) => AppearanceChoiceSection(
-      title: title,
-      selector: SegmentedButton<NowPlayingBackground>(
-        key: ValueKey<String>(selectorKey),
-        showSelectedIcon: false,
-        expandedInsets: EdgeInsets.zero,
-        segments: _backgroundSegments(l10n),
-        selected: <NowPlayingBackground>{value},
-        onSelectionChanged: (selection) => onChanged(selection.first),
-      ),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        NavisSwitchListTile(
-          key: const ValueKey<String>('customizeQueueMenusSwitch'),
-          contentPadding: appearanceSwitchPadding(context),
-          title: Text(l10n.appearanceQueueMenusCustomizeLabel),
-          subtitle: Text(l10n.appearanceQueueMenusCustomizeSub),
-          value: customize,
-          onChanged: onCustomizeChanged,
-        ),
-        if (customize) ...<Widget>[
-          picker(
-            l10n.appearanceQueueBackgroundLabel,
-            'queueBackgroundSelector',
-            queue,
-            onQueueChanged,
-          ),
-          picker(
-            l10n.appearanceMenuBackgroundLabel,
-            'menuBackgroundSelector',
-            menus,
-            onMenusChanged,
-          ),
+        segments: <ButtonSegment<NowPlayingBackground>>[
+          for (final (value, label) in <(NowPlayingBackground, String)>[
+            (
+              NowPlayingBackground.tinted,
+              l10n.appearanceNowPlayingBackgroundTinted,
+            ),
+            (
+              NowPlayingBackground.artwork,
+              l10n.appearanceNowPlayingBackgroundArtwork,
+            ),
+            (
+              NowPlayingBackground.plain,
+              l10n.appearanceNowPlayingBackgroundPlain,
+            ),
+          ])
+            ButtonSegment<NowPlayingBackground>(
+              value: value,
+              label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
         ],
-      ],
+        selected: <NowPlayingBackground>{value},
+        onSelectionChanged: (selection) => onChanged(selection.first),
+      ),
     );
   }
 }

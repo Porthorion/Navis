@@ -560,8 +560,8 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
-  /// Customize Queue and Menus: three columns replace the legacy
-  /// `sheet_style`. Only when the toggle column was absent (first run) the old
+  /// Customize Queue and Menus (removed again by G4, columns kept unused): three
+  /// columns replace the legacy `sheet_style`. Only when the toggle column was absent (first run) the old
   /// choice maps once: album_color becomes on with Tinted picks, theme becomes
   /// on with Plain picks, anything else stays off. Re-runs never overwrite a
   /// later user change.
