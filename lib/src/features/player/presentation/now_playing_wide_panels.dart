@@ -68,7 +68,8 @@ class _EmbeddedRightPaneBottomSheet extends ConsumerWidget {
               child: Material(
                 color: queuePanelFill(
                   context,
-                  ref.watch(sheetStyleProvider),
+                  ref.watch(nowPlayingQueueBackgroundProvider),
+                  ref.watch(nowPlayingPublishedBackdropProvider),
                   colorScheme.surfaceContainerHigh,
                 ),
                 elevation: 14,

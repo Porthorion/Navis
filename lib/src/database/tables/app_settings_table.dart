@@ -213,9 +213,26 @@ class AppSettingsTable extends Table {
   TextColumn get nowPlayingBackground =>
       text().withDefault(const Constant('tinted'))();
 
-  /// Fill of sheets and menus: match_now_playing, album_color or theme.
+  /// Legacy: 1.5.2 dev builds only (match_now_playing, album_color or theme).
+  /// Read once by `from115To116`, which maps it to the three columns below.
+  /// Kept in the definition because dropping it needs a table rebuild and
+  /// `from113To114` still adds it.
   TextColumn get sheetStyle =>
       text().withDefault(const Constant('match_now_playing'))();
+
+  /// Customize Queue and Menus: off, the queue and everything opened over Now
+  /// Playing follow [nowPlayingBackground]; on, [queueBackground] and
+  /// [menuBackground] apply. The picks are kept while it is off.
+  BoolColumn get customizeQueueMenus =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Queue background while customizing: tinted, artwork or plain.
+  TextColumn get queueBackground =>
+      text().withDefault(const Constant('tinted'))();
+
+  /// Menus, sheets and popovers background while customizing.
+  TextColumn get menuBackground =>
+      text().withDefault(const Constant('tinted'))();
 
   /// Keep Song Versions Visible: long titles keep a trailing tag such as
   /// "(Remastered)" whole and shorten the name. Off: one plain ellipsis.

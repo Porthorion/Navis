@@ -1442,6 +1442,44 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('match_now_playing'),
   );
+  static const VerificationMeta _customizeQueueMenusMeta =
+      const VerificationMeta('customizeQueueMenus');
+  @override
+  late final GeneratedColumn<bool> customizeQueueMenus = GeneratedColumn<bool>(
+    'customize_queue_menus',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("customize_queue_menus" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _queueBackgroundMeta = const VerificationMeta(
+    'queueBackground',
+  );
+  @override
+  late final GeneratedColumn<String> queueBackground = GeneratedColumn<String>(
+    'queue_background',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('tinted'),
+  );
+  static const VerificationMeta _menuBackgroundMeta = const VerificationMeta(
+    'menuBackground',
+  );
+  @override
+  late final GeneratedColumn<String> menuBackground = GeneratedColumn<String>(
+    'menu_background',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('tinted'),
+  );
   static const VerificationMeta _keepTitleVersionVisibleMeta =
       const VerificationMeta('keepTitleVersionVisible');
   @override
@@ -2240,6 +2278,9 @@ class $AppSettingsTableTable extends AppSettingsTable
     cornerStyle,
     nowPlayingBackground,
     sheetStyle,
+    customizeQueueMenus,
+    queueBackground,
+    menuBackground,
     keepTitleVersionVisible,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
@@ -2887,6 +2928,33 @@ class $AppSettingsTableTable extends AppSettingsTable
       context.handle(
         _sheetStyleMeta,
         sheetStyle.isAcceptableOrUnknown(data['sheet_style']!, _sheetStyleMeta),
+      );
+    }
+    if (data.containsKey('customize_queue_menus')) {
+      context.handle(
+        _customizeQueueMenusMeta,
+        customizeQueueMenus.isAcceptableOrUnknown(
+          data['customize_queue_menus']!,
+          _customizeQueueMenusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('queue_background')) {
+      context.handle(
+        _queueBackgroundMeta,
+        queueBackground.isAcceptableOrUnknown(
+          data['queue_background']!,
+          _queueBackgroundMeta,
+        ),
+      );
+    }
+    if (data.containsKey('menu_background')) {
+      context.handle(
+        _menuBackgroundMeta,
+        menuBackground.isAcceptableOrUnknown(
+          data['menu_background']!,
+          _menuBackgroundMeta,
+        ),
       );
     }
     if (data.containsKey('keep_title_version_visible')) {
@@ -3675,6 +3743,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}sheet_style'],
       )!,
+      customizeQueueMenus: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}customize_queue_menus'],
+      )!,
+      queueBackground: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}queue_background'],
+      )!,
+      menuBackground: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}menu_background'],
+      )!,
       keepTitleVersionVisible: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}keep_title_version_visible'],
@@ -4066,8 +4146,22 @@ class AppSettingsTableData extends DataClass
   /// Now Playing background: tinted, artwork or plain.
   final String nowPlayingBackground;
 
-  /// Fill of sheets and menus: match_now_playing, album_color or theme.
+  /// Legacy: 1.5.2 dev builds only (match_now_playing, album_color or theme).
+  /// Read once by `from115To116`, which maps it to the three columns below.
+  /// Kept in the definition because dropping it needs a table rebuild and
+  /// `from113To114` still adds it.
   final String sheetStyle;
+
+  /// Customize Queue and Menus: off, the queue and everything opened over Now
+  /// Playing follow [nowPlayingBackground]; on, [queueBackground] and
+  /// [menuBackground] apply. The picks are kept while it is off.
+  final bool customizeQueueMenus;
+
+  /// Queue background while customizing: tinted, artwork or plain.
+  final String queueBackground;
+
+  /// Menus, sheets and popovers background while customizing.
+  final String menuBackground;
 
   /// Keep Song Versions Visible: long titles keep a trailing tag such as
   /// "(Remastered)" whole and shorten the name. Off: one plain ellipsis.
@@ -4326,6 +4420,9 @@ class AppSettingsTableData extends DataClass
     required this.cornerStyle,
     required this.nowPlayingBackground,
     required this.sheetStyle,
+    required this.customizeQueueMenus,
+    required this.queueBackground,
+    required this.menuBackground,
     required this.keepTitleVersionVisible,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
@@ -4492,6 +4589,9 @@ class AppSettingsTableData extends DataClass
     map['corner_style'] = Variable<String>(cornerStyle);
     map['now_playing_background'] = Variable<String>(nowPlayingBackground);
     map['sheet_style'] = Variable<String>(sheetStyle);
+    map['customize_queue_menus'] = Variable<bool>(customizeQueueMenus);
+    map['queue_background'] = Variable<String>(queueBackground);
+    map['menu_background'] = Variable<String>(menuBackground);
     map['keep_title_version_visible'] = Variable<bool>(keepTitleVersionVisible);
     map['dynamic_album_color_enabled'] = Variable<bool>(
       dynamicAlbumColorEnabled,
@@ -4699,6 +4799,9 @@ class AppSettingsTableData extends DataClass
       cornerStyle: Value(cornerStyle),
       nowPlayingBackground: Value(nowPlayingBackground),
       sheetStyle: Value(sheetStyle),
+      customizeQueueMenus: Value(customizeQueueMenus),
+      queueBackground: Value(queueBackground),
+      menuBackground: Value(menuBackground),
       keepTitleVersionVisible: Value(keepTitleVersionVisible),
       dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
       updateCheckEnabled: Value(updateCheckEnabled),
@@ -4910,6 +5013,11 @@ class AppSettingsTableData extends DataClass
         json['nowPlayingBackground'],
       ),
       sheetStyle: serializer.fromJson<String>(json['sheetStyle']),
+      customizeQueueMenus: serializer.fromJson<bool>(
+        json['customizeQueueMenus'],
+      ),
+      queueBackground: serializer.fromJson<String>(json['queueBackground']),
+      menuBackground: serializer.fromJson<String>(json['menuBackground']),
       keepTitleVersionVisible: serializer.fromJson<bool>(
         json['keepTitleVersionVisible'],
       ),
@@ -5126,6 +5234,9 @@ class AppSettingsTableData extends DataClass
       'cornerStyle': serializer.toJson<String>(cornerStyle),
       'nowPlayingBackground': serializer.toJson<String>(nowPlayingBackground),
       'sheetStyle': serializer.toJson<String>(sheetStyle),
+      'customizeQueueMenus': serializer.toJson<bool>(customizeQueueMenus),
+      'queueBackground': serializer.toJson<String>(queueBackground),
+      'menuBackground': serializer.toJson<String>(menuBackground),
       'keepTitleVersionVisible': serializer.toJson<bool>(
         keepTitleVersionVisible,
       ),
@@ -5286,6 +5397,9 @@ class AppSettingsTableData extends DataClass
     String? cornerStyle,
     String? nowPlayingBackground,
     String? sheetStyle,
+    bool? customizeQueueMenus,
+    String? queueBackground,
+    String? menuBackground,
     bool? keepTitleVersionVisible,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
@@ -5442,6 +5556,9 @@ class AppSettingsTableData extends DataClass
     cornerStyle: cornerStyle ?? this.cornerStyle,
     nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
     sheetStyle: sheetStyle ?? this.sheetStyle,
+    customizeQueueMenus: customizeQueueMenus ?? this.customizeQueueMenus,
+    queueBackground: queueBackground ?? this.queueBackground,
+    menuBackground: menuBackground ?? this.menuBackground,
     keepTitleVersionVisible:
         keepTitleVersionVisible ?? this.keepTitleVersionVisible,
     dynamicAlbumColorEnabled:
@@ -5739,6 +5856,15 @@ class AppSettingsTableData extends DataClass
       sheetStyle: data.sheetStyle.present
           ? data.sheetStyle.value
           : this.sheetStyle,
+      customizeQueueMenus: data.customizeQueueMenus.present
+          ? data.customizeQueueMenus.value
+          : this.customizeQueueMenus,
+      queueBackground: data.queueBackground.present
+          ? data.queueBackground.value
+          : this.queueBackground,
+      menuBackground: data.menuBackground.present
+          ? data.menuBackground.value
+          : this.menuBackground,
       keepTitleVersionVisible: data.keepTitleVersionVisible.present
           ? data.keepTitleVersionVisible.value
           : this.keepTitleVersionVisible,
@@ -5982,6 +6108,9 @@ class AppSettingsTableData extends DataClass
           ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('sheetStyle: $sheetStyle, ')
+          ..write('customizeQueueMenus: $customizeQueueMenus, ')
+          ..write('queueBackground: $queueBackground, ')
+          ..write('menuBackground: $menuBackground, ')
           ..write('keepTitleVersionVisible: $keepTitleVersionVisible, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
@@ -6118,6 +6247,9 @@ class AppSettingsTableData extends DataClass
     cornerStyle,
     nowPlayingBackground,
     sheetStyle,
+    customizeQueueMenus,
+    queueBackground,
+    menuBackground,
     keepTitleVersionVisible,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
@@ -6249,6 +6381,9 @@ class AppSettingsTableData extends DataClass
           other.cornerStyle == this.cornerStyle &&
           other.nowPlayingBackground == this.nowPlayingBackground &&
           other.sheetStyle == this.sheetStyle &&
+          other.customizeQueueMenus == this.customizeQueueMenus &&
+          other.queueBackground == this.queueBackground &&
+          other.menuBackground == this.menuBackground &&
           other.keepTitleVersionVisible == this.keepTitleVersionVisible &&
           other.dynamicAlbumColorEnabled == this.dynamicAlbumColorEnabled &&
           other.updateCheckEnabled == this.updateCheckEnabled &&
@@ -6382,6 +6517,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> cornerStyle;
   final Value<String> nowPlayingBackground;
   final Value<String> sheetStyle;
+  final Value<bool> customizeQueueMenus;
+  final Value<String> queueBackground;
+  final Value<String> menuBackground;
   final Value<bool> keepTitleVersionVisible;
   final Value<bool> dynamicAlbumColorEnabled;
   final Value<bool> updateCheckEnabled;
@@ -6507,6 +6645,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
     this.sheetStyle = const Value.absent(),
+    this.customizeQueueMenus = const Value.absent(),
+    this.queueBackground = const Value.absent(),
+    this.menuBackground = const Value.absent(),
     this.keepTitleVersionVisible = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
@@ -6633,6 +6774,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
     this.sheetStyle = const Value.absent(),
+    this.customizeQueueMenus = const Value.absent(),
+    this.queueBackground = const Value.absent(),
+    this.menuBackground = const Value.absent(),
     this.keepTitleVersionVisible = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
@@ -6759,6 +6903,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? cornerStyle,
     Expression<String>? nowPlayingBackground,
     Expression<String>? sheetStyle,
+    Expression<bool>? customizeQueueMenus,
+    Expression<String>? queueBackground,
+    Expression<String>? menuBackground,
     Expression<bool>? keepTitleVersionVisible,
     Expression<bool>? dynamicAlbumColorEnabled,
     Expression<bool>? updateCheckEnabled,
@@ -6913,6 +7060,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (nowPlayingBackground != null)
         'now_playing_background': nowPlayingBackground,
       if (sheetStyle != null) 'sheet_style': sheetStyle,
+      if (customizeQueueMenus != null)
+        'customize_queue_menus': customizeQueueMenus,
+      if (queueBackground != null) 'queue_background': queueBackground,
+      if (menuBackground != null) 'menu_background': menuBackground,
       if (keepTitleVersionVisible != null)
         'keep_title_version_visible': keepTitleVersionVisible,
       if (dynamicAlbumColorEnabled != null)
@@ -7074,6 +7225,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? cornerStyle,
     Value<String>? nowPlayingBackground,
     Value<String>? sheetStyle,
+    Value<bool>? customizeQueueMenus,
+    Value<String>? queueBackground,
+    Value<String>? menuBackground,
     Value<bool>? keepTitleVersionVisible,
     Value<bool>? dynamicAlbumColorEnabled,
     Value<bool>? updateCheckEnabled,
@@ -7214,6 +7368,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       cornerStyle: cornerStyle ?? this.cornerStyle,
       nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
       sheetStyle: sheetStyle ?? this.sheetStyle,
+      customizeQueueMenus: customizeQueueMenus ?? this.customizeQueueMenus,
+      queueBackground: queueBackground ?? this.queueBackground,
+      menuBackground: menuBackground ?? this.menuBackground,
       keepTitleVersionVisible:
           keepTitleVersionVisible ?? this.keepTitleVersionVisible,
       dynamicAlbumColorEnabled:
@@ -7538,6 +7695,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (sheetStyle.present) {
       map['sheet_style'] = Variable<String>(sheetStyle.value);
     }
+    if (customizeQueueMenus.present) {
+      map['customize_queue_menus'] = Variable<bool>(customizeQueueMenus.value);
+    }
+    if (queueBackground.present) {
+      map['queue_background'] = Variable<String>(queueBackground.value);
+    }
+    if (menuBackground.present) {
+      map['menu_background'] = Variable<String>(menuBackground.value);
+    }
     if (keepTitleVersionVisible.present) {
       map['keep_title_version_visible'] = Variable<bool>(
         keepTitleVersionVisible.value,
@@ -7838,6 +8004,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('sheetStyle: $sheetStyle, ')
+          ..write('customizeQueueMenus: $customizeQueueMenus, ')
+          ..write('queueBackground: $queueBackground, ')
+          ..write('menuBackground: $menuBackground, ')
           ..write('keepTitleVersionVisible: $keepTitleVersionVisible, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
@@ -37051,6 +37220,9 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
       Value<String> sheetStyle,
+      Value<bool> customizeQueueMenus,
+      Value<String> queueBackground,
+      Value<String> menuBackground,
       Value<bool> keepTitleVersionVisible,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
@@ -37178,6 +37350,9 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
       Value<String> sheetStyle,
+      Value<bool> customizeQueueMenus,
+      Value<String> queueBackground,
+      Value<String> menuBackground,
       Value<bool> keepTitleVersionVisible,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
@@ -37579,6 +37754,21 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get sheetStyle => $composableBuilder(
     column: $table.sheetStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get customizeQueueMenus => $composableBuilder(
+    column: $table.customizeQueueMenus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get queueBackground => $composableBuilder(
+    column: $table.queueBackground,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get menuBackground => $composableBuilder(
+    column: $table.menuBackground,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38213,6 +38403,21 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get customizeQueueMenus => $composableBuilder(
+    column: $table.customizeQueueMenus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get queueBackground => $composableBuilder(
+    column: $table.queueBackground,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get menuBackground => $composableBuilder(
+    column: $table.menuBackground,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get keepTitleVersionVisible => $composableBuilder(
     column: $table.keepTitleVersionVisible,
     builder: (column) => ColumnOrderings(column),
@@ -38837,6 +39042,21 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get customizeQueueMenus => $composableBuilder(
+    column: $table.customizeQueueMenus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get queueBackground => $composableBuilder(
+    column: $table.queueBackground,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get menuBackground => $composableBuilder(
+    column: $table.menuBackground,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get keepTitleVersionVisible => $composableBuilder(
     column: $table.keepTitleVersionVisible,
     builder: (column) => column,
@@ -39225,6 +39445,9 @@ class $$AppSettingsTableTableTableManager
                 Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
                 Value<String> sheetStyle = const Value.absent(),
+                Value<bool> customizeQueueMenus = const Value.absent(),
+                Value<String> queueBackground = const Value.absent(),
+                Value<String> menuBackground = const Value.absent(),
                 Value<bool> keepTitleVersionVisible = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
@@ -39355,6 +39578,9 @@ class $$AppSettingsTableTableTableManager
                 cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
                 sheetStyle: sheetStyle,
+                customizeQueueMenus: customizeQueueMenus,
+                queueBackground: queueBackground,
+                menuBackground: menuBackground,
                 keepTitleVersionVisible: keepTitleVersionVisible,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
@@ -39483,6 +39709,9 @@ class $$AppSettingsTableTableTableManager
                 Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
                 Value<String> sheetStyle = const Value.absent(),
+                Value<bool> customizeQueueMenus = const Value.absent(),
+                Value<String> queueBackground = const Value.absent(),
+                Value<String> menuBackground = const Value.absent(),
                 Value<bool> keepTitleVersionVisible = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
@@ -39613,6 +39842,9 @@ class $$AppSettingsTableTableTableManager
                 cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
                 sheetStyle: sheetStyle,
+                customizeQueueMenus: customizeQueueMenus,
+                queueBackground: queueBackground,
+                menuBackground: menuBackground,
                 keepTitleVersionVisible: keepTitleVersionVisible,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,

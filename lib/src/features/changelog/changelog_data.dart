@@ -202,15 +202,15 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Appearance is now two pages: Themes holds everything a Look saves, '
-        'with Looks at the top, and Interface holds Home sections, page '
-        'visibility and desktop navigation',
+        'with Looks at the top, and Interface holds Song Titles, Home '
+        'sections, page visibility and desktop navigation, all open instead '
+        'of in dropdowns',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'New Sheets & Menus setting in Settings › Themes: Album Color '
-        'tints the queue, menus and sheets with the playing album, Theme '
-        'keeps them plain, and the default follows Now Playing. The queue '
-        'now also takes on the Art-Tinted background',
+        'The queue, menus and sheets over Now Playing now match its '
+        'background. Settings › Themes › Customize Queue and Menus picks '
+        'Tinted, Artwork or Plain for the queue and for the menus',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -221,7 +221,7 @@ const List<ChangelogVersion> changelogs = [
         'of splitting it',
       ),
       ChangelogEntry(
-        'Settings › Themes › Keep Song Versions Visible: turn off to '
+        'Settings › Interface › Keep Song Versions Visible: turn off to '
         'shorten long titles at the end instead',
         type: ChangelogEntryType.newFeature,
       ),
@@ -342,6 +342,11 @@ const List<ChangelogVersion> changelogs = [
         "song's first note instead of a moment later",
         platforms: {ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The Light, Dark, OLED and Auto theme mode buttons show their whole '
+        'names at large text sizes on phones',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '

@@ -95,7 +95,6 @@ import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
@@ -3262,14 +3261,46 @@ final nowPlayingBackgroundProvider = Provider<NowPlayingBackground>((ref) {
   return settings.nowPlayingBackground;
 });
 
-/// Fill of Now Playing sheets and menus, defaulting to Match Now Playing
-/// while settings load.
-final sheetStyleProvider = Provider<SheetStyle>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return settings.sheetStyle;
-});
+/// Whether Customize Queue and Menus is on (the pickers apply).
+final customizeQueueAndMenusProvider = Provider<bool>(
+  (ref) => ref.watch(
+    appSettingsProvider.select(
+      (s) => s.asData?.value.customizeQueueAndMenus ?? false,
+    ),
+  ),
+);
+
+/// The saved queue pick, kept while Customize Queue and Menus is off.
+final queueBackgroundPickProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(
+    appSettingsProvider.select(
+      (s) => s.asData?.value.queueBackground ?? NowPlayingBackground.tinted,
+    ),
+  ),
+);
+
+/// The saved menus pick, kept while Customize Queue and Menus is off.
+final menuBackgroundPickProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(
+    appSettingsProvider.select(
+      (s) => s.asData?.value.menuBackground ?? NowPlayingBackground.tinted,
+    ),
+  ),
+);
+
+/// Effective queue background: the pick while customizing, else Now Playing's.
+final nowPlayingQueueBackgroundProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(customizeQueueAndMenusProvider)
+      ? ref.watch(queueBackgroundPickProvider)
+      : ref.watch(nowPlayingBackgroundProvider),
+);
+
+/// Effective menus, sheets and popover background.
+final nowPlayingMenuBackgroundProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(customizeQueueAndMenusProvider)
+      ? ref.watch(menuBackgroundPickProvider)
+      : ref.watch(nowPlayingBackgroundProvider),
+);
 
 /// Whether lyrics should open in fullscreen mode by default.
 ///

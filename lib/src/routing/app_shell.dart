@@ -27,7 +27,6 @@ import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
@@ -1163,8 +1162,15 @@ class _AppShellState extends ConsumerState<AppShell> {
       });
     }
     final background = ref.watch(nowPlayingBackgroundProvider);
+    // Also warm the cover when the queue or menus over Now Playing pick it.
+    final wantsArtwork =
+        background == NowPlayingBackground.artwork ||
+        ref.watch(nowPlayingQueueBackgroundProvider) ==
+            NowPlayingBackground.artwork ||
+        ref.watch(nowPlayingMenuBackgroundProvider) ==
+            NowPlayingBackground.artwork;
     if (showPlayer &&
-        background == NowPlayingBackground.artwork &&
+        wantsArtwork &&
         !NavisColorStyleData.of(context).flatNowPlaying) {
       final id = coverArtId?.trim() ?? '';
       final revision = currentSongAsync.asData?.value?.coverArtRevision ?? 0;

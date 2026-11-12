@@ -255,13 +255,135 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('115 to 116 queue and menus', () {
+    const newColumns = <String>[
+      'customize_queue_menus',
+      'queue_background',
+      'menu_background',
+    ];
+
+    Future<File> fixture115(String sheetStyle, {String? extraSql}) async {
+      final directory = await Directory.systemTemp.createTemp('navis_v116_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.customStatement(
+        "UPDATE app_settings SET sheet_style = '$sheetStyle'",
+      );
+      await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        for (final column in newColumns) {
+          raw.execute('ALTER TABLE app_settings DROP COLUMN $column');
+        }
+        raw.execute('PRAGMA user_version = 115');
+        if (extraSql != null) raw.execute(extraSql);
+      } finally {
+        raw.close();
+      }
+      return file;
+    }
+
+    Future<NavisDatabase> upgraded115(String sheetStyle) async {
+      final db = createTestDatabase(file: await fixture115(sheetStyle));
+      addTearDown(db.close);
+      return db;
+    }
+
+    test('an interrupted upgrade leaves no half-added columns', () async {
+      // onUpgrade runs in one transaction (navis_database.dart onUpgrade), so
+      // a failing mapping UPDATE rolls the ADD COLUMNs and user_version back
+      // and the next open maps again.
+      final file = await fixture115(
+        'theme',
+        extraSql:
+            'CREATE TRIGGER boom BEFORE UPDATE ON app_settings '
+            "BEGIN SELECT RAISE(ABORT, 'boom'); END",
+      );
+      final failing = createTestDatabase(file: file);
+      await expectLater(
+        failing.appSettingsDao.getSettings(),
+        throwsA(anything),
+      );
+      await failing.close().catchError((Object _) {});
+      var raw = sqlite3.open(file.path);
+      try {
+        final columns = raw
+            .select('PRAGMA table_info(app_settings)')
+            .map((row) => row['name'])
+            .toSet();
+        expect(columns.intersection(newColumns.toSet()), isEmpty);
+        expect(raw.userVersion, 115);
+        raw.execute('DROP TRIGGER boom');
+      } finally {
+        raw.close();
+      }
+      final retried = createTestDatabase(file: file);
+      addTearDown(retried.close);
+      final settings = (await retried.appSettingsDao.getSettings())!;
+      expect(settings.customizeQueueMenus, isTrue);
+      expect(settings.queueBackground, 'plain');
+      raw = sqlite3.open(file.path);
+      try {
+        expect(raw.userVersion, NavisDatabase.currentSchemaVersion);
+      } finally {
+        raw.close();
+      }
+    });
+
+    test('fresh profiles follow Now Playing with Tinted picks', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(settings.customizeQueueMenus, isFalse);
+      expect(settings.queueBackground, 'tinted');
+      expect(settings.menuBackground, 'tinted');
+    });
+
+    for (final (legacy, on, queue, menu) in <(String, bool, String, String)>[
+      ('match_now_playing', false, 'tinted', 'tinted'),
+      ('unknown_value', false, 'tinted', 'tinted'),
+      ('album_color', true, 'tinted', 'tinted'),
+      ('theme', true, 'plain', 'plain'),
+    ]) {
+      test('maps sheet style $legacy and keeps other values', () async {
+        final db = await upgraded115(legacy);
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.customizeQueueMenus, on);
+        expect(settings.queueBackground, queue);
+        expect(settings.menuBackground, menu);
+        expect(settings.hapticsEnabled, isFalse);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+      });
+    }
+
+    test('re-running never overwrites a later user change', () async {
+      final db = await upgraded115('theme');
+      await db.appSettingsDao.updateCustomizeQueueAndMenus(enabled: false);
+      await db.appSettingsDao.updateQueueBackground('artwork');
+      await db.from115To116(Migrator(db));
+      final again = (await db.appSettingsDao.getSettings())!;
+      expect(again.customizeQueueMenus, isFalse);
+      expect(again.queueBackground, 'artwork');
+      expect(again.menuBackground, 'plain');
+    });
+  }, skip: !sqliteAvailable);
+
   group('114 to 115 keep song versions visible', () {
     Future<NavisDatabase> upgraded114() async {
       final directory = await Directory.systemTemp.createTemp('navis_v115_');
       addTearDown(() => directory.delete(recursive: true));
       final file = File(p.join(directory.path, 'fixture.sqlite'));
       final seed = createTestDatabase(file: file);
-      await seed.appSettingsDao.updateSheetStyle('theme');
+      await seed.customStatement(
+        "UPDATE app_settings SET sheet_style = 'theme'",
+      );
       await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
       await seed.close();
       final raw = sqlite3.open(file.path);
@@ -368,7 +490,7 @@ void main() {
         NavisDatabase.currentSchemaVersion,
       );
       // Idempotent: running the step again changes nothing.
-      await db.appSettingsDao.updateSheetStyle('theme');
+      await db.customStatement("UPDATE app_settings SET sheet_style = 'theme'");
       await db.from113To114(Migrator(db));
       final again = (await db.appSettingsDao.getSettings())!;
       expect(again.sheetStyle, 'theme');
@@ -452,8 +574,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 115', () {
-      expect(NavisDatabase.currentSchemaVersion, 115);
+    test('the schema version is 116', () {
+      expect(NavisDatabase.currentSchemaVersion, 116);
     });
 
     test('fresh profiles seed the Auto defaults', () async {
