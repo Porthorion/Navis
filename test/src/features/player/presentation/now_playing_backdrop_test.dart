@@ -50,6 +50,8 @@ void main() {
     ValueNotifier<NowPlayingBackground>? backgroundSetting,
     ImageProvider<Object>? image,
     Widget? body,
+    NowPlayingBackground? queue,
+    NowPlayingBackground? menu,
   }) async {
     final publication = publishing ?? ValueNotifier(publish);
     if (publishing == null) addTearDown(publication.dispose);
@@ -73,6 +75,12 @@ void main() {
           ref.onDispose(() => backgroundSetting.removeListener(changed));
           return backgroundSetting.value;
         }),
+        nowPlayingQueueBackgroundProvider.overrideWith(
+          (ref) => queue ?? ref.watch(nowPlayingBackgroundProvider),
+        ),
+        nowPlayingMenuBackgroundProvider.overrideWith(
+          (ref) => menu ?? ref.watch(nowPlayingBackgroundProvider),
+        ),
         coverArtImageSourceProvider.overrideWith(
           (ref, key) async => image ?? cover,
         ),
@@ -246,7 +254,10 @@ void main() {
     expect(find.byKey(_artworkKey), findsNothing);
     expect(find.text('bare'), findsOneWidget);
     expect(decoration(tester).gradient, isNotNull);
-    expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+    // The queue stays opaque (no cover to paint); menus follow the fallback.
+    final published = container.read(nowPlayingPublishedBackdropProvider);
+    expect(published?.image, isNull);
+    expect(published?.tintColor, _tint);
     expect(tester.takeException(), isNull);
   });
 
@@ -352,6 +363,69 @@ void main() {
     expect(find.text('cleared'), findsOneWidget);
     expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
     expect(tester.takeException(), isNull);
+  });
+
+  group('publishes for the queue and menu picks', () {
+    for (final (background, hasImage) in [
+      (NowPlayingBackground.artwork, true),
+      (NowPlayingBackground.tinted, false),
+    ]) {
+      testWidgets('toggle off publishes only the ${background.name} layer', (
+        tester,
+      ) async {
+        final c = await pump(tester, background: background, publish: true);
+        final b = c.read(nowPlayingPublishedBackdropProvider)!;
+        expect(b.image != null, hasImage);
+        expect(b.tintColor, hasImage ? isNull : _tint);
+      });
+    }
+
+    testWidgets('Plain Now Playing with an Artwork queue publishes the image', (
+      tester,
+    ) async {
+      final c = await pump(
+        tester,
+        background: NowPlayingBackground.plain,
+        queue: NowPlayingBackground.artwork,
+        publish: true,
+      );
+      final b = c.read(nowPlayingPublishedBackdropProvider)!;
+      expect(b.image, isNotNull);
+      expect(b.coverAverage, isNotNull);
+      expect(find.byKey(_artworkKey), findsNothing);
+      final theme = Theme.of(tester.element(find.byKey(_surfaceKey)));
+      expect(decoration(tester).color, theme.colorScheme.surface);
+    });
+
+    testWidgets('Artwork Now Playing with Tinted menus publishes both', (
+      tester,
+    ) async {
+      final c = await pump(
+        tester,
+        background: NowPlayingBackground.artwork,
+        menu: NowPlayingBackground.tinted,
+        publish: true,
+      );
+      final b = c.read(nowPlayingPublishedBackdropProvider)!;
+      expect(b.image, isNotNull);
+      expect(b.tintColor, _tint);
+      // Now Playing itself still draws the Artwork layer and no tint.
+      expect(find.byKey(_artworkKey), findsOneWidget);
+      expect(decoration(tester).gradient, isNull);
+    });
+
+    testWidgets('Flat Now Playing publishes a tint for Tinted menus', (
+      tester,
+    ) async {
+      final c = await pump(
+        tester,
+        background: NowPlayingBackground.plain,
+        menu: NowPlayingBackground.tinted,
+        flat: true,
+        publish: true,
+      );
+      expect(c.read(nowPlayingPublishedBackdropProvider)!.tintColor, _tint);
+    });
   });
 }
 

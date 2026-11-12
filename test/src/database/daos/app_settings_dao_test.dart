@@ -277,21 +277,6 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('sheet style round trips through its targeted writer', () async {
-      final dao = database.appSettingsDao;
-      final initial = (await dao.getSettings())!;
-      expect(initial.sheetStyle, 'match_now_playing');
-      for (final value in ['album_color', 'theme', 'match_now_playing']) {
-        await dao.updateSheetStyle(value);
-        final row = (await dao.getSettings())!;
-        expect(row.sheetStyle, value);
-        expect(row.nowPlayingBackground, initial.nowPlayingBackground);
-      }
-      await dao.updateSheetStyle('theme');
-      await dao.updateSheetStyle('unknown');
-      expect((await dao.getSettings())!.sheetStyle, 'match_now_playing');
-    }, skip: !sqliteAvailable);
-
     test('queue and menus writers round trip and keep the picks', () async {
       final dao = database.appSettingsDao;
       final initial = (await dao.getSettings())!;

@@ -96,8 +96,13 @@ final nowPlayingPublishedBackdropProvider =
 ///
 /// Owns the tint lookup/prewarm and the backdrop image resolution, so the
 /// Now Playing screen and the desktop lyrics view share one implementation.
-/// With [publishToQueueOverlay] the visible Artwork layer is also published to
-/// [nowPlayingPublishedBackdropProvider].
+/// With [publishToQueueOverlay] the backdrop is also published to
+/// [nowPlayingPublishedBackdropProvider] for what the queue overlay and menus
+/// need: the blurred cover when any of Now Playing, the effective queue and
+/// the effective menu background is Artwork, and the tint colour when the
+/// queue or menus show Tinted (menus also fall back to it from Artwork).
+/// Now Playing's own layer, veil and scope follow only its own background.
+/// With Customize Queue and Menus off the three coincide.
 class NowPlayingBackdrop extends ConsumerStatefulWidget {
   const new({
     required this.hasActivePlayback,
@@ -264,8 +269,10 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
 
   Widget _withArtworkBackground({
     required bool showArtworkLayer,
+    required NowPlayingBackground layer,
     required ImageProvider<Object>? image,
-    required Color? tintColor,
+    required ImageProvider<Object>? publishedImage,
+    required Color? publishedTint,
     required NavisColorStyleData colorStyle,
     required ColorScheme colors,
     required Duration fadeDuration,
@@ -273,7 +280,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
   }) {
     final id = widget.coverArtId?.trim();
     final hasCoverId = id != null && id.isNotEmpty;
-    final average = showArtworkLayer && hasCoverId
+    final average = (showArtworkLayer || publishedImage != null) && hasCoverId
         ? (ref
                       .watch(
                         backgroundCoverColourFieldProvider((
@@ -285,25 +292,16 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
                   peekCoverColourField(id))
               ?.average
         : null;
-    if (showArtworkLayer && widget.publishToQueueOverlay) {
+    if (widget.publishToQueueOverlay &&
+        (publishedImage != null || publishedTint != null)) {
       _publish(
         NowPlayingPublishedBackdrop(
           owner: this,
-          imageKey: _artworkBackdropKey,
-          image: image,
-          coverAverage: average,
-          useCoverAverage: hasCoverId,
-        ),
-      );
-    } else if (tintColor != null && widget.publishToQueueOverlay) {
-      _publish(
-        NowPlayingPublishedBackdrop(
-          owner: this,
-          imageKey: null,
-          image: null,
-          coverAverage: null,
-          useCoverAverage: false,
-          tintColor: tintColor,
+          imageKey: publishedImage == null ? null : _artworkBackdropKey,
+          image: publishedImage,
+          coverAverage: publishedImage == null ? null : average,
+          useCoverAverage: publishedImage != null && hasCoverId,
+          tintColor: publishedTint,
         ),
       );
     } else {
@@ -340,7 +338,8 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         ),
         NowPlayingArtworkLayerScope(
           active: showArtworkLayer,
-          accent: average == null
+          background: layer,
+          accent: !showArtworkLayer || average == null
               ? null
               : nowPlayingArtworkAccent(
                   colorStyle: colorStyle,
@@ -362,16 +361,30 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
   Widget build(BuildContext context) {
     final motion = MotionPolicy.of(context);
     final background = ref.watch(nowPlayingBackgroundProvider);
+    // The queue overlay and menus may pick other backgrounds than Now
+    // Playing's own; they only matter while this backdrop is published.
+    final publishing = widget.publishToQueueOverlay;
+    final queuePick = publishing
+        ? ref.watch(nowPlayingQueueBackgroundProvider)
+        : NowPlayingBackground.plain;
+    final menuPick = publishing
+        ? ref.watch(nowPlayingMenuBackgroundProvider)
+        : NowPlayingBackground.plain;
     final brightness = Theme.of(context).brightness;
     final colors = Theme.of(context).colorScheme;
     final colorStyle = NavisColorStyleData.of(context);
+    final flat = colorStyle.flatNowPlaying;
     final hasActivePlayback = widget.hasActivePlayback;
     final coverArtId = widget.coverArtId;
     final activeArtUrl = widget.artUrl;
     // Artwork draws a blurred cover; Flat has no blur, and a cover that
     // cannot load falls back to the tinted look, so both still need a tint.
+    final needArtwork =
+        background == NowPlayingBackground.artwork ||
+        queuePick == NowPlayingBackground.artwork ||
+        menuPick == NowPlayingBackground.artwork;
     ImageProvider<Object>? artworkImage;
-    if (background == NowPlayingBackground.artwork && hasActivePlayback) {
+    if (needArtwork && hasActivePlayback) {
       artworkImage = _artworkBackdropFor(
         coverArtId: coverArtId,
         artUrl: activeArtUrl,
@@ -381,17 +394,30 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
       _artworkBackdropKey = null;
       _artworkBackdropImage = null;
     }
+    final artworkAvailable =
+        artworkImage != null &&
+        !_failedArtworkBackdropKeys.contains(_artworkBackdropKey);
     final showArtworkLayer = nowPlayingShowsArtworkLayer(
       background: background,
-      flat: colorStyle.flatNowPlaying,
-      hasImage:
-          artworkImage != null &&
-          !_failedArtworkBackdropKeys.contains(_artworkBackdropKey),
+      flat: flat,
+      hasImage: artworkAvailable,
     );
     final artTinted =
         background == NowPlayingBackground.tinted ||
         (background == NowPlayingBackground.artwork && !showArtworkLayer);
-    final cachedTintColor = artTinted
+    // What the queue and menus read from the published backdrop. The queue
+    // paints a chosen non-Flat Tinted or an available Artwork; menus also
+    // fall back from Artwork (Flat, no cover, radio) to the tint.
+    final artworkUsable = artworkAvailable && !flat;
+    final publishImage = publishing && artworkUsable && needArtwork;
+    final queueWantsTint = queuePick == NowPlayingBackground.tinted && !flat;
+    final menuWantsTint =
+        menuPick == NowPlayingBackground.tinted ||
+        (menuPick == NowPlayingBackground.artwork &&
+            (!artworkUsable || (coverArtId?.trim().isEmpty ?? true)));
+    final publishTint = publishing && (queueWantsTint || menuWantsTint);
+    final extractTint = artTinted || publishTint;
+    final cachedTintColor = extractTint
         ? nowPlayingCachedTintColor(
             brightness: brightness,
             coverArtId: coverArtId,
@@ -399,8 +425,8 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
           )
         : null;
 
-    // Trigger color extraction when art-tinted mode is on.
-    if (artTinted) {
+    // Trigger color extraction when a tint is needed.
+    if (extractTint) {
       if (!hasActivePlayback) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted &&
@@ -438,7 +464,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
 
     final surfaceColor = colors.surface;
     final extractedTintColor = cachedTintColor ?? _artTintColor;
-    if (artTinted &&
+    if (extractTint &&
         hasActivePlayback &&
         extractedTintColor != null &&
         extractedTintColor != _lastStableTintColor) {
@@ -448,10 +474,11 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         }
       });
     }
-    final tintColor = artTinted
+    final tintColor = extractTint
         ? (extractedTintColor ??
               (hasActivePlayback ? _lastStableTintColor : null))
         : null;
+    final surfaceTint = artTinted ? tintColor : null;
 
     return Material(
       color: surfaceColor,
@@ -460,20 +487,20 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         duration: motion.surface,
         curve: Curves.easeInOutCubic,
         decoration: nowPlayingSurfaceDecoration(
-          tintColor: tintColor,
+          tintColor: surfaceTint,
           colorStyle: colorStyle,
           surfaceColor: surfaceColor,
         ),
         child: _withArtworkBackground(
           showArtworkLayer: showArtworkLayer,
+          layer: showArtworkLayer
+              ? NowPlayingBackground.artwork
+              : artTinted
+              ? NowPlayingBackground.tinted
+              : NowPlayingBackground.plain,
           image: artworkImage,
-          // Only a chosen Art-Tinted background reaches the queue; Flat and a
-          // failed-Artwork fallback keep the queue opaque (#560).
-          tintColor:
-              background == NowPlayingBackground.tinted &&
-                  !colorStyle.flatNowPlaying
-              ? tintColor
-              : null,
+          publishedImage: publishImage ? artworkImage : null,
+          publishedTint: publishTint ? tintColor : null,
           colorStyle: colorStyle,
           colors: colors,
           fadeDuration: motion.surface,

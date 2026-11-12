@@ -9,7 +9,6 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
@@ -86,7 +85,6 @@ class AppSettingsModel {
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     this.nowPlayingBackground = NowPlayingBackground.tinted,
-    this.sheetStyle = SheetStyle.matchNowPlaying,
     this.customizeQueueAndMenus = false,
     this.queueBackground = NowPlayingBackground.tinted,
     this.menuBackground = NowPlayingBackground.tinted,
@@ -196,7 +194,6 @@ class AppSettingsModel {
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       nowPlayingBackground = NowPlayingBackground.tinted,
-      sheetStyle = SheetStyle.matchNowPlaying,
       customizeQueueAndMenus = false,
       queueBackground = NowPlayingBackground.tinted,
       menuBackground = NowPlayingBackground.tinted,
@@ -317,7 +314,6 @@ class AppSettingsModel {
   final int crossfadeDurationSeconds;
   final String crossfadeType;
   final NowPlayingBackground nowPlayingBackground;
-  final SheetStyle sheetStyle;
 
   /// Off: the queue and menus follow [nowPlayingBackground].
   final bool customizeQueueAndMenus;
@@ -515,7 +511,6 @@ class AppSettingsModel {
     int? crossfadeDurationSeconds,
     String? crossfadeType,
     NowPlayingBackground? nowPlayingBackground,
-    SheetStyle? sheetStyle,
     bool? customizeQueueAndMenus,
     NowPlayingBackground? queueBackground,
     NowPlayingBackground? menuBackground,
@@ -661,7 +656,6 @@ class AppSettingsModel {
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
       nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
-      sheetStyle: sheetStyle ?? this.sheetStyle,
       customizeQueueAndMenus:
           customizeQueueAndMenus ?? this.customizeQueueAndMenus,
       queueBackground: queueBackground ?? this.queueBackground,

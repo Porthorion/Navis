@@ -262,7 +262,7 @@ void main() {
       'menu_background',
     ];
 
-    Future<NavisDatabase> upgraded115(String sheetStyle) async {
+    Future<File> fixture115(String sheetStyle, {String? extraSql}) async {
       final directory = await Directory.systemTemp.createTemp('navis_v116_');
       addTearDown(() => directory.delete(recursive: true));
       final file = File(p.join(directory.path, 'fixture.sqlite'));
@@ -278,13 +278,59 @@ void main() {
           raw.execute('ALTER TABLE app_settings DROP COLUMN $column');
         }
         raw.execute('PRAGMA user_version = 115');
+        if (extraSql != null) raw.execute(extraSql);
       } finally {
         raw.close();
       }
-      final db = createTestDatabase(file: file);
+      return file;
+    }
+
+    Future<NavisDatabase> upgraded115(String sheetStyle) async {
+      final db = createTestDatabase(file: await fixture115(sheetStyle));
       addTearDown(db.close);
       return db;
     }
+
+    test('an interrupted upgrade leaves no half-added columns', () async {
+      // onUpgrade runs in one transaction (navis_database.dart onUpgrade), so
+      // a failing mapping UPDATE rolls the ADD COLUMNs and user_version back
+      // and the next open maps again.
+      final file = await fixture115(
+        'theme',
+        extraSql:
+            'CREATE TRIGGER boom BEFORE UPDATE ON app_settings '
+            "BEGIN SELECT RAISE(ABORT, 'boom'); END",
+      );
+      final failing = createTestDatabase(file: file);
+      await expectLater(
+        failing.appSettingsDao.getSettings(),
+        throwsA(anything),
+      );
+      await failing.close().catchError((Object _) {});
+      var raw = sqlite3.open(file.path);
+      try {
+        final columns = raw
+            .select('PRAGMA table_info(app_settings)')
+            .map((row) => row['name'])
+            .toSet();
+        expect(columns.intersection(newColumns.toSet()), isEmpty);
+        expect(raw.userVersion, 115);
+        raw.execute('DROP TRIGGER boom');
+      } finally {
+        raw.close();
+      }
+      final retried = createTestDatabase(file: file);
+      addTearDown(retried.close);
+      final settings = (await retried.appSettingsDao.getSettings())!;
+      expect(settings.customizeQueueMenus, isTrue);
+      expect(settings.queueBackground, 'plain');
+      raw = sqlite3.open(file.path);
+      try {
+        expect(raw.userVersion, NavisDatabase.currentSchemaVersion);
+      } finally {
+        raw.close();
+      }
+    });
 
     test('fresh profiles follow Now Playing with Tinted picks', () async {
       final db = createTestDatabase();
@@ -335,7 +381,9 @@ void main() {
       addTearDown(() => directory.delete(recursive: true));
       final file = File(p.join(directory.path, 'fixture.sqlite'));
       final seed = createTestDatabase(file: file);
-      await seed.appSettingsDao.updateSheetStyle('theme');
+      await seed.customStatement(
+        "UPDATE app_settings SET sheet_style = 'theme'",
+      );
       await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
       await seed.close();
       final raw = sqlite3.open(file.path);
@@ -442,7 +490,7 @@ void main() {
         NavisDatabase.currentSchemaVersion,
       );
       // Idempotent: running the step again changes nothing.
-      await db.appSettingsDao.updateSheetStyle('theme');
+      await db.customStatement("UPDATE app_settings SET sheet_style = 'theme'");
       await db.from113To114(Migrator(db));
       final again = (await db.appSettingsDao.getSettings())!;
       expect(again.sheetStyle, 'theme');

@@ -447,16 +447,16 @@ class _QueueOverlayState extends State<_QueueOverlay>
   }
 }
 
-/// Surface of the phone queue overlay, following Sheets & Menus.
+/// Surface of the phone queue overlay, following the effective queue
+/// background.
 ///
-/// Match Now Playing: opaque `surface` normally. While Now Playing is
-/// expanded and drawing a background, the queue paints the same one
-/// (published by [NowPlayingBackdrop]): the Artwork layer's blurred cover or
-/// the Art-Tinted gradient, and marks the content with
-/// [NowPlayingArtworkLayerScope] so the queue's panel fill turns translucent
-/// or transparent and the background shows through. Theme and Album Color
-/// draw no Now Playing background: the content's own opaque fill (see
-/// `queuePanelFill`) is the theme surface or the album tint.
+/// While Now Playing is expanded and its published backdrop (see
+/// [NowPlayingBackdrop]) can show the queue's pick, the queue paints that
+/// layer: the Artwork layer's blurred cover or the Art-Tinted gradient. It
+/// marks the content with [NowPlayingArtworkLayerScope] so the queue's panel
+/// fill turns translucent or transparent and the layer shows through.
+/// Otherwise (Plain, Now Playing collapsed, nothing published) the content's
+/// own opaque fill (see `queuePanelFill`) is the theme surface.
 class _QueueArtworkSurface extends ConsumerWidget {
   const new({required this.fullscreen, required this.child});
 
@@ -468,11 +468,16 @@ class _QueueArtworkSurface extends ConsumerWidget {
     final colors = Theme.of(context).colorScheme;
     final nowPlayingExpanded = ref.watch(playerSheetExpandedProvider);
     final published = ref.watch(nowPlayingPublishedBackdropProvider);
-    final matchNowPlaying =
-        ref.watch(sheetStyleProvider) == SheetStyle.matchNowPlaying;
-    final backdrop = matchNowPlaying && nowPlayingExpanded ? published : null;
-    final show = backdrop != null;
-    final tintColor = backdrop?.tintColor;
+    final backdrop = nowPlayingExpanded ? published : null;
+    final layer = nowPlayingQueueLayer(
+      ref.watch(nowPlayingQueueBackgroundProvider),
+      backdrop,
+      flat: NavisColorStyleData.of(context).flatNowPlaying,
+    );
+    final show = layer != NowPlayingBackground.plain;
+    final tintColor = layer == NowPlayingBackground.tinted
+        ? backdrop?.tintColor
+        : null;
     final surface = Material(
       color: show
           ? Colors.transparent
@@ -494,7 +499,7 @@ class _QueueArtworkSurface extends ConsumerWidget {
                   )
                 : NowPlayingArtworkBackground(
                     key: const ValueKey<String>('queueArtworkBackground'),
-                    imageKey: backdrop.imageKey,
+                    imageKey: backdrop!.imageKey,
                     image: backdrop.image,
                     coverAverage: backdrop.coverAverage,
                     useCoverAverage: backdrop.useCoverAverage,
@@ -508,6 +513,7 @@ class _QueueArtworkSurface extends ConsumerWidget {
           ),
           NowPlayingArtworkLayerScope(
             active: show,
+            background: layer,
             tinted: tintColor != null,
             child: child,
           ),

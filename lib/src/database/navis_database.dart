@@ -540,7 +540,7 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
-  /// Sheets & Menus style (`app_settings.sheet_style`). Adds one column that
+  /// Sheets & Menus style (`app_settings.sheet_style`, retired by G3). Adds one column that
   /// defaults to match_now_playing, so every profile keeps its current look.
   Future<void> from113To114(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'sheet_style')) {

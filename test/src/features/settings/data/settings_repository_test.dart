@@ -6,7 +6,6 @@ import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -534,30 +533,6 @@ void main() {
       expect(
         (await repository.watchSettings().first).keepTitleVersionVisible,
         isFalse,
-      );
-    }, skip: !sqliteAvailable);
-
-    test('sheet style maps, saves and watches', () async {
-      expect(
-        (await repository.getSettings()).sheetStyle,
-        SheetStyle.matchNowPlaying,
-      );
-      for (final style in SheetStyle.values) {
-        await database.appSettingsDao.updateSheetStyle(style.storageKey);
-        final settings = await repository.getSettings();
-        expect(settings.sheetStyle, style);
-        expect((await repository.watchSettings().first).sheetStyle, style);
-        await repository.saveSettings(
-          settings.copyWith(scrobbleEnabled: false),
-        );
-        expect((await repository.getSettings()).sheetStyle, style);
-      }
-      await database.customStatement(
-        "UPDATE app_settings SET sheet_style = 'unknown'",
-      );
-      expect(
-        (await repository.getSettings()).sheetStyle,
-        SheetStyle.matchNowPlaying,
       );
     }, skip: !sqliteAvailable);
 

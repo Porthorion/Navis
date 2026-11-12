@@ -13,7 +13,6 @@ import 'package:navis/src/features/integrations/domain/integration_artwork.dart'
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -27,8 +26,7 @@ const _pendingDynamicAccentSource = 'pending';
 
 /// Source of the playing cover's colour (`id:<cover>`, `url:<radio art>`,
 /// the pending sentinel, or `null` for nothing usable), whatever the settings.
-/// The accent gate sits in [_dynamicAccentSourceProvider]; Album Color sheets
-/// read the same source through [albumSurfaceSeedProvider].
+/// The accent gate sits in [_dynamicAccentSourceProvider].
 final playingArtworkSourceProvider = Provider<String?>((ref) {
   final playback = ref.watch(
     playerStateProvider.select(
@@ -114,31 +112,6 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
     api: api,
     cacheManager: ref.watch(coverArtCacheManagerProvider),
   );
-});
-
-/// Seed colour of the playing cover for Album Color sheets and menus: live
-/// only when [SheetStyle.albumColor] is chosen, `null` otherwise. It resolves
-/// through the one shared [DynamicAccentColorCache], which also dedupes
-/// in-flight work, so a song is extracted once even while the accent seed
-/// asks for the same cover. It is separate from [effectiveColorSchemeSeedProvider], so
-/// Album Color never re-seeds the app theme.
-final albumSurfaceSeedProvider = FutureProvider<int?>((ref) async {
-  final wanted = ref.watch(sheetStyleProvider) == SheetStyle.albumColor;
-  final source = wanted ? ref.watch(playingArtworkSourceProvider) : null;
-  if (source == null) {
-    return null;
-  }
-  if (source == _pendingDynamicAccentSource) {
-    // Stay loading so `.value` keeps the previous album's seed.
-    return await Completer<int?>().future;
-  }
-  return await ref
-      .watch(dynamicAccentColorCacheProvider)
-      .resolve(
-        source: source,
-        api: ref.watch(subsonicApiProvider),
-        cacheManager: ref.watch(coverArtCacheManagerProvider),
-      );
 });
 
 /// Whether a cover may be fetched only to read its colour: the same

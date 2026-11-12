@@ -453,3 +453,9 @@ popovers keep the theme. **Album Color** gives the
 queue, menus and sheets the tint above, opaque, and never a blur. **Theme**
 draws the queue as an opaque theme surface. The setting is a Look field, has no
 setup step and no "New" tag.
+
+Superseded 2026-11-12 (G3): the three-mode Sheets & Menus setting and Album
+Color sheets above are replaced by Customize Queue and Menus. Off, the queue,
+menus and sheets over Now Playing match its background; on, Queue and Menus
+each pick Tinted, Artwork or Plain. Menus take one solid fill (no blur); outside
+Now Playing everything uses the plain theme. See `docs/architecture.md`.

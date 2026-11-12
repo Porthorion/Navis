@@ -1067,14 +1067,18 @@ target-selection rules.
   Now Playing subtree reuses that same prepared blur through the shared cache in
   `NowPlayingArtworkBackground` beneath its own active artwork scope. A queue
   opened from Home with Now Playing collapsed, or under Flat, stays opaque.
-  Sheets & Menus (`sheetStyleProvider`) decides what the queue draws: Match
-  Now Playing follows the published background, which for a chosen Art-Tinted
-  background (not Flat, not an Artwork fallback) is the extracted `tintColor`, painted by
-  `nowPlayingSurfaceDecoration` with `NowPlayingArtworkLayerScope.tinted` making
-  panel fills transparent; Theme keeps `surface` opaque; Album Color uses the
-  album tint that `AlbumSurfaceScope` publishes on `PopupMenuTheme`. The queue
-  panels pick their fill with `queuePanelFill`. The setting sits under Now
-  Playing in Settings > Themes and has no setup step.
+  The effective queue background (`nowPlayingQueueBackgroundProvider`: Now
+  Playing's own, or the Queue pick while Customize Queue and Menus is on)
+  decides what the queue draws. `NowPlayingBackdrop` publishes what the queue
+  and menus need (the cover when any of the three is Artwork, the tint when the
+  queue or menus show Tinted) even when Now Playing itself is Plain.
+  `nowPlayingQueueLayer` resolves the pick: Artwork needs a cover and non-Flat,
+  Tinted needs a tint and non-Flat (a Flat solid tint stays opaque, #560),
+  otherwise Plain is the opaque theme surface. The overlay paints that layer
+  and `NowPlayingArtworkLayerScope(background:)` records it; `queuePanelFill`
+  keeps the see-through panel fill when the pick equals the layer behind the
+  panel, Plain stays opaque, and any other pick gets the solid menu fill.
+  The pickers sit under Now Playing in Settings > Themes (no setup step).
   The adaptive veil keeps `onSurface`,
   `onSurfaceVariant` and the accent title at 5.0:1 within its range. When the
   cap is hit and the title is under 3.0:1, `nowPlayingArtworkAccent` shifts the
@@ -1138,31 +1142,29 @@ target-selection rules.
     Themes > Shape & Layout > Keep Song Versions Visible. It is a Look field
     (`updateKeepTitleVersionVisible`, `AppearanceSnapshot.keepTitleVersionVisible`);
     an older Look or export without the key leaves the setting unchanged.
-  - Schema 114 (`from113To114`, guarded by `_columnExists`) adds
-    `app_settings.sheet_style` (`match_now_playing` default, `album_color` or
-    `theme`): the fill of Now Playing sheets and menus (#560). It is a Look
-    field: `SheetStyle`, `sheetStyleProvider`, `updateSheetStyle` and the
-    `sheetStyle` diagnostics key mirror `NowPlayingBackground`; an older Look
-    or export without the key leaves the setting unchanged.
-    Album Color (`SheetStyle.albumColor`) tints sheets, popup menus, MenuAnchor
-    menus and the desktop popover, never dialogs and never `ThemeData`.
-    `playingArtworkSourceProvider` (ungated) feeds both the accent gate and
-    `albumSurfaceSeedProvider` (resolves when Album Color or accent-from-album
-    is on, through the one `DynamicAccentColorCache`), so Album Color never
-    changes `effectiveColorSchemeSeedProvider`. `AlbumSurfaceScope`, inserted
-    in `MaterialApp.builder`, listens to the seed, mixes it into the sheet
-    surface with `albumSheetSurface` (steps 0.16 / 0.10 / 0.05, OLED lower; the
-    first mix whose `onSurface` and `onSurfaceVariant` stay at
-    `min(4.5, untinted ratio)` wins, else the theme surface) and always inserts
-    `PopupMenuTheme` and `MenuTheme`, varying only the colour. The sheet helper
-    `showNavisModalSheet` and the popover read the fill back from
-    `PopupMenuTheme.of(context).color` once, at open, so an open sheet keeps
-    its fill across a track change and theme change. In Match Now Playing,
-    `showNavisModalSheet` (sheets only) falls back to `albumSheetSurface`
-    seeded from `nowPlayingPublishedBackdropProvider` (`tintColor`, else
-    `coverAverage`) when `playerSheetExpandedProvider` is true; nothing
-    published (Plain/Flat, no art) or Now Playing collapsed keeps the theme. Every modal sheet opens
-    through that helper (`navis_modal_sheet_audit_test.dart`).
+  - Schema 116 (`from115To116`, guarded by `_columnExists`) adds Customize
+    Queue and Menus (G3): `customize_queue_menus` (off), `queue_background` and
+    `menu_background` (`NowPlayingBackground` keys, default tinted). Off, the
+    queue and everything opened over expanded Now Playing follow Now Playing's
+    background; on, the Queue and Menus picks apply. The three are Look fields
+    (a hidden pick is not captured while off); an older Look with the retired
+    `sheetStyle` key maps like the migration. `sheet_style` (schema 114, dev
+    builds only) stays as an unused legacy column that `from115To116` reads
+    once: album_color becomes on/tinted/tinted, theme becomes on/plain/plain.
+    The step runs inside `onUpgrade`'s single transaction, so an interrupted
+    upgrade rolls the columns and `user_version` back and the mapping is never
+    skipped (`navis_migration_test.dart` "an interrupted upgrade").
+    `NowPlayingMenuScope`, inserted in `MaterialApp.builder`, gives popup menus
+    and MenuAnchor menus one solid fill (`nowPlayingMenuFill`) only while
+    `playerSheetExpandedProvider` is true (desktop Now Playing uses the same
+    overlay stack and publishes the same backdrop): Tinted is the Flat Now
+    Playing colour, Artwork the adaptive veil over the cover average, Plain
+    the theme. It always inserts `PopupMenuTheme` and `MenuTheme`, varying only
+    the colour, and never touches dialogs or `ThemeData`. `showNavisModalSheet`,
+    Speed & Pitch and the desktop popover read the fill back from
+    `PopupMenuTheme.of(context).color` once, at open, so an open sheet keeps its
+    fill across a track change and collapse. Every modal sheet opens through that
+    helper (`navis_modal_sheet_audit_test.dart`).
   - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
     theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
     `auto_dark_start_minutes` (1200) and `auto_dark_end_minutes` (420), plus
