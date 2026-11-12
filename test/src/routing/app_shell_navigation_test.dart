@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, describeIdentity;
@@ -54,7 +55,6 @@ import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
-import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -6653,8 +6653,6 @@ void main() {
       bool desktop = false,
       bool flat = false,
       bool oled = false,
-      NowPlayingBackground? queue,
-      NowPlayingBackground? menu,
       ValueNotifier<NowPlayingBackground>? backgroundSetting,
       ValueNotifier<PlaybackSnapshot>? playing,
     }) async {
@@ -6689,9 +6687,6 @@ void main() {
                 themeMode: oled ? 'oled' : 'dark',
                 colorStyle: 'pastel',
                 flatSurfaces: flat,
-                customizeQueueAndMenus: queue != null || menu != null,
-                queueBackground: queue ?? NowPlayingBackground.tinted,
-                menuBackground: menu ?? NowPlayingBackground.tinted,
               ),
             ),
           ),
@@ -6810,73 +6805,6 @@ void main() {
       },
     );
 
-    testWidgets('phone queue over expanded Artwork shows the blurred cover', (
-      tester,
-    ) async {
-      final container = await pumpShell(
-        tester,
-        background: NowPlayingBackground.artwork,
-      );
-      await settleImages(tester);
-      final cache = container.read(nowPlayingArtworkCacheProvider);
-      expect(container.read(playerSheetExpandedProvider), isFalse);
-      expect(cache.debugRenderCount, 1);
-      container.read(playerOverlayStackProvider.notifier).expand();
-      await settle(tester);
-      await settleImages(tester);
-      container.read(playerOverlayStackProvider.notifier).showQueue();
-      await settle(tester);
-      await settleImages(tester);
-
-      expect(find.byKey(queueBackdropKey), findsOneWidget);
-      final published = container.read(nowPlayingPublishedBackdropProvider)!;
-      final queueBackdrop = tester.widget<NowPlayingArtworkBackground>(
-        find.byKey(queueBackdropKey),
-      );
-      expect(identical(queueBackdrop.image, published.image), isTrue);
-      expect(queueBackdrop.imageKey, published.imageKey);
-      expect(queueBackdrop.coverAverage, published.coverAverage);
-      expect(
-        find.descendant(
-          of: find.byKey(queueBackdropKey),
-          matching: find.byType(RawImage),
-        ),
-        findsOneWidget,
-      );
-      expect(find.byType(QueueSheet), findsOneWidget);
-      expect(cache.debugRenderCount, 1);
-      expect(cache.debugHitCount, greaterThanOrEqualTo(2));
-      final queueState = tester.state(find.byType(QueueSheet));
-      container
-          .read(nowPlayingPublishedBackdropProvider.notifier)
-          .clear(published.owner);
-      await tester.pump();
-      expect(tester.state(find.byType(QueueSheet)), same(queueState));
-      container
-          .read(nowPlayingPublishedBackdropProvider.notifier)
-          .publish(published);
-      await tester.pump();
-      await settleImages(tester);
-      expect(tester.state(find.byType(QueueSheet)), same(queueState));
-      expect(cache.debugRenderCount, 1);
-      expect(
-        queuePanelFill(tester).a,
-        closeTo(kNowPlayingArtworkPanelAlpha, 0.001),
-      );
-
-      container.read(playerOverlayStackProvider.notifier).hideQueue();
-      await settle(tester);
-      container.read(playerOverlayStackProvider.notifier).collapse();
-      await settle(tester);
-      await settle(tester);
-      expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
-      container.read(playerOverlayStackProvider.notifier).showQueueOnly();
-      await settle(tester);
-      expect(find.byKey(queueBackdropKey), findsNothing);
-      expect(queuePanelFill(tester).a, 1);
-      await unmountShell(tester, container);
-    });
-
     /// Opens Now Playing, then the queue over it, and settles.
     Future<void> openQueueOverNowPlaying(
       WidgetTester tester,
@@ -6892,83 +6820,36 @@ void main() {
 
     const queueTintKey = ValueKey<String>('queueTintBackground');
 
-    testWidgets('phone queue over expanded Art-Tinted paints the tint', (
+    // The queue and menus follow the theme, never the Now Playing background
+    // (G4).
+    for (final flat in [false, true]) {
+      for (final background in NowPlayingBackground.values) {
+        final label = '${background.name}${flat ? ' Flat' : ''}';
+
+        testWidgets('phone queue over expanded $label is the theme surface', (
+          tester,
+        ) async {
+          final container = await pumpShell(
+            tester,
+            background: background,
+            flat: flat,
+          );
+          await openQueueOverNowPlaying(tester, container);
+          expect(container.read(playerSheetExpandedProvider), isTrue);
+          expect(find.byType(QueueSheet), findsOneWidget);
+          expect(find.byKey(queueBackdropKey), findsNothing);
+          expect(find.byKey(queueTintKey), findsNothing);
+          final scheme = Theme.of(tester.element(find.byType(QueueSheet)))
+              .colorScheme;
+          expect(queuePanelFill(tester), scheme.surface);
+          await unmountShell(tester, container);
+        });
+      }
+    }
+
+    testWidgets('phone queue from Home is the same theme surface', (
       tester,
     ) async {
-      final container = await pumpShell(
-        tester,
-        background: NowPlayingBackground.tinted,
-      );
-      await openQueueOverNowPlaying(tester, container);
-
-      expect(find.byKey(queueBackdropKey), findsNothing);
-      final published = container.read(nowPlayingPublishedBackdropProvider)!;
-      expect(published.tintColor, const Color(0xFFD32F2F));
-      expect(published.image, isNull);
-      final box = tester.widget<DecoratedBox>(find.byKey(queueTintKey));
-      expect(
-        (box.decoration as BoxDecoration).gradient,
-        isNotNull,
-        reason: 'the same gradient as the nowPlayingSurfaceTint',
-      );
-      expect(queuePanelFill(tester).a, 0);
-      await unmountShell(tester, container);
-    });
-
-    testWidgets('queue Plain keeps the queue opaque over Artwork', (
-      tester,
-    ) async {
-      final container = await pumpShell(
-        tester,
-        background: NowPlayingBackground.artwork,
-        queue: NowPlayingBackground.plain,
-      );
-      await openQueueOverNowPlaying(tester, container);
-
-      expect(find.byKey(queueBackdropKey), findsNothing);
-      expect(find.byKey(queueTintKey), findsNothing);
-      final scheme = Theme.of(tester.element(find.byType(QueueSheet)))
-          .colorScheme;
-      expect(queuePanelFill(tester), scheme.surface);
-      await unmountShell(tester, container);
-    });
-
-    testWidgets('queue Artwork paints the cover over Art-Tinted', (
-      tester,
-    ) async {
-      final container = await pumpShell(
-        tester,
-        background: NowPlayingBackground.tinted,
-        queue: NowPlayingBackground.artwork,
-      );
-      await openQueueOverNowPlaying(tester, container);
-
-      expect(find.byKey(queueBackdropKey), findsOneWidget);
-      expect(find.byKey(queueTintKey), findsNothing);
-      expect(
-        container.read(nowPlayingPublishedBackdropProvider)!.image,
-        isNotNull,
-      );
-      expect(queuePanelFill(tester).a, lessThan(1));
-      await unmountShell(tester, container);
-    });
-
-    testWidgets('queue Tinted paints the tint over Plain Now Playing', (
-      tester,
-    ) async {
-      final container = await pumpShell(
-        tester,
-        background: NowPlayingBackground.plain,
-        queue: NowPlayingBackground.tinted,
-      );
-      await openQueueOverNowPlaying(tester, container);
-
-      expect(find.byKey(queueTintKey), findsOneWidget);
-      expect(find.byKey(queueBackdropKey), findsNothing);
-      await unmountShell(tester, container);
-    });
-
-    testWidgets('phone queue from Home keeps the opaque sheet', (tester) async {
       final container = await pumpShell(
         tester,
         background: NowPlayingBackground.artwork,
@@ -6978,72 +6859,58 @@ void main() {
       await settleImages(tester);
 
       expect(container.read(playerSheetExpandedProvider), isFalse);
-      expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
       expect(find.byType(QueueSheet), findsOneWidget);
       expect(find.byKey(queueBackdropKey), findsNothing);
-      expect(queuePanelFill(tester).a, 1);
+      final scheme = Theme.of(tester.element(find.byType(QueueSheet)))
+          .colorScheme;
+      expect(queuePanelFill(tester), scheme.surface);
       await unmountShell(tester, container);
     });
 
-    testWidgets('phone queue follows Art-Tinted over Now Playing', (
-      tester,
-    ) async {
-      final container = await pumpShell(
-        tester,
-        background: NowPlayingBackground.tinted,
-      );
-      container.read(playerOverlayStackProvider.notifier).showQueue();
-      await settle(tester);
-      await settleImages(tester);
+    for (final background in [
+      NowPlayingBackground.artwork,
+      NowPlayingBackground.tinted,
+    ]) {
+      testWidgets(
+        'menus and sheets over expanded ${background.name} use the theme',
+        (tester) async {
+          final container = await pumpShell(tester, background: background);
+          container.read(playerOverlayStackProvider.notifier).expand();
+          await settle(tester);
+          await settleImages(tester);
+          expect(container.read(playerSheetExpandedProvider), isTrue);
 
-      expect(find.byKey(queueBackdropKey), findsNothing);
-      expect(find.byKey(queueTintKey), findsOneWidget);
-      expect(queuePanelFill(tester).a, 0);
-      await unmountShell(tester, container);
-    });
-
-    testWidgets('phone queue over expanded Artwork stays opaque under Flat', (
-      tester,
-    ) async {
-      final container = await pumpShell(
-        tester,
-        background: NowPlayingBackground.artwork,
-        flat: true,
+          final context = tester.element(find.byType(Scaffold).first);
+          final theme = Theme.of(context);
+          expect(PopupMenuTheme.of(context).color, theme.popupMenuTheme.color);
+          expect(
+            MenuTheme.of(context).style?.backgroundColor,
+            theme.menuTheme.style?.backgroundColor,
+          );
+          unawaited(
+            showNavisModalSheet<void>(
+              context: context,
+              builder: (_) => const SizedBox(height: 100),
+            ),
+          );
+          await settle(tester);
+          final sheet = tester.widget<Material>(
+            find
+                .descendant(
+                  of: find.byType(BottomSheet),
+                  matching: find.byType(Material),
+                )
+                .first,
+          );
+          expect(
+            sheet.color,
+            theme.bottomSheetTheme.backgroundColor ??
+                theme.colorScheme.surfaceContainerLow,
+          );
+          await unmountShell(tester, container);
+        },
       );
-      await openQueueOverNowPlaying(tester, container);
-      expect(container.read(playerSheetExpandedProvider), isTrue);
-      expect(find.byKey(queueBackdropKey), findsNothing);
-      // Menus fall back to the tint, so only that is published, never the
-      // cover.
-      expect(
-        container.read(nowPlayingPublishedBackdropProvider)?.image,
-        isNull,
-      );
-      expect(find.byKey(queueTintKey), findsNothing);
-      expect(queuePanelFill(tester).a, 1);
-      await unmountShell(tester, container);
-    });
-
-    testWidgets(
-      'phone queue over expanded Art-Tinted stays opaque under Flat',
-      (tester) async {
-        final container = await pumpShell(
-          tester,
-          background: NowPlayingBackground.tinted,
-          flat: true,
-        );
-        await openQueueOverNowPlaying(tester, container);
-        expect(container.read(playerSheetExpandedProvider), isTrue);
-        // The tint is published for the Flat menu fill; the queue ignores it.
-        expect(
-          container.read(nowPlayingPublishedBackdropProvider)?.image,
-          isNull,
-        );
-        expect(find.byKey(queueTintKey), findsNothing);
-        expect(queuePanelFill(tester).a, 1);
-        await unmountShell(tester, container);
-      },
-    );
+    }
 
     testWidgets('desktop lyrics view draws the Artwork background', (
       tester,

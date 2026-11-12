@@ -51,9 +51,6 @@ void main() {
       density: NavisDensity.compact,
       artistViewMode: 'list',
       nowPlayingBackground: NowPlayingBackground.artwork,
-      customizeQueueAndMenus: true,
-      queueBackground: NowPlayingBackground.plain,
-      menuBackground: NowPlayingBackground.artwork,
       keepTitleVersionVisible: false,
       appLocale: 'en',
       homeRecommendationsAutoAdvance: true,
@@ -66,7 +63,7 @@ void main() {
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      30,
+      27,
     ); // Every Look setting; tuning is Custom.
     await dao.applyAppearanceSnapshot(
       AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
@@ -81,11 +78,6 @@ void main() {
     );
     final restored = await repository.getSettings();
     expect(AppearanceSnapshot.capture(restored), original);
-    expect(restored.customizeQueueAndMenus, isTrue);
-    expect(restored.queueBackground, NowPlayingBackground.plain);
-    expect(restored.menuBackground, NowPlayingBackground.artwork);
-    expect(original.toJson()['queueBackground'], 'plain');
-    expect(original.toJson()['menuBackground'], 'artwork');
     // Song Titles lives on the Interface page, not in a Look.
     expect(original.toJson().containsKey('keepTitleVersionVisible'), isFalse);
     expect(restored.keepTitleVersionVisible, isTrue);
@@ -105,90 +97,44 @@ void main() {
     expect(restored.scrobbleEnabled, isTrue);
   }, skip: !sqliteAvailable);
 
-  test('with Customize off the pickers are not part of the Look', () async {
-    final settings = const AppSettingsModel.defaults().copyWith(
-      queueBackground: NowPlayingBackground.plain,
-      menuBackground: NowPlayingBackground.artwork,
-    );
-    final json = AppearanceSnapshot.capture(settings).toJson();
-    expect(json['customizeQueueAndMenus'], isFalse);
-    expect(json.containsKey('queueBackground'), isFalse);
-    expect(json.containsKey('menuBackground'), isFalse);
-    // A hidden pick does not make a Look Custom; a visible one does.
-    expect(
-      AppearanceSnapshot.capture(settings),
-      AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
-    );
-    expect(
-      AppearanceSnapshot.capture(
-        settings.copyWith(customizeQueueAndMenus: true),
-      ),
-      isNot(AppearanceSnapshot.capture(const AppSettingsModel.defaults())),
-    );
-    expect(
-      AppearanceSnapshot.capture(
-        settings.copyWith(
-          customizeQueueAndMenus: true,
-          queueBackground: NowPlayingBackground.tinted,
-        ),
-      ),
-      isNot(
-        AppearanceSnapshot.capture(
-          settings.copyWith(customizeQueueAndMenus: true),
-        ),
-      ),
-    );
-  });
-
-  test('a Look saved with the legacy sheetStyle maps like the migration', () {
-    for (final (legacy, on, pick) in <(String, bool, String?)>[
-      ('match_now_playing', false, null),
-      ('album_color', true, 'tinted'),
-      ('theme', true, 'plain'),
-    ]) {
-      final snapshot = AppearanceSnapshot.fromJson({'sheetStyle': legacy});
-      expect(snapshot.customizeQueueAndMenus, on, reason: legacy);
-      expect(snapshot.queueBackground, pick, reason: legacy);
-      expect(snapshot.menuBackground, pick, reason: legacy);
-      expect(snapshot.toJson().containsKey('sheetStyle'), isFalse);
-    }
-    final unknown = AppearanceSnapshot.fromJson({'sheetStyle': 'glass'});
-    expect(unknown.customizeQueueAndMenus, isNull);
-    // The new keys win when both exist.
-    final both = AppearanceSnapshot.fromJson({
-      'sheetStyle': 'theme',
+  test('legacy queue and menu keys in a saved Look are ignored', () async {
+    const legacy = <String, Object?>{
       'customizeQueueAndMenus': true,
       'queueBackground': 'artwork',
-      'menuBackground': 'tinted',
-    });
-    expect(both.queueBackground, 'artwork');
-    expect(both.menuBackground, 'tinted');
-  });
-
-  test('an older Look without the keys leaves the saved picks alone', () async {
+      'menuBackground': 'plain',
+    };
+    final defaults = AppearanceSnapshot.capture(
+      const AppSettingsModel.defaults(),
+    );
+    for (final raw in <Map<String, dynamic>>[
+      {...legacy},
+      {'sheetStyle': 'theme'},
+      {'sheetStyle': 'album_color', ...legacy},
+    ]) {
+      final snapshot = AppearanceSnapshot.fromJson({
+        ...defaults.toJson(),
+        ...raw,
+      });
+      final json = snapshot.toJson();
+      for (final key in [...legacy.keys, 'sheetStyle']) {
+        expect(json.containsKey(key), isFalse, reason: '$raw $key');
+      }
+      // A Look carrying them still matches a capture without them.
+      expect(snapshot, defaults, reason: '$raw');
+    }
     final database = createTestDatabase();
     addTearDown(database.close);
     final dao = database.appSettingsDao;
-    final repository = SettingsRepository(dao);
     await dao.getSettings();
-    await dao.updateCustomizeQueueAndMenus(enabled: true);
-    await dao.updateQueueBackground('artwork');
-    await dao.updateMenuBackground('plain');
     await dao.applyAppearanceSnapshot(
-      AppearanceSnapshot.fromJson({'themeMode': 'dark'}),
+      AppearanceSnapshot.fromJson({'themeMode': 'dark', ...legacy}),
     );
-    final kept = await repository.getSettings();
-    expect(kept.customizeQueueAndMenus, isTrue);
-    expect(kept.queueBackground, NowPlayingBackground.artwork);
-    expect(kept.menuBackground, NowPlayingBackground.plain);
-    // Toggling off keeps the picks, and a Look with the toggle off leaves them.
-    await dao.applyAppearanceSnapshot(
-      AppearanceSnapshot.fromJson({'customizeQueueAndMenus': false}),
-    );
-    final off = await repository.getSettings();
-    expect(off.customizeQueueAndMenus, isFalse);
-    expect(off.queueBackground, NowPlayingBackground.artwork);
-    expect(off.menuBackground, NowPlayingBackground.plain);
+    final row = (await dao.getSettings())!;
+    expect(row.themeMode, 'dark');
+    // The legacy columns are never written by a Look.
+    expect(row.customizeQueueMenus, isFalse);
+    expect(row.queueBackground, 'tinted');
+    expect(row.menuBackground, 'tinted');
   }, skip: !sqliteAvailable);
 
   test('a saved Look with keepTitleVersionVisible ignores it', () async {

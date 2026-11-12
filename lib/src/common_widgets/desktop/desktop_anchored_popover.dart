@@ -59,10 +59,7 @@ Future<T?> showDesktopAnchoredPopover<T>({
       final colors = Theme.of(context).colorScheme;
       final radius = NavisShapeData.of(context).xl;
       final border = colors.outlineVariant.withValues(alpha: 0.4);
-      // Over Now Playing the menu scope publishes its fill through
-      // PopupMenuTheme (the card and its tail must match).
-      final fill =
-          PopupMenuTheme.of(context).color ?? colors.surfaceContainerHigh;
+      final fill = colors.surfaceContainerHigh;
       return CustomMultiChildLayout(
         delegate: _AnchoredPopoverLayout(
           anchor: anchorRect,

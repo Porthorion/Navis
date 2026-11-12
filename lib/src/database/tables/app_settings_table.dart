@@ -214,23 +214,23 @@ class AppSettingsTable extends Table {
       text().withDefault(const Constant('tinted'))();
 
   /// Legacy: 1.5.2 dev builds only (match_now_playing, album_color or theme).
-  /// Read once by `from115To116`, which maps it to the three columns below.
-  /// Kept in the definition because dropping it needs a table rebuild and
-  /// `from113To114` still adds it.
+  /// Unused since G3; `from115To116` still reads it once. Kept in the
+  /// definition because dropping it needs a table rebuild and `from113To114`
+  /// still adds it.
   TextColumn get sheetStyle =>
       text().withDefault(const Constant('match_now_playing'))();
 
-  /// Customize Queue and Menus: off, the queue and everything opened over Now
-  /// Playing follow [nowPlayingBackground]; on, [queueBackground] and
-  /// [menuBackground] apply. The picks are kept while it is off.
+  /// Legacy: 1.5.2 dev builds only. Unused since G4 (the queue and menus
+  /// always follow the theme), but `from115To116` writes it and fresh and
+  /// upgraded schemas must match, so the column stays with its two siblings.
   BoolColumn get customizeQueueMenus =>
       boolean().withDefault(const Constant(false))();
 
-  /// Queue background while customizing: tinted, artwork or plain.
+  /// Legacy, see [customizeQueueMenus]: unused since G4.
   TextColumn get queueBackground =>
       text().withDefault(const Constant('tinted'))();
 
-  /// Menus, sheets and popovers background while customizing.
+  /// Legacy, see [customizeQueueMenus]: unused since G4.
   TextColumn get menuBackground =>
       text().withDefault(const Constant('tinted'))();
 
