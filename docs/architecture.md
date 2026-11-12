@@ -1076,8 +1076,9 @@ target-selection rules.
   Tinted needs a tint and non-Flat (a Flat solid tint stays opaque, #560),
   otherwise Plain is the opaque theme surface. The overlay paints that layer
   and `NowPlayingArtworkLayerScope(background:)` records it; `queuePanelFill`
-  keeps the see-through panel fill when the pick equals the layer behind the
-  panel, Plain stays opaque, and any other pick gets the solid menu fill.
+  keeps the see-through panel fill when the pick is Artwork and equals the layer
+  behind the panel; Tinted stays opaque as before, Plain stays opaque, and any
+  other pick gets the solid menu fill.
   The pickers sit under Now Playing in Settings > Themes (no setup step).
   The adaptive veil keeps `onSurface`,
   `onSurfaceVariant` and the accent title at 5.0:1 within its range. When the

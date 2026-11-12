@@ -85,82 +85,88 @@ class AppearanceSnapshot {
     clearAlbumGridDensity: s.albumGridDensity == null,
   );
 
-  factory fromJson(Map<String, dynamic> raw) => AppearanceSnapshot(
-    themeMode: _choice(raw['themeMode'], const [
-      'system',
-      'light',
-      'dark',
-      'oled',
-    ]),
-    oledForAuto: _boolean(raw['oledForAuto']),
-    colorStyle: _choice(raw['colorStyle'], const [
-      'neutral',
-      'pastel',
-      'immersive',
-      'night',
-    ]),
-    colorSchemeSeed: _integer(raw['colorSchemeSeed'], 0, 4294967295),
-    dynamicAlbumColorEnabled: _boolean(raw['dynamicAlbumColorEnabled']),
-    nightScheduleEnabled: _boolean(raw['nightScheduleEnabled']),
-    nightScheduleStartMinutes: _integer(
-      raw['nightScheduleStartMinutes'],
-      0,
-      1439,
-    ),
-    nightScheduleEndMinutes: _integer(raw['nightScheduleEndMinutes'], 0, 1439),
-    albumArtShade: _boolean(raw['albumArtShade']),
-    albumArtColoredShade: _boolean(raw['albumArtColoredShade']),
-    colorVividness: _integer(raw['colorVividness'], -5, 5),
-    surfaceDepthLight: _integer(raw['surfaceDepthLight'], -5, 5),
-    surfaceDepthDark: _integer(raw['surfaceDepthDark'], -5, 5),
-    surfaceTintLight: _integer(raw['surfaceTintLight'], 0, 5),
-    surfaceTintDark: _integer(raw['surfaceTintDark'], 0, 5),
-    controlColor: _choice(raw['controlColor'], const ['accent', 'white']),
-    flatSurfaces: _boolean(raw['flatSurfaces']),
-    flatAreas: _integer(raw['flatAreas'], 0, 7),
-    cornerStyle: _choice(raw['cornerStyle'], const [
-      'rounded',
-      'soft',
-      'square',
-    ]),
-    coverArtShape: _choice(raw['coverArtShape'], const [
-      'square',
-      'rounded',
-      'circle',
-    ]),
-    nowPlayingArtShape: _choice(raw['nowPlayingArtShape'], const [
-      'square',
-      'rounded',
-      'circle',
-    ]),
-    artistCardShape: _choice(raw['artistCardShape'], const [
-      'square',
-      'rounded',
-      'circle',
-    ]),
-    gridArtworkSize: _choice(raw['gridArtworkSize'], const [
-      'auto',
-      'small',
-      'medium',
-      'large',
-    ]),
-    albumGridDensity: _integer(raw['albumGridDensity'], 1, 100),
-    density: _choice(raw['density'], const ['comfortable', 'compact']),
-    artistViewMode: _choice(raw['artistViewMode'], const ['list', 'grid']),
-    nowPlayingBackground: _choice(raw['nowPlayingBackground'], _backgrounds),
-    customizeQueueAndMenus:
-        _legacySheetStyle(raw)?.$1 ?? _boolean(raw['customizeQueueAndMenus']),
-    queueBackground:
-        _legacySheetStyle(raw)?.$2 ??
-        _choice(raw['queueBackground'], _backgrounds),
-    menuBackground:
-        _legacySheetStyle(raw)?.$2 ??
-        _choice(raw['menuBackground'], _backgrounds),
-    clearColorSchemeSeed:
-        raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
-    clearAlbumGridDensity:
-        raw.containsKey('albumGridDensity') && raw['albumGridDensity'] == null,
-  );
+  factory fromJson(Map<String, dynamic> raw) {
+    final legacySheet = _legacySheetStyle(raw);
+    return AppearanceSnapshot(
+      themeMode: _choice(raw['themeMode'], const [
+        'system',
+        'light',
+        'dark',
+        'oled',
+      ]),
+      oledForAuto: _boolean(raw['oledForAuto']),
+      colorStyle: _choice(raw['colorStyle'], const [
+        'neutral',
+        'pastel',
+        'immersive',
+        'night',
+      ]),
+      colorSchemeSeed: _integer(raw['colorSchemeSeed'], 0, 4294967295),
+      dynamicAlbumColorEnabled: _boolean(raw['dynamicAlbumColorEnabled']),
+      nightScheduleEnabled: _boolean(raw['nightScheduleEnabled']),
+      nightScheduleStartMinutes: _integer(
+        raw['nightScheduleStartMinutes'],
+        0,
+        1439,
+      ),
+      nightScheduleEndMinutes: _integer(
+        raw['nightScheduleEndMinutes'],
+        0,
+        1439,
+      ),
+      albumArtShade: _boolean(raw['albumArtShade']),
+      albumArtColoredShade: _boolean(raw['albumArtColoredShade']),
+      colorVividness: _integer(raw['colorVividness'], -5, 5),
+      surfaceDepthLight: _integer(raw['surfaceDepthLight'], -5, 5),
+      surfaceDepthDark: _integer(raw['surfaceDepthDark'], -5, 5),
+      surfaceTintLight: _integer(raw['surfaceTintLight'], 0, 5),
+      surfaceTintDark: _integer(raw['surfaceTintDark'], 0, 5),
+      controlColor: _choice(raw['controlColor'], const ['accent', 'white']),
+      flatSurfaces: _boolean(raw['flatSurfaces']),
+      flatAreas: _integer(raw['flatAreas'], 0, 7),
+      cornerStyle: _choice(raw['cornerStyle'], const [
+        'rounded',
+        'soft',
+        'square',
+      ]),
+      coverArtShape: _choice(raw['coverArtShape'], const [
+        'square',
+        'rounded',
+        'circle',
+      ]),
+      nowPlayingArtShape: _choice(raw['nowPlayingArtShape'], const [
+        'square',
+        'rounded',
+        'circle',
+      ]),
+      artistCardShape: _choice(raw['artistCardShape'], const [
+        'square',
+        'rounded',
+        'circle',
+      ]),
+      gridArtworkSize: _choice(raw['gridArtworkSize'], const [
+        'auto',
+        'small',
+        'medium',
+        'large',
+      ]),
+      albumGridDensity: _integer(raw['albumGridDensity'], 1, 100),
+      density: _choice(raw['density'], const ['comfortable', 'compact']),
+      artistViewMode: _choice(raw['artistViewMode'], const ['list', 'grid']),
+      nowPlayingBackground: _choice(raw['nowPlayingBackground'], _backgrounds),
+      customizeQueueAndMenus:
+          legacySheet?.$1 ?? _boolean(raw['customizeQueueAndMenus']),
+      queueBackground:
+          legacySheet?.$2 ?? _choice(raw['queueBackground'], _backgrounds),
+      menuBackground:
+          legacySheet?.$2 ?? _choice(raw['menuBackground'], _backgrounds),
+      clearColorSchemeSeed:
+          raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
+      clearAlbumGridDensity:
+          raw.containsKey('albumGridDensity') &&
+          raw['albumGridDensity'] == null,
+    );
+  }
 
   /// A Look saved by a 1.5.2 dev build carries `sheetStyle` instead of the
   /// three Customize Queue and Menus keys; it maps like `from115To116`.

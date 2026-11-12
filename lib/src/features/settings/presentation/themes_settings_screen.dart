@@ -568,15 +568,49 @@ class ThemeModeSelector extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 440;
-        // Large text: four icon+label segments no longer fit a phone, so the
-        // icons go and a label may take two lines instead of an ellipsis.
-        final largeText =
-            compact && MediaQuery.textScalerOf(context).scale(14) > 14 * 1.3;
+        final gutter = AppearanceLayout.gutterOf(context);
+        final style = DefaultTextStyle.of(context).style
+            .merge(Theme.of(context).textTheme.labelLarge)
+            .copyWith(fontSize: compact ? 11 : null);
+        final scaler = MediaQuery.textScalerOf(context);
+        // Compact layouts drop the icons. When a label still cannot sit on one
+        // line in its quarter of the row (segment padding ~ 24 dp), each option
+        // gets the full width as a radio row instead of being cut or broken.
+        final segmentWidth = (constraints.maxWidth - 2 * gutter) / 4 - 24;
+        final fits =
+            !compact ||
+            entries.every((e) {
+              final painter = TextPainter(
+                text: TextSpan(text: e.$2, style: style),
+                textDirection: Directionality.of(context),
+                textScaler: scaler,
+              )..layout();
+              return painter.width <= segmentWidth;
+            });
+        if (!fits) {
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: gutter, vertical: 8),
+            child: RadioGroup<String>(
+              groupValue: currentMode,
+              onChanged: (mode) {
+                if (mode != null) onChanged(mode);
+              },
+              child: Column(
+                children: [
+                  for (final e in entries)
+                    RadioListTile<String>(
+                      key: ValueKey<String>('themeMode-${e.$1}'),
+                      contentPadding: EdgeInsets.zero,
+                      value: e.$1,
+                      title: Text(e.$2),
+                    ),
+                ],
+              ),
+            ),
+          );
+        }
         return Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppearanceLayout.gutterOf(context),
-            vertical: 8,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: gutter, vertical: 8),
           child: SegmentedButton<String>(
             segments: entries
                 .map(
@@ -584,12 +618,11 @@ class ThemeModeSelector extends StatelessWidget {
                     value: e.$1,
                     label: Text(
                       e.$2,
-                      maxLines: largeText ? 2 : 1,
-                      textAlign: largeText ? TextAlign.center : null,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: compact ? 11 : null),
                     ),
-                    icon: largeText ? null : Icon(e.$3),
+                    icon: compact ? null : Icon(e.$3),
                   ),
                 )
                 .toList(),

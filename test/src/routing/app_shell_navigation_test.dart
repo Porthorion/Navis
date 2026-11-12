@@ -7013,7 +7013,8 @@ void main() {
       await openQueueOverNowPlaying(tester, container);
       expect(container.read(playerSheetExpandedProvider), isTrue);
       expect(find.byKey(queueBackdropKey), findsNothing);
-      // Menus fall back to the tint, so only that is published, never the cover.
+      // Menus fall back to the tint, so only that is published, never the
+      // cover.
       expect(
         container.read(nowPlayingPublishedBackdropProvider)?.image,
         isNull,

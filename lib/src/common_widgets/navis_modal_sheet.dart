@@ -5,8 +5,8 @@ import 'package:material_ui/material_ui.dart';
 /// Over expanded Now Playing the app publishes the effective menu background
 /// through `PopupMenuTheme` (see `NowPlayingMenuScope`); it is read once here,
 /// so an open sheet keeps its colour across a track change. Otherwise the fill
-/// is null and the theme's `bottomSheetTheme` applies. Every sheet in the app opens through
-/// this function (`navis_modal_sheet_audit_test.dart`).
+/// is null and the theme's `bottomSheetTheme` applies. Every sheet in the app
+/// opens through this function (`navis_modal_sheet_audit_test.dart`).
 Future<T?> showNavisModalSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,

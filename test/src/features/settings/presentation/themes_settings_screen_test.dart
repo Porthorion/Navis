@@ -237,44 +237,53 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final (scale, width) in <(double, double)>[(1.0, 390), (2.0, 360)]) {
-    testWidgets('Theme Mode labels are whole at ${scale}x text on a phone '
-        '(#611)', (tester) async {
-      setAdaptiveTestViewport(tester, Size(width, 800));
-      // The test font (Ahem) is far wider than a real one.
-      await tester.runAsync(
-        (FontLoader(
-          'TestInter',
-        )..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'))).load,
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(fontFamily: 'TestInter'),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
-          ),
-          home: Scaffold(
-            body: ThemeModeSelector(currentMode: 'system', onChanged: (_) {}),
-          ),
-        ),
-      );
-      for (final label in <String>['Light', 'Dark', 'OLED', 'Auto']) {
-        final paragraph = tester.renderObject<RenderParagraph>(
-          find.text(label),
+  for (final scale in <double>[1.0, 1.3, 2.0, 3.0]) {
+    for (final width in <double>[320, 360, 412]) {
+      testWidgets('Theme Mode labels are whole at ${scale}x on $width dp '
+          '(#611)', (tester) async {
+        setAdaptiveTestViewport(tester, Size(width, 800));
+        // The test font (Ahem) is far wider than a real one.
+        await tester.runAsync(
+          (FontLoader(
+            'TestInter',
+          )..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'))).load,
         );
-        expect(paragraph.didExceedMaxLines, isFalse, reason: label);
-      }
-      // Icons stay at normal text sizes and go when the text is huge.
-      expect(
-        find.byIcon(Icons.light_mode_outlined),
-        scale == 1.0 ? findsOneWidget : findsNothing,
-      );
-      expect(tester.takeException(), isNull);
-    });
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(fontFamily: 'TestInter'),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: ThemeModeSelector(currentMode: 'system', onChanged: (_) {}),
+            ),
+          ),
+        );
+        for (final label in <String>['Light', 'Dark', 'OLED', 'Auto']) {
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.text(label),
+          );
+          expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+          final oneLine = TextPainter(
+            text: paragraph.text,
+            textDirection: TextDirection.ltr,
+            textScaler: paragraph.textScaler,
+          )..layout();
+          expect(
+            paragraph.size.height,
+            moreOrLessEquals(oneLine.height, epsilon: 0.5),
+            reason: '$label wrapped',
+          );
+        }
+        // Phones never show the segment icons.
+        expect(find.byIcon(Icons.light_mode_outlined), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 
   testWidgets('uses white for implicit default', (tester) async {
