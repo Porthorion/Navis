@@ -528,10 +528,12 @@ void main() {
           'density': 'compact',
           'artistViewMode': 'list',
           'nowPlayingBackground': 'artwork',
-          'sheetStyle': 'album_color',
+          'customizeQueueAndMenus': true,
+          'queueBackground': 'plain',
+          'menuBackground': 'artwork',
           'keepTitleVersionVisible': false,
         });
-        expect(before.toJson(), hasLength(29));
+        expect(before.toJson(), hasLength(31));
         await database.appSettingsDao.applyAppearanceSnapshot(before);
         String? previousLookId;
         if (matchedLook) {
@@ -558,7 +560,9 @@ void main() {
         expect(restored.themeMode, 'system');
         expect(restored.colorSchemeSeed, isNull);
         expect(restored.albumGridDensity, isNull);
-        expect(restored.sheetStyle.storageKey, 'album_color');
+        expect(restored.customizeQueueAndMenus, isTrue);
+        expect(restored.queueBackground.storageKey, 'plain');
+        expect(restored.menuBackground.storageKey, 'artwork');
         expect(restored.keepTitleVersionVisible, isFalse);
         expect(
           restored.colorTuning,

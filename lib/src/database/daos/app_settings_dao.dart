@@ -777,9 +777,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             nowPlayingBackground: snapshot.nowPlayingBackground == null
                 ? const Value.absent()
                 : Value(snapshot.nowPlayingBackground!),
-            sheetStyle: snapshot.sheetStyle == null
+            customizeQueueMenus: snapshot.customizeQueueAndMenus == null
                 ? const Value.absent()
-                : Value(snapshot.sheetStyle!),
+                : Value(snapshot.customizeQueueAndMenus!),
+            queueBackground: snapshot.queueBackground == null
+                ? const Value.absent()
+                : Value(snapshot.queueBackground!),
+            menuBackground: snapshot.menuBackground == null
+                ? const Value.absent()
+                : Value(snapshot.menuBackground!),
             keepTitleVersionVisible: snapshot.keepTitleVersionVisible == null
                 ? const Value.absent()
                 : Value(snapshot.keepTitleVersionVisible!),
@@ -960,7 +966,32 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Writes the canonical Sheets & Menus style.
+  /// Customize Queue and Menus on or off. The picks are kept while off.
+  Future<void> updateCustomizeQueueAndMenus({required bool enabled}) {
+    return _writeSettings(
+      AppSettingsTableCompanion(customizeQueueMenus: Value(enabled)),
+    );
+  }
+
+  /// Writes the canonical queue background pick.
+  Future<void> updateQueueBackground(String value) {
+    return _writeSettings(
+      AppSettingsTableCompanion(
+        queueBackground: Value(NowPlayingBackground.parse(value).storageKey),
+      ),
+    );
+  }
+
+  /// Writes the canonical menus background pick.
+  Future<void> updateMenuBackground(String value) {
+    return _writeSettings(
+      AppSettingsTableCompanion(
+        menuBackground: Value(NowPlayingBackground.parse(value).storageKey),
+      ),
+    );
+  }
+
+  /// Writes the legacy Sheets & Menus style (removed in the rendering phase).
   Future<void> updateSheetStyle(String value) {
     return _writeSettings(
       AppSettingsTableCompanion(

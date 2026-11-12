@@ -37,7 +37,9 @@ class AppearanceSnapshot {
     this.density,
     this.artistViewMode,
     this.nowPlayingBackground,
-    this.sheetStyle,
+    this.customizeQueueAndMenus,
+    this.queueBackground,
+    this.menuBackground,
     this.keepTitleVersionVisible,
     this.clearColorSchemeSeed = false,
     this.clearAlbumGridDensity = false,
@@ -71,7 +73,15 @@ class AppearanceSnapshot {
     density: s.density.storageKey,
     artistViewMode: s.artistViewMode,
     nowPlayingBackground: s.nowPlayingBackground.storageKey,
-    sheetStyle: s.sheetStyle.storageKey,
+    customizeQueueAndMenus: s.customizeQueueAndMenus,
+    // The pickers only count while visible, so a hidden pick cannot make a
+    // Look Custom.
+    queueBackground: s.customizeQueueAndMenus
+        ? s.queueBackground.storageKey
+        : null,
+    menuBackground: s.customizeQueueAndMenus
+        ? s.menuBackground.storageKey
+        : null,
     keepTitleVersionVisible: s.keepTitleVersionVisible,
     clearColorSchemeSeed: s.colorSchemeSeed == null,
     clearAlbumGridDensity: s.albumGridDensity == null,
@@ -139,22 +149,41 @@ class AppearanceSnapshot {
     albumGridDensity: _integer(raw['albumGridDensity'], 1, 100),
     density: _choice(raw['density'], const ['comfortable', 'compact']),
     artistViewMode: _choice(raw['artistViewMode'], const ['list', 'grid']),
-    nowPlayingBackground: _choice(raw['nowPlayingBackground'], const [
-      'tinted',
-      'artwork',
-      'plain',
-    ]),
-    sheetStyle: _choice(raw['sheetStyle'], const [
-      'match_now_playing',
-      'album_color',
-      'theme',
-    ]),
+    nowPlayingBackground: _choice(raw['nowPlayingBackground'], _backgrounds),
+    customizeQueueAndMenus:
+        _legacySheetStyle(raw)?.$1 ?? _boolean(raw['customizeQueueAndMenus']),
+    queueBackground:
+        _legacySheetStyle(raw)?.$2 ??
+        _choice(raw['queueBackground'], _backgrounds),
+    menuBackground:
+        _legacySheetStyle(raw)?.$2 ??
+        _choice(raw['menuBackground'], _backgrounds),
     keepTitleVersionVisible: _boolean(raw['keepTitleVersionVisible']),
     clearColorSchemeSeed:
         raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
     clearAlbumGridDensity:
         raw.containsKey('albumGridDensity') && raw['albumGridDensity'] == null,
   );
+
+  /// A Look saved by a 1.5.2 dev build carries `sheetStyle` instead of the
+  /// three Customize Queue and Menus keys; it maps like `from115To116`.
+  /// New keys win when both exist.
+  static (bool, String?)? _legacySheetStyle(Map<String, dynamic> raw) {
+    const keys = [
+      'customizeQueueAndMenus',
+      'queueBackground',
+      'menuBackground',
+    ];
+    if (keys.any(raw.containsKey)) return null;
+    return switch (raw['sheetStyle']) {
+      'album_color' => (true, 'tinted'),
+      'theme' => (true, 'plain'),
+      'match_now_playing' => (false, null),
+      _ => null,
+    };
+  }
+
+  static const _backgrounds = ['tinted', 'artwork', 'plain'];
 
   final String? themeMode;
   final bool? oledForAuto;
@@ -183,7 +212,9 @@ class AppearanceSnapshot {
   final String? density;
   final String? artistViewMode;
   final String? nowPlayingBackground;
-  final String? sheetStyle;
+  final bool? customizeQueueAndMenus;
+  final String? queueBackground;
+  final String? menuBackground;
   final bool? keepTitleVersionVisible;
   final bool clearColorSchemeSeed;
   final bool clearAlbumGridDensity;
@@ -224,7 +255,10 @@ class AppearanceSnapshot {
     if (artistViewMode != null) 'artistViewMode': artistViewMode,
     if (nowPlayingBackground != null)
       'nowPlayingBackground': nowPlayingBackground,
-    if (sheetStyle != null) 'sheetStyle': sheetStyle,
+    if (customizeQueueAndMenus != null)
+      'customizeQueueAndMenus': customizeQueueAndMenus,
+    if (queueBackground != null) 'queueBackground': queueBackground,
+    if (menuBackground != null) 'menuBackground': menuBackground,
     if (keepTitleVersionVisible != null)
       'keepTitleVersionVisible': keepTitleVersionVisible,
   };

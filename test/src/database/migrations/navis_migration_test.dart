@@ -255,6 +255,80 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('115 to 116 queue and menus', () {
+    const newColumns = <String>[
+      'customize_queue_menus',
+      'queue_background',
+      'menu_background',
+    ];
+
+    Future<NavisDatabase> upgraded115(String sheetStyle) async {
+      final directory = await Directory.systemTemp.createTemp('navis_v116_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.customStatement(
+        "UPDATE app_settings SET sheet_style = '$sheetStyle'",
+      );
+      await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        for (final column in newColumns) {
+          raw.execute('ALTER TABLE app_settings DROP COLUMN $column');
+        }
+        raw.execute('PRAGMA user_version = 115');
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      return db;
+    }
+
+    test('fresh profiles follow Now Playing with Tinted picks', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(settings.customizeQueueMenus, isFalse);
+      expect(settings.queueBackground, 'tinted');
+      expect(settings.menuBackground, 'tinted');
+    });
+
+    for (final (legacy, on, queue, menu) in <(String, bool, String, String)>[
+      ('match_now_playing', false, 'tinted', 'tinted'),
+      ('unknown_value', false, 'tinted', 'tinted'),
+      ('album_color', true, 'tinted', 'tinted'),
+      ('theme', true, 'plain', 'plain'),
+    ]) {
+      test('maps sheet style $legacy and keeps other values', () async {
+        final db = await upgraded115(legacy);
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.customizeQueueMenus, on);
+        expect(settings.queueBackground, queue);
+        expect(settings.menuBackground, menu);
+        expect(settings.hapticsEnabled, isFalse);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+      });
+    }
+
+    test('re-running never overwrites a later user change', () async {
+      final db = await upgraded115('theme');
+      await db.appSettingsDao.updateCustomizeQueueAndMenus(enabled: false);
+      await db.appSettingsDao.updateQueueBackground('artwork');
+      await db.from115To116(Migrator(db));
+      final again = (await db.appSettingsDao.getSettings())!;
+      expect(again.customizeQueueMenus, isFalse);
+      expect(again.queueBackground, 'artwork');
+      expect(again.menuBackground, 'plain');
+    });
+  }, skip: !sqliteAvailable);
+
   group('114 to 115 keep song versions visible', () {
     Future<NavisDatabase> upgraded114() async {
       final directory = await Directory.systemTemp.createTemp('navis_v115_');
@@ -452,8 +526,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 115', () {
-      expect(NavisDatabase.currentSchemaVersion, 115);
+    test('the schema version is 116', () {
+      expect(NavisDatabase.currentSchemaVersion, 116);
     });
 
     test('fresh profiles seed the Auto defaults', () async {

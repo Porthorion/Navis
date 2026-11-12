@@ -503,7 +503,9 @@ void main() {
       addTearDown(fixture.close);
       final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
       await dao.updateNowPlayingBackground('artwork');
-      await dao.updateSheetStyle('album_color');
+      await dao.updateCustomizeQueueAndMenus(enabled: true);
+      await dao.updateQueueBackground('artwork');
+      await dao.updateMenuBackground('plain');
       await dao.updateCornerStyle('soft');
       await dao.updateDensity(NavisDensity.compact);
       for (final path in [
@@ -517,7 +519,9 @@ void main() {
         );
         expect(response.statusCode, HttpStatus.ok);
         expect(response.body['nowPlayingBackground'], 'artwork');
-        expect(response.body['sheetStyle'], 'album_color');
+        expect(response.body['customizeQueueAndMenus'], isTrue);
+        expect(response.body['queueBackground'], 'artwork');
+        expect(response.body['menuBackground'], 'plain');
         expect(response.body['cornerStyle'], 'soft');
         expect(response.body['density'], 'compact');
       }
@@ -567,7 +571,9 @@ void main() {
         'nowPlayingArtShape': 'circle',
         'artistCardShape': 'square',
         'nowPlayingBackground': 'tinted',
-        'sheetStyle': 'match_now_playing',
+        'customizeQueueAndMenus': false,
+        'queueBackground': 'tinted',
+        'menuBackground': 'tinted',
         'cornerStyle': 'rounded',
         'density': 'comfortable',
         'themeMode': 'dark',
@@ -738,7 +744,9 @@ void main() {
       'keepTitleVersionVisible': false,
       'cornerStyle': 'square',
       'nowPlayingBackground': 'artwork',
-      'sheetStyle': 'theme',
+      'customizeQueueAndMenus': true,
+      'queueBackground': 'plain',
+      'menuBackground': 'artwork',
       'density': 'compact',
     };
     final unauthorized = await _request(
@@ -773,7 +781,9 @@ void main() {
     expect(persisted.albumArtShade, isTrue);
     expect(persisted.albumArtColoredShade, isTrue);
     expect(persisted.keepTitleVersionVisible, isFalse);
-    expect(persisted.sheetStyle, 'theme');
+    expect(persisted.customizeQueueMenus, isTrue);
+    expect(persisted.queueBackground, 'plain');
+    expect(persisted.menuBackground, 'artwork');
     final observed = await fixture.get(path);
     expect(observed.body, changed.body);
     expect(persisted.colorStyle, 'immersive');
@@ -837,9 +847,13 @@ void main() {
       {'keepTitleVersionVisible': 'false'},
       {'cornerStyle': 'circle'},
       {'nowPlayingBackground': 'blur'},
-      {'sheetStyle': 'blur'},
-      {'sheetStyle': null},
-      {'sheetStyle': 1},
+      {'queueBackground': 'blur'},
+      {'queueBackground': null},
+      {'menuBackground': 'blur'},
+      {'menuBackground': 1},
+      {'customizeQueueAndMenus': 1},
+      {'customizeQueueAndMenus': null},
+      {'sheetStyle': 'theme'},
       {'density': null},
       {'nightSchedule': null},
       {'nightSchedule': {}},

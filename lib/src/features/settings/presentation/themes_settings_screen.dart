@@ -123,11 +123,6 @@ class ThemesSettingsScreen extends ConsumerWidget {
           background.storageKey,
         );
       },
-      sheetStyle: ref.watch(sheetStyleProvider),
-      onSheetStyleChanged: (style) async {
-        final db = ref.read(navisDatabaseProvider);
-        await db.appSettingsDao.updateSheetStyle(style.storageKey);
-      },
       colorTuning: tuningState.tuning,
       onOpenColorTuning: (anchor) => unawaited(_openColorTuning(anchor, ref)),
       previewBrightness: previewBrightness,
@@ -459,8 +454,24 @@ class ThemesSettingsScreen extends ConsumerWidget {
                 ),
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.nowPlayingBackground,
-                  AppearanceOptionKind.sheetStyle,
                 ]),
+                NowPlayingQueueMenusOption(
+                  customize: ref.watch(customizeQueueAndMenusProvider),
+                  onCustomizeChanged: (enabled) => ref
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .updateCustomizeQueueAndMenus(enabled: enabled),
+                  queue: ref.watch(queueBackgroundPickProvider),
+                  onQueueChanged: (value) => ref
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .updateQueueBackground(value.storageKey),
+                  menus: ref.watch(menuBackgroundPickProvider),
+                  onMenusChanged: (value) => ref
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .updateMenuBackground(value.storageKey),
+                ),
                 const SizedBox(height: 8),
               ],
             ),

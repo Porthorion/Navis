@@ -561,6 +561,32 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    test('queue and menus settings map, save and watch', () async {
+      final fresh = await repository.getSettings();
+      expect(fresh.customizeQueueAndMenus, isFalse);
+      expect(fresh.queueBackground, NowPlayingBackground.tinted);
+      expect(fresh.menuBackground, NowPlayingBackground.tinted);
+      final dao = database.appSettingsDao;
+      await dao.updateCustomizeQueueAndMenus(enabled: true);
+      await dao.updateQueueBackground('artwork');
+      await dao.updateMenuBackground('plain');
+      final watched = await repository.watchSettings().first;
+      expect(watched.customizeQueueAndMenus, isTrue);
+      expect(watched.queueBackground, NowPlayingBackground.artwork);
+      expect(watched.menuBackground, NowPlayingBackground.plain);
+      await repository.saveSettings(watched.copyWith(scrobbleEnabled: false));
+      final saved = await repository.getSettings();
+      expect(saved.queueBackground, NowPlayingBackground.artwork);
+      expect(saved.menuBackground, NowPlayingBackground.plain);
+      await database.customStatement(
+        "UPDATE app_settings SET queue_background = 'unknown'",
+      );
+      expect(
+        (await repository.getSettings()).queueBackground,
+        NowPlayingBackground.tinted,
+      );
+    }, skip: !sqliteAvailable);
+
     test('stale onboarding drafts preserve setup release markers', () async {
       final stale = await repository.getSettings();
       await repository.updateSetupHighlightsSeenRelease('1.5.0');

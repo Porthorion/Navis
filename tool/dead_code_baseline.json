@@ -71,6 +71,18 @@
       "path": "pubspec.yaml",
       "name": "navis_android_storage",
       "reason": "deliberate: engine-registered Android SAF playback plugin is called via a method channel"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/providers/app_providers.dart",
+      "name": "nowPlayingQueueBackgroundProvider",
+      "reason": "temporary: G3 phase P1 adds it, the P2 rendering commit consumes it and removes this entry"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/providers/app_providers.dart",
+      "name": "nowPlayingMenuBackgroundProvider",
+      "reason": "temporary: G3 phase P1 adds it, the P2 rendering commit consumes it and removes this entry"
     }
   ],
   "dependencyUses": [

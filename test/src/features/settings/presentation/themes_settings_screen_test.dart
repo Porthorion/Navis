@@ -14,7 +14,6 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
-import 'package:navis/src/features/settings/domain/sheet_style.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
@@ -82,7 +81,7 @@ void main() {
     bool clearWhenSeen = false,
     bool settle = true,
     NowPlayingBackground? nowPlayingBackground,
-    SheetStyle? sheetStyle,
+    bool customizeQueueAndMenus = false,
     bool flatSurfaces = false,
     FlatAreas flatAreas = const FlatAreas(),
     bool albumArtShade = false,
@@ -104,7 +103,7 @@ void main() {
       themeMode: themeMode,
       colorStyle: colorStyle,
       nowPlayingBackground: nowPlayingBackground,
-      sheetStyle: sheetStyle,
+      customizeQueueAndMenus: customizeQueueAndMenus,
       flatSurfaces: flatSurfaces,
       flatAreas: flatAreas,
       albumArtShade: albumArtShade,
@@ -571,7 +570,7 @@ void main() {
           l10n.appearanceArtistViewModeLabel,
           l10n.appearanceSectionNowPlaying,
           l10n.appearanceNowPlayingBackgroundLabel,
-          l10n.appearanceSheetStyleLabel,
+          l10n.appearanceQueueMenusCustomizeLabel,
         ];
         for (final text in ordered) {
           expect(find.text(text), findsOneWidget, reason: text);
@@ -1297,55 +1296,87 @@ void main() {
       expect(settings?.nowPlayingBackground, 'artwork');
     });
 
-    for (final style in SheetStyle.values) {
-      testWidgets('Sheets & Menus describes ${style.name}', (tester) async {
-        final descriptions = <SheetStyle, String>{
-          SheetStyle.matchNowPlaying:
-              l10n.appearanceSheetStyleMatchNowPlayingSub,
-          SheetStyle.albumColor: l10n.appearanceSheetStyleAlbumColorSub,
-          SheetStyle.theme: l10n.appearanceSheetStyleThemeSub,
-        };
-        await pumpAppearance(tester, sheetStyle: style);
-        await scrollTo(
-          tester,
-          find.byKey(const ValueKey<String>('sheetStyleSelector')),
-        );
-        expect(find.text(l10n.appearanceSheetStyleLabel), findsOneWidget);
-        for (final entry in descriptions.entries) {
-          expect(
-            find.text(entry.value),
-            entry.key == style ? findsOneWidget : findsNothing,
-          );
-        }
-      });
-    }
+    testWidgets('Queue and Menus pickers are hidden while Customize is off', (
+      tester,
+    ) async {
+      await pumpAppearance(tester);
+      final toggle = find.byKey(
+        const ValueKey<String>('customizeQueueMenusSwitch'),
+      );
+      await scrollTo(tester, toggle);
+      expect(
+        find.text(l10n.appearanceQueueMenusCustomizeLabel),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('queueBackgroundSelector')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('menuBackgroundSelector')),
+        findsNothing,
+      );
+    });
 
-    testWidgets('Sheets & Menus sits under Now Playing Background and saves', (
+    testWidgets('Customize sits under Now Playing Background and saves', (
       tester,
     ) async {
       final container = await pumpAppearance(tester);
-      final selector = find.byKey(const ValueKey<String>('sheetStyleSelector'));
-      await scrollTo(tester, selector);
+      final toggle = find.byKey(
+        const ValueKey<String>('customizeQueueMenusSwitch'),
+      );
+      await scrollTo(tester, toggle);
       expect(
-        tester.getTopLeft(find.text(l10n.appearanceSheetStyleLabel)).dy,
+        tester
+            .getTopLeft(find.text(l10n.appearanceQueueMenusCustomizeLabel))
+            .dy,
         greaterThan(
           tester
               .getTopLeft(find.text(l10n.appearanceNowPlayingBackgroundLabel))
               .dy,
         ),
       );
-      final album = find.descendant(
-        of: selector,
-        matching: find.text(l10n.appearanceSheetStyleAlbumColor),
-      );
-      await tester.ensureVisible(album);
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(album);
+      await tester.tap(toggle);
       await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        (await tester.runAsync(
+          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+        ))?.customizeQueueMenus,
+        isTrue,
+      );
+    });
+
+    testWidgets('Queue and Menus pickers save their picks', (tester) async {
+      final container = await pumpAppearance(
+        tester,
+        customizeQueueAndMenus: true,
+      );
+      final queue = find.byKey(
+        const ValueKey<String>('queueBackgroundSelector'),
+      );
+      final menus = find.byKey(
+        const ValueKey<String>('menuBackgroundSelector'),
+      );
+      await scrollTo(tester, queue);
+      expect(menus, findsOneWidget);
+      for (final (selector, label) in [
+        (queue, l10n.appearanceNowPlayingBackgroundArtwork),
+        (menus, l10n.appearanceNowPlayingBackgroundPlain),
+      ]) {
+        final segment = find.descendant(
+          of: selector,
+          matching: find.text(label),
+        );
+        await tester.ensureVisible(segment);
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.tap(segment);
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       final settings = await tester.runAsync(
         container.read(navisDatabaseProvider).appSettingsDao.getSettings,
       );
-      expect(settings?.sheetStyle, 'album_color');
+      expect(settings?.queueBackground, 'artwork');
+      expect(settings?.menuBackground, 'plain');
     });
 
     testWidgets('Density sits beside Artwork Size, not in Home Sections', (

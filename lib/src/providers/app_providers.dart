@@ -3262,6 +3262,47 @@ final nowPlayingBackgroundProvider = Provider<NowPlayingBackground>((ref) {
   return settings.nowPlayingBackground;
 });
 
+/// Whether Customize Queue and Menus is on (the pickers apply).
+final customizeQueueAndMenusProvider = Provider<bool>(
+  (ref) => ref.watch(
+    appSettingsProvider.select(
+      (s) => s.asData?.value.customizeQueueAndMenus ?? false,
+    ),
+  ),
+);
+
+/// The saved queue pick, kept while Customize Queue and Menus is off.
+final queueBackgroundPickProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(
+    appSettingsProvider.select(
+      (s) => s.asData?.value.queueBackground ?? NowPlayingBackground.tinted,
+    ),
+  ),
+);
+
+/// The saved menus pick, kept while Customize Queue and Menus is off.
+final menuBackgroundPickProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(
+    appSettingsProvider.select(
+      (s) => s.asData?.value.menuBackground ?? NowPlayingBackground.tinted,
+    ),
+  ),
+);
+
+/// Effective queue background: the pick while customizing, else Now Playing's.
+final nowPlayingQueueBackgroundProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(customizeQueueAndMenusProvider)
+      ? ref.watch(queueBackgroundPickProvider)
+      : ref.watch(nowPlayingBackgroundProvider),
+);
+
+/// Effective menus, sheets and popover background.
+final nowPlayingMenuBackgroundProvider = Provider<NowPlayingBackground>(
+  (ref) => ref.watch(customizeQueueAndMenusProvider)
+      ? ref.watch(menuBackgroundPickProvider)
+      : ref.watch(nowPlayingBackgroundProvider),
+);
+
 /// Fill of Now Playing sheets and menus, defaulting to Match Now Playing
 /// while settings load.
 final sheetStyleProvider = Provider<SheetStyle>((ref) {
