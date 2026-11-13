@@ -7,7 +7,7 @@ import 'package:navis/src/features/player/presentation/queue_track_row.dart';
 /// Logical index of the playing row in [queueIds], or null when the playback
 /// snapshot does not point into this queue (radio, loading, stale index).
 int? queueCurrentIndex(PlaybackSnapshot playback, List<String> queueIds) {
-  final index = playback.currentIndex;
+  final index = queuePlayingIndex(playback, queueIds);
   if (queueActionsDisabled(playback) ||
       index == null ||
       index < 0 ||

@@ -385,6 +385,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Reordering the queue no longer makes rows snap back or the playing '
+        'song jump; on desktop each row shows a single drag handle',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
         'now takes effect right away during playback',
         type: ChangelogEntryType.fix,

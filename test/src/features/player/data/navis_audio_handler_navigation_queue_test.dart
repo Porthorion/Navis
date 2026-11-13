@@ -3110,6 +3110,55 @@ void main() {
     timeout: const Timeout(Duration(minutes: 2)),
   );
 
+  // Issue #627: the queue view draws the playing row from queueSongIds and
+  // currentIndex, so no snapshot may pair a new order with the old index.
+  test(
+    'moving the playing song never publishes a stale current index',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-nav-test-',
+      );
+      final player = _LateIndexPlayer();
+      final (handler, _, database) = await createHandler(
+        directory,
+        6,
+        initialPlayer: player,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(6, (index) => 'song-$index');
+      await handler.replaceQueueWithData(
+        await database.libraryDao.getSongsByIds(ids),
+        startIndex: 5,
+      );
+      await settleQueue(handler);
+      expect(handler.snapshot.currentIndex, 5);
+
+      final snapshots = <PlaybackSnapshot>[];
+      final subscription = handler.snapshotStream.listen(snapshots.add);
+      addTearDown(subscription.cancel);
+      await handler.reorderQueue(5, 0);
+      await pumpEventQueue(times: 20);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(handler.snapshot.queueSongIds.first, 'song-5');
+      expect(snapshots, isNotEmpty);
+      for (final snapshot in snapshots) {
+        final index = snapshot.currentIndex;
+        expect(
+          index == null ? null : snapshot.queueSongIds[index],
+          snapshot.currentSongId,
+          reason:
+              'queue ${snapshot.queueSongIds} index $index '
+              'current ${snapshot.currentSongId}',
+        );
+      }
+    },
+  );
+
   test('a burst of reorders persists the final queue once', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
     final (handler, player, database) = await createHandler(directory, 6);
@@ -6218,4 +6267,30 @@ void main() {
       }
     }, timeout: const Timeout(Duration(minutes: 10)));
   });
+}
+
+/// Like the native player: a move returns before the index event that follows
+/// the playing item to its new slot.
+class _LateIndexPlayer extends ControllableAudioPlayer {
+  @override
+  Future<void> moveAudioSource(int currentIndex, int newIndex) async {
+    final playing = index;
+    queuedSources.insert(newIndex, queuedSources.removeAt(currentIndex));
+    if (playing == null) return;
+    int moved = playing;
+    if (playing == currentIndex) {
+      moved = newIndex;
+    } else if (currentIndex < playing && newIndex >= playing) {
+      moved = playing - 1;
+    } else if (currentIndex > playing && newIndex <= playing) {
+      moved = playing + 1;
+    }
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 10), () {
+        index = moved;
+        indexEvents.add(index);
+        playbackEvents.add(playbackEvent);
+      }),
+    );
+  }
 }

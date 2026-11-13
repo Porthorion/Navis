@@ -11,6 +11,8 @@ import 'package:navis/src/features/playlists/presentation/create_playlist_dialog
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider;
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+import 'package:navis/src/routing/desktop_layout.dart'
+    show resolveAdaptiveContextFor;
 
 class QueueScreen extends ConsumerWidget {
   const new({super.key});
@@ -21,6 +23,7 @@ class QueueScreen extends ConsumerWidget {
     final queueIds = ref.watch(queueProvider);
     final retained = ref.watch(retainedArtistQueueProvider);
     final playback = ref.watch(playerStateProvider);
+    final playingIndex = queuePlayingIndex(playback, queueIds);
     // Same guard as QueueSheet: the logical queue is still being replaced.
     final actionsDisabled = queueActionsDisabled(playback);
 
@@ -55,6 +58,9 @@ class QueueScreen extends ConsumerWidget {
                 footer: const QueueUnavailableTracks(),
                 padding: const EdgeInsets.only(bottom: 80),
                 itemCount: queueIds.length,
+                // The row draws its own handle on desktop; phones keep long-press drag.
+                buildDefaultDragHandles: !resolveAdaptiveContextFor(context)
+                    .desktopRuntime,
                 onReorderStart: (_) =>
                     NavisHaptics.dragStart(HapticCategory.listsAndMenus),
                 onReorderEnd: (_) =>
@@ -72,6 +78,7 @@ class QueueScreen extends ConsumerWidget {
                       playback,
                       queueIds,
                       index,
+                      playingIndex,
                     ),
                     actionsDisabled: actionsDisabled,
                     onRemove: () => actionsDisabled
