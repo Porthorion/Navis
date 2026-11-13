@@ -692,6 +692,74 @@ void main() {
       await h.end(tester);
     });
   });
+
+  group('reorder while the handler is still moving', () {
+    for (final screen in [false, true]) {
+      testWidgets('${screen ? 'screen' : 'sheet'}: the playing row stays '
+          'highlighted where it was dropped', (tester) async {
+        final h = await _pumpRemovable(
+          tester,
+          ids: const ['a', 'b', 'c', 'd', 'e', 'f'],
+          playing: 'f',
+          gateReorder: true,
+          screen: screen,
+        );
+        final playingRow = find.descendant(
+          of: find.byWidgetPredicate((w) => w is ListTile && w.selected),
+          matching: find.text('Track f'),
+        );
+
+        tester
+            .widget<ReorderableListView>(find.byType(ReorderableListView))
+            .onReorderItem!(5, 0);
+        await tester.pump();
+
+        expect(
+          tester.getTopLeft(find.text('Track f')).dy,
+          lessThan(tester.getTopLeft(find.text('Track a')).dy),
+          reason: 'the dropped row shows first before the handler finishes',
+        );
+        expect(playingRow, findsOneWidget);
+
+        h.reorderGate.complete();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(playingRow, findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('Track f')).dy,
+          lessThan(tester.getTopLeft(find.text('Track a')).dy),
+        );
+      });
+    }
+  });
+
+  group('reorder drag handles', () {
+    for (final screen in [false, true]) {
+      final surface = screen ? 'screen' : 'sheet';
+      // The row's own handle: drag_indicator in the compact sheet row,
+      // drag_handle in the screen row. Flutter's default one is drag_handle.
+      final own = screen ? Icons.drag_handle : Icons.drag_indicator_rounded;
+
+      testWidgets('desktop $surface rows show exactly one drag handle', (
+        tester,
+      ) async {
+        await _pumpRemovable(tester, desktop: true, screen: screen);
+        expect(find.byIcon(own), findsNWidgets(3));
+        expect(find.byIcon(Icons.drag_handle), findsNWidgets(screen ? 3 : 0));
+        expect(find.byType(ReorderableDragStartListener), findsNWidgets(3));
+      }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+      testWidgets('phone $surface rows still drag by long press', (
+        tester,
+      ) async {
+        await _pumpRemovable(tester, screen: screen);
+        expect(
+          find.byType(ReorderableDelayedDragStartListener),
+          findsNWidgets(3),
+        );
+      }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+    }
+  });
 }
 
 class _MockHandler extends Mock implements NavisPlaybackHandler {}
@@ -707,6 +775,12 @@ class _Removable {
   final errors = <PlaybackActionError>[];
   final hideSheet = ValueNotifier<bool>(false);
   final notices = AppNoticeController();
+
+  /// The playing song's id; null plays the first row.
+  String? playing;
+
+  /// Completed by the test to let a gated `reorderQueue` publish its move.
+  final reorderGate = Completer<void>();
 
   /// Ends the notice timer, which would outlive the test otherwise.
   Future<void> end(WidgetTester tester) async {
@@ -729,6 +803,8 @@ Future<_Removable> _pumpRemovable(
   bool desktop = false,
   bool reduceMotion = false,
   bool pendingLogicalQueue = false,
+  String? playing,
+  bool gateReorder = false,
   double textScale = 1,
   double width = 390,
   ValueChanged<bool>? onLock,
@@ -739,13 +815,15 @@ Future<_Removable> _pumpRemovable(
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
   });
-  final h = _Removable(List.unmodifiable(ids));
+  final h = _Removable(List.unmodifiable(ids))..playing = playing;
   final snapshots = StreamController<PlaybackSnapshot>.broadcast();
   addTearDown(snapshots.close);
   PlaybackSnapshot snap() => const PlaybackSnapshot.idle().copyWith(
     queueSongIds: h.queue,
-    currentSongId: h.queue.isEmpty ? null : h.queue.first,
-    currentIndex: h.queue.isEmpty ? null : 0,
+    currentSongId: h.queue.isEmpty ? null : h.playing ?? h.queue.first,
+    currentIndex: h.queue.isEmpty
+        ? null
+        : h.queue.indexOf(h.playing ?? h.queue.first),
     isLoading: pendingLogicalQueue,
     hasPendingLogicalQueue: pendingLogicalQueue,
   );
@@ -764,6 +842,16 @@ Future<_Removable> _pumpRemovable(
     h.removed.add(index);
     publish([...h.queue]..removeAt(index));
   });
+  if (gateReorder) {
+    when(() => handler.reorderQueue(any(), any())).thenAnswer((call) async {
+      await h.reorderGate.future;
+      final from = call.positionalArguments[0] as int;
+      final to = call.positionalArguments[1] as int;
+      final next = [...h.queue];
+      next.insert(from < to ? to - 1 : to, next.removeAt(from));
+      publish(next);
+    });
+  }
   if (handler is QueueBatchEditor) {
     when(
       () => (handler as QueueBatchEditor).insertQueueRuns(any()),

@@ -154,12 +154,19 @@ class QueueController extends Notifier<List<String>> {
     // every queue listener. The handler publishes an unmodifiable list and
     // reuses it until the queue changes, so this neither copies nor rebuilds
     // for unchanged queues.
-    return ref.watch(
+    final published =
+        ref.watch(
           playbackSnapshotProvider.select(
             (snapshot) => snapshot.asData?.value.queueSongIds,
           ),
         ) ??
         const <String>[];
+    final pending = _pendingOrder;
+    if (pending == null) return published;
+    // A queue that gained, lost or swapped songs was replaced under the move.
+    if (_sameSongs(pending, published)) return pending;
+    _pendingOrder = null;
+    return published;
   }
 
   Future<void> replace(
@@ -641,9 +648,57 @@ class QueueController extends Notifier<List<String>> {
     await db.libraryDao.upsertProvisionalSongs(companions);
   }
 
+  /// The queue as the user dropped it while the handler's moves are in
+  /// flight. The handler publishes only after its native move returns, so
+  /// without this the list would draw the old order, snap back, then jump.
+  List<String>? _pendingOrder;
+  int _reordersInFlight = 0;
+
+  /// Completes when [_reordersInFlight] drops to zero; taps wait on it.
+  Completer<void>? _reordersIdle;
+
+  /// Moves the row at [oldIndex] to the insertion index [newIndex] (counted
+  /// before the row is removed, as the handler counts it). The list shows the
+  /// move at once and returns to the handler's order once every move is done.
   Future<void> reorder(int oldIndex, int newIndex) async {
     final handler = _requireHandler();
-    await handler.reorderQueue(oldIndex, newIndex);
+    final current = state;
+    if (oldIndex >= 0 &&
+        oldIndex < current.length &&
+        newIndex >= 0 &&
+        newIndex <= current.length) {
+      final moved = [...current];
+      final target = oldIndex < newIndex ? newIndex - 1 : newIndex;
+      moved.insert(target, moved.removeAt(oldIndex));
+      _pendingOrder = List.unmodifiable(moved);
+      state = _pendingOrder!;
+    }
+    if (_reordersInFlight++ == 0) _reordersIdle = Completer<void>();
+    try {
+      await handler.reorderQueue(oldIndex, newIndex);
+    } finally {
+      if (--_reordersInFlight == 0) {
+        _reordersIdle!.complete();
+        if (_pendingOrder != null) {
+          _pendingOrder = null;
+          if (ref.mounted) ref.invalidateSelf();
+        }
+      }
+    }
+  }
+
+  static bool _sameSongs(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    final counts = <String, int>{};
+    for (final id in a) {
+      counts.update(id, (n) => n + 1, ifAbsent: () => 1);
+    }
+    for (final id in b) {
+      if (counts.update(id, (n) => n - 1, ifAbsent: () => -1) < 0) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<T> _inRemovalOrder<T>(Future<T> Function() task) {
@@ -766,8 +821,26 @@ class QueueController extends Notifier<List<String>> {
     return any >= 0 ? any : fallback;
   }
 
+  /// Plays the row at [index] of the shown order. While moves are in flight
+  /// the handler still indexes the old order, so the tap waits for them and
+  /// then plays the same row (by [queueRowKey]) in the handler's order; if
+  /// the queue was replaced meanwhile it plays nothing.
   Future<void> playFromIndex(int index) async {
     final handler = _requireHandler();
+    if (_reordersInFlight > 0 && index >= 0 && index < state.length) {
+      final shown = state;
+      final row = queueRowKey(shown, index);
+      while (_reordersInFlight > 0) {
+        await _reordersIdle!.future;
+      }
+      final order = handler.snapshot.queueSongIds;
+      if (!_sameSongs(shown, order)) return;
+      index = List.generate(
+        order.length,
+        (i) => i,
+      ).indexWhere((i) => queueRowKey(order, i) == row);
+      if (index < 0) return;
+    }
     await handler.playFromIndex(index);
   }
 

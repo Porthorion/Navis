@@ -177,6 +177,20 @@ Located in `lib/src/providers/app_providers.dart`:
 - `queueProvider` - Current play queue controller
 - `reorderQueueProvider` - Reorder queue items
 
+`QueueController.reorder` shows a drop at once: it sets the moved order as
+`_pendingOrder` before awaiting the handler, whose snapshot arrives only after
+the native move returns. `build()` keeps returning that order while moves are
+in flight (`_reordersInFlight`) and the published queue holds the same songs;
+when the last move ends, success or failure, the list returns to the handler's
+order. `queuePlayingIndex` follows the playing row into the shown order by its
+`queueRowKey`, so the highlight stays on the dropped row meanwhile (exact for
+unique songs; a move that reorders the copies of a duplicated song can mark
+another copy until the handler publishes). `playFromIndex` during that window
+waits for the moves (`_reordersIdle`), then plays the tapped row's
+`queueRowKey` in the handler's order, or nothing if the queue was replaced. The queue
+sheet and screen turn Flutter's default drag handles off on desktop, where
+`QueueTrackRow` draws its own; phones keep long-press drag.
+
 `QueueController.removeForUndo` removes a row through a serial lane
 (`_removalTail`, like `_recommendationCommitTail`), so rapid swipes run one at
 a time. At its turn it re-reads the queue; a row that no longer holds the
