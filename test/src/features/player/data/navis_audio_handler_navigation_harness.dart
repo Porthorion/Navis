@@ -803,6 +803,11 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// A load whose first song is this one fails, as a broken source would.
   String? failLoadSongId;
   Set<String> hungLoadSongs = <String>{};
+
+  /// When set (a one-element list, shared with rebuilt players), only that
+  /// many loads of a [hungLoadSongs] song hang; later loads succeed. Null
+  /// hangs every load.
+  List<int>? hungLoadBudget;
   Set<AudioSource>? claimedSources;
   Completer<void>? replacementLoadGate;
   Completer<void>? stopGate;
@@ -1421,7 +1426,9 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
     final clearedError = errorCode != null;
     if (preload && sources.isNotEmpty) errorCode = null;
     if (source != null) attemptedSongId = _sourceId(source);
-    if (source != null && hungLoadSongs.contains(_sourceId(source))) {
+    if (source != null &&
+        hungLoadSongs.contains(_sourceId(source)) &&
+        (hungLoadBudget == null || hungLoadBudget![0]-- > 0)) {
       await Completer<void>().future;
     }
     await _hangIf('setAudioSources');
@@ -2054,6 +2061,7 @@ createHandler(
               ..loadGate = player.replacementLoadGate
               ..gateNonEmptyLoadsOnly = true;
             if (hungLoadSongs != null) rebuilt.hungLoadSongs = hungLoadSongs;
+            rebuilt.hungLoadBudget = player.hungLoadBudget;
             rebuiltPlayers?.add(rebuilt);
             players?.add(rebuilt);
             return rebuilt;
@@ -2084,3 +2092,28 @@ createHandler(
 
 Map<String, Object?> fade(NavisAudioHandler handler) =>
     handler.collectPlaybackDiagnostics()['crossfade']! as Map<String, Object?>;
+
+/// A user tap whose load is dropped twice now throws
+/// [PlaybackSelectionDroppedException] (the notice path); tests that assert the
+/// resulting failed-load state ignore it.
+extension QuietUserTaps on NavisAudioHandler {
+  Future<void> replaceQueueQuiet(
+    List<String> songIds, {
+    int startIndex = 0,
+    bool autoPlay = true,
+    bool expandMatchFlows = true,
+    List<String>? originalOrder,
+  }) async {
+    try {
+      await replaceQueue(
+        songIds,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: expandMatchFlows,
+        originalOrder: originalOrder,
+      );
+    } on PlaybackSelectionDroppedException {
+      // expected for a failing load
+    }
+  }
+}

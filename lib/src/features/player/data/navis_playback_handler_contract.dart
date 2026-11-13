@@ -81,6 +81,11 @@ abstract class NavisPlaybackHandler {
   /// they could not be prepared when the player needed them.
   Stream<QueueSongsDropped> get droppedSongsStream => const Stream.empty();
 
+  /// A tapped song that is still waiting for queue work to start it after
+  /// [NavisPlaybackTimeouts.userSelectionStall]; each tap emits at most once.
+  Stream<PlaybackSelectionDroppedException> get selectionStallStream =>
+      const Stream.empty();
+
   /// Terminal radio startup or recovery failures.
   ///
   /// Each failure emits once. The handler restores the previous queue paused;

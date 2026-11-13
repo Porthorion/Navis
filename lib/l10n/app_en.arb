@@ -1204,6 +1204,17 @@
   "playbackUnavailableSource": "Could not resolve an audio source. Check server session and connection.",
   "playbackUnavailableGeneric": "Playback is unavailable right now.",
   "playbackActionFailed": "Playback action failed. Please try again.",
+  "playbackSongDidNotStart": "Could not play {title}. Try again.",
+  "@playbackSongDidNotStart": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutCopyPlaybackTrace": "Copy Playback Trace",
+  "aboutCopyPlaybackTraceSub": "Copies recent playback events for a bug report. No passwords or server address.",
+  "aboutPlaybackTraceCopied": "Playback trace copied",
   "commonLoading": "Loading…",
   "queueTitle": "Queue",
   "queueUnknownTrack": "Unknown track",

@@ -1,5 +1,8 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/constants.dart';
 
 void main() {
   test(
@@ -33,5 +36,22 @@ void main() {
     trace.record('event', () => <String, Object?>{'x': 1});
     expect(trace.enabled, isFalse);
     expect(trace.entries, isEmpty);
+  });
+
+  test('an enabled trace keeps a loadFailure entry', () {
+    final trace = PlaybackTransportTrace(enabled: true);
+    trace.record('loadFailure', () => <String, Object?>{'songId': 's1'});
+    expect(trace.entries.single['kind'], 'loadFailure');
+  });
+
+  test('the dev-channel tile and the trace share one predicate', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    expect(container.read(devChannelBuildProvider), AppConstants.isDevChannel);
+    expect(
+      PlaybackTransportTrace().enabled,
+      AppConstants.isDevChannel ||
+          const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS'),
+    );
   });
 }

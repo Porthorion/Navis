@@ -16,6 +16,18 @@ class OperationCancelledException implements Exception {
   String toString() => 'OperationCancelledException';
 }
 
+/// A song the user tapped never started and its one automatic retry failed
+/// too, or the tap stalled behind other queue work.
+class PlaybackSelectionDroppedException implements Exception {
+  const new({required this.songId, this.title});
+  final String songId;
+  final String? title;
+
+  /// No title: it is user library text and this is logged.
+  @override
+  String toString() => 'PlaybackSelectionDroppedException($songId)';
+}
+
 class PlaybackLoadTimeoutException extends TimeoutException {
   new({required this.operation, this.songId, this.timeoutDuration})
     : super(

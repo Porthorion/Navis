@@ -6,10 +6,29 @@ extension _NavisDiagnostics on NavisAudioHandler {
     _activeStartupTrace = null;
   }
 
+  PlaybackStartupTrace _beginStartupTrace(
+    String songId, {
+    required bool isExternal,
+  }) {
+    _activeStartupTrace?.mark('superseded');
+    final trace = PlaybackStartupTrace(
+      attempt: ++_nextStartupAttempt,
+      songId: songId,
+      isExternal: isExternal,
+      awaitingHandler: true,
+    );
+    _activeStartupTrace = trace;
+    _startupTraces.add(trace);
+    if (_startupTraces.length > 16) {
+      _startupTraces.removeAt(0);
+    }
+    return trace;
+  }
+
   void _acceptStartupSelection(String songId, {required bool isExternal}) {
     final trace = _activeStartupTrace;
     if (trace == null || !trace.awaitingHandler || trace.songId != songId) {
-      beginPlaybackSelection(songId, isExternal: isExternal);
+      _beginStartupTrace(songId, isExternal: isExternal);
     }
     _activeStartupTrace?.awaitingHandler = false;
     _activeStartupTrace?.mark('handlerAccepted');
