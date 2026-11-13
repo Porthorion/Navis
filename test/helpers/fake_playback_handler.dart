@@ -42,6 +42,9 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   @override
   Stream<QueueSongsDropped> get droppedSongsStream => const Stream.empty();
   @override
+  Stream<PlaybackSelectionDroppedException> get selectionStallStream =>
+      const Stream.empty();
+  @override
   Stream<void> get radioStreamErrorStream => const Stream.empty();
 
   @override

@@ -35,6 +35,7 @@ import 'package:navis/src/features/auto/data/android_auto_browse_notifier.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -403,6 +404,9 @@ class NavisAudioHandler extends BaseAudioHandler
       StreamController<void>.broadcast();
   final StreamController<QueueSongsDropped> _droppedSongsController =
       StreamController<QueueSongsDropped>.broadcast();
+  final StreamController<PlaybackSelectionDroppedException>
+  _selectionStallController =
+      StreamController<PlaybackSelectionDroppedException>.broadcast();
   final StreamController<PlaybackLoadFailure> _loadFailureController =
       StreamController<PlaybackLoadFailure>.broadcast();
 
@@ -728,6 +732,17 @@ class NavisAudioHandler extends BaseAudioHandler
   PlaybackStartupTrace? _activeStartupTrace;
   int _nextStartupAttempt = 0;
 
+  /// Bumped by every user playback action (a list tap, skip, pause, stop,
+  /// clear, radio), never by automatic recovery or natural advance, so a
+  /// dropped tap is only retried while no newer user intent exists.
+  int _userPlaybackIntent = 0;
+
+  /// The song whose phase 1 started last, for the dropped-tap check.
+  String? _phase1StartedSongId;
+
+  /// Why the last queue replacement ended without reaching phase 1.
+  String? _queueDropReason;
+
   /// Called before provisional remote-song persistence begins.
   @override
   int beginPlaybackSelection(
@@ -735,18 +750,8 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool isExternal,
     SongsTableData? song,
   }) {
-    _activeStartupTrace?.mark('superseded');
-    final trace = PlaybackStartupTrace(
-      attempt: ++_nextStartupAttempt,
-      songId: songId,
-      isExternal: isExternal,
-      awaitingHandler: true,
-    );
-    _activeStartupTrace = trace;
-    _startupTraces.add(trace);
-    if (_startupTraces.length > 16) {
-      _startupTraces.removeAt(0);
-    }
+    _userPlaybackIntent++;
+    final trace = _beginStartupTrace(songId, isExternal: isExternal);
     if (song != null) {
       // Keep radio alive until persistence hands the replacement to the queue
       // loader. A failed provisional write has not changed the playing source.
@@ -808,6 +813,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Stream<QueueSongsDropped> get droppedSongsStream =>
       _droppedSongsController.stream;
+
+  @override
+  Stream<PlaybackSelectionDroppedException> get selectionStallStream =>
+      _selectionStallController.stream;
 
   @override
   Stream<Duration> get positionStream => _positionController.stream;
@@ -1767,13 +1776,16 @@ class NavisAudioHandler extends BaseAudioHandler
     List<String>? originalOrder,
   }) {
     _resetFailoverAccounting();
-    return _replaceQueueIds(
-      songIds,
-      startIndex: startIndex,
-      autoPlay: autoPlay,
-      expandMatchFlows: expandMatchFlows,
-      originalOrder: originalOrder,
-      inPlayOrder: false,
+    return _playUserSelection(
+      songIds.isEmpty ? null : songIds[startIndex.clamp(0, songIds.length - 1)],
+      () => _replaceQueueIds(
+        songIds,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: expandMatchFlows,
+        originalOrder: originalOrder,
+        inPlayOrder: false,
+      ),
     );
   }
 
@@ -1786,13 +1798,20 @@ class NavisAudioHandler extends BaseAudioHandler
     List<String>? originalOrder,
   }) {
     _resetFailoverAccounting();
-    return _replaceQueueRows(
-      songs,
-      startIndex: startIndex,
-      autoPlay: autoPlay,
-      expandMatchFlows: expandMatchFlows,
-      originalOrder: originalOrder,
-      inPlayOrder: false,
+    final tapped = songs.isEmpty
+        ? null
+        : songs[startIndex.clamp(0, songs.length - 1)];
+    return _playUserSelection(
+      tapped?.id,
+      title: tapped?.title,
+      () => _replaceQueueRows(
+        songs,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: expandMatchFlows,
+        originalOrder: originalOrder,
+        inPlayOrder: false,
+      ),
     );
   }
 
@@ -2195,6 +2214,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playFromIndex(int index) {
+    _userPlaybackIntent++;
     _resetFailoverAccounting();
     return _selectIndex(index);
   }
@@ -2282,6 +2302,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> clearQueue() {
+    _userPlaybackIntent++;
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
     _invalidatePendingStartupSelection();
@@ -2511,6 +2532,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> pause() async {
+    _userPlaybackIntent++;
     _transportTrace.record(
       'userAction',
       () => <String, Object?>{'action': 'pause'},
@@ -3043,10 +3065,16 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> skipToNext() => _navigateRelative(forward: true);
+  Future<void> skipToNext() {
+    _userPlaybackIntent++;
+    return _navigateRelative(forward: true);
+  }
 
   @override
-  Future<void> skipToPrevious() => _navigateRelative(forward: false);
+  Future<void> skipToPrevious() {
+    _userPlaybackIntent++;
+    return _navigateRelative(forward: false);
+  }
 
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
@@ -3262,6 +3290,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stop() async {
+    _userPlaybackIntent++;
     _invalidatePendingStartupSelection();
     final transportGeneration = _supersedeTransportIntent(shouldPlay: false);
     if (_isLoading) _supersedeQueueWork();
@@ -3560,6 +3589,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _radioStreamErrorController.close();
     await _loadFailureController.close();
     await _droppedSongsController.close();
+    await _selectionStallController.close();
   }
 
   void beginTeardown() {
@@ -3578,6 +3608,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required String streamUrl,
     String? homePageUrl,
   }) {
+    _userPlaybackIntent++;
     if (!(_readRadioPlaybackAllowed?.call(Uri.parse(streamUrl)) ?? true)) {
       return Future<void>.error(const RadioPlaybackBlockedException());
     }

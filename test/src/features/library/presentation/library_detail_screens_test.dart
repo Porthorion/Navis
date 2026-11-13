@@ -115,6 +115,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   @override
   Stream<QueueSongsDropped> get droppedSongsStream =>
       const Stream<QueueSongsDropped>.empty();
+  @override
+  Stream<PlaybackSelectionDroppedException> get selectionStallStream =>
+      const Stream.empty();
 
   @override
   Stream<TransportVisualCue> get transportVisualCueStream =>

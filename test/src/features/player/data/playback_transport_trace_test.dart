@@ -34,4 +34,10 @@ void main() {
     expect(trace.enabled, isFalse);
     expect(trace.entries, isEmpty);
   });
+
+  test('an enabled trace keeps a loadFailure entry', () {
+    final trace = PlaybackTransportTrace(enabled: true);
+    trace.record('loadFailure', () => <String, Object?>{'songId': 's1'});
+    expect(trace.entries.single['kind'], 'loadFailure');
+  });
 }

@@ -248,12 +248,95 @@ extension _NavisQueueLoading on NavisAudioHandler {
     );
   }
 
+  bool _selectionLanded(String songId) {
+    final started = _phase1StartedSongId;
+    return started != null &&
+        _canonicalSongId(started) == _canonicalSongId(songId);
+  }
+
+  /// Runs a user's song selection ([attempt] is the private replace path).
+  /// A selection that ends without its start song reaching phase 1, and with
+  /// no newer user intent, is retried once; the second drop throws
+  /// [PlaybackSelectionDroppedException]. A selection still waiting after
+  /// [NavisPlaybackTimeouts.userSelectionStall] is traced and reported once
+  /// (no retry: the lane is busy). Cancellations never throw, so the outcome
+  /// is checked after [attempt] returns.
+  Future<void> _playUserSelection(
+    String? songId,
+    Future<void> Function() attempt, {
+    String? title,
+  }) async {
+    final intent = ++_userPlaybackIntent;
+    if (songId == null) return attempt(); // an empty list is a clear
+    Future<String?> titleOf() async =>
+        title ?? (await _libraryDao.getSongById(songId))?.title;
+    var notified = false;
+    final stallTimer = Timer(_timeouts.userSelectionStall, () {
+      if (intent != _userPlaybackIntent || _selectionLanded(songId)) return;
+      notified = true;
+      _transportTrace.record(
+        'userPlayStalled',
+        () => <String, Object?>{
+          'songId': songId,
+          'queueLane': _queueLane.diagnostics,
+        },
+      );
+      AppLogger.warning('User selection $songId has not started.');
+      unawaited(
+        titleOf().then((resolved) {
+          if (_selectionStallController.isClosed) return;
+          _selectionStallController.add(
+            PlaybackSelectionDroppedException(songId: songId, title: resolved),
+          );
+        }),
+      );
+    });
+    try {
+      for (var retry = 0; ; retry++) {
+        _phase1StartedSongId = null;
+        _queueDropReason = null;
+        await attempt();
+        if (intent != _userPlaybackIntent || _selectionLanded(songId)) return;
+        final reason = _queueDropReason ?? 'notStarted';
+        _transportTrace.record(
+          'userPlayDropped',
+          () => <String, Object?>{
+            'songId': songId,
+            'retry': retry,
+            'reason': reason,
+          },
+        );
+        AppLogger.warning(
+          'User selection $songId did not start ($reason, retry $retry).',
+        );
+        if (retry == 1 || !_timeouts.retryDroppedSelection) {
+          if (notified) return; // the stall notice already told the user
+          throw PlaybackSelectionDroppedException(
+            songId: songId,
+            title: await titleOf(),
+          );
+        }
+      }
+    } finally {
+      stallTimer.cancel();
+    }
+  }
+
   void _emitLoadFailure({
     required String operation,
     required String message,
     String? songId,
     bool isTimeout = false,
   }) {
+    _transportTrace.record(
+      'loadFailure',
+      () => <String, Object?>{
+        'operation': operation,
+        'songId': songId,
+        'timeout': isTimeout,
+        'message': redactCredentialQueryParameters(message),
+      },
+    );
     if (_loadFailureController.isClosed) {
       return;
     }
@@ -1805,7 +1888,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       final selected =
           canonicalIds[startIndex.clamp(0, canonicalIds.length - 1)];
       final song = await _libraryDao.getSongById(selected);
-      if (!_isActiveLoadGeneration(admittedGeneration)) return;
+      if (!_isActiveLoadGeneration(admittedGeneration)) {
+        _queueDropReason = 'superseded';
+        return;
+      }
       if (song != null) {
         _setQueueReplacementMetadataAnchor(
           expectedIndex: _navigationIntent.desiredIndex ?? 0,
@@ -1820,7 +1906,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startIndex: startIndex,
       expandMatchFlows: expandMatchFlows,
     );
-    if (!_isActiveLoadGeneration(admittedGeneration)) return;
+    if (!_isActiveLoadGeneration(admittedGeneration)) {
+      _queueDropReason = 'superseded';
+      return;
+    }
     _applyNewQueueMode(
       inPlayOrder: inPlayOrder,
       originalOrder: originalOrder
@@ -1883,7 +1972,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
             .any((index) => canonicalIds[index] != songs[index].id);
     if (hasRetiredIdentity) {
       final canonicalSongs = await _libraryDao.getSongsByIds(canonicalIds);
-      if (!_isActiveLoadGeneration(admittedGeneration)) return;
+      if (!_isActiveLoadGeneration(admittedGeneration)) {
+        _queueDropReason = 'superseded';
+        return;
+      }
       await _replaceQueueRows(
         canonicalSongs,
         startIndex: _startIndexAfterRowResolution(
@@ -1907,7 +1999,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
         expandMatchFlows: true,
       );
       final expandedSongs = await _libraryDao.getSongsByIds(expansion.songIds);
-      if (!_isActiveLoadGeneration(admittedGeneration)) return;
+      if (!_isActiveLoadGeneration(admittedGeneration)) {
+        _queueDropReason = 'superseded';
+        return;
+      }
       await _replaceQueueRows(
         expandedSongs,
         startIndex: _startIndexAfterRowResolution(
@@ -1922,7 +2017,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       );
       return;
     }
-    if (!_isActiveLoadGeneration(admittedGeneration)) return;
+    if (!_isActiveLoadGeneration(admittedGeneration)) {
+      _queueDropReason = 'superseded';
+      return;
+    }
     _applyNewQueueMode(inPlayOrder: inPlayOrder, originalOrder: originalOrder);
     final orderedSongs = songs;
     final orderedStart = startIndex;
@@ -2030,6 +2128,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
           token: token,
         );
         if (startItem != null) {
+          _phase1StartedSongId = startItem.song.id;
           await _persistLogicalQueue(
             songs.map((song) => song.id).toList(growable: false),
             resolvedStartIndex,
@@ -2051,8 +2150,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
         );
         _completeQueueLoad(generation);
       } on OperationCancelledException {
+        _queueDropReason = 'cancelled';
         AppLogger.debug('$context cancelled — superseded by newer command.');
       } on PlaybackLoadTimeoutException catch (error) {
+        _queueDropReason = 'timeout:${error.operation}';
         if (!_isActiveLoadGeneration(generation)) return;
         // The count may have grown since the start was resolved.
         final capped = _autoFailovers >= _maxAutoFailovers;

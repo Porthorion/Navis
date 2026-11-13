@@ -4371,6 +4371,30 @@ abstract class AppLocalizations {
   /// **'Playback action failed. Please try again.'**
   String get playbackActionFailed;
 
+  /// No description provided for @playbackSongDidNotStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not play {title}. Try again.'**
+  String playbackSongDidNotStart(String title);
+
+  /// No description provided for @aboutCopyPlaybackTrace.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Playback Trace'**
+  String get aboutCopyPlaybackTrace;
+
+  /// No description provided for @aboutCopyPlaybackTraceSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Copies recent playback events for a bug report. No passwords or server address.'**
+  String get aboutCopyPlaybackTraceSub;
+
+  /// No description provided for @aboutPlaybackTraceCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback trace copied'**
+  String get aboutPlaybackTraceCopied;
+
   /// No description provided for @commonLoading.
   ///
   /// In en, this message translates to:

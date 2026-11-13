@@ -2779,6 +2779,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Playback action failed. Please try again.';
 
   @override
+  String playbackSongDidNotStart(String title) {
+    return 'Could not play $title. Try again.';
+  }
+
+  @override
+  String get aboutCopyPlaybackTrace => 'Copy Playback Trace';
+
+  @override
+  String get aboutCopyPlaybackTraceSub =>
+      'Copies recent playback events for a bug report. No passwords or server address.';
+
+  @override
+  String get aboutPlaybackTraceCopied => 'Playback trace copied';
+
+  @override
   String get commonLoading => 'Loading…';
 
   @override

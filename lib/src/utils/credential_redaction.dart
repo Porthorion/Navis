@@ -100,6 +100,40 @@ String redactServerHost(String text, {String? host}) {
   return result;
 }
 
+/// [text] with percent-encoding undone (twice at most), so a URL quoted in
+/// encoded form is redacted like a plain one; unchanged if it will not decode.
+String _percentDecoded(String text) {
+  var result = text;
+  for (var i = 0; i < 2 && result.contains('%'); i++) {
+    try {
+      result = Uri.decodeFull(result);
+    } on Object {
+      break;
+    }
+  }
+  return result;
+}
+
+/// Encodes [data] as indented JSON after redacting every String leaf with
+/// [redactCredentialQueryParameters] and [redactServerHost], for diagnostics a
+/// user pastes into a bug report. Leaves are redacted before encoding, never
+/// the encoded text, so an escaped quote cannot break the JSON. Map keys are
+/// fixed field names and stay.
+String redactedDiagnosticsJson(Map<String, Object?> data, {String? host}) {
+  Object? walk(Object? v) => switch (v) {
+    String s => redactServerHost(
+      redactCredentialQueryParameters(_percentDecoded(s)),
+      host: host,
+    ),
+    Map<Object?, Object?> m => {
+      for (final e in m.entries) '${e.key}': walk(e.value),
+    },
+    Iterable<Object?> l => [for (final x in l) walk(x)],
+    _ => v,
+  };
+  return const JsonEncoder.withIndent('  ').convert(walk(data));
+}
+
 /// Runs [body] in a zone whose `print` passes every line through
 /// [redactCredentialQueryParameters] before the parent zone writes it.
 ///

@@ -23,13 +23,17 @@ extension _NavisAndroidAuto on NavisAudioHandler {
     List<String>? originalOrder,
   }) async {
     if (songs.isEmpty) return false;
-    await replaceQueueWithData(
-      songs,
-      startIndex: startIndex,
-      autoPlay: autoPlay,
-      expandMatchFlows: expandMatchFlows,
-      originalOrder: originalOrder,
-    );
+    try {
+      await replaceQueueWithData(
+        songs,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: expandMatchFlows,
+        originalOrder: originalOrder,
+      );
+    } on PlaybackSelectionDroppedException catch (error) {
+      AppLogger.warning('Android Auto play request dropped: $error');
+    }
     return _queueItems.isNotEmpty;
   }
 
@@ -156,7 +160,11 @@ extension _NavisAndroidAuto on NavisAudioHandler {
             );
           }
         }
-        await replaceQueue([parsed.entityId!], autoPlay: autoPlay);
+        try {
+          await replaceQueue([parsed.entityId!], autoPlay: autoPlay);
+        } on PlaybackSelectionDroppedException catch (error) {
+          AppLogger.warning('Android Auto play request dropped: $error');
+        }
         return _queueItems.isNotEmpty;
       case AutoMediaIdType.album:
         final songs = await _libraryDao

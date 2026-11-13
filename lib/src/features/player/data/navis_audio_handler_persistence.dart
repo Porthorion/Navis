@@ -220,10 +220,13 @@ extension _NavisPersistence on NavisAudioHandler {
         'Android Auto resume: queueing recently played songs '
         '(count=${recentSongs.length}).',
       );
-      await replaceQueueWithData(
+      // Automatic resume: bypass the user-tap retry and its notice.
+      _resetFailoverAccounting();
+      await _replaceQueueRows(
         recentSongs,
         autoPlay: true,
         expandMatchFlows: false,
+        inPlayOrder: false,
       );
       return _queueItems.isNotEmpty;
     }
@@ -235,10 +238,13 @@ extension _NavisPersistence on NavisAudioHandler {
         'Android Auto resume: queueing liked songs '
         '(count=${likedSongs.length}).',
       );
-      await replaceQueueWithData(
+      // Automatic resume: bypass the user-tap retry and its notice.
+      _resetFailoverAccounting();
+      await _replaceQueueRows(
         likedSongs,
         autoPlay: true,
         expandMatchFlows: false,
+        inPlayOrder: false,
       );
       return _queueItems.isNotEmpty;
     }

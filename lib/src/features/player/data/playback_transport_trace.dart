@@ -3,10 +3,12 @@
 /// phases), reported by the diagnostics `GET /v1/playback/status`.
 ///
 /// It records nothing, and evaluates no event data, unless diagnostics are
-/// compiled in, so production playback pays only an `enabled` check.
+/// compiled in or the build is a dev-channel build, so production playback pays only an `enabled` check.
 class PlaybackTransportTrace {
   new({
-    this.enabled = const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS'),
+    this.enabled =
+        const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') ||
+        const String.fromEnvironment('NAVIS_UPDATE_CHANNEL') == 'dev',
     this.capacity = 200,
     this._clock = DateTime.now,
   });

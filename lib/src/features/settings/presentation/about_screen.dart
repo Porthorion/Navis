@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
+import 'package:navis/src/features/settings/data/update_repository.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
+import 'package:flutter/services.dart';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -121,6 +125,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             alignStart: useDesktopColumns,
           );
           final information = _AboutInformation(
+            version: version,
             onShowLicenses: () {
               showLicensePage(
                 context: context,
@@ -476,9 +481,34 @@ class _AboutIdentity extends StatelessWidget {
 }
 
 class _AboutInformation extends ConsumerWidget {
-  const new({required this.onShowLicenses});
+  const new({required this.onShowLicenses, required this.version});
 
   final VoidCallback onShowLicenses;
+  final String version;
+
+  Future<void> _copyPlaybackTrace(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final handler = ref.read(audioHandlerProvider);
+      final url = ref.read(serverConfigStateProvider).asData?.value?.url;
+      final text = redactedDiagnosticsJson(<String, Object?>{
+        'appVersion': version,
+        'channel': UpdateRepository.channelFor(),
+        'capturedAt': DateTime.now().toUtc().toIso8601String(),
+        'playback': handler?.collectPlaybackDiagnostics(),
+      }, host: Uri.tryParse(url ?? '')?.host);
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!context.mounted) return;
+      showAppNotice(context, message: l10n.aboutPlaybackTraceCopied);
+    } on Object {
+      if (!context.mounted) return;
+      showAppNotice(
+        context,
+        message: l10n.playbackRecoveryActionFailed,
+        level: AppNoticeLevel.error,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -500,6 +530,14 @@ class _AboutInformation extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => NavService.openChangelog(context),
         ),
+        if (ref.watch(devChannelBuildProvider))
+          ListTile(
+            key: const ValueKey<String>('about-copy-playback-trace'),
+            leading: const Icon(Icons.content_copy_outlined),
+            title: Text(l10n.aboutCopyPlaybackTrace),
+            subtitle: Text(l10n.aboutCopyPlaybackTraceSub),
+            onTap: () => unawaited(_copyPlaybackTrace(context, ref)),
+          ),
         ListTile(
           leading: const Icon(Icons.privacy_tip_outlined),
           title: Text(l10n.privacyTitle),

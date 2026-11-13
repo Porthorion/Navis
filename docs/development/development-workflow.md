@@ -568,6 +568,15 @@ under `native`, the native index, the native shuffle flag (always false: Navis
 owns shuffle, so the native sequence is the play order),
 sequence ids (first 64), effective order and `mediaKitCurrent`.
 
+### Playback trace from dev builds
+
+Dev-channel builds (`NAVIS_UPDATE_CHANNEL=dev`) record the playback transport
+trace without `NAVIS_SYNC_DIAGNOSTICS`. Settings -> About -> Copy Playback Trace
+copies the handler's `collectPlaybackDiagnostics()` as JSON with credentials,
+auth query parameters and the server host redacted. The tile is absent on stable
+builds. Use it to capture `userPlayDropped`, `userPlayStalled` and `loadFailure`
+entries for list-tap bugs.
+
 ### Stream open diagnostics
 
 Run `python3 tool/stream_open_diagnostics.py` after changing the media_kit

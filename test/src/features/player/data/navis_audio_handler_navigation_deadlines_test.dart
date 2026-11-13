@@ -3526,6 +3526,7 @@ void main() {
   group('progress-aware playback deadlines', () {
     // Scaled load, fixed desktop settlement and mobile/load progress budgets.
     const deadlines = NavisPlaybackTimeouts(
+      retryDroppedSelection: false,
       load: Duration(milliseconds: 300),
       seekBufferingRecovery: Duration(milliseconds: 150),
       seekProgress: Duration(milliseconds: 1200),
@@ -3953,7 +3954,7 @@ void main() {
             addTearDown(() {
               if (!gate.isCompleted) gate.complete();
             });
-            final loading = handler.replaceQueue([
+            final loading = handler.replaceQueueQuiet([
               'song-0',
               if (!onlySong) 'song-1',
             ], expandMatchFlows: false);
@@ -4051,6 +4052,7 @@ void main() {
     // Round 10: bounded failover. Scaled deadlines; a short reset window and
     // healthy-play window keep the cascades quick.
     const quick = NavisPlaybackTimeouts(
+      retryDroppedSelection: false,
       load: Duration(milliseconds: 300),
       seekBufferingRecovery: Duration(milliseconds: 400),
       seekProgress: Duration(milliseconds: 1200),
@@ -4288,7 +4290,7 @@ void main() {
       final failures = <PlaybackLoadFailure>[];
       final notices = handler.loadFailureStream.listen(failures.add);
       addTearDown(notices.cancel);
-      await handler.replaceQueue(songIds(6), expandMatchFlows: false);
+      await handler.replaceQueueQuiet(songIds(6), expandMatchFlows: false);
       await idle(handler);
       expect(handler.snapshot.currentSongId, 'song-2');
       expect(handler.snapshot.queueSongIds, songIds(6));
@@ -4316,7 +4318,7 @@ void main() {
           rebuiltPlayers: rebuilt,
           hungLoadSongs: hung,
         );
-        await handler.replaceQueue(songIds(8), expandMatchFlows: false);
+        await handler.replaceQueueQuiet(songIds(8), expandMatchFlows: false);
         await idle(handler);
         expect(handler.snapshot.currentSongId, 'song-2');
         switch (command) {
@@ -4325,7 +4327,7 @@ void main() {
           case 'skipToNext':
             await handler.skipToNext();
           default:
-            await handler.replaceQueue(
+            await handler.replaceQueueQuiet(
               songIds(8),
               startIndex: 4,
               expandMatchFlows: false,
@@ -4358,7 +4360,7 @@ void main() {
           trimSlack: 1,
         ),
       );
-      await handler.replaceQueue(songIds(14), expandMatchFlows: false);
+      await handler.replaceQueueQuiet(songIds(14), expandMatchFlows: false);
       await idle(handler);
       // Let a background tail release run if one is going to.
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -4629,6 +4631,7 @@ void main() {
         final (handler, player, _) = await fixture(
           hungLoadSongs: hung,
           timeouts: const NavisPlaybackTimeouts(
+            retryDroppedSelection: false,
             load: Duration(seconds: 2),
             seekBufferingRecovery: Duration(milliseconds: 150),
             seekProgress: Duration(seconds: 10),
@@ -4646,7 +4649,7 @@ void main() {
         addTearDown(() {
           if (!gate.isCompleted) gate.complete();
         });
-        final loading = handler.replaceQueue([
+        final loading = handler.replaceQueueQuiet([
           'song-0',
         ], expandMatchFlows: false);
         await entered.future;
@@ -4668,6 +4671,7 @@ void main() {
       final (handler, player, _) = await fixture(
         rebuiltPlayers: rebuilt,
         timeouts: const NavisPlaybackTimeouts(
+          retryDroppedSelection: false,
           load: Duration(milliseconds: 600),
           seekProgress: Duration(milliseconds: 1000),
           reset: Duration(milliseconds: 300),
@@ -4684,7 +4688,9 @@ void main() {
       addTearDown(() {
         if (!gate.isCompleted) gate.complete();
       });
-      final loading = handler.replaceQueue(['song-0'], expandMatchFlows: false);
+      final loading = handler.replaceQueueQuiet([
+        'song-0',
+      ], expandMatchFlows: false);
       await entered.future;
       await Future<void>.delayed(const Duration(milliseconds: 250));
       final seeking = handler.seek(const Duration(seconds: 60));
@@ -4810,12 +4816,12 @@ void main() {
               ids = ['song-0'];
               failing = 'song-0';
               hung.add(failing);
-              await handler.replaceQueue(ids, expandMatchFlows: false);
+              await handler.replaceQueueQuiet(ids, expandMatchFlows: false);
             case 'last of three':
               ids = songIds(3);
               failing = 'song-2';
               hung.add(failing);
-              await handler.replaceQueue(
+              await handler.replaceQueueQuiet(
                 ids,
                 startIndex: 2,
                 expandMatchFlows: false,
@@ -4825,7 +4831,7 @@ void main() {
               ids = ['song-1', 'song-2', 'song-0'];
               failing = 'song-0';
               hung.add(failing);
-              await handler.replaceQueue(
+              await handler.replaceQueueQuiet(
                 ids,
                 startIndex: 2,
                 originalOrder: songIds(3),
@@ -4861,7 +4867,7 @@ void main() {
           hungLoadSongs: hung,
           desktopRuntimeOverride: !mobile,
         );
-        await handler.replaceQueue([
+        await handler.replaceQueueQuiet([
           'song-0',
           'song-1',
         ], expandMatchFlows: false);
@@ -4871,7 +4877,7 @@ void main() {
           ['song-0', 'song-1'],
         );
         hung.add('song-3');
-        await handler.replaceQueue(['song-3'], expandMatchFlows: false);
+        await handler.replaceQueueQuiet(['song-3'], expandMatchFlows: false);
         await idle(handler);
         await expectFailedFinalSongKept(
           handler,
@@ -4925,7 +4931,10 @@ void main() {
       addTearDown(() {
         if (!gate.isCompleted) gate.complete();
       });
-      final loading = handler.replaceQueue(songIds(3), expandMatchFlows: false);
+      final loading = handler.replaceQueueQuiet(
+        songIds(3),
+        expandMatchFlows: false,
+      );
       await entered.future;
       hungSongs.add('song-0');
       final seeking = handler.seek(const Duration(seconds: 90));
@@ -5101,6 +5110,7 @@ void main() {
           final (handler, player, grow) = await fixture(
             timeouts: idle
                 ? const NavisPlaybackTimeouts(
+                    retryDroppedSelection: false,
                     load: Duration(milliseconds: 300),
                     seekProgress: Duration(milliseconds: 2400),
                     progressIdle: Duration(milliseconds: 300),
@@ -5121,7 +5131,7 @@ void main() {
           addTearDown(subscription.cancel);
           grow(growing: true);
           final elapsed = Stopwatch()..start();
-          final loading = handler.replaceQueue([
+          final loading = handler.replaceQueueQuiet([
             'song-0',
             'song-1',
           ], expandMatchFlows: false);

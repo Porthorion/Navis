@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
@@ -259,5 +260,41 @@ void main() {
     final watch = Stopwatch()..start();
     redactServerHost('${'a' * 60000}://');
     expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+  });
+
+  group('redactedDiagnosticsJson', () {
+    const url =
+        'https://alice:pw@nas.example.com:4533/rest/stream.view?u=alice&t=tok123&s=salt99&p=enc:abc&apiKey=key77&id=song-42';
+
+    test('strips credentials and the server host from every nested string', () {
+      final text = redactedDiagnosticsJson(<String, Object?>{
+        'n': 3,
+        'nested': <String, Object?>{
+          'list': <Object?>[
+            url,
+            'failed ${Uri.encodeComponent(url)}',
+            'SocketException: Connection refused, address = nas.example.com, port = 4533',
+            <String, Object?>{'deep': url},
+          ],
+        },
+        'quoted': 'Failed to open "https://nas.example.com:4533/rest/stream.view?t=tok123&id=1"',
+      }, host: 'nas.example.com');
+      for (final secret in <String>[
+        'alice',
+        'pw@',
+        'tok123',
+        'salt99',
+        'enc:abc',
+        'key77',
+        'nas.example.com',
+        '4533',
+      ]) {
+        expect(text, isNot(contains(secret)), reason: secret);
+      }
+      expect(text, contains('song-42'));
+      final decoded = jsonDecode(text) as Map<String, Object?>;
+      expect(decoded['n'], 3);
+      expect(decoded['quoted'], isA<String>());
+    });
   });
 }
