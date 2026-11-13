@@ -2198,11 +2198,12 @@ class _HomeSection<T> extends StatelessWidget {
     final washVisible =
         showcaseBackdrop &&
         !NavisColorStyleData.of(context).flatSurfaces &&
+        !data.hasError &&
         loaded != null &&
         !isEmpty(loaded);
     // Page edges beside a bare system inset (notch, status strip) fade out;
     // the sidebar, the rail and the tablet card stay hard edges.
-    final bare = desktopMode
+    final bare = desktopMode || !showcaseBackdrop
         ? (left: false, right: false)
         : bareSideInsetsOf(context);
     Widget backdrop(
@@ -2726,9 +2727,7 @@ class _DesktopRandomAlbumsPagerState
         ],
       ],
     );
-    // Flat: no wash, band or panel; the pager sits on the page background.
-    // The keyed pager keeps one parent in both modes, so toggling Flat
-    // Surfaces never remounts the PageView back to its first page.
+    // The section backdrop paints the wash; the pager only reports its cover.
     _ShowcaseBackdrop.report(
       context,
       coverArtId: _showcaseWashCoverId(currentItem),
