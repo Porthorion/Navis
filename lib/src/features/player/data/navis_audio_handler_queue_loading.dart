@@ -310,7 +310,22 @@ extension _NavisQueueLoading on NavisAudioHandler {
         _phase1StartedSongId = null;
         _phase1BeganSongId = null;
         _queueDropReason = null;
-        await attempt();
+        try {
+          await attempt();
+        } on OperationCancelledException {
+          rethrow;
+        } on Object catch (error) {
+          _transportTrace.record(
+            'userPlayFailed',
+            () => <String, Object?>{
+              'songId': songId,
+              'retry': retry,
+              // The type only: a message may hold a URL.
+              'error': error.runtimeType.toString(),
+            },
+          );
+          rethrow;
+        }
         if (intent != _userPlaybackIntent || _selectionLanded(songId)) return;
         final reason = _queueDropReason ?? 'notStarted';
         _transportTrace.record(

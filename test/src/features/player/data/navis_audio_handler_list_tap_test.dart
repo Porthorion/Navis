@@ -22,6 +22,7 @@ class NthGateResolver extends GatedSourceResolver {
   new(super.delegate);
   int gateOnNth = 1;
   int _seen = 0;
+  String? throwFor;
 
   @override
   Future<ResolvedPlaybackSource> resolveForSong(
@@ -31,6 +32,7 @@ class NthGateResolver extends GatedSourceResolver {
     Duration? transcodeOffset,
     bool fastSeekBridge = false,
   }) {
+    if (song.id == throwFor) throw StateError('boom ${song.id}');
     final pass = song.id == blockedSongId && ++_seen != gateOnNth;
     if (!pass) {
       return super.resolveForSong(
@@ -91,6 +93,8 @@ void main() {
     ),
     bool matchFlow = false,
     NavisQueueWindow window = const NavisQueueWindow(),
+    int queueStart = 0,
+    String replayGainMode = 'off',
   }) async {
     final directory = await Directory.systemTemp.createTemp('i619');
     final trace = PlaybackTransportTrace(enabled: true);
@@ -104,6 +108,8 @@ void main() {
       matchFlow: matchFlow,
       queueWindow: window,
       transportTrace: trace,
+      replayGainMode: replayGainMode,
+      replayGainInPipeline: replayGainMode == 'off' ? null : true,
       // A timed-out cached file is dropped, so the retry streams.
       readApiClient: () => SubsonicApiClient(
         baseUrl: 'https://example.com',
@@ -127,7 +133,11 @@ void main() {
     final rows = await database.libraryDao.getSongsByIds([
       for (var i = 0; i < queueSize; i++) 'song-$i',
     ]);
-    await handler.replaceQueueWithData(rows, expandMatchFlows: false);
+    await handler.replaceQueueWithData(
+      rows,
+      startIndex: queueStart,
+      expandMatchFlows: false,
+    );
     await settleQueue(handler);
     await handler.play();
     await settleQueue(handler);
@@ -466,6 +476,70 @@ void main() {
       await Future<void>.delayed(stall + const Duration(milliseconds: 400));
       expect(f.handler.snapshot.currentSongId, 'song-4');
       expect(stalls, isEmpty);
+    });
+  });
+
+  // Issue #619 (second cause): with Smart ReplayGain in the pipeline, a tap
+  // whose start index is below the playing queue's deferred head threw a
+  // RangeError in the neighbour lookup and then failed every such tap.
+  group('smart ReplayGain with a deferred head', () {
+    for (final mode in ['smart', 'track']) {
+      for (final (name, album, start) in [
+        ('one song at index 0', [0], 0),
+        ('four songs at index 1', [0, 1, 2, 3], 1),
+        ('start index below the head', [0, 1, 2, 3, 4, 5, 6, 7], 2),
+        ('start index equal to the head', [0, 1, 2, 3, 4, 5, 6, 7], 6),
+        ('start index above the head', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 8),
+      ]) {
+        test('$mode: $name lands and plays', () async {
+          final f = await fixture(
+            count: 10,
+            queueSize: 10,
+            window: small,
+            queueStart: 7,
+            replayGainMode: mode,
+          );
+          expect(
+            f.handler.collectPlaybackDiagnostics()['deferredHeadLength'],
+            6,
+          );
+          final rows = f.rows
+              .where((r) => album.contains(int.parse(r.id.substring(5))))
+              .toList();
+          final target = rows[start].id;
+          final seen = f.trace.entries.length;
+          List<Map<String, Object?>> since(String kind) => f.trace.entries
+              .skip(seen)
+              .where((e) => e['kind'] == kind)
+              .toList();
+          await f.handler.replaceQueueWithData(rows, startIndex: start);
+          await settleQueue(f.handler);
+          expect(f.handler.snapshot.currentSongId, target);
+          expect(f.handler.snapshot.currentIndex, start);
+          expect(f.handler.snapshot.isLoading, isFalse);
+          expect(
+            since('sourceResolved').where((e) => e['songId'] == target),
+            hasLength(1),
+          );
+          expect(since('userPlayFailed'), isEmpty);
+        });
+      }
+    }
+  });
+
+  group('userPlayFailed', () {
+    test('a non-cancel error is traced by type and rethrown', () async {
+      final f = await fixture();
+      f.resolver.throwFor = 'song-3';
+      await expectLater(
+        f.handler.replaceQueueWithData(f.rows, startIndex: 3),
+        throwsA(isA<StateError>()),
+      );
+      final failed = entries(f.trace, 'userPlayFailed');
+      expect(failed, hasLength(1));
+      expect(failed.single['songId'], 'song-3');
+      expect(failed.single['error'], 'StateError');
+      expect(failed.single['retry'], 0);
     });
   });
 
