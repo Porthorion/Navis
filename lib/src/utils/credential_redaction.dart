@@ -5,8 +5,8 @@ import 'dart:convert';
 ///
 /// A token and salt pair (`t`, `s`) can be replayed, `p` carries the password,
 /// `apiKey` is OpenSubsonic API-key authentication, and `u` names the account.
-/// `password`, `token`, `access_token` and `refresh_token` are the generic
-/// names a proxy, a redirect or an OAuth-style service puts on a URL.
+/// This set also decides what [credentialFreeUri] strips from stored server
+/// URLs and cache keys, so keep it to Subsonic's own parameters.
 const subsonicCredentialQueryParameters = {
   'u',
   't',
@@ -14,6 +14,13 @@ const subsonicCredentialQueryParameters = {
   'p',
   'apiKey',
   'api_key',
+};
+
+/// Parameters redacted from free text (logs, diagnostics): the Subsonic set plus
+/// the generic names a proxy, a redirect or an OAuth-style service puts on a
+/// URL. Text redaction only; never used to rewrite a URL that is stored or sent.
+const _textCredentialQueryParameters = {
+  ...subsonicCredentialQueryParameters,
   'password',
   'token',
   'access_token',
@@ -49,7 +56,7 @@ Uri credentialFreeUri(Uri uri) => uri.replace(
 /// next parameter, fragment, whitespace, or quote.
 final _credentialQueryParameter = RegExp(
   '((?:[?&]|&amp;|%3F|%26|%253F|%2526)'
-  '(?:${subsonicCredentialQueryParameters.map(RegExp.escape).join('|')})'
+  '(?:${_textCredentialQueryParameters.map(RegExp.escape).join('|')})'
   r'''(?:=|%3D|%253D))(?:(?!%26|%2526)[^&#\s"'<>])+''',
   caseSensitive: false,
 );

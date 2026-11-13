@@ -5,6 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 
 void main() {
+  test(
+    'credentialFreeUri keeps non-Subsonic parameters such as a proxy token',
+    () {
+      final uri = Uri.parse(
+        'https://h/x?token=a&password=b&access_token=c&id=1&u=me',
+      );
+      final cleaned = credentialFreeUri(uri);
+      expect(cleaned.queryParameters, {
+        'token': 'a',
+        'password': 'b',
+        'access_token': 'c',
+        'id': '1',
+      });
+      expect(uriCarriesCredentials(Uri.parse('https://h/x?token=a')), isFalse);
+    },
+  );
+
   test('credential-free cache URIs remove all credential keys and keep repeated metadata', () {
     final uri = credentialFreeUri(
       Uri.parse(
