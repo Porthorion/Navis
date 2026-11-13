@@ -1,4 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,6 +33,18 @@ class _CopyRecovery extends Fake implements PlaybackRecoveryService {
   int copies = 0;
   @override
   Future<void> copyDetails() async => copies++;
+}
+
+class _TraceHandler extends Fake implements NavisPlaybackHandler {
+  @override
+  Map<String, Object?> collectPlaybackDiagnostics() => <String, Object?>{
+    'transportTrace': <Object?>[
+      <String, Object?>{
+        'kind': 'loadFailure',
+        'message': 'Failed https://alice:pw@nas.example.com:4533/rest/stream.view?u=alice&t=tok123&s=salt99&id=song-42',
+      },
+    ],
+  };
 }
 
 void main() {
@@ -99,6 +118,7 @@ void main() {
       PlaybackRecoveryService? recovery,
       AppNoticeController? notices,
       bool updateFails = false,
+      List<Override> extraOverrides = const <Override>[],
     }) async {
       await tester.binding.setSurfaceSize(
         desktopMode ? const Size(1280, 800) : const Size(900, 1200),
@@ -108,6 +128,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ...extraOverrides,
             if (recovery != null)
               playbackRecoveryServiceProvider.overrideWithValue(recovery),
             settingsRepositoryProvider.overrideWithValue(repository),
@@ -194,6 +215,77 @@ void main() {
         notices.dismiss();
       },
     );
+
+    testWidgets('stable builds hide Copy Playback Trace', (tester) async {
+      await pumpAbout(tester, updateInfo: null);
+      expect(
+        find.byKey(const ValueKey<String>('about-copy-playback-trace')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('dev builds copy a redacted playback trace', (tester) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      await pumpAbout(
+        tester,
+        updateInfo: null,
+        notices: notices,
+        extraOverrides: <Override>[
+          devChannelBuildProvider.overrideWithValue(true),
+          audioHandlerProvider.overrideWithValue(_TraceHandler()),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncValue.data(
+              ServerConfigModel(
+                url: 'https://nas.example.com:4533',
+                username: 'alice',
+                password: 'pw',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+        ],
+      );
+      final tile = find.byKey(
+        const ValueKey<String>('about-copy-playback-trace'),
+      );
+      await tester.scrollUntilVisible(tile, 200);
+      await tester.tap(tile);
+      await tester.pump();
+      final text = copied!;
+      final decoded = jsonDecode(text) as Map<String, Object?>;
+      final playback = decoded['playback']! as Map<String, Object?>;
+      expect(playback['transportTrace'], isNotEmpty);
+      for (final secret in <String>[
+        'alice',
+        'pw@',
+        'tok123',
+        'salt99',
+        'nas.example.com',
+        '4533',
+      ]) {
+        expect(text, isNot(contains(secret)), reason: secret);
+      }
+      expect(text, contains('song-42'));
+      expect(notices.notice?.message, 'Playback trace copied');
+      notices.dismiss();
+    });
 
     testWidgets('a failed Check now shows an error notice and subtitle', (
       tester,

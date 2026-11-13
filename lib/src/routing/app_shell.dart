@@ -681,6 +681,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (e is PlaybackSourceUnavailableException) {
       return l10n.playbackUnavailableSource;
     }
+    if (e is PlaybackSelectionDroppedException) {
+      final title = e.title;
+      return title == null
+          ? l10n.playbackActionFailed
+          : l10n.playbackSongDidNotStart(title);
+    }
     return l10n.playbackActionFailed;
   }
 
@@ -903,6 +909,20 @@ class _AppShellState extends ConsumerState<AppShell> {
         level: AppNoticeLevel.error,
       );
     });
+    ref.listen<AsyncValue<PlaybackSelectionDroppedException>>(
+      playbackSelectionStalledProvider,
+      (prev, next) {
+        final stalled = next.asData?.value;
+        if (!mounted || stalled == null) return;
+        _appNoticeController.show(
+          message: _playbackErrorMessage(
+            l10n,
+            PlaybackActionError(error: stalled),
+          ),
+          level: AppNoticeLevel.error,
+        );
+      },
+    );
     ref.listen<bool>(
       playerStateProvider.select((snapshot) => snapshot.hasActivePlayback),
       (previous, next) {

@@ -111,11 +111,20 @@ class NavisPlaybackTimeouts {
     this.radioHealthyPlay = const Duration(minutes: 1),
     this.healthyPlayback = const Duration(seconds: 5),
     this.queueRestore = const Duration(seconds: 10),
+    this.userSelectionStall = const Duration(seconds: 8),
+    this.retryDroppedSelection = true,
   });
 
   /// Initial deadline for a native load, or fixed deadline for queue edits.
   /// A song load may extend while bytes or its native buffer advance.
   final Duration load;
+
+  /// How long a tapped song may wait for phase 1 before the user is told.
+  final Duration userSelectionStall;
+
+  /// Whether a dropped user tap is retried once. Tests of the load-deadline
+  /// and failover machinery turn it off to observe a single attempt.
+  final bool retryDroppedSelection;
 
   /// How long phase 1 of an iOS queue replacement waits for the next song to
   /// resolve before it starts with the start song alone.

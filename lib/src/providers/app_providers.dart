@@ -2381,6 +2381,14 @@ final queueSongsDroppedProvider = Provider<Stream<QueueSongsDropped>>((ref) {
   return handler?.droppedSongsStream ?? const Stream<QueueSongsDropped>.empty();
 });
 
+/// A tapped song still waiting to start after the stall deadline.
+final playbackSelectionStalledProvider =
+    StreamProvider<PlaybackSelectionDroppedException>((ref) {
+      final handler = ref.watch(audioHandlerProvider);
+      return handler?.selectionStallStream ??
+          const Stream<PlaybackSelectionDroppedException>.empty();
+    });
+
 /// The station ID currently playing, or null when not in radio mode.
 final currentRadioStationIdProvider = Provider<String?>((ref) {
   final snapshot = ref.watch(playerStateProvider);
@@ -3501,6 +3509,12 @@ final updateHostProvider = Provider<String>(
   (ref) => IntegrationService.updates.displayHostFor(
     ref.watch(effectiveUpdateSourceProvider),
   )!,
+);
+
+/// Whether this is a dev-channel build (any platform), which offers developer
+/// tools such as Copy Playback Trace.
+final devChannelBuildProvider = Provider<bool>(
+  (ref) => AppConstants.isDevChannel,
 );
 
 /// The UI hides unsupported/store-managed choices and disables dev choices.

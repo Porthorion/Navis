@@ -5,6 +5,8 @@ import 'dart:convert';
 ///
 /// A token and salt pair (`t`, `s`) can be replayed, `p` carries the password,
 /// `apiKey` is OpenSubsonic API-key authentication, and `u` names the account.
+/// This set also decides what [credentialFreeUri] strips from stored server
+/// URLs and cache keys, so keep it to Subsonic's own parameters.
 const subsonicCredentialQueryParameters = {
   'u',
   't',
@@ -12,6 +14,17 @@ const subsonicCredentialQueryParameters = {
   'p',
   'apiKey',
   'api_key',
+};
+
+/// Parameters redacted from free text (logs, diagnostics): the Subsonic set plus
+/// the generic names a proxy, a redirect or an OAuth-style service puts on a
+/// URL. Text redaction only; never used to rewrite a URL that is stored or sent.
+const _textCredentialQueryParameters = {
+  ...subsonicCredentialQueryParameters,
+  'password',
+  'token',
+  'access_token',
+  'refresh_token',
 };
 
 /// Whether [uri] carries URL user info or a Subsonic credential parameter and must
@@ -43,7 +56,7 @@ Uri credentialFreeUri(Uri uri) => uri.replace(
 /// next parameter, fragment, whitespace, or quote.
 final _credentialQueryParameter = RegExp(
   '((?:[?&]|&amp;|%3F|%26|%253F|%2526)'
-  '(?:${subsonicCredentialQueryParameters.map(RegExp.escape).join('|')})'
+  '(?:${_textCredentialQueryParameters.map(RegExp.escape).join('|')})'
   r'''(?:=|%3D|%253D))(?:(?!%26|%2526)[^&#\s"'<>])+''',
   caseSensitive: false,
 );
@@ -55,12 +68,24 @@ final _credentialUserInfo = RegExp(
   caseSensitive: false,
 );
 
+// `Bearer <token>`, and the value (with an optional scheme such as `Basic`) of
+// an `Authorization: ...` header or key, in logs, JSON and error text.
+final _authorizationCredential = RegExp(
+  r'''(\bBearer\s+)[A-Za-z0-9._~+/=-]+'''
+  r'''|(\bAuthorization["']?\s*[:=]\s*["']?(?:[a-z]+\s+)?)[^\s"',;&]+''',
+  caseSensitive: false,
+);
+
 /// Strips URL user info and replaces the value of every Subsonic credential query parameter in [text]
 /// with `REDACTED`, leaving the rest of the text, including other parameters
 /// such as the song `id`, unchanged.
 String redactCredentialQueryParameters(String text) => text
     .replaceAllMapped(_credentialUserInfo, (m) => m[1]!)
-    .replaceAllMapped(_credentialQueryParameter, (m) => '${m[1]}REDACTED');
+    .replaceAllMapped(_credentialQueryParameter, (m) => '${m[1]}REDACTED')
+    .replaceAllMapped(
+      _authorizationCredential,
+      (m) => '${m[1] ?? m[2]}REDACTED',
+    );
 
 // The scheme and authority of a URI in free text; the path and query stay.
 final _uriAuthority = RegExp(
@@ -98,6 +123,45 @@ String redactServerHost(String text, {String? host}) {
     );
   }
   return result;
+}
+
+/// [text] with percent-encoding undone (twice at most), so a URL quoted in
+/// encoded form is redacted like a plain one; unchanged if it will not decode.
+String _percentDecoded(String text) {
+  var result = text;
+  for (var i = 0; i < 2 && result.contains('%'); i++) {
+    try {
+      result = Uri.decodeFull(result);
+    } on Object {
+      break;
+    }
+  }
+  return result;
+}
+
+/// Encodes [data] as indented JSON after redacting every String leaf with
+/// [redactCredentialQueryParameters] and [redactServerHost], for diagnostics a
+/// user pastes into a bug report. Leaves are redacted before encoding, never
+/// the encoded text, so an escaped quote cannot break the JSON. Map keys are
+/// redacted like leaves; a `DateTime` leaf becomes ISO 8601 and any other
+/// non-JSON leaf its redacted `toString`.
+String redactedDiagnosticsJson(Map<String, Object?> data, {String? host}) {
+  String clean(String s) => redactServerHost(
+    redactCredentialQueryParameters(_percentDecoded(s)),
+    host: host,
+  );
+  Object? walk(Object? v) => switch (v) {
+    String s => clean(s),
+    Map<Object?, Object?> m => {
+      for (final e in m.entries) clean('${e.key}'): walk(e.value),
+    },
+    Iterable<Object?> l => [for (final x in l) walk(x)],
+    _ => v,
+  };
+  return JsonEncoder.withIndent(
+    '  ',
+    (o) => o is DateTime ? o.toIso8601String() : clean('$o'),
+  ).convert(walk(data));
 }
 
 /// Runs [body] in a zone whose `print` passes every line through
