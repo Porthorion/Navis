@@ -688,7 +688,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       final heardIndex = _resolveCurrentQueueMetadata().currentIndex;
       _replayGainDecisionFor(
         current,
-        heard: heardIndex == null
+        heard: heardIndex == null || heardIndex < 0
             ? null
             : _player.sequence.elementAtOrNull(heardIndex),
       );
@@ -1128,11 +1128,16 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// when it is not queued.
   int _queueIndexOfSong(MediaItem item) {
     final target = _crossfadeTargetIndex;
-    if (target != null && _queueItems.elementAtOrNull(target)?.id == item.id) {
+    if (target != null &&
+        target >= 0 &&
+        _queueItems.elementAtOrNull(target)?.id == item.id) {
       return target;
     }
     final current = _resolveCurrentQueueMetadata().currentIndex;
+    // Negative while a replacement loads: the anchor's index is in the new
+    // list but is offset by the outgoing queue's deferred head (#619).
     if (current != null &&
+        current >= 0 &&
         _queueItems.elementAtOrNull(current)?.id == item.id) {
       return current;
     }
