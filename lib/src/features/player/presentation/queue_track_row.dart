@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -30,16 +31,42 @@ import 'package:navis/src/utils/app_logger.dart';
 bool queueActionsDisabled(PlaybackSnapshot playback) =>
     playback.isLoading && playback.hasPendingLogicalQueue;
 
-/// Indicator state for the queue row at [index] of [queueIds].
+/// Index of the playing row in [queueIds], or null when the snapshot's index
+/// points outside the queue it was taken in.
+///
+/// The list can show a drop before the handler publishes it, so
+/// [PlaybackSnapshot.currentIndex] indexes the old order: the row is followed
+/// by its [queueRowKey] (song id and occurrence). That is exact for unique
+/// songs; for a duplicated song, a move that changes which copy comes first
+/// can mark another copy of the same song until the handler publishes.
+int? queuePlayingIndex(PlaybackSnapshot playback, List<String> queueIds) {
+  final index = playback.currentIndex;
+  final published = playback.queueSongIds;
+  if (index == null ||
+      index < 0 ||
+      index >= published.length ||
+      listEquals(queueIds, published)) {
+    return index;
+  }
+  final playing = queueRowKey(published, index);
+  for (var i = 0; i < queueIds.length; i++) {
+    if (queueRowKey(queueIds, i) == playing) return i;
+  }
+  return null;
+}
+
+/// Indicator state for the queue row at [index] of [queueIds]; [playingIndex]
+/// is [queuePlayingIndex], computed once per build rather than per row.
 SongPlaybackIndicatorState queueRowIndicatorState(
   PlaybackSnapshot playback,
   List<String> queueIds,
   int index,
+  int? playingIndex,
 ) => resolveQueueSongPlaybackIndicatorState(
   rowIndex: index,
   rowSongId: queueIds[index],
   queueSongIds: queueIds,
-  currentIndex: playback.currentIndex,
+  currentIndex: playingIndex,
   currentSongId: playback.currentSongId,
   isLoading: playback.isLoading,
   loadingSongId: playback.loadingSongId,
