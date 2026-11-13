@@ -740,6 +740,9 @@ class NavisAudioHandler extends BaseAudioHandler
   /// The song whose phase 1 started last, for the dropped-tap check.
   String? _phase1StartedSongId;
 
+  /// The song whose phase 1 began last (before its load), for the stall check.
+  String? _phase1BeganSongId;
+
   /// Why the last queue replacement ended without reaching phase 1.
   String? _queueDropReason;
 

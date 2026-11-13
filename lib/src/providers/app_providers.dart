@@ -3514,7 +3514,7 @@ final updateHostProvider = Provider<String>(
 /// Whether this is a dev-channel build (any platform), which offers developer
 /// tools such as Copy Playback Trace.
 final devChannelBuildProvider = Provider<bool>(
-  (ref) => UpdateRepository.channelFor() != 'stable',
+  (ref) => AppConstants.isDevChannel,
 );
 
 /// The UI hides unsupported/store-managed choices and disables dev choices.

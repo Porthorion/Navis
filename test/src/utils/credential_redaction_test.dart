@@ -296,5 +296,58 @@ void main() {
       expect(decoded['n'], 3);
       expect(decoded['quoted'], isA<String>());
     });
+
+    test('redacts map keys like values', () {
+      final text = redactedDiagnosticsJson(<String, Object?>{
+        'https://alice:pw@nas.example.com/x?t=tok123&id=1': 'ok',
+        'nested': <String, Object?>{'?token=tok456&id=2': 1},
+      });
+      for (final secret in <String>['alice', 'pw@', 'tok123', 'tok456']) {
+        expect(text, isNot(contains(secret)), reason: secret);
+      }
+      expect(jsonDecode(text), isA<Map<String, Object?>>());
+    });
+
+    test('redacts generic credential parameters, tokens and headers', () {
+      final text = redactedDiagnosticsJson(<String, Object?>{
+        'a': 'https://h/x?id=1&PASSWORD=pw111&Token=tk222&access_token=at333',
+        'b': 'https://h/x?refresh_token=rt444&id=2',
+        'c': 'Bearer bt555 failed',
+        'd': 'Authorization: Basic YWxpY2U6cHc= retry',
+        'e': {'Authorization': 'Bearer bt666'},
+        'f': 'x%3Faccess_token%3Dat777%26id%3D3 and Bearer%20bt888',
+        'g': [
+          'n',
+          {'h': 'authorization=Digest dg999;'},
+        ],
+      });
+      for (final secret in <String>[
+        'pw111',
+        'tk222',
+        'at333',
+        'rt444',
+        'bt555',
+        'YWxpY2U6cHc=',
+        'bt666',
+        'at777',
+        'bt888',
+        'dg999',
+      ]) {
+        expect(text, isNot(contains(secret)), reason: secret);
+      }
+      expect(text, contains('id=1'));
+      expect(text, contains('failed'));
+      expect(text, contains('retry'));
+    });
+
+    test('encodes a DateTime leaf as ISO 8601', () {
+      final text = redactedDiagnosticsJson(<String, Object?>{
+        'at': DateTime.utc(2026, 11, 13, 1, 2, 3),
+        'odd': Uri.parse('https://h/x?t=tok123'),
+      });
+      final decoded = jsonDecode(text) as Map<String, Object?>;
+      expect(decoded['at'], '2026-11-13T01:02:03.000Z');
+      expect(text, isNot(contains('tok123')));
+    });
   });
 }

@@ -5,6 +5,8 @@ import 'dart:convert';
 ///
 /// A token and salt pair (`t`, `s`) can be replayed, `p` carries the password,
 /// `apiKey` is OpenSubsonic API-key authentication, and `u` names the account.
+/// `password`, `token`, `access_token` and `refresh_token` are the generic
+/// names a proxy, a redirect or an OAuth-style service puts on a URL.
 const subsonicCredentialQueryParameters = {
   'u',
   't',
@@ -12,6 +14,10 @@ const subsonicCredentialQueryParameters = {
   'p',
   'apiKey',
   'api_key',
+  'password',
+  'token',
+  'access_token',
+  'refresh_token',
 };
 
 /// Whether [uri] carries URL user info or a Subsonic credential parameter and must
@@ -55,12 +61,24 @@ final _credentialUserInfo = RegExp(
   caseSensitive: false,
 );
 
+// `Bearer <token>`, and the value (with an optional scheme such as `Basic`) of
+// an `Authorization: ...` header or key, in logs, JSON and error text.
+final _authorizationCredential = RegExp(
+  r'''(\bBearer\s+)[A-Za-z0-9._~+/=-]+'''
+  r'''|(\bAuthorization["']?\s*[:=]\s*["']?(?:[a-z]+\s+)?)[^\s"',;&]+''',
+  caseSensitive: false,
+);
+
 /// Strips URL user info and replaces the value of every Subsonic credential query parameter in [text]
 /// with `REDACTED`, leaving the rest of the text, including other parameters
 /// such as the song `id`, unchanged.
 String redactCredentialQueryParameters(String text) => text
     .replaceAllMapped(_credentialUserInfo, (m) => m[1]!)
-    .replaceAllMapped(_credentialQueryParameter, (m) => '${m[1]}REDACTED');
+    .replaceAllMapped(_credentialQueryParameter, (m) => '${m[1]}REDACTED')
+    .replaceAllMapped(
+      _authorizationCredential,
+      (m) => '${m[1] ?? m[2]}REDACTED',
+    );
 
 // The scheme and authority of a URI in free text; the path and query stay.
 final _uriAuthority = RegExp(
@@ -118,20 +136,25 @@ String _percentDecoded(String text) {
 /// [redactCredentialQueryParameters] and [redactServerHost], for diagnostics a
 /// user pastes into a bug report. Leaves are redacted before encoding, never
 /// the encoded text, so an escaped quote cannot break the JSON. Map keys are
-/// fixed field names and stay.
+/// redacted like leaves; a `DateTime` leaf becomes ISO 8601 and any other
+/// non-JSON leaf its redacted `toString`.
 String redactedDiagnosticsJson(Map<String, Object?> data, {String? host}) {
+  String clean(String s) => redactServerHost(
+    redactCredentialQueryParameters(_percentDecoded(s)),
+    host: host,
+  );
   Object? walk(Object? v) => switch (v) {
-    String s => redactServerHost(
-      redactCredentialQueryParameters(_percentDecoded(s)),
-      host: host,
-    ),
+    String s => clean(s),
     Map<Object?, Object?> m => {
-      for (final e in m.entries) '${e.key}': walk(e.value),
+      for (final e in m.entries) clean('${e.key}'): walk(e.value),
     },
     Iterable<Object?> l => [for (final x in l) walk(x)],
     _ => v,
   };
-  return const JsonEncoder.withIndent('  ').convert(walk(data));
+  return JsonEncoder.withIndent(
+    '  ',
+    (o) => o is DateTime ? o.toIso8601String() : clean('$o'),
+  ).convert(walk(data));
 }
 
 /// Runs [body] in a zone whose `print` passes every line through

@@ -254,13 +254,21 @@ extension _NavisQueueLoading on NavisAudioHandler {
         _canonicalSongId(started) == _canonicalSongId(songId);
   }
 
+  /// Whether phase 1 has begun for [songId]: the queue lane reached it and
+  /// resolved the start song, so a slow load is progress, not a stall.
+  bool _selectionBegan(String songId) {
+    final began = _phase1BeganSongId;
+    return began != null && _canonicalSongId(began) == _canonicalSongId(songId);
+  }
+
   /// Runs a user's song selection ([attempt] is the private replace path).
   /// A selection that ends without its start song reaching phase 1, and with
-  /// no newer user intent, is retried once; the second drop throws
-  /// [PlaybackSelectionDroppedException]. A selection still waiting after
-  /// [NavisPlaybackTimeouts.userSelectionStall] is traced and reported once
-  /// (no retry: the lane is busy). Cancellations never throw, so the outcome
-  /// is checked after [attempt] returns.
+  /// no newer user intent, is retried once; a drop of that retry throws
+  /// [PlaybackSelectionDroppedException]. A selection whose phase 1 has not
+  /// begun after [NavisPlaybackTimeouts.userSelectionStall] is traced and
+  /// reported once (the lane is busy); from then on it is never retried and
+  /// never reported again. Cancellations never throw, so the outcome is
+  /// checked after [attempt] returns.
   Future<void> _playUserSelection(
     String? songId,
     Future<void> Function() attempt, {
@@ -272,7 +280,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         title ?? (await _libraryDao.getSongById(songId))?.title;
     var notified = false;
     final stallTimer = Timer(_timeouts.userSelectionStall, () {
-      if (intent != _userPlaybackIntent || _selectionLanded(songId)) return;
+      if (intent != _userPlaybackIntent || _selectionBegan(songId)) return;
       notified = true;
       _transportTrace.record(
         'userPlayStalled',
@@ -283,17 +291,24 @@ extension _NavisQueueLoading on NavisAudioHandler {
       );
       AppLogger.warning('User selection $songId has not started.');
       unawaited(
-        titleOf().then((resolved) {
-          if (_selectionStallController.isClosed) return;
-          _selectionStallController.add(
-            PlaybackSelectionDroppedException(songId: songId, title: resolved),
-          );
-        }),
+        // A DAO read can fail after dispose; the notice is then moot.
+        titleOf()
+            .then<String?>((resolved) => resolved, onError: (_) => null)
+            .then((resolved) {
+              if (_selectionStallController.isClosed) return;
+              _selectionStallController.add(
+                PlaybackSelectionDroppedException(
+                  songId: songId,
+                  title: resolved,
+                ),
+              );
+            }),
       );
     });
     try {
       for (var retry = 0; ; retry++) {
         _phase1StartedSongId = null;
+        _phase1BeganSongId = null;
         _queueDropReason = null;
         await attempt();
         if (intent != _userPlaybackIntent || _selectionLanded(songId)) return;
@@ -309,8 +324,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
         AppLogger.warning(
           'User selection $songId did not start ($reason, retry $retry).',
         );
+        if (notified) return; // the stall notice already told the user
         if (retry == 1 || !_timeouts.retryDroppedSelection) {
-          if (notified) return; // the stall notice already told the user
           throw PlaybackSelectionDroppedException(
             songId: songId,
             title: await titleOf(),
@@ -2119,6 +2134,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
             : null;
         _pendingLogicalQueueSongs = songs;
 
+        _phase1BeganSongId = songs[resolvedStartIndex].id;
         final startItem = await _replaceQueuePhase1(
           songs: songs,
           startIndex: resolvedStartIndex,

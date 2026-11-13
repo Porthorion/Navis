@@ -353,12 +353,13 @@ void main() {
       final f = await fixture(timeouts: timeouts);
       final stalls = <Object>[];
       f.handler.selectionStallStream.listen(stalls.add);
-      f.resolver
-        ..blockedSongId = 'song-3'
-        ..entered = Completer<void>()
-        ..release = Completer<void>();
+      // Park the adjustment sync that runs before phase 1.
+      final gate = Completer<void>();
+      f.player
+        ..speedGate = gate
+        ..speedEntered = Completer<void>();
       final tap = f.handler.replaceQueueWithData(f.rows, startIndex: 3);
-      await f.resolver.entered!.future;
+      await f.player.speedEntered!.future;
       await Future<void>.delayed(stall + const Duration(milliseconds: 300));
       expect(stalls, hasLength(1));
       expect(
@@ -368,7 +369,7 @@ void main() {
       final stalled = entries(f.trace, 'userPlayStalled');
       expect(stalled, hasLength(1));
       expect(stalled.single['queueLane'], isA<Map<String, Object?>>());
-      f.resolver.release!.complete();
+      gate.complete();
       await tap;
       expect(stalls, hasLength(1));
     });
@@ -390,6 +391,62 @@ void main() {
       expect(stalls, isEmpty);
       expect(entries(f.trace, 'userPlayStalled'), isEmpty);
     });
+
+    test(
+      'a slow load after phase 1 began is no stall and the retry lands',
+      () async {
+        final f = await fixture(
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 400),
+            userSelectionStall: Duration(milliseconds: 100),
+          ),
+        );
+        final stalls = <Object>[];
+        f.handler.selectionStallStream.listen(stalls.add);
+        f.player.hungLoadBudget = [1];
+        f.hungSongs.add('song-3');
+        await f.handler.replaceQueueWithData(f.rows, startIndex: 3);
+        await settleQueue(f.handler);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(stalls, isEmpty);
+        expect(entries(f.trace, 'userPlayStalled'), isEmpty);
+        expect(f.handler.snapshot.currentSongId, 'song-3');
+      },
+    );
+
+    test(
+      'after a stall notice a later drop is neither retried nor reported',
+      () async {
+        final f = await fixture(
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 400),
+            userSelectionStall: Duration(milliseconds: 100),
+          ),
+        );
+        final stalls = <Object>[];
+        f.handler.selectionStallStream.listen(stalls.add);
+        // Hold the lane so phase 1 cannot begin, then drop the load.
+        final gate = Completer<void>();
+        f.player
+          ..speedGate = gate
+          ..speedEntered = Completer<void>();
+        f.player.hungLoadBudget = [1];
+        f.hungSongs.add('song-3');
+        final tap = f.handler.replaceQueueWithData(f.rows, startIndex: 3);
+        await f.player.speedEntered!.future;
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(stalls, hasLength(1));
+        gate.complete();
+        await tap; // does not throw a second notice
+        await settleQueue(f.handler);
+        expect(stalls, hasLength(1));
+        expect(f.handler.snapshot.currentSongId, isNot('song-3')); // no retry
+        expect(
+          entries(f.trace, 'userPlayDropped').map((e) => e['retry']),
+          <Object?>[0],
+        );
+      },
+    );
 
     test('no notice from a tap that a newer user tap replaced', () async {
       final f = await fixture(timeouts: timeouts);

@@ -1,3 +1,5 @@
+import 'package:navis/src/utils/constants.dart';
+
 /// A bounded ring buffer of timestamped native-transport events (player index
 /// and processing-state changes, source loads, recovery decisions, queue-fill
 /// phases), reported by the diagnostics `GET /v1/playback/status`.
@@ -8,7 +10,7 @@ class PlaybackTransportTrace {
   new({
     this.enabled =
         const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') ||
-        const String.fromEnvironment('NAVIS_UPDATE_CHANNEL') == 'dev',
+        AppConstants.isDevChannel,
     this.capacity = 200,
     this._clock = DateTime.now,
   });

@@ -34,6 +34,10 @@ abstract final class AppConstants {
     defaultValue: 'stable',
   );
 
+  /// Whether this is a dev-channel build: developer tools such as the playback
+  /// trace and Copy Playback Trace are on only then.
+  static const bool isDevChannel = updateChannel == 'dev';
+
   /// Whether this build can self-update via APK install (sideload APKs).
   ///
   /// Set to `false` for Google Play App Bundle builds via
