@@ -373,6 +373,8 @@ class _ShowcaseBackdrop extends StatefulWidget {
     this.bleed = 0,
     this.surface,
     this.subtle = false,
+    this.fadeLeft = false,
+    this.fadeRight = false,
   });
 
   static const Key childKey = ValueKey<String>('home-showcase-backdrop-child');
@@ -387,6 +389,11 @@ class _ShowcaseBackdrop extends StatefulWidget {
   final double bleed;
   final Color? surface;
   final bool subtle;
+
+  /// Fade the wash into the page background towards that page edge, which
+  /// borders a bare system inset instead of a different surface.
+  final bool fadeLeft;
+  final bool fadeRight;
 
   /// Publishes the focused cover to the nearest backdrop above [context].
   static void report(
@@ -445,6 +452,8 @@ class _ShowcaseBackdropState extends State<_ShowcaseBackdrop> {
                   coverArtRevision: source?.revision ?? 0,
                   subtle: widget.subtle,
                   surface: widget.surface,
+                  fadeLeft: widget.fadeLeft,
+                  fadeRight: widget.fadeRight,
                 ),
               ),
             ),
@@ -482,6 +491,8 @@ class _ShowcaseColourWash extends ConsumerWidget {
     this.coverArtRevision = 0,
     this.subtle = false,
     this.surface,
+    this.fadeLeft = false,
+    this.fadeRight = false,
   });
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
@@ -495,6 +506,34 @@ class _ShowcaseColourWash extends ConsumerWidget {
   /// The colour under the wash that the veil fades into at the top and the
   /// bottom: the card colour inside a card, else the page background.
   final Color? surface;
+
+  /// Soften a hard side edge into the [surface] over [sideFadeWidth].
+  final bool fadeLeft;
+  final bool fadeRight;
+
+  /// Width of the horizontal fade at a side that borders a bare inset.
+  static const double sideFadeWidth = 40;
+  static const Key fadeLeftKey = ValueKey<String>('home-showcase-fade-left');
+  static const Key fadeRightKey = ValueKey<String>('home-showcase-fade-right');
+
+  Widget _sideFade(Color color, {required bool left}) => Positioned(
+    key: left ? fadeLeftKey : fadeRightKey,
+    left: left ? 0 : null,
+    right: left ? null : 0,
+    top: 0,
+    bottom: 0,
+    width: sideFadeWidth,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: easedFadeGradient(
+          color: color,
+          points: <(double, double)>[(0, left ? 1 : 0), (1, left ? 0 : 1)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -565,6 +604,8 @@ class _ShowcaseColourWash extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (fadeLeft) _sideFade(background, left: true),
+              if (fadeRight) _sideFade(background, left: false),
             ],
           ),
         ),

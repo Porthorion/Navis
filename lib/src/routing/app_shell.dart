@@ -1746,6 +1746,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 inset: useCompactWideLandscape || !ltr
                                     ? 0
                                     : mediaPadding.right,
+                                leftInset: useCompactWideLandscape || ltr
+                                    ? 0
+                                    : mediaPadding.left,
                                 child: Row(
                                   children: <Widget>[
                                     Material(
@@ -2090,6 +2093,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           else
                             ConsumedRightInset(
                               inset: mediaPadding.right,
+                              leftInset: mediaPadding.left,
                               child: _BottomNavInsetPadding(
                                 child: Column(
                                   children: <Widget>[

@@ -2200,13 +2200,24 @@ class _HomeSection<T> extends StatelessWidget {
         !NavisColorStyleData.of(context).flatSurfaces &&
         loaded != null &&
         !isEmpty(loaded);
-    Widget backdrop(Widget child, {Color? surface, double bleed = 0}) =>
-        showcaseBackdrop
+    // Page edges beside a bare system inset (notch, status strip) fade out;
+    // the sidebar, the rail and the tablet card stay hard edges.
+    final bare = desktopMode
+        ? (left: false, right: false)
+        : bareSideInsetsOf(context);
+    Widget backdrop(
+      Widget child, {
+      Color? surface,
+      double bleed = 0,
+      bool fadeSides = false,
+    }) => showcaseBackdrop
         ? _ShowcaseBackdrop(
             washVisible: washVisible,
             bleed: bleed,
             surface: surface,
             subtle: desktopMode,
+            fadeLeft: fadeSides && bare.left,
+            fadeRight: fadeSides && bare.right,
             child: child,
           )
         : child;
@@ -2286,6 +2297,7 @@ class _HomeSection<T> extends StatelessWidget {
               ),
       ),
       bleed: pageInset,
+      fadeSides: true,
     );
   }
 }

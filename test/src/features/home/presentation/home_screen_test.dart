@@ -3017,6 +3017,100 @@ void main() {
         expectCoversTitleAndPage(tester, size);
       });
 
+      // A page edge beside a bare system inset fades into the page colour; an
+      // edge beside a different surface (sidebar, rail, card) stays hard.
+      const fadeLeft = ValueKey<String>('home-showcase-fade-left');
+      const fadeRight = ValueKey<String>('home-showcase-fade-right');
+
+      void setSideInsets(
+        WidgetTester tester, {
+        double left = 0,
+        double right = 0,
+      }) {
+        final padding = FakeViewPadding(left: left, right: right);
+        tester.view.padding = padding;
+        tester.view.viewPadding = padding;
+        addTearDown(() {
+          tester.view.resetPadding();
+          tester.view.resetViewPadding();
+        });
+      }
+
+      testWidgets('compact landscape: fades towards the right notch band', (
+        tester,
+      ) async {
+        const size = Size(932, 430);
+        setSideInsets(tester, left: 59, right: 59);
+        await pumpAt(tester, size, nativeTouch: true);
+        // The rail is on the left, so only the right edge borders the band.
+        expect(find.byKey(fadeLeft), findsNothing);
+        final fade = tester.getRect(find.byKey(fadeRight));
+        expect(fade.width, closeTo(40, 0.01));
+        expect(fade.right, greaterThanOrEqualTo(size.width));
+        final gradient =
+            (tester
+                            .widget<DecoratedBox>(
+                              find.descendant(
+                                of: find.byKey(fadeRight),
+                                matching: find.byType(DecoratedBox),
+                              ),
+                            )
+                            .decoration
+                        as BoxDecoration)
+                    .gradient!
+                as LinearGradient;
+        expect(gradient.colors.first.a, 0);
+        expect(gradient.colors.last.a, 1);
+      });
+
+      testWidgets('no inset: no side fade', (tester) async {
+        await pumpAt(tester, const Size(932, 430), nativeTouch: true);
+        expect(find.byKey(fadeLeft), findsNothing);
+        expect(find.byKey(fadeRight), findsNothing);
+      });
+
+      testWidgets('desktop and tablet card: hard edges', (tester) async {
+        setSideInsets(tester, left: 59, right: 59);
+        await pumpAt(
+          tester,
+          const Size(1366, 900),
+          nativeTouch: false,
+          forceDesktop: true,
+        );
+        expect(find.byKey(fadeLeft), findsNothing);
+        expect(find.byKey(fadeRight), findsNothing);
+        await pumpAt(tester, const Size(800, 1000), nativeTouch: true);
+        expect(find.byKey(fadeLeft), findsNothing);
+        expect(find.byKey(fadeRight), findsNothing);
+      });
+
+      testWidgets('bareSideInsetsOf follows the insets the shell consumed', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, const Size(466, 678));
+        late ({bool left, bool right}) sides;
+        Future<void> pumpUnder(double left, double right) => tester.pumpWidget(
+          MaterialApp(
+            home: ConsumedRightInset(
+              inset: right,
+              leftInset: left,
+              child: Builder(
+                builder: (context) {
+                  sides = bareSideInsetsOf(context);
+                  return const SizedBox();
+                },
+              ),
+            ),
+          ),
+        );
+        await pumpUnder(0, 84);
+        expect(sides, (left: false, right: true));
+        await pumpUnder(48, 0);
+        expect(sides, (left: true, right: false));
+        await pumpUnder(0, 0);
+        expect(sides, (left: false, right: false));
+      });
+
       testWidgets('tablet card: fills the card and fades into its colour', (
         tester,
       ) async {
