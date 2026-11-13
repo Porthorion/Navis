@@ -832,7 +832,7 @@ void main() {
                 await server.close(force: true);
                 HttpOverrides.global = previousHttp;
               });
-              await handler.replaceQueue(ids(3), expandMatchFlows: false);
+              await handler.replaceQueueQuiet(ids(3), expandMatchFlows: false);
               await handler.setRepeatMode(repeat);
               final check = watchAudioMetadata(handler, players);
               final rows = await database.libraryDao.getSongsByIds(ids(3));
@@ -880,7 +880,10 @@ void main() {
                 );
               }
               firstBytes.complete();
-              await replacement;
+              await replacement.catchError(
+                (Object _) {},
+                test: (e) => e is PlaybackSelectionDroppedException,
+              );
               if (failure == 'load') {
                 if (handler.snapshot.currentSongId != 'song-2' ||
                     handler.snapshot.isLoading) {

@@ -158,6 +158,10 @@ manifest build with the installed build number. See [release-r2.md](../release/r
 for `./tool/dev_release.sh`, the monotonic dev APK counter, dry-run and cleanup.
 A channel never moves to an older version/build.
 
+Dev-channel builds also record the playback transport trace and offer Settings ->
+About -> Copy Playback Trace (redacted JSON, see
+[development-workflow.md](development-workflow.md)).
+
 ## iOS Note
 
 Automated side-by-side iOS app installation (different bundle identifier) is not yet scripted in this repository.

@@ -384,6 +384,10 @@ abstract class _DelegatingNavisPlaybackHandler
       _delegate.droppedSongsStream;
 
   @override
+  Stream<PlaybackSelectionDroppedException> get selectionStallStream =>
+      _delegate.selectionStallStream;
+
+  @override
   Future<void> waitUntilReady() => _delegate.waitUntilReady();
 
   @override

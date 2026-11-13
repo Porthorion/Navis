@@ -4848,6 +4848,18 @@ Vendored just_audio abandons denied audio-focus requests, then retries twice
 with 200/400 ms delays. Exhaustion completes Play with `AudioFocusDeniedException`.
 just_audio reports `playing` only once focus is granted, so a load during the
 request cannot start native playback and a denial never publishes Playing.
+
+A song the user taps in a list (`replaceQueue`/`replaceQueueWithData`) is
+retried once, silently, when the replacement ends without its start song
+reaching phase 1 and no newer user action (tap, skip, pause, stop, clear)
+happened; the drop is traced as `userPlayDropped`. A drop of the retry throws
+`PlaybackSelectionDroppedException`, shown as "Could not play {title}. Try
+again.". A tap whose phase 1 has not begun after 8 s (the lane is busy; the
+handler marks phase 1 begun just before the start song's load) is traced as
+`userPlayStalled` and reported once; from then on it is never retried and never
+reported again, and a slow load after the marker is no stall. The retry can
+double the wait (up to two load timeouts) before the notice. Automatic resume and failover
+use the private replace path and are never retried.
 Navis retains the requested transport generation and retries silently with a
 1–8 second backoff for at most two minutes (`NavisPlaybackTimeouts.focusRetry`);
 it then stays paused, publishes the paused state and records the timeout in the
