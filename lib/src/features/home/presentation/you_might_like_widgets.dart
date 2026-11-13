@@ -353,6 +353,127 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
   }
 }
 
+/// The cover the section backdrop paints.
+typedef _ShowcaseWashSource = ({String? coverArtId, int revision});
+
+/// Test seam for the private [_ShowcaseBackdrop].
+@visibleForTesting
+typedef ShowcaseBackdrop = _ShowcaseBackdrop;
+
+/// The ambient backdrop of the whole You Might Like section.
+///
+/// It sits behind the title and the body, bleeds [bleed] past each side so it
+/// runs to the page edge instead of stopping at the list's inner padding, and
+/// fades into [surface] at the top and bottom. The showcase carousel or pager
+/// below reports its focused cover through [report].
+class _ShowcaseBackdrop extends StatefulWidget {
+  const new({
+    required this.child,
+    required this.washVisible,
+    this.bleed = 0,
+    this.surface,
+    this.subtle = false,
+    this.fadeLeft = false,
+    this.fadeRight = false,
+  });
+
+  static const Key childKey = ValueKey<String>('home-showcase-backdrop-child');
+
+  final Widget child;
+
+  /// False under Flat Surfaces or without showcase data: no wash is built,
+  /// and [child] keeps its place in the tree either way.
+  final bool washVisible;
+
+  /// How far the wash extends past the left and right of [child].
+  final double bleed;
+  final Color? surface;
+  final bool subtle;
+
+  /// Fade the wash into the page background towards that page edge, which
+  /// borders a bare system inset instead of a different surface.
+  final bool fadeLeft;
+  final bool fadeRight;
+
+  /// Publishes the focused cover to the nearest backdrop above [context].
+  static void report(
+    BuildContext context, {
+    required String? coverArtId,
+    required int coverArtRevision,
+  }) {
+    final notifier = context
+        .getInheritedWidgetOfExactType<_ShowcaseBackdropScope>()
+        ?.source;
+    final source = (coverArtId: coverArtId, revision: coverArtRevision);
+    if (notifier == null || notifier.value == source) {
+      return;
+    }
+    // Never notify while building: the wash rebuilds on the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (notifier.value != source && context.mounted) {
+        notifier.value = source;
+      }
+    });
+  }
+
+  @override
+  State<_ShowcaseBackdrop> createState() => _ShowcaseBackdropState();
+}
+
+class _ShowcaseBackdropState extends State<_ShowcaseBackdrop> {
+  final ValueNotifier<_ShowcaseWashSource?> _source =
+      ValueNotifier<_ShowcaseWashSource?>(null);
+
+  @override
+  void dispose() {
+    _source.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ShowcaseBackdropScope(
+      source: _source,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          if (widget.washVisible)
+            Positioned(
+              // One extra pixel at each side: at a fractional page edge the
+              // viewport clip then cuts mesh and veil alike.
+              left: -widget.bleed - 1,
+              right: -widget.bleed - 1,
+              top: 0,
+              bottom: 0,
+              child: ValueListenableBuilder<_ShowcaseWashSource?>(
+                valueListenable: _source,
+                builder: (context, source, _) => _ShowcaseColourWash(
+                  coverArtId: source?.coverArtId,
+                  coverArtRevision: source?.revision ?? 0,
+                  subtle: widget.subtle,
+                  surface: widget.surface,
+                  fadeLeft: widget.fadeLeft,
+                  fadeRight: widget.fadeRight,
+                ),
+              ),
+            ),
+          KeyedSubtree(key: _ShowcaseBackdrop.childKey, child: widget.child),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShowcaseBackdropScope extends InheritedWidget {
+  const new({required this.source, required super.child});
+
+  final ValueNotifier<_ShowcaseWashSource?> source;
+
+  @override
+  bool updateShouldNotify(_ShowcaseBackdropScope oldWidget) =>
+      source != oldWidget.source;
+}
+
 /// Test seam for the private [_ShowcaseColourWash].
 @visibleForTesting
 typedef ShowcaseColourWash = _ShowcaseColourWash;
@@ -369,6 +490,9 @@ class _ShowcaseColourWash extends ConsumerWidget {
     required this.coverArtId,
     this.coverArtRevision = 0,
     this.subtle = false,
+    this.surface,
+    this.fadeLeft = false,
+    this.fadeRight = false,
   });
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
@@ -379,10 +503,42 @@ class _ShowcaseColourWash extends ConsumerWidget {
   /// Large desktop surfaces use a lighter tint.
   final bool subtle;
 
+  /// The colour under the wash that the veil fades into at the top and the
+  /// bottom: the card colour inside a card, else the page background.
+  final Color? surface;
+
+  /// Soften a hard side edge into the [surface] over [sideFadeWidth].
+  final bool fadeLeft;
+  final bool fadeRight;
+
+  /// Width of the horizontal fade at a side that borders a bare inset.
+  static const double sideFadeWidth = 40;
+  static const Key fadeLeftKey = ValueKey<String>('home-showcase-fade-left');
+  static const Key fadeRightKey = ValueKey<String>('home-showcase-fade-right');
+
+  Widget _sideFade(Color color, {required bool left}) => Positioned(
+    key: left ? fadeLeftKey : fadeRightKey,
+    left: left ? 0 : null,
+    right: left ? null : 0,
+    top: 0,
+    bottom: 0,
+    width: sideFadeWidth,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: easedFadeGradient(
+          color: color,
+          points: <(double, double)>[(0, left ? 1 : 0), (1, left ? 0 : 1)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final background = theme.scaffoldBackgroundColor;
+    final background = surface ?? theme.scaffoldBackgroundColor;
     final motion = MotionPolicy.of(context);
     final coverId = coverArtId?.trim();
     // The colour style sets the veil (light surfaces need a gentler tint to
@@ -414,14 +570,24 @@ class _ShowcaseColourWash extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: <Widget>[
-              TweenAnimationBuilder<CoverColourField>(
-                tween: _CoverColourFieldTween(end: target),
-                duration: motion.reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 400),
-                curve: Curves.easeOut,
-                builder: (context, value, _) =>
-                    CustomPaint(painter: CoverColourFieldPainter(value)),
+              // The mesh stops one pixel short of the veil's faded top and
+              // bottom: at a fractional edge its hard clip would otherwise
+              // leave a thin unveiled line there.
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: ClipRect(
+                  child: TweenAnimationBuilder<CoverColourField>(
+                    tween: _CoverColourFieldTween(end: target),
+                    duration: motion.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 400),
+                    curve: Curves.easeOut,
+                    builder: (context, value, _) => CustomPaint(
+                      size: Size.infinite,
+                      painter: CoverColourFieldPainter(value),
+                    ),
+                  ),
+                ),
               ),
               DecoratedBox(
                 decoration: BoxDecoration(
@@ -438,6 +604,8 @@ class _ShowcaseColourWash extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (fadeLeft) _sideFade(background, left: true),
+              if (fadeRight) _sideFade(background, left: false),
             ],
           ),
         ),

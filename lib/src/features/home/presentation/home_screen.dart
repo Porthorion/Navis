@@ -1164,9 +1164,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final desktopMode = adaptiveContext.useDesktopShell;
     // Home's sections add NavisSpace.md themselves; desktop tops it up to the
     // page gutter.
-    final compactHorizontalInset = compactWideLandscapeMode
-        ? 10.0
-        : (desktopMode ? NavisSpace.xl - NavisSpace.md : 0.0);
+    final compactHorizontalInset = _homePageInset(
+      desktopMode: desktopMode,
+      compactWideLandscapeMode: compactWideLandscapeMode,
+    );
     // Phones get a tighter header (about 40 px less than tablets) so more of
     // You Might Like is visible; tablet portrait keeps the roomier one.
     final phoneHeader = adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
@@ -1708,6 +1709,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<HomeRandomShowcaseItem>>(
             title: l10n.homeRandomTitle,
+            showcaseBackdrop: true,
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
@@ -2083,6 +2085,15 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
 // Shared section wrapper
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The list's own horizontal inset: a full-bleed backdrop reaches the page
+/// edge by extending this far past a section.
+double _homePageInset({
+  required bool desktopMode,
+  required bool compactWideLandscapeMode,
+}) => compactWideLandscapeMode
+    ? 10.0
+    : (desktopMode ? NavisSpace.xl - NavisSpace.md : 0.0);
+
 class _HomeSection<T> extends StatelessWidget {
   const new({
     super.key,
@@ -2102,9 +2113,14 @@ class _HomeSection<T> extends StatelessWidget {
     this.onRetry,
     this.onSeeAll,
     this.caption,
+    this.showcaseBackdrop = false,
   });
 
   final String title;
+
+  /// Paints the You Might Like colour wash behind the title and the body, to
+  /// the page edges (see [_ShowcaseBackdrop]). The body reports its cover.
+  final bool showcaseBackdrop;
 
   /// Credit for the online service the section comes from, if any.
   final String? caption;
@@ -2175,11 +2191,55 @@ class _HomeSection<T> extends StatelessWidget {
         ? (tabletMode ? 14.0 : 12.0)
         : (tabletMode ? 18.0 : 16.0);
 
-    return Padding(
-      padding: EdgeInsets.only(top: topPadding),
-      child: desktopMode
-          ? Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+    // The wash runs behind the title as well as the body, so it wraps the
+    // whole section. It is flat-free and card-aware: inside the tablet card
+    // it fills the card and fades into the card colour.
+    final loaded = data.value;
+    final washVisible =
+        showcaseBackdrop &&
+        !NavisColorStyleData.of(context).flatSurfaces &&
+        !data.hasError &&
+        loaded != null &&
+        !isEmpty(loaded);
+    // Page edges beside a bare system inset (notch, status strip) fade out;
+    // the sidebar, the rail and the tablet card stay hard edges.
+    final bare = desktopMode || !showcaseBackdrop
+        ? (left: false, right: false)
+        : bareSideInsetsOf(context);
+    Widget backdrop(
+      Widget child, {
+      Color? surface,
+      double bleed = 0,
+      bool fadeSides = false,
+    }) => showcaseBackdrop
+        ? _ShowcaseBackdrop(
+            washVisible: washVisible,
+            bleed: bleed,
+            surface: surface,
+            subtle: desktopMode,
+            fadeLeft: fadeSides && bare.left,
+            fadeRight: fadeSides && bare.right,
+            child: child,
+          )
+        : child;
+    final pageInset = _homePageInset(
+      desktopMode: desktopMode,
+      compactWideLandscapeMode: compactWideLandscapeMode,
+    );
+
+    if (tabletMode && !compactWideLandscapeMode && !desktopMode) {
+      final cardColor =
+          Theme.of(context).cardTheme.color ??
+          Theme.of(context).colorScheme.surfaceContainerLow;
+      return Padding(
+        padding: EdgeInsets.only(top: topPadding),
+        child: Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          clipBehavior: Clip.antiAlias,
+          color: cardColor,
+          child: backdrop(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -2188,49 +2248,57 @@ class _HomeSection<T> extends StatelessWidget {
                   sectionBody,
                 ],
               ),
-            )
-          : tabletMode
-          ? compactWideLandscapeMode
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(2, 0, 2, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          child: titleWidget,
-                        ),
-                        SizedBox(height: compactDensity ? 8 : 10),
-                        sectionBody,
-                      ],
-                    ),
-                  )
-                : Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12),
-                    clipBehavior: Clip.antiAlias,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          titleWidget,
-                          SizedBox(height: compactDensity ? 8 : 10),
-                          sectionBody,
-                        ],
-                      ),
-                    ),
-                  )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: titleWidget,
-                ),
-                SizedBox(height: compactDensity ? 8 : 10),
-                sectionBody,
-              ],
             ),
+            surface: cardColor,
+          ),
+        ),
+      );
+    }
+
+    return backdrop(
+      Padding(
+        padding: EdgeInsets.only(top: topPadding),
+        child: desktopMode
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    titleWidget,
+                    SizedBox(height: compactDensity ? 8 : 10),
+                    sectionBody,
+                  ],
+                ),
+              )
+            : tabletMode
+            ? Padding(
+                padding: const EdgeInsets.fromLTRB(2, 0, 2, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: titleWidget,
+                    ),
+                    SizedBox(height: compactDensity ? 8 : 10),
+                    sectionBody,
+                  ],
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: titleWidget,
+                  ),
+                  SizedBox(height: compactDensity ? 8 : 10),
+                  sectionBody,
+                ],
+              ),
+      ),
+      bleed: pageInset,
+      fadeSides: true,
     );
   }
 }
@@ -2659,22 +2727,13 @@ class _DesktopRandomAlbumsPagerState
         ],
       ],
     );
-    // Flat: no wash, band or panel; the pager sits on the page background.
-    // The keyed pager keeps one parent in both modes, so toggling Flat
-    // Surfaces never remounts the PageView back to its first page.
-    return Stack(
-      children: <Widget>[
-        if (!flat)
-          Positioned.fill(
-            child: _ShowcaseColourWash(
-              coverArtId: _showcaseWashCoverId(currentItem),
-              coverArtRevision: _showcaseWashCoverRevision(currentItem),
-              subtle: true,
-            ),
-          ),
-        pager,
-      ],
+    // The section backdrop paints the wash; the pager only reports its cover.
+    _ShowcaseBackdrop.report(
+      context,
+      coverArtId: _showcaseWashCoverId(currentItem),
+      coverArtRevision: _showcaseWashCoverRevision(currentItem),
     );
+    return pager;
   }
 }
 
@@ -4158,22 +4217,14 @@ class _RandomAlbumsHeroCarouselState
       ],
     );
 
-    // Flat: no wash, band or tint; the section sits on the page background.
-    if (NavisColorStyleData.of(context).flatSurfaces) {
-      return buildSection();
-    }
-
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: _ShowcaseColourWash(
-            coverArtId: _showcaseWashCoverId(currentItem),
-            coverArtRevision: _showcaseWashCoverRevision(currentItem),
-          ),
-        ),
-        buildSection(),
-      ],
+    // The section's backdrop (none under Flat) paints the wash behind the
+    // title and the body; this carousel only reports the focused cover.
+    _ShowcaseBackdrop.report(
+      context,
+      coverArtId: _showcaseWashCoverId(currentItem),
+      coverArtRevision: _showcaseWashCoverRevision(currentItem),
     );
+    return buildSection();
   }
 }
 
