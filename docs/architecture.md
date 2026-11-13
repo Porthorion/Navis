@@ -183,7 +183,11 @@ the native move returns. `build()` keeps returning that order while moves are
 in flight (`_reordersInFlight`) and the published queue holds the same songs;
 when the last move ends, success or failure, the list returns to the handler's
 order. `queuePlayingIndex` follows the playing row into the shown order by its
-`queueRowKey`, so the highlight stays on the dropped row meanwhile. The queue
+`queueRowKey`, so the highlight stays on the dropped row meanwhile (exact for
+unique songs; a move that reorders the copies of a duplicated song can mark
+another copy until the handler publishes). `playFromIndex` during that window
+waits for the moves (`_reordersIdle`), then plays the tapped row's
+`queueRowKey` in the handler's order, or nothing if the queue was replaced. The queue
 sheet and screen turn Flutter's default drag handles off on desktop, where
 `QueueTrackRow` draws its own; phones keep long-press drag.
 

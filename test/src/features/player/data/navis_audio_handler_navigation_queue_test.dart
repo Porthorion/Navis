@@ -3110,10 +3110,11 @@ void main() {
     timeout: const Timeout(Duration(minutes: 2)),
   );
 
-  // Issue #627: the queue view draws the playing row from queueSongIds and
-  // currentIndex, so no snapshot may pair a new order with the old index.
+  // Issue #627, characterisation guard (it passes without any handler change):
+  // the queue view draws the playing row from queueSongIds and currentIndex,
+  // so no snapshot may pair a new order with the old index.
   test(
-    'moving the playing song never publishes a stale current index',
+    'characterisation: moving the playing song never publishes a stale index',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'navis-nav-test-',

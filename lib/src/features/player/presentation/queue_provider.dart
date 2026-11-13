@@ -654,6 +654,9 @@ class QueueController extends Notifier<List<String>> {
   List<String>? _pendingOrder;
   int _reordersInFlight = 0;
 
+  /// Completes when [_reordersInFlight] drops to zero; taps wait on it.
+  Completer<void>? _reordersIdle;
+
   /// Moves the row at [oldIndex] to the insertion index [newIndex] (counted
   /// before the row is removed, as the handler counts it). The list shows the
   /// move at once and returns to the handler's order once every move is done.
@@ -670,13 +673,16 @@ class QueueController extends Notifier<List<String>> {
       _pendingOrder = List.unmodifiable(moved);
       state = _pendingOrder!;
     }
-    _reordersInFlight++;
+    if (_reordersInFlight++ == 0) _reordersIdle = Completer<void>();
     try {
       await handler.reorderQueue(oldIndex, newIndex);
     } finally {
-      if (--_reordersInFlight == 0 && _pendingOrder != null) {
-        _pendingOrder = null;
-        if (ref.mounted) ref.invalidateSelf();
+      if (--_reordersInFlight == 0) {
+        _reordersIdle!.complete();
+        if (_pendingOrder != null) {
+          _pendingOrder = null;
+          if (ref.mounted) ref.invalidateSelf();
+        }
       }
     }
   }
@@ -815,8 +821,26 @@ class QueueController extends Notifier<List<String>> {
     return any >= 0 ? any : fallback;
   }
 
+  /// Plays the row at [index] of the shown order. While moves are in flight
+  /// the handler still indexes the old order, so the tap waits for them and
+  /// then plays the same row (by [queueRowKey]) in the handler's order; if
+  /// the queue was replaced meanwhile it plays nothing.
   Future<void> playFromIndex(int index) async {
     final handler = _requireHandler();
+    if (_reordersInFlight > 0 && index >= 0 && index < state.length) {
+      final shown = state;
+      final row = queueRowKey(shown, index);
+      while (_reordersInFlight > 0) {
+        await _reordersIdle!.future;
+      }
+      final order = handler.snapshot.queueSongIds;
+      if (!_sameSongs(shown, order)) return;
+      index = List.generate(
+        order.length,
+        (i) => i,
+      ).indexWhere((i) => queueRowKey(order, i) == row);
+      if (index < 0) return;
+    }
     await handler.playFromIndex(index);
   }
 

@@ -36,7 +36,9 @@ bool queueActionsDisabled(PlaybackSnapshot playback) =>
 ///
 /// The list can show a drop before the handler publishes it, so
 /// [PlaybackSnapshot.currentIndex] indexes the old order: the row is followed
-/// by its [queueRowKey], which also tells duplicate songs apart.
+/// by its [queueRowKey] (song id and occurrence). That is exact for unique
+/// songs; for a duplicated song, a move that changes which copy comes first
+/// can mark another copy of the same song until the handler publishes.
 int? queuePlayingIndex(PlaybackSnapshot playback, List<String> queueIds) {
   final index = playback.currentIndex;
   final published = playback.queueSongIds;

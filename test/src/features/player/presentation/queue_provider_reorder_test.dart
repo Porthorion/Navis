@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_track_row.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/fake_playback_handler.dart';
@@ -17,6 +18,10 @@ class _SlowReorderHandler extends InertPlaybackHandler {
   final snapshots = StreamController<PlaybackSnapshot>.broadcast();
   final pending = <Completer<void>>[];
   final calls = <(int, int)>[];
+  final played = <int>[];
+
+  /// The song the handler's queue held at each played index when it was asked.
+  final playedIds = <String>[];
 
   @override
   PlaybackSnapshot get snapshot =>
@@ -28,6 +33,12 @@ class _SlowReorderHandler extends InertPlaybackHandler {
   void publish(List<String> ids) {
     queue = List.unmodifiable(ids);
     snapshots.add(snapshot);
+  }
+
+  @override
+  Future<void> playFromIndex(int index) async {
+    played.add(index);
+    playedIds.add(queue[index]);
   }
 
   @override
@@ -148,5 +159,115 @@ void main() {
     expect(shown(), ['a', 'b']);
     handler.pending.single.complete();
     await done;
+  });
+
+  Future<void> tap(int index) =>
+      container.read(queueProvider.notifier).playFromIndex(index);
+
+  test('a tap during a pending move plays the tapped song', () async {
+    await start(['a', 'b', 'c', 'd']);
+
+    final move = reorder(3, 0); // shown: d a b c
+    expect(shown(), ['d', 'a', 'b', 'c']);
+    final tapped = tap(2); // "b" in the shown order, index 1 in the handler's
+    await pumpEventQueue();
+    expect(handler.played, isEmpty, reason: 'waits for the move, not dropped');
+
+    handler.publish(['d', 'a', 'b', 'c']);
+    handler.pending.single.complete();
+    await move;
+    await tapped;
+    expect(handler.played, [2]);
+    expect(handler.playedIds, ['b']);
+  });
+
+  test('the handler order decides when the move did not apply', () async {
+    await start(['a', 'b', 'c', 'd']);
+
+    final move = reorder(3, 0);
+    final tapped = tap(0); // "d", index 3 while the move has not applied
+    handler.pending.single.completeError(StateError('move failed'));
+    await expectLater(move, throwsStateError);
+    await tapped;
+    expect(handler.played, [3]);
+  });
+
+  test(
+    'a tap on the second copy of a duplicate plays the second copy',
+    () async {
+      await start(['a', 'b', 'a', 'c']);
+
+      final move = reorder(3, 0); // shown: c a b a
+      expect(shown(), ['c', 'a', 'b', 'a']);
+      final tapped = tap(3); // second "a"
+      handler.publish(['c', 'a', 'b', 'a']);
+      handler.pending.single.complete();
+      await move;
+      await tapped;
+      expect(handler.played, [3]);
+
+      // Published order differs from the shown one: still the second copy.
+      await pumpEventQueue();
+      expect(shown(), ['c', 'a', 'b', 'a']);
+      final again = reorder(0, 4); // shown: a b a c
+      final second = tap(2); // second "a"
+      handler.publish(['a', 'b', 'a', 'c']);
+      handler.pending.last.complete();
+      await again;
+      await second;
+      expect(handler.played, [3, 2]);
+      expect(handler.playedIds, ['a', 'a']);
+    },
+  );
+
+  test('a queue replaced under the tap plays nothing', () async {
+    await start(['a', 'b', 'c', 'd']);
+
+    final move = reorder(3, 0);
+    final tapped = tap(1);
+    handler.publish(['x', 'y']);
+    handler.pending.single.complete();
+    await move;
+    await tapped;
+    expect(handler.played, isEmpty);
+  });
+
+  test('a tap with no move in flight goes straight to the handler', () async {
+    await start(['a', 'b', 'c']);
+    await tap(1);
+    expect(handler.played, [1]);
+  });
+
+  group('queuePlayingIndex', () {
+    PlaybackSnapshot playing(List<String> ids, int index) =>
+        const PlaybackSnapshot.idle().copyWith(
+          queueSongIds: ids,
+          currentIndex: index,
+        );
+
+    test('follows a unique song through a shown move', () {
+      expect(
+        queuePlayingIndex(playing(['a', 'b', 'c'], 2), ['c', 'a', 'b']),
+        0,
+      );
+    });
+
+    test('keeps the occurrence when the copies keep their order', () {
+      expect(
+        queuePlayingIndex(playing(['a', 'b', 'a'], 2), ['a', 'a', 'b']),
+        1,
+      );
+    });
+
+    test('is a copy of the playing song when a move swaps the copies', () {
+      // Limit: the playing copy is not tracked through the move, only the
+      // song is. Published [a, b, a] plays index 2; shown [b, a, a].
+      final index = queuePlayingIndex(playing(['a', 'b', 'a'], 2), [
+        'b',
+        'a',
+        'a',
+      ]);
+      expect(['b', 'a', 'a'][index!], 'a');
+    });
   });
 }
