@@ -2959,6 +2959,98 @@ void main() {
         findsWidgets,
       );
     });
+
+    group('backdrop covers the whole section', () {
+      Finder wash() => find.byKey(washKey);
+      Finder title() => find.text('You Might Like');
+
+      Future<void> pumpAt(
+        WidgetTester tester,
+        Size size, {
+        required bool nativeTouch,
+        bool forceDesktop = false,
+      }) async {
+        setAdaptiveTestViewport(tester, size);
+        await _pumpRandomSectionHome(
+          tester,
+          database: database,
+          nativeTouch: nativeTouch,
+          forceDesktop: forceDesktop,
+          baseTheme: buildDarkTheme(
+            const Color(0xFF009688),
+            style: NavisColorStyle.pastel,
+          ),
+          overrides: overridesFor(),
+          randomAlbums: albumsFor('Midnight Drive', 'The Night Owls'),
+        );
+        expect(tester.takeException(), isNull);
+      }
+
+      // The wash sits behind the title and runs to both page edges.
+      void expectCoversTitleAndPage(WidgetTester tester, Size size) {
+        final rect = tester.getRect(wash());
+        final titleRect = tester.getRect(title());
+        expect(rect.top, lessThanOrEqualTo(titleRect.top));
+        expect(rect.left, lessThanOrEqualTo(0));
+        expect(rect.right, greaterThanOrEqualTo(size.width));
+        final body = tester.getRect(section(desktop: size.width > 1000));
+        expect(rect.bottom, greaterThanOrEqualTo(body.bottom));
+      }
+
+      testWidgets('phone: behind the title, edge to edge', (tester) async {
+        const size = Size(390, 844);
+        await pumpAt(tester, size, nativeTouch: true);
+        expectCoversTitleAndPage(tester, size);
+      });
+
+      testWidgets('desktop: behind the title, past the list inset', (
+        tester,
+      ) async {
+        const size = Size(1366, 900);
+        await pumpAt(tester, size, nativeTouch: false, forceDesktop: true);
+        expectCoversTitleAndPage(tester, size);
+      });
+
+      testWidgets('short landscape: past the rail-side inset', (tester) async {
+        const size = Size(844, 390);
+        await pumpAt(tester, size, nativeTouch: true);
+        expectCoversTitleAndPage(tester, size);
+      });
+
+      testWidgets('tablet card: fills the card and fades into its colour', (
+        tester,
+      ) async {
+        await pumpAt(tester, const Size(800, 1000), nativeTouch: true);
+        final card = find.ancestor(of: wash(), matching: find.byType(Card));
+        expect(card, findsOneWidget);
+        // The card's visible surface, without its margin.
+        final cardRect = tester.getRect(
+          find.descendant(of: card, matching: find.byType(Material)).first,
+        );
+        final rect = tester.getRect(wash());
+        expect(rect.top, lessThanOrEqualTo(tester.getRect(title()).top));
+        // Edge to edge inside the card, never a box inset from its sides.
+        expect(rect.left, lessThanOrEqualTo(cardRect.left));
+        expect(rect.right, greaterThanOrEqualTo(cardRect.right));
+        expect(rect.bottom, greaterThanOrEqualTo(cardRect.bottom - 1));
+        // The veil fades into the card colour, not the scaffold's.
+        final cardColor = tester.widget<Card>(card).color!;
+        final theme = Theme.of(tester.element(card));
+        expect(cardColor, theme.cardTheme.color);
+        expect(cardColor, isNot(theme.scaffoldBackgroundColor));
+        final veil = tester
+            .widgetList<DecoratedBox>(
+              find.descendant(of: wash(), matching: find.byType(DecoratedBox)),
+            )
+            .map((w) => w.decoration)
+            .whereType<BoxDecoration>()
+            .map((d) => d.gradient)
+            .whereType<LinearGradient>()
+            .single;
+        expect(veil.colors.first.withValues(alpha: 1), cardColor);
+        expect(veil.colors.last.withValues(alpha: 1), cardColor);
+      });
+    });
   });
 
   testWidgets(
