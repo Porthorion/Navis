@@ -399,6 +399,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Tapping an album or playlist while a long queue plays no longer '
+        'sometimes does nothing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Same Vibes and Instant Mix keep adding songs instead of stopping '
         'after the first batch; if Same Vibes runs out on the last song, it '
         'tells you',
