@@ -19,7 +19,7 @@ Other Subsonic clients set a low bar (vendor claims from store pages and forums,
 
 ## Where the code stands
 
-- **No player-level abstraction.** `NavisAudioHandler` (19 part files, ~18k lines) owns a concrete just_audio `AudioPlayer`. ~280 `_player.` call sites across 12 of those files, plus ~53 `_crossfadePlayer` sites, methods typed on `AudioPlayer`, and `setEqualizer` on both decks. The only seam is `_playerFactory` / `_buildAudioPlayer`, a test hook typed to just_audio. The media session, notification and scrobbling are fed from `_player.playbackEventStream` and `_player.position`.
+- **No player-level abstraction.** `NavisAudioHandler` (19 part files, ~18k lines) owns a concrete just_audio `AudioPlayer`. ~280 `_player.` call sites across the main file and 11 of its parts, plus ~53 `_crossfadePlayer` sites, methods typed on `AudioPlayer`, and `setEqualizer` on both decks. The only seam is `_playerFactory` / `_buildAudioPlayer`, a test hook typed to just_audio. The media session, notification and scrobbling are fed from `_player.playbackEventStream` and `_player.position`.
 - **Queue, shuffle and repeat are already Dart-side** (`_queueItems`, `navis_shuffle_order.dart`), and the platform bridges (Linux MPRIS, Windows SMTC) consume the `NavisPlaybackHandler` contract. Android Auto browses from the database and calls handler methods.
 - **Stream URLs carry the account credential:** `SubsonicApiClient.streamUrl` adds `u`, `t` (md5 of password+salt) and `s`, or legacy `p=enc:`. `SubsonicAuthType` has only `token` and `legacyPassword`; there is no API-key auth. Handing that URL to a TV leaks a replayable credential; `navis_audio_handler_media_session.dart` already keeps the token out of system surfaces, and `authenticateCoverArtUri` puts it in cover art URLs too.
 - Transcoding (`format`, `maxBitRate` from `activeStreamingQualityProvider`; `timeOffset` gated by `supportsTranscodeOffset`) is supported.
@@ -38,7 +38,7 @@ Other Subsonic clients set a low bar (vendor claims from store pages and forums,
 - **Logs:** `credential_redaction.dart` for renderer traffic.
 - **Recovery:** the silent self-healing policy and existing recovery paths govern reconnects.
 - **Libraries (evaluate in the spike):**
-  - UPnP: `upnp_client` (MIT, all five platforms, 1.5.0 Aug 2026) covers SSDP discovery, AVTransport, RenderingControl, `GetProtocolInfo` and DIDL-Lite. The app-owned layer adds GENA event subscriptions and the `SetNextAVTransportURI` capability probe. `xml` becomes a direct dependency.
+  - UPnP: `upnp_client` (MIT, all five platforms, 1.5.0 Sep 2026) covers SSDP discovery, AVTransport, RenderingControl, `GetProtocolInfo` and DIDL-Lite. The app-owned layer adds GENA event subscriptions and the `SetNextAVTransportURI` capability probe. `xml` becomes a direct dependency.
   - Cast: `dart_cast` (pure Dart, MIT, all five platforms) is young (0.7.x) and video-first (no audio media type), but ships CASTV2 transport and a `MediaProxy` with range requests. The spike decides between extending it and app-owned CASTV2 (TLS + protobuf + media namespace), and whether its `MediaProxy` replaces our proxy.
   - mDNS: `bonsoir` or `multicast_dns`.
   - No package that wraps the proprietary Cast SDK.
@@ -50,9 +50,9 @@ Other Subsonic clients set a low bar (vendor claims from store pages and forums,
 **Queue model.** App-driven on Android and desktop: the handler feeds the renderer one track plus the next (UPnP `SetNextAVTransportURI` where supported, Cast queue preload). On iOS the queue is handed to the receiver as far as the protocol allows (Cast `QUEUE_LOAD`), because iOS suspends the app while it plays no local audio. UPnP has no queue on the renderer, so on iOS a UPnP cast advances only while Navis is in the foreground (current + next track otherwise); the spike measures how far background time stretches this.
 
 **Stream delivery.**
-- **Proxy mode (default on Android and desktop):** an app-owned LAN HTTP server, bound to the active Wi-Fi interface, path token per cast session, revoked when the session ends. It relays server streams (adding credentials itself), serves downloaded and cached files, and serves cover art. The account credential never leaves the device, and VPN, split-DNS and certificate problems disappear. It costs battery while casting. The same server receives UPnP GENA `NOTIFY` callbacks on its own token path.
+- **Proxy mode (default on Android and desktop):** an app-owned LAN HTTP server, bound to the active Wi-Fi interface, path token per cast session, revoked when the session ends. It relays server streams (adding credentials itself), serves downloaded and cached files, and serves cover art. The account credential never leaves the device, and VPN, split-DNS and certificate problems disappear. It costs battery while casting. The same server receives UPnP GENA `NOTIFY` callbacks on its own token path. In direct mode on iOS no server runs, so UPnP state comes from polling, and only while Navis is in the foreground.
 - **Keep-alive:** while casting, the app keeps a foreground media session (ongoing notification on Android, which today is `androidNotificationOngoing: false`) that reflects the remote session, so a swipe can't kill the proxy. If the process is killed anyway, a proxy-mode cast ends; on restart Navis silently reattaches to a renderer still playing a direct URL.
-- **Direct mode (iOS, and opt-in elsewhere):** the renderer fetches from the server. Uses a Navidrome API key (OpenSubsonic `apiKeyAuthentication`, Navidrome PR #6219, merged 2026-09-28; release not confirmed) minted per device and revoked when the device is forgotten; a revoked key (error 44) or a password change triggers silent re-minting. Without key support, see open question 2. Direct mode always plays the server copy, so it skips permanent downloads; songs available only offline can't be cast in direct mode. Cover art in direct mode is sent only if it is reachable without credentials, otherwise omitted.
+- **Direct mode (iOS, and opt-in elsewhere):** the renderer fetches from the server, authenticated with an OpenSubsonic API key (`apiKeyAuthentication`; Navidrome PR #6219, merged 2026-09-28, release not confirmed). Keys are bound to one Navidrome player, don't expire and don't depend on the password. The Subsonic API only uses keys: setting one is an owner-only write to the player record through Navidrome's native API, and revoking is the same write with an empty key. So Navis gets a key in one of two ways, decided in the spike: on Navidrome, Navis (logged in as the owner) creates a dedicated "Navis cast" player with a key it generates, and revokes it when casting is turned off or the server is removed; on other servers, or if the native API proves too unstable to depend on, the user pastes a key. An unknown key (error 44) drops back to proxy mode where possible, otherwise one notice asks for a new key. Without key support, see open question 2. Direct mode always plays the server copy, so it skips permanent downloads; songs available only offline can't be cast in direct mode. Cover art uses the same key-authenticated URL as the stream, since the renderer already holds that credential.
 
 **Discovery.** SSDP for UPnP renderers (Android multicast lock and `CHANGE_WIFI_MULTICAST_STATE`), mDNS `_googlecast._tcp` for Cast (iOS `NSBonjourServices` entries). Manual address entry as a fallback, required on iOS until Apple grants the multicast entitlement.
 
@@ -73,7 +73,7 @@ Other Subsonic clients set a low bar (vendor claims from store pages and forums,
 | Server unreachable mid-track (proxy) | Proxy serves cached bytes, then the existing stream-recovery path; renderer sees a stalled stream, not an error |
 | Another app takes the renderer | End the cast silently, keep the queue, show the local player paused |
 | Rolling-cache file evicted while served | Proxy pins served files for the session; falls back to the server stream |
-| Direct-mode key revoked or expired | Silent re-mint and re-issue; a notice only if the server refuses keys |
+| Direct-mode key unknown (error 44) | Proxy mode where possible; otherwise one notice asking for a new key |
 | App killed | Proxy mode: cast ends. Direct mode: reattach on restart |
 
 ## Platform plan
@@ -90,12 +90,12 @@ Other Subsonic clients set a low bar (vendor claims from store pages and forums,
 |---|---|---|
 | 0. Spike | `dart_cast` vs app-owned CASTV2 against a real Cast target; `upnp_client` + AVTransport + GENA against the owner's Samsung TVs/monitor and a software renderer; iOS Bonjour discovery and background time; plain-HTTP media URLs; Navidrome API key release status | 1 week |
 | 1. Player layer | Interface + `LocalNavisPlayer` over both decks; no behaviour change; full check | 2 weeks |
-| 2. Proxy and credentials | LAN server (streams, files, art, GENA callbacks), session tokens, keep-alive notification, API-key auth with secure storage and re-minting, entitlements and permissions | 2 weeks |
+| 2. Proxy and credentials | LAN server (streams, files, art, GENA callbacks), session tokens, keep-alive notification, API-key auth with secure storage, the Navidrome cast-player key flow and the paste-a-key fallback, entitlements and permissions | 2 weeks |
 | 3. UPnP | Discovery, control, gapless via SetNext with capability probe, events, per-device settings table + migration | 2 weeks |
 | 4. Google Cast | Discovery, CASTV2, queue preload / `QUEUE_LOAD` | 1.5–2 weeks |
 | 5. Integration | Cast UI, notification, Android Auto, volume keys, failure matrix, reconnect, hand-back | 1.5 weeks |
 
-Total about 10–11 weeks. UPnP comes before Cast because the owner's test hardware is UPnP-capable. A UPnP-plus-proxy release without Cast is about 6–7 weeks.
+Total about 10–10.5 weeks. UPnP comes before Cast because the owner's test hardware is UPnP-capable. A UPnP-plus-proxy release without Cast (phases 0–3 plus the UPnP part of phase 5) is about 8 weeks.
 
 1.6 already carries Phase 18 (widgets, Live Activity), the iOS parity items I12–I20 (CarPlay, Shortcuts, background sync, share sheet) and the Linux package repositories, so casting at full scope competes for the same release (open question 3).
 
@@ -114,5 +114,5 @@ AirPlay (the iOS route picker, I12, covers it separately), Sonos groups, Plex/Ko
 ## Open questions for the owner
 
 1. **Cast test device:** buy a used Chromecast or Google TV device, or ship Cast only if the emulator works as a receiver?
-2. **Direct mode without API keys** (iOS, older Navidrome, other Subsonic servers): allow the token+salt URL with a clear warning, or offer direct mode only when the server supports API keys? This decides whether iOS can cast on such servers at all.
-3. **Scope against the rest of 1.6:** full casting (10–11 weeks) in 1.6; UPnP + proxy in 1.6 and Cast in 1.6.x; or move other 1.6 items out?
+2. **Direct mode without API keys** (iOS, older Navidrome, other Subsonic servers): allow the token+salt URL with a clear warning, or offer direct mode only when the server supports API keys? This decides whether iOS can cast on such servers at all. Related: may Navis create and manage a dedicated "Navis cast" player with an API key on the user's Navidrome account automatically, or should the user always create and paste the key?
+3. **Scope against the rest of 1.6:** full casting (about 10 weeks) in 1.6; UPnP + proxy (about 8 weeks) in 1.6 and Cast in 1.6.x; or move other 1.6 items out?
