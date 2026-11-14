@@ -1075,14 +1075,15 @@ the returned song list. It verifies that a safely promoted first catalog opens
 Home with a separate usable marker and pending hydration, remains ready after
 clean restart, then fills the missing tracks through the production automatic
 sync path after the fixture response is corrected. It captures an app-owned Home
-screenshot and keeps the full-sync timestamp null until verification completes.
+screenshot and checks that the incomplete album does not block the catalog
+freshness timestamps.
 With the incomplete response restored, it then visits all four full-screen
-rebuild routes and verifies each partial catalog reaches Home with the album
+rebuild routes and verifies each rebuilt catalog reaches Home with the album
 still pending, using the durable run ledger for completion evidence.
 The `existing-catalog` mode first completes a fixture setup, signs out with
 kept data and back in through `POST /v1/session/connect`, and requires Home
 without the setup route. It then removes data, makes the fixture album
-incomplete so the automatic timer pass cannot finish setup, and signs in
+incomplete (server-incomplete albums do not block setup), and signs in
 again in the same process. The setup screen's own controller must record a
 new catalog run and reach Home. Next it restarts, makes the fixture's second
 album detail fail with HTTP 500 during a fresh setup so a catalog is promoted
