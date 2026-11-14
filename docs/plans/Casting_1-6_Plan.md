@@ -2,7 +2,7 @@
 
 **Goal:** play the Navis queue on a TV, smart speaker or receiver (UPnP/DLNA renderers and Google Cast devices) and bring it back to the phone or desktop without losing the place. Target: on par with Symfonium's casting, without Google Play Services, on all five platforms (iOS as close as the platform allows, never zero).
 
-**Status:** feasibility research done 2026-11-14; design awaiting owner approval. It becomes phase briefs (writing-plans format) when 1.6 work starts. Tracking issue: #2. Supersedes the "Chromecast / DLNA" backlog entry in `docs/project/development-plan.md`.
+**Status:** design approved by the owner 2026-11-14 (decisions at the end). It becomes phase briefs (writing-plans format) when 1.6 work starts. Tracking issue: #2. Supersedes the "Chromecast / DLNA" backlog entry in `docs/project/development-plan.md`.
 
 ## What "on par with Symfonium" means
 
@@ -52,7 +52,7 @@ Other Subsonic clients set a low bar (vendor claims from store pages and forums,
 **Stream delivery.**
 - **Proxy mode (default on Android and desktop):** an app-owned LAN HTTP server, bound to the active Wi-Fi interface, path token per cast session, revoked when the session ends. It relays server streams (adding credentials itself), serves downloaded and cached files, and serves cover art. The account credential never leaves the device, and VPN, split-DNS and certificate problems disappear. It costs battery while casting. The same server receives UPnP GENA `NOTIFY` callbacks on its own token path. In direct mode on iOS no server runs, so UPnP state comes from polling, and only while Navis is in the foreground.
 - **Keep-alive:** while casting, the app keeps a foreground media session (ongoing notification on Android, which today is `androidNotificationOngoing: false`) that reflects the remote session, so a swipe can't kill the proxy. If the process is killed anyway, a proxy-mode cast ends; on restart Navis silently reattaches to a renderer still playing a direct URL.
-- **Direct mode (iOS, and opt-in elsewhere):** the renderer fetches from the server, authenticated with an OpenSubsonic API key (`apiKeyAuthentication`; Navidrome PR #6219, merged 2026-09-28, release not confirmed). Keys are bound to one Navidrome player, don't expire and don't depend on the password. The Subsonic API only uses keys: setting one is an owner-only write to the player record through Navidrome's native API, and revoking is the same write with an empty key. So Navis gets a key in one of two ways, decided in the spike: on Navidrome, Navis (logged in as the owner) creates a dedicated "Navis cast" player with a key it generates, and revokes it when casting is turned off or the server is removed; on other servers, or if the native API proves too unstable to depend on, the user pastes a key. An unknown key (error 44) drops back to proxy mode where possible, otherwise one notice asks for a new key. Without key support, see open question 2. Direct mode always plays the server copy, so it skips permanent downloads; songs available only offline can't be cast in direct mode. Cover art uses the same key-authenticated URL as the stream, since the renderer already holds that credential.
+- **Direct mode (iOS, and opt-in elsewhere):** the renderer fetches from the server, authenticated with an OpenSubsonic API key (`apiKeyAuthentication`; Navidrome PR #6219, merged 2026-09-28, release not confirmed). Keys are bound to one Navidrome player, don't expire and don't depend on the password. The Subsonic API only uses keys: setting one is an owner-only write to the player record through Navidrome's native API, and revoking is the same write with an empty key. So Navis gets a key in one of two ways, decided in the spike: on Navidrome, Navis (logged in as the owner) creates a dedicated "Navis cast" player with a key it generates, and revokes it when casting is turned off or the server is removed; on other servers, or if the native API proves too unstable to depend on, the user pastes a key. An unknown key (error 44) drops back to proxy mode where possible, otherwise one notice asks for a new key. Without key support, direct mode falls back to the token+salt URL (owner decision 2). Direct mode always plays the server copy, so it skips permanent downloads; songs available only offline can't be cast in direct mode. Cover art uses the same key-authenticated URL as the stream, since the renderer already holds that credential.
 
 **Discovery.** SSDP for UPnP renderers (Android multicast lock and `CHANGE_WIFI_MULTICAST_STATE`), mDNS `_googlecast._tcp` for Cast (iOS `NSBonjourServices` entries). Manual address entry as a fallback, required on iOS until Apple grants the multicast entitlement.
 
@@ -97,22 +97,23 @@ Other Subsonic clients set a low bar (vendor claims from store pages and forums,
 
 Total about 10–10.5 weeks. UPnP comes before Cast because the owner's test hardware is UPnP-capable. A UPnP-plus-proxy release without Cast (phases 0–3 plus the UPnP part of phase 5) is about 8 weeks.
 
-1.6 already carries Phase 18 (widgets, Live Activity), the iOS parity items I12–I20 (CarPlay, Shortcuts, background sync, share sheet) and the Linux package repositories, so casting at full scope competes for the same release (open question 3).
+1.6 already carries Phase 18 (widgets, Live Activity), the iOS parity items I12–I20 (CarPlay, Shortcuts, background sync, share sheet) and the Linux package repositories, so casting at full scope shares the release with them; the owner chose full scope anyway (decision 4).
 
 Risky items (phase 1 player layer, phase 2 server and credentials, phase 3 migration, phase 5 reconnect state machine) take the full lifecycle with Sonnet `high` and Opus reviews.
 
 ## Testing
 
 - **UPnP:** owner's Samsung TVs and Odyssey OLED G9 monitor (the monitor advertised only DIAL in standby on 2026-11-14; re-scan when on), plus software renderers (gmrender-resurrect, Kodi, Rygel) on Linux or the NAS for automated runs.
-- **Google Cast:** no device owned. The spike checks whether an Android TV / Google TV emulator can act as a receiver; otherwise a real device is needed (open question 1).
+- **Google Cast:** no device owned. The spike checks whether an Android TV / Google TV emulator can act as a receiver; otherwise the owner procures a real device (owner decision 1).
 - Unit tests: player-layer contract tests against a fake remote player and `LocalNavisPlayer`; DIDL-Lite, SOAP and GENA handling against recorded renderer responses; proxy token, range-request and file-pinning tests; failure-matrix cases against the fake player.
 
 ## Out of scope for 1.6
 
 AirPlay (the iOS route picker, I12, covers it separately), Sonos groups, Plex/Kodi-specific targets, ReplayGain or crossfade while casting, casting radio stations (revisit after the spike), multi-room.
 
-## Open questions for the owner
+## Owner decisions (2026-11-14)
 
-1. **Cast test device:** buy a used Chromecast or Google TV device, or ship Cast only if the emulator works as a receiver?
-2. **Direct mode without API keys** (iOS, older Navidrome, other Subsonic servers): allow the token+salt URL with a clear warning, or offer direct mode only when the server supports API keys? This decides whether iOS can cast on such servers at all. Related: may Navis create and manage a dedicated "Navis cast" player with an API key on the user's Navidrome account automatically, or should the user always create and paste the key?
-3. **Scope against the rest of 1.6:** full casting (about 10 weeks) in 1.6; UPnP + proxy (about 8 weeks) in 1.6 and Cast in 1.6.x; or move other 1.6 items out?
+1. **Cast testing:** start with the Android TV / Google TV emulator as the receiver; if it can't act as one, the owner procures a real Cast device.
+2. **Direct mode without API keys:** allowed, using the token+salt URL. It is a stream-mode setting; choosing it shows a calm explanation in settings that it is not the most secure method, and the first cast in that mode shows the same note once. No warnings beyond those two.
+3. **API keys:** Navis manages them (the Navidrome "Navis cast" player flow); paste-a-key stays only as the fallback for servers where that flow is unavailable.
+4. **Scope:** full casting (UPnP/DLNA, Google Cast, proxy, iOS plan) ships in 1.6. 1.6 is a big release by design; no phase moves to 1.6.x.
