@@ -60,6 +60,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/mix_diagnostics.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
@@ -250,35 +251,7 @@ class SyncDiagnosticsServer {
     }
   }
 
-  Map<String, Object?> _mixStatusJson() {
-    final session = _container.read(recommendationSessionProvider);
-    final radio = _container.read(personalRadioProvider);
-    final server = _container.read(instantMixProvider);
-    final lastFm = _container.read(sameVibesProvider);
-    return <String, Object?>{
-      'appVersion': _container.read(packageInfoProvider).asData?.value.version,
-      'selectedSongMix':
-          _container.read(preferredMixModeProvider) ==
-              PreferredMixMode.legacyInstantMix
-          ? 'server'
-          : 'lastfm',
-      'mode': session.mode?.name,
-      'operationId': session.generation,
-      'seedId': session.seedId,
-      'stage': session.stage,
-      'recommendationSource': session.source,
-      'candidateCount': session.candidateCount,
-      'insertedCount': session.insertedCount,
-      'errorCategory': session.errorCategory,
-      'retryCount': session.retryCount,
-      'retryState': session.stage == 'retryPending'
-          ? 'pending'
-          : session.stage == 'retryExhausted'
-          ? 'exhausted'
-          : 'none',
-      'active': radio.active || server.active || lastFm.active,
-    };
-  }
+  Map<String, Object?> _mixStatusJson() => mixDiagnosticsJson(_container.read);
 
   Future<void> _handle(HttpRequest request) async {
     try {

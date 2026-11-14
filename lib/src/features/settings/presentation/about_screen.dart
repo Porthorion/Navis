@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/player/presentation/mix_diagnostics.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
@@ -496,6 +497,7 @@ class _AboutInformation extends ConsumerWidget {
         'channel': UpdateRepository.channelFor(),
         'capturedAt': DateTime.now().toUtc().toIso8601String(),
         'playback': handler?.collectPlaybackDiagnostics(),
+        'mix': mixDiagnosticsJson(ref.read),
       }, host: Uri.tryParse(url ?? '')?.host);
       await Clipboard.setData(ClipboardData(text: text));
       if (!context.mounted) return;
