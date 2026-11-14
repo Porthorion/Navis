@@ -28,14 +28,6 @@ import '../../../../helpers/library_sync_fakes.dart';
 class _AuditApi extends FakeLibrarySyncApi {
   Object? newestError;
   void Function()? onNewestPage;
-  Completer<StarredContent>? starredGate;
-  @override
-  Future<StarredContent> getStarredContent() async {
-    if (starredGate == null) return await super.getStarredContent();
-    calls.add('getStarredContent');
-    return await starredGate!.future;
-  }
-
   final Map<int, List<Album>> newestPages = {};
   @override
   Future<List<Album>> getNewestAlbumListPage({

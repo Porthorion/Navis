@@ -153,6 +153,10 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   /// that album-list page offset or album detail request.
   final Map<int, Completer<void>> pageGates = <int, Completer<void>>{};
   final Map<String, Completer<void>> albumGates = <String, Completer<void>>{};
+
+  /// Holds [getStarredContent] after its call is recorded and returns what the
+  /// completer is completed with.
+  Completer<StarredContent>? starredGate;
   bool activeRequestsCancelled = false;
   int currentAlbumRequests = 0;
   int maxConcurrentAlbumRequests = 0;
@@ -230,6 +234,8 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<StarredContent> getStarredContent() async {
     calls.add('getStarredContent');
+    final gate = starredGate;
+    if (gate != null) return gate.future;
     final error = throwOnStarred;
     if (error != null) {
       throw error;

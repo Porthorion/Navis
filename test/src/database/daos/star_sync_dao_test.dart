@@ -41,6 +41,143 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('removeAction journals star and rating deliveries; an unknown id journals nothing', () async {
+      final dao = database.starSyncDao;
+      await dao.setStarred(itemId: 'a1', itemType: 'album', liked: true);
+      await dao.setRating(itemId: 'a1', itemType: 'album', rating: 3);
+      final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+      await database.customStatement(
+        'DELETE FROM library_sync_local_mutations',
+      );
+      final pending = await dao.getPendingActions();
+      expect(pending, hasLength(2));
+
+      for (final action in pending) {
+        await dao.removeAction(action.id);
+      }
+
+      expect(await dao.getPendingActions(), isEmpty);
+      final journal = await database.librarySyncDao.getLocalStarMutationsSince(
+        epoch,
+      );
+      expect(journal['album'], <String>{'a1'});
+      final ratings = await database.librarySyncDao.getLocalMutationsSince(
+        epoch,
+        operation: 'rating',
+      );
+      expect(ratings['album'], <String>{'a1'});
+
+      // Unknown id: nothing removed, nothing journaled.
+      await database.customStatement(
+        'DELETE FROM library_sync_local_mutations',
+      );
+      expect(await dao.removeAction(9999), 0);
+      expect(
+        (await database.librarySyncDao.getLocalStarMutationsSince(epoch)).values
+            .expand((ids) => ids),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
+
+    group(
+      'provisional rows keep an annotation delivered during a snapshot',
+      () {
+        final liked = DateTime.utc(2026);
+
+        test('unliked song', () async {
+          final lib = database.libraryDao;
+          await lib.upsertProvisionalSongs([
+            SongsTableCompanion.insert(
+              id: 's1',
+              title: 'S',
+              starred: Value(liked),
+            ),
+          ]);
+          await database.starSyncDao.setStarred(
+            itemId: 's1',
+            itemType: 'song',
+            liked: false,
+          );
+          final runStart = DateTime.now().subtract(const Duration(seconds: 5));
+          for (final a in await database.starSyncDao.getPendingActions()) {
+            await database.starSyncDao.removeAction(a.id);
+          }
+          await lib.upsertProvisionalSongs(
+            [
+              SongsTableCompanion.insert(
+                id: 's1',
+                title: 'S',
+                starred: Value(liked),
+              ),
+            ],
+            snapshotStartedAt: runStart,
+            preserveKnownMetadata: true,
+          );
+          expect((await lib.getSongById('s1'))?.starred, isNull);
+        }, skip: !sqliteAvailable);
+
+        test('unliked artist', () async {
+          final lib = database.libraryDao;
+          await lib.upsertProvisionalArtists([
+            ArtistsTableCompanion.insert(
+              id: 'ar1',
+              name: 'A',
+              starred: Value(liked),
+            ),
+          ]);
+          await database.starSyncDao.setStarred(
+            itemId: 'ar1',
+            itemType: 'artist',
+            liked: false,
+          );
+          final runStart = DateTime.now().subtract(const Duration(seconds: 5));
+          for (final a in await database.starSyncDao.getPendingActions()) {
+            await database.starSyncDao.removeAction(a.id);
+          }
+          await lib.upsertProvisionalArtists(
+            [
+              ArtistsTableCompanion.insert(
+                id: 'ar1',
+                name: 'A',
+                starred: Value(liked),
+              ),
+            ],
+            snapshotStartedAt: runStart,
+            preserveKnownMetadata: true,
+          );
+          expect((await lib.getArtistById('ar1'))?.starred, isNull);
+        }, skip: !sqliteAvailable);
+
+        test('rated album', () async {
+          final lib = database.libraryDao;
+          await lib.upsertProvisionalAlbums([
+            AlbumsTableCompanion.insert(id: 'al1', name: 'A'),
+          ]);
+          await database.starSyncDao.setRating(
+            itemId: 'al1',
+            itemType: 'album',
+            rating: 4,
+          );
+          final runStart = DateTime.now().subtract(const Duration(seconds: 5));
+          for (final a in await database.starSyncDao.getPendingActions()) {
+            await database.starSyncDao.removeAction(a.id);
+          }
+          await lib.upsertProvisionalAlbums(
+            [
+              AlbumsTableCompanion.insert(
+                id: 'al1',
+                name: 'A',
+                userRating: const Value(2),
+              ),
+            ],
+            snapshotStartedAt: runStart,
+            preserveKnownMetadata: true,
+          );
+          expect((await lib.getAlbumById('al1'))?.userRating, 4);
+        }, skip: !sqliteAvailable);
+      },
+    );
+
     group('remote copies (ext- ids)', () {
       Future<void> seed() async {
         await database.libraryDao.upsertSongs(<SongsTableCompanion>[

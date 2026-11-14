@@ -95,6 +95,44 @@ extension _NavisQueueLoading on NavisAudioHandler {
 
   void _clearQueueReplacementMetadataAnchor() {
     _queueReplacementMetadataAnchor = null;
+    _reorderMetadataAnchor = null;
+  }
+
+  /// The playing row in [_queueItems]. While a reorder anchor is pending the
+  /// native index is stale, so the anchored item (by identity) wins.
+  int? _playingRow() {
+    final anchored = _reorderMetadataAnchor?.mediaItem;
+    if (anchored != null) {
+      final row = _queueItems.indexWhere((item) => identical(item, anchored));
+      if (row >= 0) return row;
+    }
+    return _player.currentIndex;
+  }
+
+  /// Before a native edit moves the playing row, pins the current song to
+  /// [landing] of its present row (null: it leaves the player). The native
+  /// index event follows the edit late; until it does, the old index applied
+  /// to the new queue would name another song. Replaces any earlier anchor,
+  /// keeping the index the player still reports.
+  void _anchorPlayingRow(int? Function(int row) landing) {
+    final current = _playingRow();
+    final stale = _reorderMetadataAnchor == null
+        ? _player.currentIndex
+        : _reorderStaleIndex;
+    _reorderMetadataAnchor = null;
+    if (current == null ||
+        stale == null ||
+        current < 0 ||
+        current >= _queueItems.length) {
+      return;
+    }
+    final newIndex = landing(current);
+    if (newIndex == null || newIndex == stale) return;
+    _reorderStaleIndex = stale;
+    _reorderMetadataAnchor = NavisQueueReplacementMetadataAnchor(
+      expectedIndex: newIndex,
+      mediaItem: _queueItems[current],
+    );
   }
 
   void _clearPendingLogicalQueue() {
@@ -145,6 +183,18 @@ extension _NavisQueueLoading on NavisAudioHandler {
         )) {
       _clearQueueReplacementMetadataAnchor();
     }
+    final reorder = _reorderMetadataAnchor;
+    if (reorder != null &&
+        (navisIsQueueReplacementMetadataAnchorConfirmed(
+              queueItems: _queueItems,
+              backendCurrentIndex: backendCurrentIndex,
+              anchor: reorder,
+            ) ||
+            // The index moved on (skip, auto-advance): the pin is obsolete.
+            (backendCurrentIndex != null &&
+                backendCurrentIndex != _reorderStaleIndex))) {
+      _reorderMetadataAnchor = null;
+    }
     final pending = _queueReplacementMetadataAnchor;
     if (_isLoading &&
         pending != null &&
@@ -161,7 +211,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       logicalQueueSongIds: _pendingLogicalQueueSongIds,
       backendCurrentIndex: backendCurrentIndex,
       fallbackMediaItem: _currentMediaItem,
-      anchor: _queueReplacementMetadataAnchor,
+      anchor: _queueReplacementMetadataAnchor ?? _reorderMetadataAnchor,
     );
   }
 

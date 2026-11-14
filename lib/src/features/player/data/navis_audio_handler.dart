@@ -485,6 +485,14 @@ class NavisAudioHandler extends BaseAudioHandler
   MediaItem? _currentMediaItem;
   NavisQueueReplacementMetadataAnchor? _queueReplacementMetadataAnchor;
 
+  /// Pins the playing song to its new row while a native queue edit has not
+  /// yet reported the shifted index. Separate from the replacement anchor,
+  /// which also means "a replacement is loading".
+  NavisQueueReplacementMetadataAnchor? _reorderMetadataAnchor;
+
+  /// The native index before the edit that set [_reorderMetadataAnchor].
+  int? _reorderStaleIndex;
+
   _SeekPreview? _seekPreview;
   Timer? _seekPreviewExpiry;
 
