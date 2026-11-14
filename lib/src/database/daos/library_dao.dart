@@ -1790,11 +1790,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           await (update(
             artistsTable,
           )..where((t) => t.id.equals(artist.id.value))).write(
-            ArtistsTableCompanion(
-              starred: artist.starred.present
-                  ? artist.starred
-                  : const Value.absent(),
-            ),
+            guard
+                .artist(
+                  ArtistsTableCompanion(
+                    id: artist.id,
+                    starred: artist.starred.present
+                        ? artist.starred
+                        : const Value.absent(),
+                  ),
+                )
+                .copyWith(id: const Value.absent()),
           );
           continue;
         }
@@ -1987,14 +1992,19 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           await (update(
             albumsTable,
           )..where((t) => t.id.equals(album.id.value))).write(
-            AlbumsTableCompanion(
-              starred: album.starred.present
-                  ? album.starred
-                  : const Value.absent(),
-              userRating: album.userRating.present
-                  ? album.userRating
-                  : const Value.absent(),
-            ),
+            guard
+                .album(
+                  AlbumsTableCompanion(
+                    id: album.id,
+                    starred: album.starred.present
+                        ? album.starred
+                        : const Value.absent(),
+                    userRating: album.userRating.present
+                        ? album.userRating
+                        : const Value.absent(),
+                  ),
+                )
+                .copyWith(id: const Value.absent()),
           );
           continue;
         }
@@ -2279,14 +2289,19 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           await (update(
             songsTable,
           )..where((t) => t.id.equals(song.id.value))).write(
-            SongsTableCompanion(
-              starred: song.starred.present
-                  ? song.starred
-                  : const Value.absent(),
-              userRating: song.userRating.present
-                  ? song.userRating
-                  : const Value.absent(),
-            ),
+            guard
+                .song(
+                  SongsTableCompanion(
+                    id: song.id,
+                    starred: song.starred.present
+                        ? song.starred
+                        : const Value.absent(),
+                    userRating: song.userRating.present
+                        ? song.userRating
+                        : const Value.absent(),
+                  ),
+                )
+                .copyWith(id: const Value.absent()),
           );
           continue;
         }

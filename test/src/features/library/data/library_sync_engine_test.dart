@@ -2667,12 +2667,17 @@ void main() {
         );
       }, skip: !sqliteAvailable);
 
-      test('a like delivered during a starred sync is kept', () async {
+      test('an unlike delivered during a starred sync is kept', () async {
         await seedAlbum();
+        await database.libraryDao.setEntityStarred(
+          'album',
+          'album-keep',
+          DateTime.utc(2026),
+        );
         await database.starSyncDao.setStarred(
           itemId: 'album-keep',
           itemType: 'album',
-          liked: true,
+          liked: false,
         );
         await nextSecond();
         final gate = Completer<StarredContent>();
@@ -2688,11 +2693,22 @@ void main() {
         for (final action in await database.starSyncDao.getPendingActions()) {
           await database.starSyncDao.removeAction(action.id);
         }
-        gate.complete(const StarredContent());
+        gate.complete(
+          StarredContent(
+            albums: <Album>[
+              Album(
+                id: 'album-keep',
+                name: 'Keep',
+                artistId: 'artist-keep',
+                starred: DateTime.utc(2026),
+              ),
+            ],
+          ),
+        );
         expect((await run).status, LibrarySyncStatus.succeeded);
         expect(
           (await database.libraryDao.getAlbumById('album-keep'))?.starred,
-          isNotNull,
+          isNull,
         );
       }, skip: !sqliteAvailable);
     });

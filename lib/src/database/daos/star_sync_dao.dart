@@ -281,7 +281,9 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
       entityId: row.itemId,
       operation: row.operation,
     );
-    return (delete(starSyncQueueTable)..where((t) => t.id.equals(id))).go();
+    return await (delete(
+      starSyncQueueTable,
+    )..where((t) => t.id.equals(id))).go();
   });
 
   /// Clear all pending actions (e.g., after sign-out).
