@@ -834,6 +834,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   Future<_SeedMetadata?> _resolveSeedMetadata({
     required SubsonicApiClient api,
     required String seedSongId,
+    bool rethrowNotFound = false,
   }) async {
     final mediaItem = ref.read(currentMediaItemProvider).asData?.value;
     final mediaTitle = mediaItem?.title.trim() ?? '';
@@ -876,6 +877,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         artist: artist,
         libraryCopyId: libraryCopyId,
       );
+    } on SubsonicNotFoundException {
+      if (rethrowNotFound) rethrow;
+      return fromMediaItem;
     } on Exception {
       return fromMediaItem;
     }
@@ -1056,7 +1060,22 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
     String? lastFmOutcome;
     String? failureReason;
-    final seed = await _resolveSeedMetadata(api: api, seedSongId: anchorSeedId);
+    final _SeedMetadata? seed;
+    try {
+      seed = await _resolveSeedMetadata(
+        api: api,
+        seedSongId: anchorSeedId,
+        rethrowNotFound: true,
+      );
+    } on SubsonicNotFoundException catch (error) {
+      // The server no longer has the anchor: that is final, not a retry.
+      return (
+        mapped: const <Song>[],
+        similar: const <Song>[],
+        failureReason: _subsonicFailureReason(error),
+        lastFmOutcome: null,
+      );
+    }
     if (seed == null) {
       failureReason = _kAnchorTransientReason;
     } else {

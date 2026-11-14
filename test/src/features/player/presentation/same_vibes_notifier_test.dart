@@ -3676,6 +3676,40 @@ void main() {
       expect(serverSeeds, <String>['seed-a', 'seed-a']);
     });
 
+    test('an anchor whose song lookup is not found is spent at once', () async {
+      // The anchor is not the playing media item, so its metadata comes from
+      // the server, as it does while a remote song plays.
+      var anchorSongLookups = 0;
+      when(() => api.getSong('seed-b', cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((_) async {
+            anchorSongLookups += 1;
+            // The activation resolves the seed; from the first refill on, the
+            // server no longer has it.
+            if (anchorSongLookups > 1) {
+              throw SubsonicNotFoundException(message: 'gone');
+            }
+            return Song(id: 'seed-b', title: 'Seed', artist: 'Artist');
+          });
+      similar = (seed, call) =>
+          call == 0 ? remoteBatch('ext-deezer-song-') : const <Song>[];
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-b');
+      final queue = <String>[
+        'seed-b',
+        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
+      ];
+      for (var index = 1; index <= 4; index++) {
+        await playAt(container, queue, index);
+      }
+      expect(
+        anchorSongLookups,
+        2,
+        reason: 'the anchor is asked once, then spent',
+      );
+      expect(serverSeeds, <String>['seed-b']);
+      expect(container.read(recommendationSessionProvider).retryCount, 0);
+    });
+
     test('a refill that parks after a skip onto the last item does not end the '
         'mix', () async {
       final gate = Completer<List<Song>>();
