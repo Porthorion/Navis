@@ -444,8 +444,9 @@ PY
 
   # An interrupted first setup can promote a catalog without readiness
   # evidence. Signing out with kept data and back in resumes that setup; its
-  # retry must publish a full catalog so the partial-readiness predicate can
-  # release the route.
+  # retry must publish a full catalog. The short album is classified as
+  # server-incomplete: it does not block freshness (the repair run completes)
+  # and stays queued for a later retry.
   launch_app "$EXISTING_DB" existing-interrupted
   wait_for_phase ready "$OUTPUT_ROOT/existing-interrupted-start.json"
   api POST /v1/diagnostics/overrides \
@@ -499,7 +500,7 @@ runs = [
 ]
 assert rebuild["status"] in ("complete", "inactive"), (rebuild, runs)
 assert any(
-    run.get("planKind") == "repairLibrary" and run.get("outcome") == "partial"
+    run.get("planKind") == "repairLibrary" and run.get("outcome") == "completed"
     for run in runs
 ), runs
 assert not any(run.get("planKind") == "manualCatalogDiscovery" for run in runs), runs
