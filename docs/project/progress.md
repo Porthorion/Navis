@@ -4481,4 +4481,4 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   `repeat_one_fill` minimum 2500 ms (named constant), `cutsObserved` is the minimum
   over cut cells with `spliceEvents` limited to the cut window. 80 harness + 45 gate
   self-checks, hermetic.
-- Keep-data sign-in catch-up (1.5.2): `ServerConfigNotifier.save` calls `LibrarySyncController.catchUpAfterSignIn` when the retained profile matches, so the startup pass runs one Check for updates before the saved deadline; 10 new unit tests; `tool/auth_lifecycle_diagnostics.sh existing-catalog` now asserts exactly one such run before taking the setup baseline (not yet run).
+- Keep-data sign-in catch-up (1.5.2): `ServerConfigNotifier.save` calls `LibrarySyncController.catchUpAfterSignIn` when the retained profile matches, so the startup pass runs one Check for updates before the saved deadline; unit tests for the deferred, joined, lease-held, busy and setup cases (a deferred check ends the catch-up); `tool/auth_lifecycle_diagnostics.sh existing-catalog` now asserts exactly one such run before taking the setup baseline (not yet run).

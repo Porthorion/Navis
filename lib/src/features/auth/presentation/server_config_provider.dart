@@ -91,13 +91,14 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
     final keptData =
         await repository.compareRetainedServer(config) ==
         RetainedServerMatch.same;
-    await repository.save(config);
-    await refresh();
     // Signing back in over kept data checks for updates now instead of waiting
-    // for the saved automatic deadline.
+    // for the saved automatic deadline. Recorded before the session event so
+    // the one startup pass it starts runs it.
     if (keptData && ref.mounted) {
       ref.read(librarySyncControllerProvider.notifier).catchUpAfterSignIn();
     }
+    await repository.save(config);
+    await refresh();
     if (ref.exists(audioBootstrapControllerProvider)) {
       ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
     }

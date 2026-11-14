@@ -7200,15 +7200,19 @@ collaborators does not read locale settings or open the database for localizatio
    a startup, reconnect, resume, periodic pass, or Check for updates. Resume
    re-arms the periodic timer for at most one due staleness check; it never
    also schedules a startup pass. A startup or periodic caller also treats a
-   not-yet-constructed credential-backed engine as pending rather than failure, then restarts its startup pass once the
-   engine is available. A sign-in over kept data (`ServerConfigNotifier.save`
-   found the retained profile) calls `catchUpAfterSignIn`: the startup pass then
-   runs one normal Check for updates instead of waiting for the saved deadline.
-   The in-memory flag clears once that run finishes (a manual or repair run
-   already in flight counts), on sign-out, and when setup owns the first sync;
-   offline, a missing engine, a silent lock timeout or a held Android lease keep
-   it for the usual retry triggers. A due deadline is then rescheduled from the
-   completed check; a future one is left unchanged. A restart never sets it. When an explicit Check for updates reaches a deliberate
+   not-yet-constructed credential-backed engine as pending rather than
+   failure, then restarts its startup pass once the engine is available. A
+   sign-in over kept data (`ServerConfigNotifier.save` found the retained
+   profile) calls `catchUpAfterSignIn` before the session is saved: the one
+   startup pass it starts then runs one normal Check for updates instead of
+   waiting for the saved deadline. The in-memory flag clears once a completed
+   check finishes (also when the check is deferred; a manual or repair run
+   already in flight counts), on sign-out, and when setup owns the first sync.
+   Only the pass that ran the catch-up clears it, never a joined automatic
+   result. Offline, a missing engine, a silent lock timeout or a busy-lock
+   deferral keep it for the usual retry triggers. A held lease keeps it too and
+   re-arms a retry at lease expiry. A due deadline is then rescheduled from the
+   completed check; a future one is left unchanged. A restart never sets it.
    page, entity, request, byte, or duration limit after doing work, it returns
    `partial` and preserves its checkpoint for the next pass. The same limit on
    automatic work remains `deferred`; offline, metered, playback, and

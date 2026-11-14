@@ -30,12 +30,17 @@ class _PendingSignOut implements SignOutService {
 /// Counts the sign-in catch-up requests without building the real controller.
 class _CatchUpSpy extends LibrarySyncController {
   static int catchUps = 0;
+  static bool Function()? isSaved;
+  static bool? savedAtCall;
 
   @override
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  void catchUpAfterSignIn() => catchUps++;
+  void catchUpAfterSignIn() {
+    catchUps++;
+    savedAtCall = isSaved?.call();
+  }
 }
 
 class _NetworkUsageMeter extends Mock implements NetworkUsageMeter;
@@ -229,4 +234,34 @@ void main() {
       },
     );
   }
+
+  test('the catch-up intent is recorded before the row is saved', () async {
+    _CatchUpSpy.catchUps = 0;
+    var saved = false;
+    _CatchUpSpy.isSaved = () => saved;
+    addTearDown(() => _CatchUpSpy.isSaved = null);
+    final repository = _Repository();
+    when(repository.watchActiveServer).thenAnswer((_) => const Stream.empty());
+    when(repository.getActiveServer).thenAnswer((_) async => config);
+    when(() => repository.save(config)).thenAnswer((_) async => saved = true);
+    when(() => repository.compareRetainedServer(config))
+        .thenAnswer((_) async => RetainedServerMatch.same);
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigRepositoryProvider.overrideWithValue(repository),
+        signOutServiceProvider.overrideWithValue(
+          _PendingSignOut()..pending.complete(),
+        ),
+        librarySyncControllerProvider.overrideWith(_CatchUpSpy.new),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(serverConfigProvider, (_, _) {});
+    await container.read(serverConfigProvider.future);
+
+    await container.read(serverConfigProvider.notifier).save(config);
+
+    expect(_CatchUpSpy.catchUps, 1);
+    expect(_CatchUpSpy.savedAtCall, isFalse);
+  });
 }

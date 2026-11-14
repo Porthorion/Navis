@@ -664,6 +664,16 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
   }
 
+  /// A completed check (also when deferred) ends the sign-in catch-up, as it
+  /// ends a Sync Library Now. A held lease and a busy lock retry instead.
+  bool _finishesCatchUp(LibrarySyncState r) =>
+      r.planReason != 'leaseHeld' &&
+      (r.status == LibrarySyncStatus.succeeded ||
+          r.status == LibrarySyncStatus.partial ||
+          r.status == LibrarySyncStatus.skipped ||
+          (r.status == LibrarySyncStatus.deferred && !r.needsBusyRetry) ||
+          (r.status == LibrarySyncStatus.failed && !r.isSilentFailure));
+
   /// Runs one normal Check for updates now, whatever the saved automatic
   /// deadline, after a sign-in that kept the retained library. The startup pass
   /// owns it, so every existing guard (offline, setup, engine, leases) applies
@@ -1181,11 +1191,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     if (countedRun != null) {
       try {
-        final status = (await countedRun).status;
-        if (status == LibrarySyncStatus.succeeded ||
-            status == LibrarySyncStatus.partial) {
-          _catchUpAfterSignIn = false;
-        }
+        if (_finishesCatchUp(await countedRun)) _catchUpAfterSignIn = false;
       } on Object {
         // A failed run does not count; the pass below still catches up.
       }
@@ -1269,15 +1275,20 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (!ref.mounted || epoch != _startupSyncEpoch) {
       return;
     }
-    final catchUpFinished =
-        result.planReason != 'leaseHeld' &&
-        (result.status == LibrarySyncStatus.succeeded ||
-            result.status == LibrarySyncStatus.partial ||
-            result.status == LibrarySyncStatus.skipped ||
-            (result.status == LibrarySyncStatus.failed &&
-                !result.isSilentFailure));
-    if (_catchUpAfterSignIn && catchUpFinished) {
+    final catchUpFinished = _finishesCatchUp(result);
+    // Only the pass that ran the catch-up (or a repair) may end it: a joined
+    // automatic result from before the flag was set must not consume it.
+    if ((catchingUp || repairing) && catchUpFinished) {
       _catchUpAfterSignIn = false;
+    }
+    if (catchingUp &&
+        result.planReason == 'leaseHeld' &&
+        interval != null &&
+        generation == _sessionGeneration) {
+      // The flag stays; retry once the lease can be taken over.
+      await _scheduleAfterLeaseExpiry(interval);
+      if (!ref.mounted) return;
+      _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
     }
     if (deadlineWasDue &&
         catchUpFinished &&
