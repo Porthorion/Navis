@@ -761,7 +761,8 @@ a keep-data sign-out and sign-in, setup and every retry run the explicit full
 scan (`forceFullSync`) that cache upgrade uses: an incremental discovery pass
 never publishes a catalog in its own run and stops at per-run budgets, so it
 could never satisfy the readiness predicate. A completed profile keeps its
-full-sync evidence across keep-data sign-out and returns directly to Home.
+full-sync evidence across keep-data sign-out and returns directly to Home,
+where one catch-up Check for updates runs at once.
 The rebuild controller behind every full-screen reason is an autoDispose
 family scoped to one route visit. Each visit starts from idle and runs its own
 rebuild. A run or a cancel-and-sign-out holds a keep-alive link, so its
@@ -7199,8 +7200,19 @@ collaborators does not read locale settings or open the database for localizatio
    a startup, reconnect, resume, periodic pass, or Check for updates. Resume
    re-arms the periodic timer for at most one due staleness check; it never
    also schedules a startup pass. A startup or periodic caller also treats a
-   not-yet-constructed credential-backed engine as pending rather than failure, then restarts its startup pass once the
-   engine is available. When an explicit Check for updates reaches a deliberate
+   not-yet-constructed credential-backed engine as pending rather than
+   failure, then restarts its startup pass once the engine is available. A
+   sign-in over kept data (`ServerConfigNotifier.save` found the retained
+   profile) calls `catchUpAfterSignIn` before the session is saved: the one
+   startup pass it starts then runs one normal Check for updates instead of
+   waiting for the saved deadline. The in-memory flag clears once a completed
+   check finishes (also when the check is deferred; a manual or repair run
+   already in flight counts), on sign-out, and when setup owns the first sync.
+   Only the pass that ran the catch-up clears it, never a joined automatic
+   result. Offline, a missing engine, a silent lock timeout or a busy-lock
+   deferral keep it for the usual retry triggers. A held lease keeps it too and
+   re-arms a retry at lease expiry. A due deadline is then rescheduled from the
+   completed check; a future one is left unchanged. A restart never sets it.
    page, entity, request, byte, or duration limit after doing work, it returns
    `partial` and preserves its checkpoint for the next pass. The same limit on
    automatic work remains `deferred`; offline, metered, playback, and

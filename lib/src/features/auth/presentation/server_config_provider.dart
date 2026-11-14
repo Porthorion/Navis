@@ -6,6 +6,7 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -86,6 +87,16 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
     // A sign-out still running (a chained wipe) would clear these credentials.
     await ref.read(signOutServiceProvider).pendingSignOut;
     final repository = ref.read(serverConfigRepositoryProvider);
+    // Read before saving: afterwards the retained row always matches.
+    final keptData =
+        await repository.compareRetainedServer(config) ==
+        RetainedServerMatch.same;
+    // Signing back in over kept data checks for updates now instead of waiting
+    // for the saved automatic deadline. Recorded before the session event so
+    // the one startup pass it starts runs it.
+    if (keptData && ref.mounted) {
+      ref.read(librarySyncControllerProvider.notifier).catchUpAfterSignIn();
+    }
     await repository.save(config);
     await refresh();
     if (ref.exists(audioBootstrapControllerProvider)) {

@@ -124,6 +124,7 @@ waiting in a test. [WorkManager integration testing](https://developer.android.c
 | Wi-Fi/unmetered-only enabled | The native request requires `NetworkType.UNMETERED`; no broad download is started on cellular or metered Wi-Fi. |
 | User permits background sync on metered data | The request requires `NetworkType.CONNECTED`; the Dart planner still applies byte budgets and durable policy. |
 | Manual Check for updates | Runs immediately through the foreground controller. It is never silently converted to a periodic worker. |
+| Sign-in over kept data | The foreground controller runs one Check for updates after sign-in; if the background run holds the lease, it waits until the lease ends. |
 | Repair Library | Never auto-resumed by WorkManager. It remains an explicit foreground, confirmation-aware action. |
 | Active playback | The worker exits without broad work and records a safe defer reason. Playback never competes with a catalog write. |
 | No authenticated session or unavailable secure credential | No network request. Record a redacted terminal reason and await the next app login. |

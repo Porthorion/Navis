@@ -2196,6 +2196,8 @@ void main() {
       when(repository.getActiveServer).thenAnswer((_) async => active);
       when(() => repository.save(config))
           .thenAnswer((_) async => active = config);
+      when(() => repository.compareRetainedServer(config))
+          .thenAnswer((_) async => RetainedServerMatch.none);
       var calls = 0;
       final container = ProviderContainer(
         overrides: [
