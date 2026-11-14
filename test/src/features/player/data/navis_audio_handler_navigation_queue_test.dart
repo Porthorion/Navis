@@ -3156,9 +3156,106 @@ void main() {
               'queue ${snapshot.queueSongIds} index $index '
               'current ${snapshot.currentSongId}',
         );
+        expect(snapshot.currentSongId, 'song-5');
       }
     },
   );
+
+  // Issue #627 part 2: the native index event follows a move late; until then
+  // every snapshot must still name the song that was playing, at its own row.
+  Future<void> expectEditKeepsPlaying(
+    Future<void> Function(NavisAudioHandler handler) edit, {
+    required int playing,
+    int songs = 6,
+  }) async {
+    final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
+    final player = _LateIndexPlayer();
+    final (handler, _, database) = await createHandler(
+      directory,
+      songs,
+      initialPlayer: player,
+    );
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(songs, (index) => 'song-$index');
+    await handler.replaceQueueWithData(
+      await database.libraryDao.getSongsByIds(ids),
+      startIndex: playing,
+    );
+    await settleQueue(handler);
+    final playingId = 'song-$playing';
+    expect(handler.snapshot.currentSongId, playingId);
+    final bad = <String>[];
+    final subscription = handler.snapshotStream.listen((s) {
+      final i = s.currentIndex;
+      if (s.currentSongId != playingId ||
+          i == null ||
+          s.queueSongIds[i] != playingId) {
+        bad.add('q=${s.queueSongIds} idx=$i cur=${s.currentSongId}');
+      }
+    });
+    addTearDown(subscription.cancel);
+    await edit(handler);
+    await pumpEventQueue(times: 20);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(bad, isEmpty, reason: 'every snapshot keeps $playingId playing');
+    expect(handler.snapshot.currentSongId, playingId);
+    final i = handler.snapshot.currentIndex!;
+    expect(handler.snapshot.queueSongIds[i], playingId);
+  }
+
+  for (final (from, to, playing) in const [
+    (5, 0, 5), // the playing row moves up
+    (1, 5, 3), // a row moves down past the playing one
+    (0, 6, 3), // a row dropped at the bottom
+    (3, 0, 3), // the playing row dropped at the top
+    (4, 1, 2), // a row moves up past the playing one
+    (3, 6, 3), // the playing row dropped at the bottom
+    (0, 2, 4), // no crossing: nothing shifts
+  ]) {
+    test('moving row $from to $to keeps song-$playing as the current song '
+        'in every snapshot', () async {
+      await expectEditKeepsPlaying(
+        (handler) => handler.reorderQueue(from, to),
+        playing: playing,
+      );
+    });
+  }
+
+  test('removing a row before the playing one keeps the current song in '
+      'every snapshot', () async {
+    await expectEditKeepsPlaying((handler) => handler.removeAt(1), playing: 3);
+  });
+
+  test('a reorder anchor never sticks when the index event does not come, '
+      'and a later skip is not pinned to it', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
+    final player = _LateIndexPlayer()..dropIndexEvents = true;
+    final (handler, _, database) = await createHandler(
+      directory,
+      6,
+      initialPlayer: player,
+    );
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(6, (index) => 'song-$index');
+    await handler.replaceQueueWithData(
+      await database.libraryDao.getSongsByIds(ids),
+      startIndex: 5,
+    );
+    await settleQueue(handler);
+    await handler.reorderQueue(5, 0);
+    await handler.skipToQueueItem(3);
+    await settleQueue(handler);
+    expect(handler.snapshot.currentIndex, 3);
+    expect(handler.snapshot.currentSongId, handler.snapshot.queueSongIds[3]);
+  });
 
   test('a burst of reorders persists the final queue once', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
@@ -5092,6 +5189,47 @@ void main() {
       expect(player.batchMutationCount, mutations);
     });
 
+    test('moving a deferred song above the playing one keeps it the current '
+        'song in every snapshot', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-window-');
+      final late = _LateIndexPlayer();
+      final created = await createHandler(
+        directory,
+        60,
+        queueWindow: window,
+        initialPlayer: late,
+      );
+      final handler = created.$1;
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await created.$3.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      await handler.playFromIndex(2);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-2' &&
+            !handler.snapshot.isLoading,
+      );
+      late.lateInserts = true;
+      final bad = <String>[];
+      final subscription = handler.snapshotStream.listen((s) {
+        final i = s.currentIndex;
+        if (s.currentSongId != 'song-2' ||
+            i == null ||
+            s.queueSongIds[i] != 'song-2') {
+          bad.add('q=${s.queueSongIds.take(5)} idx=$i cur=${s.currentSongId}');
+        }
+      });
+      addTearDown(subscription.cancel);
+      await handler.reorderQueue(40, 0);
+      await pumpEventQueue(times: 20);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(bad, isEmpty);
+      expect(handler.snapshot.currentIndex, 3);
+    });
+
     test('moving a deferred song into the window inserts it once', () async {
       final (handler, player, _) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
@@ -6273,6 +6411,44 @@ void main() {
 /// Like the native player: a move returns before the index event that follows
 /// the playing item to its new slot.
 class _LateIndexPlayer extends ControllableAudioPlayer {
+  /// Never delivers the index event (the anchor must not stick).
+  bool dropIndexEvents = false;
+
+  /// Inserts before the playing row report its shifted index late too.
+  bool lateInserts = false;
+
+  @override
+  Future<void> insertAudioSources(int at, List<AudioSource> sources) async {
+    if (!lateInserts) return super.insertAudioSources(at, sources);
+    final playing = index;
+    batchMutationCount++;
+    queuedSources.insertAll(at, sources);
+    if (playing == null || at > playing) return;
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 10), () {
+        if (dropIndexEvents) return;
+        index = playing + sources.length;
+        indexEvents.add(index);
+        playbackEvents.add(playbackEvent);
+      }),
+    );
+  }
+
+  @override
+  Future<void> removeAudioSourceAt(int at) async {
+    final playing = index;
+    queuedSources.removeAt(at);
+    if (playing == null || at >= playing) return;
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 10), () {
+        if (dropIndexEvents) return;
+        index = playing - 1;
+        indexEvents.add(index);
+        playbackEvents.add(playbackEvent);
+      }),
+    );
+  }
+
   @override
   Future<void> moveAudioSource(int currentIndex, int newIndex) async {
     final playing = index;
@@ -6288,6 +6464,7 @@ class _LateIndexPlayer extends ControllableAudioPlayer {
     }
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 10), () {
+        if (dropIndexEvents) return;
         index = moved;
         indexEvents.add(index);
         playbackEvents.add(playbackEvent);
