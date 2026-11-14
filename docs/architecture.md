@@ -4775,10 +4775,15 @@ fetch is abandoned, so its late answer, even one already waiting to be
 appended, queues nothing and counts nothing. Initial-refill failures, the
 initial-start timeout, terminal Last.fm errors (invalid key, rate
 limit) and a server that lacks the similarity endpoints still end the mix with
-their notice; a remote song without a library copy only parks Server Mix. The
-run-out check happens on the next playback snapshot on the parked last song
-(for example a pause), and a skip made while a refill runs is re-checked as
-soon as the refill parks.
+their notice. A remote song without a library copy has no similar songs of
+its own, and never borrows a queue neighbour's: Server Mix only parks. Same
+Vibes falls back to its anchor, the server-addressable song the mix started
+from, for Last.fm and the server's similar songs, until the anchor's results
+are all queued or the server no longer has it (a failed ask, such as a network
+error, does not spend it and retries like any failure); a mix started from a
+remote song has no anchor. A refill that parks on the last item with repeat off
+ends the mix right away, provided that song is still the playing one; a skip
+made while a refill runs is re-checked as soon as the refill parks.
 
 Personal Radio retries with the same backoff and stops refilling at
 `retryExhausted`; later playback snapshots, a cleared error notice or an

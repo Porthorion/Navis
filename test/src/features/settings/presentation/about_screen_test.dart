@@ -15,6 +15,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
@@ -26,6 +28,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_url_launcher.dart';
+import '../../../../helpers/reachability_fakes.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
 
@@ -250,6 +253,10 @@ void main() {
         extraOverrides: <Override>[
           devChannelBuildProvider.overrideWithValue(true),
           audioHandlerProvider.overrideWithValue(_TraceHandler()),
+          playerStateProvider.overrideWithValue(const PlaybackSnapshot.idle()),
+          serverReachabilityControllerProvider.overrideWith(
+            OnlineReachability.new,
+          ),
           serverConfigStateProvider.overrideWithValue(
             const AsyncValue.data(
               ServerConfigModel(
@@ -272,6 +279,10 @@ void main() {
       final decoded = jsonDecode(text) as Map<String, Object?>;
       final playback = decoded['playback']! as Map<String, Object?>;
       expect(playback['transportTrace'], isNotEmpty);
+      final mix = decoded['mix']! as Map<String, Object?>;
+      expect(mix, contains('selectedSongMix'));
+      expect(mix, containsPair('active', false));
+      expect(mix, contains('lastRefill'));
       for (final secret in <String>[
         'alice',
         'pw@',
