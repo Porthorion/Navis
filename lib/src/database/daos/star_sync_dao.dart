@@ -268,10 +268,21 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Remove a single completed action from the queue.
-  Future<int> removeAction(int id) {
+  /// Remove a single delivered action from the queue. The journal row keeps a
+  /// sync run that read the server before delivery from undoing the local
+  /// value, once the queue row no longer protects it (#542).
+  Future<int> removeAction(int id) => transaction(() async {
+    final row = await (select(
+      starSyncQueueTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null) return 0;
+    await attachedDatabase.libraryDao.recordLocalMutation(
+      entityType: row.itemType,
+      entityId: row.itemId,
+      operation: row.operation,
+    );
     return (delete(starSyncQueueTable)..where((t) => t.id.equals(id))).go();
-  }
+  });
 
   /// Clear all pending actions (e.g., after sign-out).
   Future<int> clearAll() {

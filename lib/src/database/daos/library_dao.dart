@@ -2354,7 +2354,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         updates: {table},
         updateKind: UpdateKind.update,
       );
-      await _recordLocalMutation(
+      await recordLocalMutation(
         entityType: type,
         entityId: id,
         operation: operation,
@@ -2368,7 +2368,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> _recordLocalMutation({
+  /// Journals a local star or rating write so a concurrent sync run keeps it.
+  Future<void> recordLocalMutation({
     required String entityType,
     required String entityId,
     required String operation,

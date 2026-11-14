@@ -41,6 +41,44 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('removeAction journals a delivered annotation; an unknown id journals nothing', () async {
+      final dao = database.starSyncDao;
+      await dao.setStarred(itemId: 'a1', itemType: 'album', liked: true);
+      await dao.setRating(itemId: 'a1', itemType: 'album', rating: 3);
+      final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+      await database.customStatement(
+        'DELETE FROM library_sync_local_mutations',
+      );
+      final pending = await dao.getPendingActions();
+      expect(pending, hasLength(2));
+
+      for (final action in pending) {
+        await dao.removeAction(action.id);
+      }
+
+      expect(await dao.getPendingActions(), isEmpty);
+      final journal = await database.librarySyncDao.getLocalStarMutationsSince(
+        epoch,
+      );
+      expect(journal['album'], <String>{'a1'});
+      final ratings = await database.librarySyncDao.getLocalMutationsSince(
+        epoch,
+        operation: 'rating',
+      );
+      expect(ratings['album'], <String>{'a1'});
+
+      // Unknown id: nothing removed, nothing journaled.
+      await database.customStatement(
+        'DELETE FROM library_sync_local_mutations',
+      );
+      expect(await dao.removeAction(9999), 0);
+      expect(
+        (await database.librarySyncDao.getLocalStarMutationsSince(epoch)).values
+            .expand((ids) => ids),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
+
     group('remote copies (ext- ids)', () {
       Future<void> seed() async {
         await database.libraryDao.upsertSongs(<SongsTableCompanion>[
