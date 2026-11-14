@@ -342,6 +342,18 @@ latest_request_id() {
     'import json,sys; print(max((run["requestId"] for run in json.load(sys.stdin)["durableRuns"]), default=0))'
 }
 
+# Manual catalog checks recorded after request id $1.
+catch_up_run_count() {
+  api GET /v1/sync/ledger | python3 -c '
+import json, sys
+base = int(sys.argv[1])
+print(sum(
+    1 for run in json.load(sys.stdin)["durableRuns"]
+    if run.get("requestId", 0) > base
+    and run.get("targetKind") == "catalog"
+    and run.get("intent") == "manualCatalogCheck"))' "$1"
+}
+
 connect_fixture() {
   local body
   body="$(python3 - "$FIXTURE_PORT" "$CREDENTIAL_FILE" "$FIXTURE_HOST" <<'PY'
@@ -373,6 +385,7 @@ if [[ "$MODE" == "existing-catalog" ]]; then
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":false}' >/dev/null
   wait_for_phase ready "$OUTPUT_ROOT/existing-first-setup-ready.json" 600
+  keep_data_baseline_request_id="$(latest_request_id)"
   api POST '/v1/session/sign-out' '{"wipeLocalData":false}' \
     > "$OUTPUT_ROOT/existing-keep-data-signout.json"
   assert_signed_out "$OUTPUT_ROOT/existing-keep-data-signout.json"
@@ -380,6 +393,17 @@ if [[ "$MODE" == "existing-catalog" ]]; then
   wait_for_phase ready "$OUTPUT_ROOT/existing-keep-data-ready.json" 60
   api GET /v1/presentation/status \
     > "$OUTPUT_ROOT/existing-keep-data-presentation.json"
+  # Signing back in over kept data runs exactly one Check for updates now.
+  # Record it here so the later setup wait cannot mistake it for setup's run.
+  catch_up_deadline=$((SECONDS + 60))
+  until [[ "$(catch_up_run_count "$keep_data_baseline_request_id")" -ge 1 ]]; do
+    (( SECONDS < catch_up_deadline )) || {
+      echo "keep-data sign-in ran no catch-up check" >&2; exit 1; }
+    sleep 1
+  done
+  sleep 5
+  [[ "$(catch_up_run_count "$keep_data_baseline_request_id")" -eq 1 ]] || {
+    echo "keep-data sign-in ran more than one catch-up check" >&2; exit 1; }
   python3 - "$EXISTING_DB" \
     "$OUTPUT_ROOT/existing-keep-data-presentation.json" <<'PY'
 import json, sqlite3, sys
