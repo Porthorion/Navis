@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/semantics.dart'
     show CustomSemanticsAction, SemanticsAction;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/features/player/presentation/queue_track_row.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -730,6 +732,97 @@ void main() {
           lessThan(tester.getTopLeft(find.text('Track a')).dy),
         );
       });
+    }
+  });
+
+  group('a real drag on the playing row', () {
+    for (final screen in [false, true]) {
+      final surface = screen ? 'screen' : 'sheet';
+      final own = screen ? Icons.drag_handle : Icons.drag_indicator_rounded;
+      final selected = find.byWidgetPredicate(
+        (w) => w is ListTile && w.selected,
+      );
+
+      // Issue #627: the handler now publishes the moved queue with the
+      // playing song at its new row; the view must show exactly that row
+      // highlighted in every frame after the drop.
+      testWidgets('desktop $surface: one highlighted row, the playing one, '
+          'in every frame after the drop', (tester) async {
+        final h = await _pumpRemovable(
+          tester,
+          ids: const ['a', 'b', 'c', 'd', 'e', 'f'],
+          playing: 'f',
+          gateReorder: true,
+          screen: screen,
+          desktop: true,
+          width: 600,
+        );
+        final handle = find.descendant(
+          of: find.ancestor(
+            of: find.text('Track f'),
+            matching: find.byType(QueueTrackRow),
+          ),
+          matching: find.byIcon(own),
+        );
+        final start = tester.getCenter(handle);
+        final gesture = await tester.startGesture(
+          start,
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        final dy = tester.getTopLeft(find.text('Track a')).dy - 20 - start.dy;
+        for (var i = 1; i <= 10; i++) {
+          await gesture.moveTo(start + Offset(0, dy * i / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        void expectOnlyPlayingHighlighted(String when) {
+          expect(selected, findsOneWidget, reason: when);
+          expect(
+            find.descendant(of: selected, matching: find.text('Track f')),
+            findsOneWidget,
+            reason: when,
+          );
+        }
+
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          expectOnlyPlayingHighlighted('after the drop, frame $i');
+        }
+        h.reorderGate.complete();
+        await tester.pump();
+        expectOnlyPlayingHighlighted('handler published the move');
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          expectOnlyPlayingHighlighted('after the move, frame $i');
+        }
+        await tester.pumpAndSettle();
+        expect(h.queue.first, 'f');
+      }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+      testWidgets('phone $surface: a long-press drag still reorders', (
+        tester,
+      ) async {
+        final h = await _pumpRemovable(
+          tester,
+          ids: const ['a', 'b', 'c', 'd', 'e', 'f'],
+          playing: 'f',
+          gateReorder: true,
+          screen: screen,
+        );
+        h.reorderGate.complete();
+        final start = tester.getCenter(find.text('Track f'));
+        final gesture = await tester.startGesture(start);
+        await tester.pump(const Duration(milliseconds: 700));
+        final dy = tester.getTopLeft(find.text('Track a')).dy - 20 - start.dy;
+        for (var i = 1; i <= 10; i++) {
+          await gesture.moveTo(start + Offset(0, dy * i / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(h.queue.first, 'f');
+      }, variant: TargetPlatformVariant.only(TargetPlatform.android));
     }
   });
 

@@ -317,15 +317,20 @@ extension _NavisQueueEditing on NavisAudioHandler {
     required String songId,
     bool Function(AudioPlayer deck)? mirror,
   }) async {
-    await _runTimedPlayerOperation(
-      generation: _activeLoadGeneration,
-      operation: operation,
-      action: () => action(_player),
-      songId: songId,
-      timeout: _playerResetTimeout,
-      cancelAfterSuccess: false,
-      reloadQueueOnTimeout: true,
-    );
+    try {
+      await _runTimedPlayerOperation(
+        generation: _activeLoadGeneration,
+        operation: operation,
+        action: () => action(_player),
+        songId: songId,
+        timeout: _playerResetTimeout,
+        cancelAfterSuccess: false,
+        reloadQueueOnTimeout: true,
+      );
+    } on Object {
+      _reorderMetadataAnchor = null; // the edit never landed
+      rethrow;
+    }
     final deck = _crossfadePlayer;
     if (deck == null || !(mirror?.call(deck) ?? false)) return;
     try {
@@ -453,6 +458,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
         _seekLane.cancelCurrent();
         _cancelPendingSeek();
       }
+      _anchorPlayingRow((row) => _rowAfterMove(row, index, null));
       final removed = _queueItems.removeAt(index);
       await _timedQueueEdit(
         'remove queue item',
@@ -462,9 +468,14 @@ extension _NavisQueueEditing on NavisAudioHandler {
       );
 
       // Update the mediaItem stream to match whatever is now current.
-      final nowIndex = _player.currentIndex;
-      if (nowIndex != null && nowIndex >= 0 && nowIndex < _queueItems.length) {
-        _setCurrentMediaItem(_queueItems[nowIndex]);
+      final resolved = _resolveCurrentQueueMetadata();
+      final nowIndex = resolved.currentIndex;
+      final nowItem = resolved.mediaItem;
+      if (nowItem != null &&
+          nowIndex != null &&
+          nowIndex >= 0 &&
+          nowIndex < _queueItems.length) {
+        _setCurrentMediaItem(nowItem);
       }
 
       _afterQueueEdit(context: 'remove at');
@@ -509,6 +520,9 @@ extension _NavisQueueEditing on NavisAudioHandler {
             entry,
           ]);
           final (:prepared, offsets: _) = await _prepareRowsConcurrently(rows);
+          _anchorPlayingRow(
+            (row) => prepared.isEmpty || adjustedIndex > row ? null : row + 1,
+          );
           inserted = prepared.isEmpty
               ? const <_PreparedQueueItem>[]
               : await _applyMaterialisedInsert(
@@ -538,6 +552,9 @@ extension _NavisQueueEditing on NavisAudioHandler {
           materialized = _queueItems.length;
         }
         if (adjustedIndex < materialized) {
+          _anchorPlayingRow(
+            (row) => _rowAfterMove(row, oldIndex, adjustedIndex),
+          );
           // Reorder the in-memory queue items to match the new order.
           final movedItem = _queueItems.removeAt(oldIndex);
           _queueItems.insert(adjustedIndex, movedItem);
@@ -556,6 +573,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
         } else {
           // Materialised song moved behind the window: take it out of the
           // player and defer it at its new logical position.
+          _anchorPlayingRow((row) => _rowAfterMove(row, oldIndex, null));
           // Deferred before the native call, so a timeout cannot lose it.
           final movedItem = _queueItems.removeAt(oldIndex);
           _deferredTail.insert(
@@ -803,4 +821,14 @@ extension _NavisQueueEditing on NavisAudioHandler {
     }
     return current;
   }
+}
+
+/// Where the playing row [current] lands after row [from] moves to [to];
+/// null when [to] is null and the playing row is the one that leaves.
+int? _rowAfterMove(int current, int from, int? to) {
+  if (current == from) return to;
+  if (to == null) return from < current ? current - 1 : current;
+  if (from < current && to >= current) return current - 1;
+  if (from > current && to <= current) return current + 1;
+  return current;
 }

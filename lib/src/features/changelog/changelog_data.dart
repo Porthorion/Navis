@@ -386,7 +386,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Reordering the queue no longer makes rows snap back or the playing '
-        'song jump; on desktop each row shows a single drag handle',
+        'song jump or flicker; on desktop each row shows a single drag handle',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
