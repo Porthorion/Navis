@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Signing back in after signing out with your data kept now checks '
+        'for library updates right away instead of waiting for the next '
+        'scheduled check',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Search puts the most popular matches first and shows Top Results '
         '(Deezer; switch in Integrations): the best match as a large card '
         'with Play, Shuffle or Like, and its artist, album or top song as '
