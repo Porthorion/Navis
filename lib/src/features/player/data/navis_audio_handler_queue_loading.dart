@@ -98,21 +98,37 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _reorderMetadataAnchor = null;
   }
 
-  /// Before a native edit moves the playing row to [newIndex] (null: it
-  /// leaves the player), pins the current song there. The native index event
-  /// follows the edit late; until it does, the old index applied to the new
-  /// queue would name another song. Replaces any earlier reorder anchor.
-  void _anchorPlayingRow(int? newIndex) {
-    final current = _player.currentIndex;
+  /// The playing row in [_queueItems]. While a reorder anchor is pending the
+  /// native index is stale, so the anchored item (by identity) wins.
+  int? _playingRow() {
+    final anchored = _reorderMetadataAnchor?.mediaItem;
+    if (anchored != null) {
+      final row = _queueItems.indexWhere((item) => identical(item, anchored));
+      if (row >= 0) return row;
+    }
+    return _player.currentIndex;
+  }
+
+  /// Before a native edit moves the playing row, pins the current song to
+  /// [landing] of its present row (null: it leaves the player). The native
+  /// index event follows the edit late; until it does, the old index applied
+  /// to the new queue would name another song. Replaces any earlier anchor,
+  /// keeping the index the player still reports.
+  void _anchorPlayingRow(int? Function(int row) landing) {
+    final current = _playingRow();
+    final stale = _reorderMetadataAnchor == null
+        ? _player.currentIndex
+        : _reorderStaleIndex;
     _reorderMetadataAnchor = null;
-    if (newIndex == null ||
-        current == null ||
-        newIndex == current ||
+    if (current == null ||
+        stale == null ||
         current < 0 ||
         current >= _queueItems.length) {
       return;
     }
-    _reorderStaleIndex = current;
+    final newIndex = landing(current);
+    if (newIndex == null || newIndex == stale) return;
+    _reorderStaleIndex = stale;
     _reorderMetadataAnchor = NavisQueueReplacementMetadataAnchor(
       expectedIndex: newIndex,
       mediaItem: _queueItems[current],
