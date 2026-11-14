@@ -386,7 +386,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Reordering the queue no longer makes rows snap back or the playing '
-        'song jump; on desktop each row shows a single drag handle',
+        'song jump or flicker; on desktop each row shows a single drag handle',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -468,6 +468,11 @@ const List<ChangelogVersion> changelogs = [
         'Skipping to another song on a computer no longer stops playback '
         'and reloads the whole queue',
         platforms: ChangelogPlatform.desktop,
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A like or rating made just before a sync no longer briefly '
+        'disappears',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

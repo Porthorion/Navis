@@ -6107,6 +6107,14 @@ deferred jumps), recovery and eager setup use this authority. The UI's existing
 `PlaybackStartupObserver.beginPlaybackSelection` also accepts its provisional
 song row before `QueueController` persists/readbacks API results, so search,
 Trending and recommendation taps publish without waiting for that work.
+A queue move, removal or into-window insert that shifts the playing row sets
+`_reorderMetadataAnchor` (via `_anchorPlayingRow`) before the native edit, because
+the native index event follows the edit late; `_resolveCurrentQueueMetadata` passes
+it to the same `navisResolveQueueMetadata` until the player reports the new index,
+any other index or a replacement; a following edit re-anchors the same song by item
+identity, and a failed native edit drops it. It is separate from the replacement
+anchor, which also means "a replacement is loading". A playing song moved behind the
+loaded window is not anchored.
 When provisional persistence starts over radio, the existing station and metadata
 subscription stay alive until the queue loader accepts the replacement. Failed
 persistence republishes that station's current metadata; radio callbacks cannot
@@ -8545,6 +8553,9 @@ artist discovery does not schedule external albums for catalog hydration.
 Server snapshot writes read pending annotation actions and local mutation markers
 inside the commit transaction. A local like, unlike or rating newer than the
 snapshot keeps its current value, including after successful outbox delivery.
+`StarSyncDao.removeAction` journals the delivered action in the same transaction as
+the queue-row delete, so a run that read the server before delivery still finds
+either the queue row or the journal row.
 The latest mutation marker per entity/field is retained across concurrent snapshots.
 Canonical and provisional metadata upserts omit primary-key assignments from
 their conflict-update clauses. Reassigning an unchanged artist/album/song ID
