@@ -64,6 +64,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// the mix.
   String? _parkedSeedSongId;
   int? _mixSegmentEndIndex;
+
+  /// The activation seed when it is server-addressable: the mix's own seed,
+  /// which a refill falls back to when the playing song is a remote one with
+  /// no library copy (#377). A mix started from a remote seed has none.
+  String? _anchorSeedId;
+
+  /// The anchor's songs are all queued already; asking again finds nothing.
+  bool _anchorSpent = false;
+  SameVibesRefillRecord? _lastRefill;
+
+  /// What the last refill did, for the diagnostics (never credentials).
+  SameVibesRefillRecord? get lastRefill => _lastRefill;
   bool _activationInProgress = false;
   bool _suppressActivationSeedSnapshot = false;
   RecommendationSession? _session;
@@ -99,6 +111,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
     _mixSegmentEndIndex = null;
     _parkedSeedSongId = null;
+    _anchorSeedId = isServerAddressableSongId(normalizedSeedSongId)
+        ? normalizedSeedSongId
+        : null;
+    _anchorSpent = false;
+    _lastRefill = null;
     _consecutiveTransientFailures = 0;
     final session = ref
         .read(recommendationSessionProvider.notifier)
@@ -136,6 +153,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _nextRefillAllowedAt = null;
     _consecutiveTransientFailures = 0;
     _parkedSeedSongId = null;
+    _anchorSeedId = null;
+    _anchorSpent = false;
     _mixSegmentEndIndex = null;
     _activationInProgress = false;
     _suppressActivationSeedSnapshot = false;
@@ -231,6 +250,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
     final normalizedSeedSongId = seedSongId.trim();
     final session = _session;
+    // Read now: a refill of a superseded mix must not pick up the new mix's.
+    final anchorSeedId = _anchorSeedId;
     if (session == null ||
         !ref.read(recommendationSessionProvider.notifier).owns(session)) {
       return;
@@ -521,6 +542,36 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       // `state` is its state. A superseded refill must not retain its seed
       // (that would collapse the new mix's queue) or append anything.
       if (!_isCurrent(session)) return;
+
+      // The playing song is remote with no library copy and gave nothing new:
+      // the mix's own server-addressable seed still can (#377).
+      var anchorUsed = false;
+      if (!isInitial &&
+          !fallbackSeedEligible &&
+          mappedSongs.isEmpty &&
+          fallbackSongs.isEmpty &&
+          anchorSeedId != null &&
+          anchorSeedId != normalizedSeedSongId &&
+          !_anchorSpent) {
+        anchorUsed = true;
+        final anchor = await _fetchAnchorBatch(
+          api: api,
+          anchorSeedId: anchorSeedId,
+          blockedIds: queuedIds,
+          blockedSongKeys: queuedSongKeys,
+          preferences: candidatePreferences,
+          targetBatch: targetBatch,
+        );
+        if (!_isCurrent(session)) return;
+        mappedSongs.addAll(anchor.mapped);
+        fallbackSongs = anchor.similar;
+        fallbackReason = anchor.failureReason ?? fallbackReason;
+        // Only a clean empty result spends the anchor; a failure may retry.
+        _anchorSpent =
+            anchor.failureReason == null &&
+            mappedSongs.isEmpty &&
+            fallbackSongs.isEmpty;
+      }
       if (!state.active) {
         AppLogger.debug(
           'SameVibes diagnostics: refill canceled (state inactive post-fallback)',
@@ -635,6 +686,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         refilling: false,
         pendingSnackbar: isInitial ? '$totalQueued' : null,
       );
+      _lastRefill = SameVibesRefillRecord(
+        at: _now().toUtc(),
+        seedId: normalizedSeedSongId,
+        isInitial: isInitial,
+        lastFmOutcome: lastFmResult.outcome.name,
+        lastFmSource: lastFmResult.source.name,
+        mapped: mappedSongCount,
+        fallbackReason: fallbackReason,
+        anchorUsed: anchorUsed,
+        inserted: totalQueued,
+        parkedSeedId: parked ? normalizedSeedSongId : null,
+      );
       ref
           .read(recommendationSessionProvider.notifier)
           .report(
@@ -647,6 +710,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             candidateCount: songsToQueue.length,
             insertedCount: totalQueued,
           );
+      // Parked on the last song with repeat off: nothing can extend the
+      // queue, so end the mix now instead of leaving the button lit.
+      if (parked && _mixCannotExtend(ref.read(playerStateProvider))) {
+        deactivate();
+        return;
+      }
       // The user may have skipped while this refill ran (snapshots are
       // ignored meanwhile), and steady playback sends no further one.
       if (parked &&
@@ -937,6 +1006,72 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       'status=${result.statusCode} apiCode=${result.apiErrorCode}',
     );
     return result;
+  }
+
+  /// Last.fm then server similar songs for the mix's anchor seed, filtered
+  /// against the queue. Never throws on a Subsonic failure; reports it.
+  Future<({List<Song> mapped, List<Song> similar, String? failureReason})>
+  _fetchAnchorBatch({
+    required SubsonicApiClient api,
+    required String anchorSeedId,
+    required Set<String> blockedIds,
+    required Set<String> blockedSongKeys,
+    required _CandidatePreferenceContext preferences,
+    required int targetBatch,
+  }) async {
+    final mapped = <Song>[];
+    blockedIds.add(anchorSeedId);
+    void block(Song song) {
+      final id = song.id.trim();
+      if (id.isNotEmpty) blockedIds.add(id);
+      final key = sameVibesCanonicalSongKey(song.artist ?? '', song.title);
+      if (key != null) blockedSongKeys.add(key);
+    }
+
+    final seed = await _resolveSeedMetadata(api: api, seedSongId: anchorSeedId);
+    if (seed != null) {
+      final blockedCopy = seed.libraryCopyId;
+      if (blockedCopy != null) blockedIds.add(blockedCopy);
+      final lastFm = await _fetchLastFmRecommendations(
+        expectedArtist: seed.artist,
+        expectedTitle: seed.title,
+        limit: _kLastFmRecommendationLimit,
+      );
+      if (lastFm.outcome == LastFmFetchOutcome.success &&
+          lastFm.tracks.isNotEmpty) {
+        await _mapLastFmRecommendationsIncremental(
+          api: api,
+          recommendations: lastFm.tracks,
+          blockedIds: blockedIds,
+          blockedSongKeys: blockedSongKeys,
+          preferences: preferences,
+          targetCount: targetBatch,
+          maxSearchAttempts: _kMaxSearchAttempts,
+          onChunk: (chunk) async {
+            mapped.addAll(chunk);
+            chunk.forEach(block);
+            return chunk.length;
+          },
+        );
+      }
+    }
+    var similar = const <Song>[];
+    String? failureReason;
+    if (mapped.length < targetBatch) {
+      try {
+        similar = _mergeUniqueSongs(
+          primary: const <Song>[],
+          fallback: await api.getSimilarSongs(anchorSeedId, count: targetBatch),
+          excludedIds: blockedIds,
+          excludedSongKeys: blockedSongKeys,
+          targetCount: targetBatch - mapped.length,
+        );
+      } on SubsonicException catch (error) {
+        AppLogger.debug('SameVibes diagnostics: anchor fallback: $error');
+        failureReason = 'fallback_api_error';
+      }
+    }
+    return (mapped: mapped, similar: similar, failureReason: failureReason);
   }
 
   /// The server id whose similar songs back the fallback: the seed itself, or
@@ -1389,3 +1524,44 @@ final sameVibesQueueSongKeyLookupProvider = Provider<_QueueSongKeyLookup>((
 final sameVibesProvider = NotifierProvider<SameVibesNotifier, SameVibesState>(
   SameVibesNotifier.new,
 );
+
+/// The last refill of a mix, for the diagnostics. Holds song ids and enum
+/// names only: no server address, user name or token.
+class SameVibesRefillRecord {
+  const new({
+    required this.at,
+    required this.seedId,
+    required this.isInitial,
+    required this.lastFmOutcome,
+    required this.lastFmSource,
+    required this.mapped,
+    required this.fallbackReason,
+    required this.anchorUsed,
+    required this.inserted,
+    required this.parkedSeedId,
+  });
+
+  final DateTime at;
+  final String seedId;
+  final bool isInitial;
+  final String lastFmOutcome;
+  final String lastFmSource;
+  final int mapped;
+  final String fallbackReason;
+  final bool anchorUsed;
+  final int inserted;
+  final String? parkedSeedId;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'at': at.toIso8601String(),
+    'seedId': seedId,
+    'isInitial': isInitial,
+    'lastFmOutcome': lastFmOutcome,
+    'lastFmSource': lastFmSource,
+    'mapped': mapped,
+    'fallbackReason': fallbackReason,
+    'anchorUsed': anchorUsed,
+    'inserted': inserted,
+    'parkedSeedId': parkedSeedId,
+  };
+}

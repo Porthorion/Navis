@@ -3018,7 +3018,11 @@ void main() {
           await Future<void>.delayed(const Duration(milliseconds: 5));
         }
         expect(similarCalls, 2);
-        expect(container.read(sameVibesProvider).active, isTrue);
+        // The park on the last song ends the mix at once when repeat is off.
+        expect(
+          container.read(sameVibesProvider).active,
+          repeatMode != AudioServiceRepeatMode.none,
+        );
 
         playLast(2);
         await pumpEventQueue();
@@ -3389,6 +3393,246 @@ void main() {
       final withoutKeys = await playMix();
       final withKeys = await playMix(resolveQueueKeys: true);
       expect(withKeys, lessThan(withoutKeys));
+    });
+  });
+
+  // #377 (i377c): a mix whose songs are all remote (Deezer) with no library
+  // copy falls back to the activation seed instead of parking for good. One
+  // snapshot per song change, as the real handler broadcasts.
+  group('remote-only mix batch falls back to the anchor (#377)', () {
+    late _MockSubsonicApiClient api;
+    late _MockLastFmApiClient lastFm;
+    late DateTime fakeNow;
+    late List<String> serverSeeds;
+    // Songs getSimilarSongs returns per seed id, in call order.
+    late List<Song> Function(String seed, int call) similar;
+    // getSong answer per id; default is the id itself (no library copy).
+    late Map<String, String> libraryCopyOf;
+
+    setUp(() {
+      api = _MockSubsonicApiClient();
+      lastFm = _MockLastFmApiClient();
+      fakeNow = DateTime(2026, 11, 14, 17, 55);
+      serverSeeds = <String>[];
+      libraryCopyOf = <String, String>{};
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.noResults,
+          tracks: <LastFmTrackRecommendation>[],
+        ),
+      );
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((invocation) async {
+            final id = invocation.positionalArguments.first as String;
+            return Song(
+              id: libraryCopyOf[id] ?? id,
+              title: 'Title $id',
+              artist: 'Artist $id',
+            );
+          });
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((invocation) async {
+        final seed = invocation.positionalArguments.first as String;
+        serverSeeds.add(seed);
+        return similar(seed, serverSeeds.length - 1);
+      });
+    });
+
+    List<Song> remoteBatch(String prefix) => List<Song>.generate(
+      5,
+      (i) => Song(id: '$prefix${i + 1}', title: 'Mix ${i + 1}'),
+    );
+
+    ProviderContainer start() {
+      final container = _parkContainer(
+        api: api,
+        lastFm: lastFm,
+        now: () => fakeNow,
+      );
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed-a'],
+              currentSongId: 'seed-a',
+              currentIndex: 0,
+            ),
+          );
+      return container;
+    }
+
+    Future<void> playAt(
+      ProviderContainer container,
+      List<String> queue,
+      int index, {
+      AudioServiceRepeatMode repeatMode = AudioServiceRepeatMode.none,
+    }) async {
+      fakeNow = fakeNow.add(const Duration(minutes: 4));
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: queue,
+              currentSongId: queue[index],
+              currentIndex: index,
+            ).copyWith(repeatMode: repeatMode),
+          );
+      await pumpEventQueue();
+      while (container.read(sameVibesProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    List<Song> queued(ProviderContainer c) => (c.read(
+      queueProvider.notifier,
+    ) as RecordingRecommendationQueue).queuedSongs;
+
+    Future<ProviderContainer> playThrough(
+      String prefix, {
+      bool repeatAll = false,
+    }) async {
+      similar = (seed, call) =>
+          call == 0 ? remoteBatch(prefix) : remoteBatch('new-$call-');
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      final queue = <String>[
+        'seed-a',
+        for (var i = 1; i <= 5; i++) '$prefix$i',
+      ];
+      for (var index = 1; index <= 5; index++) {
+        await playAt(
+          container,
+          queue,
+          index,
+          repeatMode: repeatAll
+              ? AudioServiceRepeatMode.all
+              : AudioServiceRepeatMode.none,
+        );
+      }
+      return container;
+    }
+
+    test('control: library mix songs keep the mix growing', () async {
+      final container = await playThrough('lib-');
+      expect(queued(container).length, greaterThan(5));
+    });
+
+    test('remote mix songs keep the mix growing through the anchor', () async {
+      final container = await playThrough('ext-deezer-song-');
+      expect(queued(container).length, greaterThan(5));
+      expect(serverSeeds.skip(1).toSet(), <String>{'seed-a'});
+      final last = container.read(sameVibesProvider.notifier).lastRefill!;
+      expect(last.anchorUsed, isTrue);
+      expect(last.isInitial, isFalse);
+      expect(last.inserted, 5);
+    });
+
+    test('remote mix songs keep the mix growing with repeat all', () async {
+      final container = await playThrough('ext-deezer-song-', repeatAll: true);
+      expect(queued(container).length, greaterThan(5));
+      expect(container.read(sameVibesProvider).active, isTrue);
+    });
+
+    test('the anchor spent too parks; the last item ends the mix', () async {
+      // Every ask returns the same five songs: the anchor's are all queued.
+      similar = (seed, call) => remoteBatch('ext-deezer-song-');
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      final queue = <String>[
+        'seed-a',
+        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
+      ];
+      await playAt(container, queue, 1);
+      expect(queued(container).length, 5);
+      expect(container.read(sameVibesProvider).active, isTrue);
+      expect(container.read(sameVibesProvider).error, isNull);
+      final callsAfterFirstPark = serverSeeds.length;
+      await playAt(container, queue, 2);
+      expect(
+        serverSeeds.length,
+        callsAfterFirstPark,
+        reason: 'a spent anchor is not asked again',
+      );
+      await playAt(container, queue, 5);
+      expect(queued(container).length, 5);
+      expect(container.read(sameVibesProvider).active, isFalse);
+      expect(container.read(sameVibesProvider).error, isNull);
+    });
+
+    test('a mix started from a remote seed has no anchor, and a replaced mix '
+        'never uses the old one', () async {
+      libraryCopyOf['ext-deezer-song-seed'] = 'lib-copy';
+      similar = (seed, call) => switch (seed) {
+        'seed-a' => remoteBatch('old-'),
+        _ => call == 1 ? remoteBatch('ext-deezer-song-') : const <Song>[],
+      };
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      await container
+          .read(sameVibesProvider.notifier)
+          .activate('ext-deezer-song-seed');
+      serverSeeds.clear();
+      final queue = <String>[
+        'ext-deezer-song-seed',
+        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
+      ];
+      for (var index = 1; index <= 5; index++) {
+        await playAt(container, queue, index);
+      }
+      expect(serverSeeds, isNot(contains('seed-a')));
+      expect(
+        container.read(sameVibesProvider.notifier).lastRefill?.anchorUsed,
+        isFalse,
+      );
+    });
+
+    test('a deactivated mix forgets its anchor', () async {
+      similar = (seed, call) => remoteBatch('ext-deezer-song-');
+      final container = start();
+      final notifier = container.read(sameVibesProvider.notifier);
+      await notifier.activate('seed-a');
+      notifier.deactivate();
+      serverSeeds.clear();
+      final queue = <String>[
+        'seed-a',
+        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
+      ];
+      for (var index = 1; index <= 5; index++) {
+        await playAt(container, queue, index);
+      }
+      expect(serverSeeds, isEmpty);
+      expect(container.read(sameVibesProvider).active, isFalse);
+    });
+
+    test('the refill record holds no address or credentials', () async {
+      final container = await playThrough('ext-deezer-song-');
+      final json = container
+          .read(sameVibesProvider.notifier)
+          .lastRefill!
+          .toJson();
+      expect(json.keys.toSet(), <String>{
+        'at',
+        'seedId',
+        'isInitial',
+        'lastFmOutcome',
+        'lastFmSource',
+        'mapped',
+        'fallbackReason',
+        'anchorUsed',
+        'inserted',
+        'parkedSeedId',
+      });
     });
   });
 }

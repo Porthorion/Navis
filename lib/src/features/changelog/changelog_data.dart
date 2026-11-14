@@ -410,8 +410,8 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Same Vibes and Instant Mix keep adding songs instead of stopping '
-        'after the first batch; if Same Vibes runs out on the last song, it '
-        'tells you',
+        'after the first batch, also when it reaches songs that are only on '
+        'Deezer; if Same Vibes runs out on the last song, it tells you',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
