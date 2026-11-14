@@ -471,6 +471,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A like or rating made just before a sync no longer briefly '
+        'disappears',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A radio station that stalls or whose stream ends now reconnects by '
         'itself instead of staying silent until you pick it again',
         type: ChangelogEntryType.fix,

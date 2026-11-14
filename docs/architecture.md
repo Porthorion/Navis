@@ -8553,6 +8553,9 @@ artist discovery does not schedule external albums for catalog hydration.
 Server snapshot writes read pending annotation actions and local mutation markers
 inside the commit transaction. A local like, unlike or rating newer than the
 snapshot keeps its current value, including after successful outbox delivery.
+`StarSyncDao.removeAction` journals the delivered action in the same transaction as
+the queue-row delete, so a run that read the server before delivery still finds
+either the queue row or the journal row.
 The latest mutation marker per entity/field is retained across concurrent snapshots.
 Canonical and provisional metadata upserts omit primary-key assignments from
 their conflict-update clauses. Reassigning an unchanged artist/album/song ID

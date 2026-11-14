@@ -2530,11 +2530,13 @@ void main() {
           isNotNull,
         );
 
+        // The real like path queues delivery, which protects the star
+        // regardless of how the clock second falls (#542).
         final locallyStarredAt = DateTime.now();
-        await database.libraryDao.setEntityStarred(
-          'album',
-          'album-keep',
-          locallyStarredAt,
+        await database.starSyncDao.setStarred(
+          itemId: 'album-keep',
+          itemType: 'album',
+          liked: true,
         );
 
         final second = await engine.executeSyncPlan(
@@ -2554,6 +2556,162 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    group('annotation delivered while a sync runs (#542)', () {
+      Future<void> seedAlbum({Album? server}) async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-keep', name: 'Keep'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-keep',
+            name: 'Keep',
+            artistId: const Value('artist-keep'),
+          ),
+        ]);
+        final album =
+            server ??
+            const Album(
+              id: 'album-keep',
+              name: 'Keep',
+              artistId: 'artist-keep',
+            );
+        api.artists.add(const Artist(id: 'artist-keep', name: 'Keep'));
+        api.fastPathPages[0] = <Album>[album];
+        api.albumDetails['album-keep'] = album;
+      }
+
+      Future<void> nextSecond() async {
+        final now = DateTime.now();
+        await Future<void>.delayed(
+          Duration(milliseconds: 1000 - now.millisecond + 20),
+        );
+      }
+
+      /// Runs a full repair held at the album read and acknowledges every
+      /// queued action meanwhile, as the dispatcher does after delivery.
+      Future<void> deliverDuringRepair() async {
+        await nextSecond();
+        final gate = Completer<void>();
+        api.albumGates['album-keep'] = gate;
+        final run = engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        for (
+          var i = 0;
+          i < 5000 && !api.calls.contains('getAlbum:album-keep');
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        expect(api.calls, contains('getAlbum:album-keep'));
+        for (final action in await database.starSyncDao.getPendingActions()) {
+          await database.starSyncDao.removeAction(action.id);
+        }
+        gate.complete();
+        expect((await run).status, LibrarySyncStatus.succeeded);
+      }
+
+      test('a like delivered mid-run is kept', () async {
+        await seedAlbum();
+        await database.starSyncDao.setStarred(
+          itemId: 'album-keep',
+          itemType: 'album',
+          liked: true,
+        );
+        await deliverDuringRepair();
+        expect(
+          (await database.libraryDao.getAlbumById('album-keep'))?.starred,
+          isNotNull,
+        );
+      }, skip: !sqliteAvailable);
+
+      test('an unlike delivered mid-run is kept', () async {
+        await seedAlbum(
+          server: Album(
+            id: 'album-keep',
+            name: 'Keep',
+            artistId: 'artist-keep',
+            starred: DateTime.utc(2026),
+          ),
+        );
+        await database.libraryDao.setEntityStarred(
+          'album',
+          'album-keep',
+          DateTime.utc(2026),
+        );
+        await database.starSyncDao.setStarred(
+          itemId: 'album-keep',
+          itemType: 'album',
+          liked: false,
+        );
+        await deliverDuringRepair();
+        expect(
+          (await database.libraryDao.getAlbumById('album-keep'))?.starred,
+          isNull,
+        );
+      }, skip: !sqliteAvailable);
+
+      test('a rating delivered mid-run is kept', () async {
+        await seedAlbum();
+        await database.starSyncDao.setRating(
+          itemId: 'album-keep',
+          itemType: 'album',
+          rating: 4,
+        );
+        await deliverDuringRepair();
+        expect(
+          (await database.libraryDao.getAlbumById('album-keep'))?.userRating,
+          4,
+        );
+      }, skip: !sqliteAvailable);
+
+      test('an unlike delivered during a starred sync is kept', () async {
+        await seedAlbum();
+        await database.libraryDao.setEntityStarred(
+          'album',
+          'album-keep',
+          DateTime.utc(2026),
+        );
+        await database.starSyncDao.setStarred(
+          itemId: 'album-keep',
+          itemType: 'album',
+          liked: false,
+        );
+        await nextSecond();
+        final gate = Completer<StarredContent>();
+        api.starredGate = gate;
+        final run = engine.syncStarredContent();
+        for (
+          var i = 0;
+          i < 5000 && !api.calls.contains('getStarredContent');
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        for (final action in await database.starSyncDao.getPendingActions()) {
+          await database.starSyncDao.removeAction(action.id);
+        }
+        gate.complete(
+          StarredContent(
+            albums: <Album>[
+              Album(
+                id: 'album-keep',
+                name: 'Keep',
+                artistId: 'artist-keep',
+                starred: DateTime.utc(2026),
+              ),
+            ],
+          ),
+        );
+        expect((await run).status, LibrarySyncStatus.succeeded);
+        expect(
+          (await database.libraryDao.getAlbumById('album-keep'))?.starred,
+          isNull,
+        );
+      }, skip: !sqliteAvailable);
+    });
 
     test(
       'full repair hydrates candidate songs before assessing large deletion',
