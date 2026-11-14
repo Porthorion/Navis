@@ -416,8 +416,7 @@ assert server is not None and server[0] is not None, server
 assert albums > 0, albums
 PY
   # Removing data and signing in again in the same process must run a new
-  # setup; the finished setup's controller must not carry over. An incomplete
-  # album keeps the automatic timer pass from completing setup on its own.
+  # setup; the finished setup's controller must not carry over.
   : > "$PARTIAL_ALBUM_FLAG"
   # The ledger is scoped to the signed-in server, so record the baseline
   # before signing out.
@@ -554,8 +553,10 @@ server = db.execute("SELECT last_synced FROM server_config LIMIT 1").fetchone()
 state = db.execute("SELECT current_generation, last_catalog_synced_at, initial_catalog_usable_at FROM library_sync_state LIMIT 1").fetchone()
 pending = db.execute("SELECT count(*) FROM albums WHERE songs_hydrated = 0 AND is_external = 0 AND is_provisional = 0").fetchone()[0]
 songs = db.execute("SELECT count(*) FROM songs WHERE server_deleted_at IS NULL").fetchone()[0]
-assert server is not None and server[0] is None, server
-assert state is not None and state[0] > 0 and state[1] is None and state[2] is not None, state
+# A server-incomplete album does not block freshness: setup stamps both
+# timestamps and the album stays queued for retry.
+assert server is not None and server[0] is not None, server
+assert state is not None and state[0] > 0 and state[1] is not None and state[2] is not None, state
 assert pending == 1 and songs >= 1, (pending, songs)
 db.close()
 PY
@@ -652,6 +653,8 @@ PY
   : > "$PARTIAL_ALBUM_FLAG"
   # The second manual-cache-reset and playback-recovery visits in the same
   # process must run again rather than reuse the earlier visit's controller.
+  # Each rebuild wipes the album, so its short response is server-incomplete:
+  # the catalog run completes and the album stays pending.
   for rebuild_visit in manual-cache-reset playback-recovery \
     cache-upgrade manual-cache-reset/2 playback-recovery/2; do
     rebuild_reason="${rebuild_visit%%/*}"
@@ -685,7 +688,7 @@ ready = (
     and any(
         run.get("requestId", 0) > int(sys.argv[4])
         and run.get("targetKind") == "catalog"
-        and run.get("outcome") == "partial"
+        and run.get("outcome") == "completed"
         for run in ledger["durableRuns"]
     )
 )
@@ -709,7 +712,7 @@ assert album.get("exists") is True and album.get("songsHydrated") is False, albu
 assert any(
     run.get("requestId", 0) > int(sys.argv[4])
     and run.get("targetKind") == "catalog"
-    and run.get("outcome") == "partial"
+    and run.get("outcome") == "completed"
     for run in ledger["durableRuns"]
 ), ledger
 PY
