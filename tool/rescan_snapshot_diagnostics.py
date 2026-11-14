@@ -71,9 +71,9 @@ def replay_gain_filter_db(status):
             r"@navis_rg.*?volume=(-?\d+(?:\.\d+)?)dB", entry.get("audioFilters") or "")
         if match:
             gains.append((entry.get("playing"), float(match.group(1))))
+    if len(transports) <= 1:
+        return gains[0][1] if gains else None
     playing = [gain for is_playing, gain in gains if is_playing]
-    if len(gains) == 1:
-        return gains[0][1]
     return playing[0] if len(playing) == 1 else None
 
 

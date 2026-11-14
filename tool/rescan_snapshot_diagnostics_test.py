@@ -43,5 +43,9 @@ class ReplayGainFilterDbTest(unittest.TestCase):
         self.assertIsNone(replay_gain_filter_db(status(idle_filter)))
 
 
+    def test_idle_deck_is_ignored_when_the_playing_deck_has_no_filter(self):
+        playing = {**deck(-3.5, True), "audioFilters": None}
+        self.assertIsNone(replay_gain_filter_db(status(deck(-9.0, False), playing)))
+
 if __name__ == "__main__":
     unittest.main()
