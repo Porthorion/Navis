@@ -59,14 +59,22 @@ def check(condition, message):
 
 
 def replay_gain_filter_db(status):
-    """The dB of mpv's `@navis_rg` audio filter, or None when no transport has it."""
+    """The dB of the playing deck's `@navis_rg` audio filter, or None.
+
+    Cross-fade lists two decks in no fixed order and the idle one keeps the
+    previous song's gain, so the first entry is not necessarily the playing one.
+    """
     transports = (status.get("native") or {}).get("mediaKitTransport") or []
+    gains = []
     for entry in transports:
         match = re.search(
             r"@navis_rg.*?volume=(-?\d+(?:\.\d+)?)dB", entry.get("audioFilters") or "")
         if match:
-            return float(match.group(1))
-    return None
+            gains.append((entry.get("playing"), float(match.group(1))))
+    playing = [gain for is_playing, gain in gains if is_playing]
+    if len(gains) == 1:
+        return gains[0][1]
+    return playing[0] if len(playing) == 1 else None
 
 
 class Run:
