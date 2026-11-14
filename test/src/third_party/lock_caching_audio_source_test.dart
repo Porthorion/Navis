@@ -1510,7 +1510,7 @@ void main() {
     );
     expect(bytes, body.length);
     expect(downloads, hasLength(2));
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await until(() => cacheFile.existsSync());
     expect(cacheFile.lengthSync(), body.length);
   });
   test(
@@ -1806,9 +1806,7 @@ void main() {
       );
       expect(bytes, body.length);
       expect(downloads, hasLength(1));
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(cacheFile.existsSync(), isTrue);
-      expect(source.isDownloading, isFalse);
+      await until(() => cacheFile.existsSync() && !source.isDownloading);
     },
   );
 }
