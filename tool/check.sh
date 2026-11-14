@@ -101,6 +101,7 @@ run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test
 run_step "live seek app identity guard" python3 tool/live_seek_stress_test.py
 run_step "ReplayGain analyzer clamp rules" python3 tool/replaygain_boost_analyze_test.py
 run_step "sync scenario preparation" python3 -m unittest tool.dev_sync_scenario_test
+run_step "rescan harness filter read" python3 -m unittest tool.rescan_snapshot_diagnostics_test
 run_step "sync diagnostics action attribution" python3 -m unittest tool.sync_diagnostics_action_test
 run_step "libmpv Windows download fallback" run_cmake_script tool/libmpv_download_test.cmake
 run_step "libmpv Linux bundle" run_cmake_script tool/libmpv_bundle_test.cmake
