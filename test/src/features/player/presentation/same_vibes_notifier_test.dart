@@ -3597,22 +3597,161 @@ void main() {
       );
     });
 
-    test('a deactivated mix forgets its anchor', () async {
-      similar = (seed, call) => remoteBatch('ext-deezer-song-');
+    test('a library mix replaced by another one uses the new anchor', () async {
+      similar = (seed, call) => switch (seed) {
+        'seed-a' => remoteBatch('old-'),
+        _ =>
+          call == 1 ? remoteBatch('ext-deezer-song-') : remoteBatch('n$call-'),
+      };
       final container = start();
       final notifier = container.read(sameVibesProvider.notifier);
       await notifier.activate('seed-a');
-      notifier.deactivate();
+      await notifier.activate('seed-b');
       serverSeeds.clear();
       final queue = <String>[
-        'seed-a',
+        'seed-b',
         for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
       ];
       for (var index = 1; index <= 5; index++) {
         await playAt(container, queue, index);
       }
-      expect(serverSeeds, isEmpty);
-      expect(container.read(sameVibesProvider).active, isFalse);
+      expect(serverSeeds, isNotEmpty);
+      expect(serverSeeds.toSet(), <String>{'seed-b'});
+    });
+
+    test('a failed anchor ask does not spend the anchor', () async {
+      var seedAsks = 0;
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((invocation) async {
+        // The anchor is the media item 'Seed'; its second ask (the first is
+        // the initial refill) hits a network error.
+        final isAnchor = invocation.namedArguments[#track] == 'Seed';
+        if (isAnchor && ++seedAsks == 2) {
+          return const LastFmTrackFetchResult(
+            outcome: LastFmFetchOutcome.networkError,
+            tracks: <LastFmTrackRecommendation>[],
+          );
+        }
+        return const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.noResults,
+          tracks: <LastFmTrackRecommendation>[],
+        );
+      });
+      similar = (seed, call) => switch (call) {
+        0 => remoteBatch('ext-deezer-song-'),
+        1 => const <Song>[],
+        _ => remoteBatch('later-'),
+      };
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      final queue = <String>[
+        'seed-a',
+        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
+      ];
+      await playAt(container, queue, 1);
+      expect(queued(container).length, 5);
+      await playAt(container, queue, 2);
+      expect(serverSeeds, <String>['seed-a', 'seed-a', 'seed-a']);
+      expect(queued(container).length, 10);
+    });
+
+    test('an anchor the server no longer has is spent at once', () async {
+      similar = (seed, call) => call == 0
+          ? remoteBatch('ext-deezer-song-')
+          : throw SubsonicNotFoundException(message: 'gone');
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      final queue = <String>[
+        'seed-a',
+        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
+      ];
+      for (var index = 1; index <= 4; index++) {
+        await playAt(container, queue, index);
+      }
+      expect(serverSeeds, <String>['seed-a', 'seed-a']);
+    });
+
+    test('a refill that parks after a skip onto the last item does not end the '
+        'mix', () async {
+      final gate = Completer<List<Song>>();
+      var anchorAsks = 0;
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((invocation) async {
+        final seed = invocation.positionalArguments.first as String;
+        serverSeeds.add(seed);
+        if (seed == 'seed-a') {
+          return ++anchorAsks == 1
+              ? remoteBatch('ext-deezer-song-')
+              : gate.future;
+        }
+        return remoteBatch('y-');
+      });
+      final container = start();
+      final notifier = container.read(sameVibesProvider.notifier);
+      await notifier.activate('seed-a');
+      final queue = <String>['seed-a', 'ext-deezer-song-1', 'lib-y'];
+      fakeNow = fakeNow.add(const Duration(minutes: 4));
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: queue,
+              currentSongId: queue[1],
+              currentIndex: 1,
+            ),
+          );
+      while (!container.read(sameVibesProvider).refilling) {
+        await pumpEventQueue();
+      }
+      // The user skips onto the last item while the anchor is being asked.
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: queue,
+              currentSongId: queue[2],
+              currentIndex: 2,
+            ),
+          );
+      gate.complete(const <Song>[]);
+      await pumpEventQueue();
+      while (container.read(sameVibesProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      await pumpEventQueue();
+      expect(serverSeeds, contains('lib-y'));
+      expect(container.read(sameVibesProvider).active, isTrue);
+    });
+
+    test('growth dedupes against the real queue', () async {
+      // Each ask offers the first batch again plus five new songs.
+      similar = (seed, call) => <Song>[
+        ...remoteBatch('ext-deezer-song-'),
+        ...remoteBatch('new-$call-'),
+      ];
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      for (var index = 1; index <= 8; index++) {
+        final queue = <String>[
+          'seed-a',
+          ...queued(container).map((song) => song.id),
+        ];
+        if (index >= queue.length) break;
+        await playAt(container, queue, index);
+      }
+      final ids = queued(container).map((song) => song.id).toList();
+      expect(ids.length, greaterThan(5));
+      expect(ids.toSet().length, ids.length, reason: 'no id queued twice');
     });
 
     test('the refill record holds no address or credentials', () async {
@@ -3630,6 +3769,8 @@ void main() {
         'mapped',
         'fallbackReason',
         'anchorUsed',
+        'anchorLastFmOutcome',
+        'anchorMapped',
         'inserted',
         'parkedSeedId',
       });
