@@ -118,7 +118,7 @@ Checks performed (in order, fail-fast):
    retry/repeat fixtures (`tool/equalizer_native_test.sh`), Android repeat runner contract
    (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
    (`tool/android_repeat_native_test.sh`; it runs every app JVM unit suite, not
-   only the repeat ones), the sync scenario, sync action attribution and libmpv
+   only the repeat ones), the sync scenario, rescan harness filter read, sync action attribution and libmpv
    download/bundle self-tests (the `static` CI job also runs these and the
    release/secret-scan shell tests), and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
