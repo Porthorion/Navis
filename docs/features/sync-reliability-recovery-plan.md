@@ -14,6 +14,7 @@ Navis must have one committed local catalog that remains browsable offline. Netw
 | Action | Required meaning |
 | --- | --- |
 | Startup, timer, resume, reconnect | Automatic low-data check only when the persisted schedule is due. |
+| Sign-in after keep-data sign-out | One Check for updates now, regardless of the saved schedule. |
 | Check for updates or pull-to-refresh | Bounded user-requested remote check independent of automatic interval; detects a new album under an existing artist. |
 | Repair Library | Explicit authoritative snapshot; atomically promote, give a concrete blocker, or leave old catalog unchanged. |
 | Opening Home, Library, Liked, Artist, Album | Read local committed data; no broad catalog sync. At most one target-scoped hydration when content cannot render locally. |

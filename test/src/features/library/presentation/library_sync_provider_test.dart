@@ -320,6 +320,56 @@ final _repairRequest = _catalogRequest(
   SyncRunIntent.repairLibrary,
 );
 
+/// A container whose session is driven by [_serverConfigSource], listened to
+/// like the app shell does, with an hourly automatic interval.
+ProviderContainer _signInContainer(
+  NavisDatabase database,
+  LibrarySyncEngine? engine, {
+  ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
+  List<Override> extra = const [],
+}) {
+  final container = ProviderContainer(
+    overrides: [
+      ..._hourlyInterval,
+      navisDatabaseProvider.overrideWithValue(database),
+      serverConfigStateProvider.overrideWith(
+        (ref) => ref.watch(_serverConfigSource),
+      ),
+      serverReachabilityControllerProvider.overrideWith(
+        () => _MutableReachabilityController(
+          ServerReachabilityState(status: reachability),
+        ),
+      ),
+      if (engine != null) librarySyncEngineProvider.overrideWithValue(engine),
+      requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+      ...extra,
+    ],
+  );
+  addTearDown(container.dispose);
+  container.listen(librarySyncControllerProvider, (_, _) {});
+  return container;
+}
+
+Future<void> _setSession(
+  ProviderContainer container,
+  ServerConfigModel? config,
+) async {
+  container
+      .read(_serverConfigSource.notifier)
+      .set(AsyncData<ServerConfigModel?>(config));
+  await container.pump();
+}
+
+/// Settles startup work, which runs on microtasks and short database reads.
+Future<void> _settle() =>
+    Future<void>.delayed(const Duration(milliseconds: 60));
+
+LibrarySyncState _done() => LibrarySyncState(
+  status: LibrarySyncStatus.succeeded,
+  stage: LibrarySyncStage.completed,
+  completedAt: DateTime.now(),
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -4236,5 +4286,234 @@ void main() {
         );
       },
     );
+  });
+
+  group('sign-in catch-up', () {
+    Future<DateTime?> deadline(NavisDatabase db, ServerConfigModel c) async =>
+        (await db.librarySyncDao.getOrCreateState(c.id!)).nextAutomaticCheckAt;
+
+    test('keep-data sign-in runs one check before a future deadline', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      final due = DateTime.now().add(const Duration(hours: 1));
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: due,
+      );
+      final engine = StubLibrarySyncEngine.returning(_done());
+      final container = _signInContainer(database, engine);
+      await _setSession(container, config);
+      await _settle();
+      expect(engine.requests, isEmpty);
+
+      await _setSession(container, null);
+      await _setSession(container, config);
+      container
+          .read(librarySyncControllerProvider.notifier)
+          .catchUpAfterSignIn();
+      await _settle();
+
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
+      expect(engine.automaticRequests, isEmpty);
+      expect(
+        (await deadline(database, config))!.difference(due).abs(),
+        lessThan(const Duration(seconds: 1)),
+      );
+    });
+
+    test('restart while signed in still waits for the deadline', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      final engine = StubLibrarySyncEngine.returning(_done());
+      final container = _signInContainer(database, engine);
+      await _setSession(container, config);
+      await _settle();
+
+      expect(engine.explicitCatalogRequests, isEmpty);
+      expect(engine.automaticRequests, isEmpty);
+    });
+
+    test(
+      'catch-up with an expired deadline makes exactly one request',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        final engine = StubLibrarySyncEngine.returning(_done());
+        final container = _signInContainer(database, engine);
+        await _setSession(container, null);
+        await _setSession(container, config);
+        container
+            .read(librarySyncControllerProvider.notifier)
+            .catchUpAfterSignIn();
+        await _settle();
+
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
+        expect(engine.automaticRequests, isEmpty);
+        expect(
+          (await deadline(
+            database,
+            config,
+          ))!.difference(DateTime.now().add(const Duration(hours: 1))).abs(),
+          lessThan(const Duration(seconds: 5)),
+        );
+      },
+    );
+
+    test('catch-up waits while offline and runs once when online', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      final engine = StubLibrarySyncEngine.returning(_done());
+      final container = _signInContainer(
+        database,
+        engine,
+        reachability: ServerReachabilityStatus.offline,
+      );
+      await _setSession(container, null);
+      await _setSession(container, config);
+      container
+          .read(librarySyncControllerProvider.notifier)
+          .catchUpAfterSignIn();
+      await _settle();
+      expect(engine.requests, isEmpty);
+
+      (container.read(serverReachabilityControllerProvider.notifier)
+              as _MutableReachabilityController)
+          .setStatus(ServerReachabilityStatus.online);
+      await _settle();
+
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
+      expect(engine.automaticRequests, isEmpty);
+    });
+
+    test('a manual run already in flight satisfies the catch-up', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      final release = Completer<LibrarySyncState>();
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        return request.isAutomatic ? _done() : await release.future;
+      });
+      final container = _signInContainer(database, engine);
+      await _setSession(container, config);
+      await _settle();
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      final manual = controller.syncNow();
+      await _settle();
+
+      controller.catchUpAfterSignIn();
+      await _settle();
+      release.complete(_done());
+      await manual;
+      await _settle();
+
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
+    });
+
+    test('signing out drops a pending catch-up', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      final engine = StubLibrarySyncEngine.returning(_done());
+      final container = _signInContainer(
+        database,
+        engine,
+        reachability: ServerReachabilityStatus.offline,
+      );
+      await _setSession(container, null);
+      await _setSession(container, config);
+      container
+          .read(librarySyncControllerProvider.notifier)
+          .catchUpAfterSignIn();
+      await _settle();
+      await _setSession(container, null);
+      await _setSession(container, config);
+      (container.read(serverReachabilityControllerProvider.notifier)
+              as _MutableReachabilityController)
+          .setStatus(ServerReachabilityStatus.online);
+      await _settle();
+
+      expect(engine.requests, isEmpty);
+    });
+
+    test('catch-up leaves the first sync to setup', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(
+        database,
+        setupPending: true,
+      );
+      final engine = StubLibrarySyncEngine.returning(_done());
+      final container = _signInContainer(database, engine);
+      await _setSession(container, null);
+      await _setSession(container, config);
+      container
+          .read(librarySyncControllerProvider.notifier)
+          .catchUpAfterSignIn();
+      await _settle();
+
+      expect(engine.requests, isEmpty);
+    });
+
+    test('catch-up retries once the engine becomes available', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      final engine = StubLibrarySyncEngine.returning(_done());
+      final engineState =
+          NotifierProvider<_MutableLibrarySyncEngine, LibrarySyncEngine?>(
+            _MutableLibrarySyncEngine.new,
+          );
+      final container = _signInContainer(
+        database,
+        null,
+        extra: [
+          librarySyncEngineProvider.overrideWith(
+            (ref) => ref.watch(engineState),
+          ),
+        ],
+      );
+      await _setSession(container, null);
+      await _setSession(container, config);
+      container
+          .read(librarySyncControllerProvider.notifier)
+          .catchUpAfterSignIn();
+      await _settle();
+      expect(engine.requests, isEmpty);
+
+      container.read(engineState.notifier).replace(engine);
+      await _settle();
+
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
+    });
   });
 }

@@ -321,6 +321,10 @@ const Duration librarySyncProgressPublishInterval = Duration(milliseconds: 250);
 class LibrarySyncController extends Notifier<LibrarySyncState> {
   final _configGate = DeferredListenerGate();
   bool _startupSyncSuppressed = false;
+
+  /// A keep-data sign-in asked for one immediate Check for updates. Memory
+  /// only: an app restart never sets it and so keeps the saved deadline.
+  bool _catchUpAfterSignIn = false;
   int _startupSyncEpoch = 0;
 
   /// Bumped on every session change (sign-out and every new session). A run
@@ -660,8 +664,25 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
   }
 
+  /// Runs one normal Check for updates now, whatever the saved automatic
+  /// deadline, after a sign-in that kept the retained library. The startup pass
+  /// owns it, so every existing guard (offline, setup, engine, leases) applies
+  /// and an unfinished attempt retries on the usual triggers.
+  void catchUpAfterSignIn() {
+    _catchUpAfterSignIn = true;
+    if (_startupSyncSuppressed) return;
+    _startupSyncDoneFingerprint = null;
+    if (_startupSyncTask != null) {
+      // The pass in flight may already be past its schedule check.
+      _retryStartupWhenEngineReady = true;
+      return;
+    }
+    _scheduleStartupSync();
+  }
+
   Future<void> cancelAndWait() async {
     _cancelPeriodicSync();
+    _catchUpAfterSignIn = false;
     _startupSyncSuppressed = true;
     _startupSyncEpoch++;
     final generation = _sessionGeneration;
@@ -919,6 +940,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         );
       }
       _androidScheduledConfig = null;
+      _catchUpAfterSignIn = false;
       _startupSyncSuppressed = true;
       _startupSyncEpoch++;
       _sessionGeneration++;
@@ -1147,9 +1169,31 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     // The engine can publish lastSynced before first-setup readiness is
     // stamped. Drain the controller's catalog pass before reading those stamps.
+    // A manual, setup or repair run already in flight is itself the sign-in
+    // catch-up; an automatic one is not.
+    final countedRun =
+        _catchUpAfterSignIn && (_activeCatalogSyncPriority ?? 0) >= 1
+        ? _activeCatalogSync
+        : null;
     await waitForActiveCatalogSync();
     if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
       return;
+    }
+    if (countedRun != null) {
+      try {
+        final status = (await countedRun).status;
+        if (status == LibrarySyncStatus.succeeded ||
+            status == LibrarySyncStatus.partial) {
+          _catchUpAfterSignIn = false;
+        }
+      } on Object {
+        // A failed run does not count; the pass below still catches up.
+      }
+      if (!ref.mounted ||
+          _startupSyncSuppressed ||
+          epoch != _startupSyncEpoch) {
+        return;
+      }
     }
     final config = ref.read(serverConfigStateProvider).asData?.value;
     if (config == null) {
@@ -1163,7 +1207,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // Full-screen first setup owns the first catalog. An automatic run would
     // publish first and turn setup's request into discovery that cannot publish.
     // Leave the startup fingerprint unfinished so readiness can resume it.
-    if (setupPending) return;
+    if (setupPending) {
+      _catchUpAfterSignIn = false;
+      return;
+    }
 
     final reachability = ref.read(serverReachabilityControllerProvider);
     if (reachability.status == ServerReachabilityStatus.offline) {
@@ -1171,7 +1218,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
 
     final fingerprint = _toSessionFingerprint(config);
-    if (_startupSyncDoneFingerprint == fingerprint) {
+    if (!_catchUpAfterSignIn && _startupSyncDoneFingerprint == fingerprint) {
       return;
     }
 
@@ -1200,15 +1247,45 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         '$requiredSyncModelVersion.',
       );
     }
-    final result = await (requiresSyncModelRepair && !deferFullResyncOnMobile
+    final repairing = requiresSyncModelRepair && !deferFullResyncOnMobile;
+    final catchingUp = !repairing && _catchUpAfterSignIn;
+    final interval = ref.read(syncIntervalDurationProvider);
+    // A catch-up that finds the deadline already due stands in for that check.
+    final deadlineWasDue =
+        catchingUp && interval != null && await _automaticCheckIsDue(interval);
+    if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
+      return;
+    }
+    final generation = _sessionGeneration;
+    final result = await (repairing
         ? _runSync(
             force: true,
             forceFull: true,
             tolerateUnavailableEngine: true,
           )
+        : catchingUp
+        ? _runSync(force: true, tolerateUnavailableEngine: true)
         : syncIfStale());
     if (!ref.mounted || epoch != _startupSyncEpoch) {
       return;
+    }
+    final catchUpFinished =
+        result.planReason != 'leaseHeld' &&
+        (result.status == LibrarySyncStatus.succeeded ||
+            result.status == LibrarySyncStatus.partial ||
+            result.status == LibrarySyncStatus.skipped ||
+            (result.status == LibrarySyncStatus.failed &&
+                !result.isSilentFailure));
+    if (_catchUpAfterSignIn && catchUpFinished) {
+      _catchUpAfterSignIn = false;
+    }
+    if (deadlineWasDue &&
+        catchUpFinished &&
+        result.completedAt != null &&
+        generation == _sessionGeneration) {
+      await _recordAutomaticCheckCompletion(interval);
+      if (!ref.mounted) return;
+      _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
     }
     final completedSyncModelRepair =
         requiresSyncModelRepair &&
@@ -1240,6 +1317,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
   }
 
+  Future<bool> _automaticCheckIsDue(Duration interval) async {
+    final nextCheckAt = await _ensureAutomaticCheckSchedule(interval);
+    return nextCheckAt != null && !nextCheckAt.isAfter(DateTime.now().toUtc());
+  }
+
   Future<LibrarySyncState> _runAutomaticCheckIfDue() async {
     final generation = _sessionGeneration;
     final config = ref.read(serverConfigStateProvider).asData?.value;
@@ -1252,6 +1334,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return await _runSync(force: false, tolerateUnavailableEngine: true);
     }
     if (!ref.mounted || _startupSyncSuppressed || await _setupPending()) {
+      return state;
+    }
+    // A pending sign-in catch-up is the next sync; an automatic run started
+    // now would make it queue behind that run.
+    if (_catchUpAfterSignIn) {
+      _scheduleStartupSync();
       return state;
     }
     final interval = ref.read(syncIntervalDurationProvider);

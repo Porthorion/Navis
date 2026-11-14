@@ -8,6 +8,8 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -23,6 +25,17 @@ class _PendingSignOut implements SignOutService {
 
   @override
   Future<void> signOut({required bool wipeLocalData}) async {}
+}
+
+/// Counts the sign-in catch-up requests without building the real controller.
+class _CatchUpSpy extends LibrarySyncController {
+  static int catchUps = 0;
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  void catchUpAfterSignIn() => catchUps++;
 }
 
 class _NetworkUsageMeter extends Mock implements NetworkUsageMeter;
@@ -161,6 +174,8 @@ void main() {
     when(repository.watchActiveServer).thenAnswer((_) => const Stream.empty());
     when(repository.getActiveServer).thenAnswer((_) async => null);
     when(() => repository.save(config)).thenAnswer((_) async {});
+    when(() => repository.compareRetainedServer(config))
+        .thenAnswer((_) async => RetainedServerMatch.none);
     final container = ProviderContainer(
       overrides: [
         serverConfigRepositoryProvider.overrideWithValue(repository),
@@ -179,4 +194,39 @@ void main() {
     await saved;
     verify(() => repository.save(config)).called(1);
   });
+
+  for (final (match, expected) in [
+    (RetainedServerMatch.same, 1),
+    (RetainedServerMatch.none, 0),
+  ]) {
+    test(
+      'saving over a $match retained profile requests $expected catch-ups',
+      () async {
+        _CatchUpSpy.catchUps = 0;
+        final repository = _Repository();
+        when(repository.watchActiveServer)
+            .thenAnswer((_) => const Stream.empty());
+        when(repository.getActiveServer).thenAnswer((_) async => config);
+        when(() => repository.save(config)).thenAnswer((_) async {});
+        when(() => repository.compareRetainedServer(config))
+            .thenAnswer((_) async => match);
+        final container = ProviderContainer(
+          overrides: [
+            serverConfigRepositoryProvider.overrideWithValue(repository),
+            signOutServiceProvider.overrideWithValue(
+              _PendingSignOut()..pending.complete(),
+            ),
+            librarySyncControllerProvider.overrideWith(_CatchUpSpy.new),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(serverConfigProvider, (_, _) {});
+        await container.read(serverConfigProvider.future);
+
+        await container.read(serverConfigProvider.notifier).save(config);
+
+        expect(_CatchUpSpy.catchUps, expected);
+      },
+    );
+  }
 }
