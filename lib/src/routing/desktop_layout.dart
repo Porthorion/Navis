@@ -489,9 +489,18 @@ double rightSystemInsetFor(BuildContext context) =>
 /// it sits beside one). A control hugging the page's right edge is then flush
 /// with the system strip, so it keeps a gap there.
 class ConsumedRightInset extends InheritedWidget {
-  const new({required this.inset, required super.child, super.key});
+  const new({
+    required this.inset,
+    required super.child,
+    this.leftInset = 0,
+    super.key,
+  });
 
   final double inset;
+
+  /// The left inset the shell consumed for the page: nonzero only where no
+  /// rail sits on that side (a left notch beside a bottom-nav page).
+  final double leftInset;
 
   /// True beside a system strip the shell already cleared; false on an
   /// ordinary phone, unscoped, and under the compact wide shell (which pads
@@ -505,5 +514,25 @@ class ConsumedRightInset extends InheritedWidget {
 
   @override
   bool updateShouldNotify(ConsumedRightInset oldWidget) =>
-      inset != oldWidget.inset;
+      inset != oldWidget.inset || leftInset != oldWidget.leftInset;
+}
+
+/// The horizontal sides of the page that border a bare system inset: a notch
+/// or status strip band with the scaffold's own background, not a rail or a
+/// sidebar. A full-bleed backdrop fades out towards such a side instead of
+/// ending in a hard line next to the band.
+({bool left, bool right}) bareSideInsetsOf(BuildContext context) {
+  if (resolveAdaptiveContextFor(context).useCompactWideLandscape) {
+    // The shell pads the whole row by the raw insets (MediaQuery untouched):
+    // the side away from the rail borders the band.
+    final padding = MediaQuery.paddingOf(context);
+    final ltr = Directionality.of(context) == TextDirection.ltr;
+    return (left: !ltr && padding.left > 0, right: ltr && padding.right > 0);
+  }
+  final shellInset = context
+      .dependOnInheritedWidgetOfExactType<ConsumedRightInset>();
+  return (
+    left: (shellInset?.leftInset ?? 0) > 0,
+    right: (shellInset?.inset ?? 0) > 0,
+  );
 }
