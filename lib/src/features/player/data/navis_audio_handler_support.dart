@@ -98,6 +98,7 @@ class NavisPlaybackTimeouts {
     this.load = const Duration(seconds: 12),
     this.nextSongPreload = const Duration(seconds: 2),
     this.remoteStall = const Duration(seconds: 12),
+    this.starvedWithFile = const Duration(seconds: 2),
     this.seekBufferingRecovery = const Duration(seconds: 3),
     this.reset = const Duration(seconds: 4),
     this.control = const Duration(seconds: 4),
@@ -132,6 +133,13 @@ class NavisPlaybackTimeouts {
 
   /// A remote stream that stops making progress for this long is recovered.
   final Duration remoteStall;
+
+  /// A direct stream that keeps buffering for this long, although its cache
+  /// file is complete, is reloaded from the file. Brief `ready` blips and
+  /// trickling bytes do not restart the wait; two seconds is long enough to
+  /// ignore a normal rebuffer yet short enough that a starved song does not
+  /// audibly stall for minutes.
+  final Duration starvedWithFile;
   final Duration seekBufferingRecovery;
 
   /// Stopping, disposing or reconfiguring a player during recovery.

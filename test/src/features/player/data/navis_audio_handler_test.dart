@@ -434,6 +434,36 @@ void main() {
       );
     });
 
+    test('a starved stream recovers from its file only when it safely can', () {
+      bool recover({
+        String? sourceKind = 'directStream',
+        bool playing = true,
+        bool completedFile = true,
+        bool hasPositionOffset = false,
+        bool crossfading = false,
+        bool alreadyRetried = false,
+        bool atEnd = false,
+      }) => navisShouldRecoverStarvedStream(
+        sourceKind: sourceKind,
+        playing: playing,
+        completedFile: completedFile,
+        hasPositionOffset: hasPositionOffset,
+        crossfading: crossfading,
+        alreadyRetried: alreadyRetried,
+        atEnd: atEnd,
+      );
+      expect(recover(), isTrue);
+      expect(recover(sourceKind: 'lockCachedStream'), isFalse);
+      expect(recover(sourceKind: 'file'), isFalse);
+      expect(recover(sourceKind: null), isFalse);
+      expect(recover(playing: false), isFalse);
+      expect(recover(completedFile: false), isFalse);
+      expect(recover(hasPositionOffset: true), isFalse);
+      expect(recover(crossfading: true), isFalse);
+      expect(recover(alreadyRetried: true), isFalse);
+      expect(recover(atEnd: true), isFalse);
+    });
+
     test('remote playback retries exactly once before skipping', () {
       expect(navisShouldRetryRemotePlayback(alreadyRetried: false), isTrue);
       expect(navisShouldRetryRemotePlayback(alreadyRetried: true), isFalse);

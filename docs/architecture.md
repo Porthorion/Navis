@@ -5863,6 +5863,21 @@ Play/Pause preserve that request's failover ownership, and Pause lands on the
 next playable song paused. Newer seeks, selections and a removed occurrence
 retire the request.
 
+The song stall watchdog fires `remoteStall` (12 s) after a buffering remote
+stream shows no position or buffered-position change. A slow origin defeats it:
+trickling bytes move the buffered position and `ready` blips cancel it, so a
+song could buffer for minutes. A second, starvation watchdog covers the case
+where the current direct stream's sidecar file is already complete (and the
+stream is not a `timeOffset` transcode, radio, mid-crossfade, paused or at its
+end): once the player has been buffering for `starvedWithFile` (2 s), neither
+progress nor brief `ready` blips restart that wait; only a `ready` lasting
+`healthyPlayback`, a song change, Pause or recovery clears it. It then calls
+the ordinary remote recovery (`stream starved, file complete`, trace decision
+`starvedWithFile`), whose single retry per transport generation reloads the
+song from the completed file at the current position through
+`_trySeekViaCompletedCacheFile`. Streams without a complete file keep only the
+no-progress watchdog.
+
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
 fails to open, such as a 404 stream, through a yt-dlp or youtube-dl found on
