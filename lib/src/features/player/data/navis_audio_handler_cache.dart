@@ -157,8 +157,12 @@ extension _NavisCache on NavisAudioHandler {
       _syncSidecarChain();
       return;
     }
-    if (!_completedCacheSongIds.contains(item.id) ||
-        !File(sidecarPath).existsSync()) {
+    // A complete file counts as complete whatever the item's source kind (a
+    // reload from that file keeps the sidecar path): it never refills, so the
+    // next song's warm and the chain pair stay.
+    if (_sidecarFileComplete(sidecarPath)) {
+      _completedCacheSongIds.add(item.id);
+    } else {
       _completedCacheSongIds.remove(item.id);
       // Refilling the current song cancels its warm without a failure backoff.
       _sidecarChainKey = null;
@@ -306,9 +310,16 @@ extension _NavisCache on NavisAudioHandler {
     _startSidecarDownload(next, song, uri, path);
     // Remember the pair only once the download claimed the song (or its file
     // is already there); otherwise the next tick tries again.
-    if (_sidecarDownloader.activeSongId == nextId || File(path).existsSync()) {
+    if (_sidecarDownloader.activeSongId == nextId ||
+        _sidecarFileComplete(path)) {
       _sidecarChainKey = key;
     }
+  }
+
+  /// Whether the sidecar cache file at [path] is on disk and not empty.
+  bool _sidecarFileComplete(String path) {
+    final file = File(path);
+    return file.existsSync() && file.lengthSync() > 0;
   }
 
   /// Whether the current lock-cached song's final cache file is on disk (the
