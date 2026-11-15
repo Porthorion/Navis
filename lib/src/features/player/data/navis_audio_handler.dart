@@ -636,6 +636,11 @@ class NavisAudioHandler extends BaseAudioHandler
   String? _lockCacheWarmSongId;
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
+  // Starvation watchdog: one deadline timer per `generation:songId` key; once
+  // it elapses the song is overdue and the next buffering event recovers.
+  Timer? _starvedStreamTimer;
+  String? _starvedKey;
+  bool _starvedOverdue = false;
   String? _remotePlaybackStallSongId;
   Duration? _remotePlaybackStallPosition;
   Duration? _remotePlaybackStallBufferedPosition;
