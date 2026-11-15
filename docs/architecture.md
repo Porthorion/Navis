@@ -5813,9 +5813,12 @@ the logical (shuffled) play order, the current song under Repeat One (nothing
 to warm), and the first song when Repeat All wraps. The warm runs at most once
 per current-to-next pair (a warm that ended without a file is retried after
 `sidecarChainRetryDelay` for that pair only), is never restarted by re-publishing
-the finished current song while its file still exists. Refilling a deleted
-current file clears the pair and retry state before cancelling its warm, so
-the warm restarts immediately after the refill. A warm is cancelled when a
+the finished current song while its file still exists: a non-empty sidecar
+file counts as complete whatever the item's source kind (a reload from it keeps
+the sidecar path), and `start` for a file already on disk returns before it
+cancels another song's download. Refilling a deleted or empty current file
+clears the pair and retry state before cancelling its warm, so the warm
+restarts immediately after the refill. A warm is cancelled when a
 skip, queue edit or shuffle makes it
 neither current nor next or when the gate closes (setting turned off, link
 cellular or metered, offline); when the warmed song becomes current
@@ -5862,6 +5865,22 @@ original rebuild also fails over when it still owns the failed queued song.
 Play/Pause preserve that request's failover ownership, and Pause lands on the
 next playable song paused. Newer seeks, selections and a removed occurrence
 retire the request.
+
+The song stall watchdog fires `remoteStall` (12 s) after a buffering remote
+stream shows no position or buffered-position change. A slow origin defeats it:
+trickling bytes move the buffered position and `ready` blips cancel it, so a
+song could buffer for minutes. A second, starvation watchdog covers the case
+where the current direct stream's sidecar file is already complete (and the
+stream is not a `timeOffset` transcode, radio, mid-crossfade, paused or at its
+end): once the player has been buffering for `starvedWithFile` (2 s), neither
+progress nor brief `ready` blips restart that wait. A `ready` at the deadline
+only marks the song overdue: its next buffering event recovers at once. A song
+or source change, Pause, stop or recovery clears the wait. It then calls
+the ordinary remote recovery (`stream starved, file complete`, trace decision
+`starvedWithFile`), whose single retry per transport generation reloads the
+song from the completed file at the current position through
+`_trySeekViaCompletedCacheFile`. Streams without a complete file keep only the
+no-progress watchdog.
 
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
