@@ -58,6 +58,75 @@ void main() {
     }
   });
 
+  test(
+    'a start for a file already on disk leaves another song running',
+    () async {
+      final client = _MockHttpClient();
+      final open = Completer<HttpClientRequest>();
+      registerFallbackValue(Uri());
+      when(() => client.getUrl(any())).thenAnswer((_) => open.future);
+      final downloader = RollingCacheSidecarDownloader(
+        httpClientFactory: () => client,
+      );
+      final done = File(p.join(tempDir.path, 'done.audio'))
+        ..writeAsBytesSync([1, 2, 3]);
+      Future<void> start(String id, String path) => downloader.start(
+        songId: id,
+        uri: Uri.parse('http://fixture.invalid/$id'),
+        cacheFilePath: path,
+        onProgress: (_) {},
+        onComplete: (_) async {},
+        onTerminated: () {},
+      );
+      unawaited(start('b', p.join(tempDir.path, 'b.audio')));
+      await pumpEventQueue();
+      expect(downloader.activeSongId, 'b');
+
+      await start('a', done.path);
+      expect(downloader.activeSongId, 'b');
+
+      done.writeAsBytesSync(const <int>[]);
+      unawaited(start('a', done.path));
+      await pumpEventQueue();
+      expect(downloader.activeSongId, 'a');
+      await downloader.cancel();
+    },
+  );
+
+  test(
+    'a start for a file on disk cancels the same song at another path',
+    () async {
+      final client = _MockHttpClient();
+      final open = Completer<HttpClientRequest>();
+      registerFallbackValue(Uri());
+      when(() => client.getUrl(any())).thenAnswer((_) => open.future);
+      final downloader = RollingCacheSidecarDownloader(
+        httpClientFactory: () => client,
+      );
+      final done = File(p.join(tempDir.path, 'a-q2.audio'))
+        ..writeAsBytesSync([1, 2, 3]);
+      var completed = 0;
+      Future<void> start(String path) => downloader.start(
+        songId: 'a',
+        uri: Uri.parse('http://fixture.invalid/a'),
+        cacheFilePath: path,
+        onProgress: (_) {},
+        onComplete: (_) async => completed++,
+        onTerminated: () {},
+      );
+      unawaited(start(p.join(tempDir.path, 'a-q1.audio')));
+      await pumpEventQueue();
+      expect(downloader.activeSongId, 'a');
+
+      await start(done.path);
+      expect(downloader.activeSongId, isNull);
+      expect(downloader.activePartFilePath, isNull);
+      open.completeError(const HttpException('cut'));
+      await pumpEventQueue();
+      expect(completed, 0);
+    },
+  );
+
   test('a fast response cannot outrun file writes', () async {
     const chunkSize = 64 * 1024;
     const chunkCount = 64;

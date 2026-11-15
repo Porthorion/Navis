@@ -797,6 +797,28 @@ bool navisShouldWatchRemotePlaybackForStall({
   return isRemoteSource && isWaitingForRemoteData;
 }
 
+/// Whether a stream that is starving should be reloaded from its complete
+/// cache file: a plain direct stream (no `timeOffset` transcode, no radio)
+/// that is playing, not mid-crossfade or at its end, whose file is complete
+/// and which has not been retried in this transport generation yet.
+@visibleForTesting
+bool navisShouldRecoverStarvedStream({
+  required String? sourceKind,
+  required bool playing,
+  required bool completedFile,
+  required bool hasPositionOffset,
+  required bool crossfading,
+  required bool alreadyRetried,
+  required bool atEnd,
+}) =>
+    sourceKind == PlaybackSourceKind.directStream.name &&
+    playing &&
+    completedFile &&
+    !hasPositionOffset &&
+    !crossfading &&
+    !atEnd &&
+    navisShouldRetryRemotePlayback(alreadyRetried: alreadyRetried);
+
 @visibleForTesting
 bool navisShouldRetryRemotePlayback({required bool alreadyRetried}) =>
     !alreadyRetried;

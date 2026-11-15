@@ -1800,12 +1800,13 @@ extension _NavisRecovery on NavisAudioHandler {
     }
 
     final currentSongId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    _syncStarvedStreamWatchdog(currentSongId);
     final shouldWatch = navisShouldWatchRemotePlaybackForStall(
       sourceKind: _currentSourceKind,
       processingState: _mapProcessingState(_player.processingState),
     );
     if (!shouldWatch || currentSongId == null) {
-      _cancelRemotePlaybackStallWatchdog();
+      _cancelNoProgressWatchdog();
       return;
     }
 
@@ -1819,7 +1820,7 @@ extension _NavisRecovery on NavisAudioHandler {
       return;
     }
 
-    _cancelRemotePlaybackStallWatchdog();
+    _cancelNoProgressWatchdog();
     _remotePlaybackStallSongId = currentSongId;
     _remotePlaybackStallPosition = position;
     _remotePlaybackStallBufferedPosition = bufferedPosition;
@@ -1891,7 +1892,86 @@ extension _NavisRecovery on NavisAudioHandler {
     });
   }
 
+  /// Whether the current song starves although its sidecar file is complete
+  /// (see [navisShouldRecoverStarvedStream]).
+  bool _starvedWithCompleteFile(String songId) =>
+      navisShouldRecoverStarvedStream(
+        sourceKind: _currentSourceKind,
+        playing: _player.playing,
+        completedFile: _completedSidecarAvailable(songId),
+        hasPositionOffset:
+            _positionOffsetOf(_currentMediaItem) != Duration.zero,
+        crossfading: _isCrossfading,
+        alreadyRetried: _remotePlaybackRecoveryAttempts.contains(
+          '$_transportGeneration:$songId',
+        ),
+        atEnd: () {
+          final duration = _effectivePlaybackDuration(_currentMediaItem);
+          return duration > Duration.zero && _player.position >= duration;
+        }(),
+      );
+
+  /// A slow origin keeps a stream buffering (bytes trickle, `ready` blips)
+  /// without ever tripping the no-progress watchdog, although the song's
+  /// complete cache file could play it. The first buffering event arms one
+  /// deadline timer of [NavisPlaybackTimeouts.starvedWithFile]; neither
+  /// progress nor `ready` blips restart it. When it elapses the song is
+  /// overdue and the next buffering event reloads from the file (at once if
+  /// the player is buffering at the deadline). Anything that makes
+  /// [navisShouldRecoverStarvedStream] false (song or source change, pause,
+  /// stop) clears the wait.
+  void _syncStarvedStreamWatchdog(String? songId) {
+    if (songId == null || !_starvedWithCompleteFile(songId)) {
+      return _cancelStarvedStreamWatchdog();
+    }
+    if (_player.processingState != ProcessingState.buffering) return;
+    final key = '$_transportGeneration:$songId';
+    if (_starvedKey != key) _cancelStarvedStreamWatchdog();
+    if (_starvedOverdue) return _recoverStarvedStream(songId);
+    _starvedKey = key;
+    _starvedStreamTimer ??= Timer(_timeouts.starvedWithFile, () {
+      _starvedStreamTimer = null;
+      final id = _resolveCurrentQueueMetadata().mediaItem?.id;
+      if (id != songId || !_starvedWithCompleteFile(songId)) return;
+      if (_player.processingState == ProcessingState.buffering) {
+        return _recoverStarvedStream(songId);
+      }
+      // A `ready` blip at the deadline: recover on the next buffering event.
+      _starvedOverdue = true;
+    });
+  }
+
+  void _recoverStarvedStream(String songId) {
+    _transportTrace.record(
+      'recovery',
+      () => <String, Object?>{
+        'decision': 'starvedWithFile',
+        'songId': songId,
+        'positionMs': _player.position.inMilliseconds,
+        'bufferedMs': _player.bufferedPosition.inMilliseconds,
+        'timeoutMs': _timeouts.starvedWithFile.inMilliseconds,
+      },
+    );
+    unawaited(
+      _recoverCurrentSongFromRemotePlaybackFailure(
+        reason: 'stream starved, file complete',
+      ),
+    );
+  }
+
+  void _cancelStarvedStreamWatchdog() {
+    _starvedStreamTimer?.cancel();
+    _starvedStreamTimer = null;
+    _starvedKey = null;
+    _starvedOverdue = false;
+  }
+
   void _cancelRemotePlaybackStallWatchdog() {
+    _cancelStarvedStreamWatchdog();
+    _cancelNoProgressWatchdog();
+  }
+
+  void _cancelNoProgressWatchdog() {
     _remotePlaybackStallTimer?.cancel();
     _remotePlaybackStallTimer = null;
     _remotePlaybackStallSongId = null;

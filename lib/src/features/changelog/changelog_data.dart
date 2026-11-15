@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'A song that streams slowly on desktop now switches to its '
+        'finished cache file instead of buffering',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Signing back in after signing out with your data kept now checks '
         'for library updates right away instead of waiting for the next '
         'scheduled check',
