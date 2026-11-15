@@ -136,7 +136,8 @@ class NavisPlaybackTimeouts {
 
   /// A direct stream that keeps buffering for this long, although its cache
   /// file is complete, is reloaded from the file. Brief `ready` blips and
-  /// trickling bytes do not restart the wait; two seconds is long enough to
+  /// trickling bytes do not restart the wait (once it elapsed, the next
+  /// buffering event reloads at once); two seconds is long enough to
   /// ignore a normal rebuffer yet short enough that a starved song does not
   /// audibly stall for minutes.
   final Duration starvedWithFile;

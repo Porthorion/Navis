@@ -3631,13 +3631,16 @@ void main() {
     group('starved stream with a complete cache file', () {
       const starved = NavisPlaybackTimeouts(
         starvedWithFile: Duration(milliseconds: 300),
-        healthyPlayback: Duration(milliseconds: 400),
       );
       const keptPosition = Duration(seconds: 30);
 
       Future<(NavisAudioHandler, ControllableAudioPlayer, String)>
-      setUpStarved({bool writeFile = true, int fileBytes = 64}) async {
-        final (handler, player, _) = await offsetHandler(timeouts: starved);
+      setUpStarved({
+        bool writeFile = true,
+        int fileBytes = 64,
+        NavisPlaybackTimeouts timeouts = starved,
+      }) async {
+        final (handler, player, _) = await offsetHandler(timeouts: timeouts);
         await start(handler);
         final sidecar =
             handler.queue.value[1].extras!['sidecarCacheFilePath'] as String;
@@ -3724,19 +3727,61 @@ void main() {
         expect(player.sourceLoads, loads);
       });
 
-      test('a lasting ready clears the starvation wait', () async {
-        final (_, player, _) = await setUpStarved();
-        final loads = player.sourceLoads;
-        emit(player, ProcessingState.buffering);
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-        emit(player, ProcessingState.ready);
-        await Future<void>.delayed(const Duration(milliseconds: 600));
-        // The healthy ready cleared the wait; a new rebuffer starts it again.
-        emit(player, ProcessingState.buffering);
-        await Future<void>.delayed(const Duration(milliseconds: 150));
-        await pumpEventQueue(times: 100);
-        expect(player.sourceLoads, loads);
-      });
+      test(
+        'ready blips landing on each deadline cannot defer the reload',
+        () async {
+          final (_, player, sidecar) = await setUpStarved();
+          final loads = player.sourceLoads;
+          // The 300 ms deadline of each wait falls inside the ready blip.
+          for (var i = 0; i < 6 && player.sourceLoads == loads; i++) {
+            emit(player, ProcessingState.buffering);
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+            emit(player, ProcessingState.ready);
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
+          emit(player, ProcessingState.buffering);
+          // Overdue: reloads at once, well inside a fresh 300 ms wait.
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          await pumpEventQueue(times: 100);
+          expect(player.sourceLoads, loads + 1);
+          expect(current(player).uri, Uri.file(sidecar));
+        },
+      );
+
+      test(
+        'a lasting ready does not clear an elapsed starvation wait',
+        () async {
+          final (_, player, sidecar) = await setUpStarved();
+          final loads = player.sourceLoads;
+          emit(player, ProcessingState.buffering);
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          emit(player, ProcessingState.ready);
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          expect(player.sourceLoads, loads);
+          emit(player, ProcessingState.buffering);
+          // Overdue: reloads at once, well inside a fresh 300 ms wait.
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          await pumpEventQueue(times: 100);
+          expect(player.sourceLoads, loads + 1);
+          expect(current(player).uri, Uri.file(sidecar));
+        },
+      );
+
+      test(
+        'a second starvation after the file reload does not reload',
+        () async {
+          final (_, player, sidecar) = await setUpStarved();
+          final loads = player.sourceLoads;
+          emit(player, ProcessingState.buffering);
+          await until(() => player.sourceLoads == loads + 1);
+          expect(current(player).uri, Uri.file(sidecar));
+          await settle();
+          emit(player, ProcessingState.buffering);
+          await trickle(player, 8);
+          await settle();
+          expect(player.sourceLoads, loads + 1);
+        },
+      );
 
       test('a paused player is not reloaded', () async {
         final (_, player, _) = await setUpStarved();
@@ -3758,17 +3803,36 @@ void main() {
       });
 
       test(
-        'a song change while armed is not reloaded from the old file',
+        'a song change while armed anchors the wait to the new song',
         () async {
-          final (handler, player, sidecar) = await setUpStarved();
+          const slow = NavisPlaybackTimeouts(
+            starvedWithFile: Duration(milliseconds: 600),
+          );
+          final (handler, player, oldSidecar) = await setUpStarved(
+            timeouts: slow,
+          );
+          final next =
+              handler.queue.value[2].extras!['sidecarCacheFilePath'] as String;
+          await File(next).writeAsBytes(List<int>.filled(64, 1));
           emit(player, ProcessingState.buffering);
-          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await Future<void>.delayed(const Duration(milliseconds: 400));
           await handler.skipToNext();
-          await settle();
+          await pumpEventQueue(times: 100);
+          final loads = player.sourceLoads;
+          final clock = Stopwatch()..start();
           emit(player, ProcessingState.buffering);
-          await trickle(player, 8);
-          await settle();
-          expect(current(player).uri, isNot(Uri.file(sidecar)));
+          // The old song's deadline (600 ms) passes without reloading anything.
+          await trickle(player, 4);
+          expect(player.sourceLoads, loads);
+          // The new song reloads after its own full wait, not never.
+          while (player.sourceLoads == loads &&
+              clock.elapsedMilliseconds < 800) {
+            await trickle(player, 1);
+          }
+          expect(player.sourceLoads, loads + 1);
+          expect(clock.elapsedMilliseconds, greaterThanOrEqualTo(550));
+          expect(current(player).uri, Uri.file(next));
+          expect(current(player).uri, isNot(Uri.file(oldSidecar)));
         },
       );
     });

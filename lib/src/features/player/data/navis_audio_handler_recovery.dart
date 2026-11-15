@@ -1913,61 +1913,57 @@ extension _NavisRecovery on NavisAudioHandler {
 
   /// A slow origin keeps a stream buffering (bytes trickle, `ready` blips)
   /// without ever tripping the no-progress watchdog, although the song's
-  /// complete cache file could play it. Reload from that file after a short
-  /// wait that buffering progress and brief `ready` blips do not restart; a
-  /// `ready` that lasts [NavisPlaybackTimeouts.healthyPlayback] clears it.
+  /// complete cache file could play it. The first buffering event arms one
+  /// deadline timer of [NavisPlaybackTimeouts.starvedWithFile]; neither
+  /// progress nor `ready` blips restart it. When it elapses the song is
+  /// overdue and the next buffering event reloads from the file (at once if
+  /// the player is buffering at the deadline). Anything that makes
+  /// [navisShouldRecoverStarvedStream] false (song or source change, pause,
+  /// stop) clears the wait.
   void _syncStarvedStreamWatchdog(String? songId) {
     if (songId == null || !_starvedWithCompleteFile(songId)) {
       return _cancelStarvedStreamWatchdog();
     }
-    switch (_player.processingState) {
-      case ProcessingState.buffering:
-        _starvedHealthyTimer?.cancel();
-        _starvedHealthyTimer = null;
-        _starvedStreamTimer ??= Timer(_timeouts.starvedWithFile, () {
-          _starvedStreamTimer = null;
-          final id = _resolveCurrentQueueMetadata().mediaItem?.id;
-          // A `ready` blip at the deadline waits for the next buffering.
-          if (id != songId ||
-              _player.processingState != ProcessingState.buffering ||
-              !_starvedWithCompleteFile(songId)) {
-            return;
-          }
-          _transportTrace.record(
-            'recovery',
-            () => <String, Object?>{
-              'decision': 'starvedWithFile',
-              'songId': songId,
-              'positionMs': _player.position.inMilliseconds,
-              'bufferedMs': _player.bufferedPosition.inMilliseconds,
-              'timeoutMs': _timeouts.starvedWithFile.inMilliseconds,
-            },
-          );
-          unawaited(
-            _recoverCurrentSongFromRemotePlaybackFailure(
-              reason: 'stream starved, file complete',
-            ),
-          );
-        });
-      case ProcessingState.ready:
-        if (_starvedStreamTimer != null) {
-          _starvedHealthyTimer ??= Timer(
-            _timeouts.healthyPlayback,
-            _cancelStarvedStreamWatchdog,
-          );
-        }
-      case ProcessingState.idle ||
-          ProcessingState.loading ||
-          ProcessingState.completed:
-        break;
-    }
+    if (_player.processingState != ProcessingState.buffering) return;
+    final key = '$_transportGeneration:$songId';
+    if (_starvedKey != key) _cancelStarvedStreamWatchdog();
+    if (_starvedOverdue) return _recoverStarvedStream(songId);
+    _starvedKey = key;
+    _starvedStreamTimer ??= Timer(_timeouts.starvedWithFile, () {
+      _starvedStreamTimer = null;
+      final id = _resolveCurrentQueueMetadata().mediaItem?.id;
+      if (id != songId || !_starvedWithCompleteFile(songId)) return;
+      if (_player.processingState == ProcessingState.buffering) {
+        return _recoverStarvedStream(songId);
+      }
+      // A `ready` blip at the deadline: recover on the next buffering event.
+      _starvedOverdue = true;
+    });
+  }
+
+  void _recoverStarvedStream(String songId) {
+    _transportTrace.record(
+      'recovery',
+      () => <String, Object?>{
+        'decision': 'starvedWithFile',
+        'songId': songId,
+        'positionMs': _player.position.inMilliseconds,
+        'bufferedMs': _player.bufferedPosition.inMilliseconds,
+        'timeoutMs': _timeouts.starvedWithFile.inMilliseconds,
+      },
+    );
+    unawaited(
+      _recoverCurrentSongFromRemotePlaybackFailure(
+        reason: 'stream starved, file complete',
+      ),
+    );
   }
 
   void _cancelStarvedStreamWatchdog() {
     _starvedStreamTimer?.cancel();
     _starvedStreamTimer = null;
-    _starvedHealthyTimer?.cancel();
-    _starvedHealthyTimer = null;
+    _starvedKey = null;
+    _starvedOverdue = false;
   }
 
   void _cancelRemotePlaybackStallWatchdog() {

@@ -5870,8 +5870,9 @@ song could buffer for minutes. A second, starvation watchdog covers the case
 where the current direct stream's sidecar file is already complete (and the
 stream is not a `timeOffset` transcode, radio, mid-crossfade, paused or at its
 end): once the player has been buffering for `starvedWithFile` (2 s), neither
-progress nor brief `ready` blips restart that wait; only a `ready` lasting
-`healthyPlayback`, a song change, Pause or recovery clears it. It then calls
+progress nor brief `ready` blips restart that wait. A `ready` at the deadline
+only marks the song overdue: its next buffering event recovers at once. A song
+or source change, Pause, stop or recovery clears the wait. It then calls
 the ordinary remote recovery (`stream starved, file complete`, trace decision
 `starvedWithFile`), whose single retry per transport generation reloads the
 song from the completed file at the current position through
