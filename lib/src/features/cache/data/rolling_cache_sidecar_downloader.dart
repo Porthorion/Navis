@@ -52,6 +52,9 @@ class RollingCacheSidecarDownloader {
 
   String? get activeSongId => _activeSongId;
 
+  /// The final cache file the running download targets.
+  String? get activeCacheFilePath => _activeCacheFilePath;
+
   int? get activeReceivedBytes => _activeReceivedBytes;
 
   /// The file the running download writes: contiguous from the first byte.
@@ -76,7 +79,10 @@ class RollingCacheSidecarDownloader {
     if (cacheFile.existsSync() && cacheFile.lengthSync() > 0) {
       // Already on disk from a prior play: skip activity churn and
       // re-registration (CacheDao upsert is owned by the first completion),
-      // and leave another song's running download alone.
+      // and leave another song's running download alone. The same song's
+      // download at another path (a quality switch) is stale: cancel it so it
+      // cannot replace this file's registration.
+      if (_activeSongId == songId) _cancelActive();
       return;
     }
     // Claim ownership before the first await. Otherwise two rapid start calls

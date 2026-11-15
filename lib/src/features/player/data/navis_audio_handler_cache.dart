@@ -162,6 +162,11 @@ extension _NavisCache on NavisAudioHandler {
     // next song's warm and the chain pair stay.
     if (_sidecarFileComplete(sidecarPath)) {
       _completedCacheSongIds.add(item.id);
+      // A same-song download at another path (quality switch) is stale.
+      if (_sidecarDownloader.activeSongId == item.id &&
+          _sidecarDownloader.activeCacheFilePath != sidecarPath) {
+        unawaited(_sidecarDownloader.cancel());
+      }
     } else {
       _completedCacheSongIds.remove(item.id);
       // Refilling the current song cancels its warm without a failure backoff.
@@ -221,7 +226,7 @@ extension _NavisCache on NavisAudioHandler {
           final key = _sidecarChainKey;
           if (key != null &&
               key.endsWith('>${song.id}') &&
-              !File(sidecarPath).existsSync()) {
+              !_sidecarFileComplete(sidecarPath)) {
             _sidecarChainKey = null;
             if (key.startsWith('${_currentMediaItem?.id}>')) {
               _sidecarChainRetry = (
