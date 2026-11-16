@@ -85,7 +85,10 @@ extension _NavisCache on NavisAudioHandler {
         prefetch.outcome = outcome;
         if (outcome == 'superseded') return;
         _remotePrefetched.add(songId);
-        if (outcome == 'answered' && !_disposeHandlerStarted) {
+        // A timeout is no end of the origin's fetch: it is probably still
+        // running, so the full download holds off as after an answer.
+        if ((outcome == 'answered' || outcome == 'timeout') &&
+            !_disposeHandlerStarted) {
           _remoteSettling[songId] = Timer(remoteSettleDelay, () {
             _remoteSettling.remove(songId);
             _syncSidecarChain();

@@ -54,6 +54,8 @@ void main() {
     bool positionStreams = false,
     bool sidecarStreams = false,
     BridgeSidecar? sidecar,
+    NavisQueueWindow queueWindow = const NavisQueueWindow(),
+    int startIndex = 0,
   }) async {
     final previousHttp = HttpOverrides.current;
     HttpOverrides.global = null;
@@ -135,6 +137,7 @@ void main() {
       sidecarStreams: sidecarStreams,
       sidecarDownloader: sidecar,
       transportTrace: trace,
+      queueWindow: queueWindow,
       timeouts: timeouts,
       crossfade: crossfade,
       replayGainInPipeline: replayGainInPipeline,
@@ -162,12 +165,16 @@ void main() {
       for (final row in await database.libraryDao.getSongsByIds(ids))
         row.id: row,
     };
-    await handler.replaceQueueWithData([
-      for (final id in ids)
-        rows[id]!.copyWith(isExternal: !localIds.contains(id)),
-    ], expandMatchFlows: false);
+    await handler.replaceQueueWithData(
+      [
+        for (final id in ids)
+          rows[id]!.copyWith(isExternal: !localIds.contains(id)),
+      ],
+      startIndex: startIndex,
+      expandMatchFlows: false,
+    );
     await settleQueue(handler);
-    expect(player.index, 0);
+    expect(handler.snapshot.currentSongId, ids[startIndex]);
     if (!prefetch) requests.clear();
   }
 
@@ -543,6 +550,48 @@ void main() {
       expect(player.appliedLoopMode, LoopMode.off);
     });
 
+    // Songs 2-4 are in the player, songs 0-1 are in the deferred head: a
+    // logical index and the player's row differ by two.
+    const headed = NavisQueueWindow(
+      deferThreshold: 4,
+      ahead: 1,
+      behind: 1,
+      lowWater: 0,
+      page: 2,
+      nearJump: 1,
+    );
+
+    test('with songs released from the front, the early mute reads the '
+        "player's row of the target", () async {
+      await setUpHandler(
+        localIds: {'song-3'},
+        queueWindow: headed,
+        startIndex: 3,
+      );
+      expect(handler.collectPlaybackDiagnostics()['deferredHeadLength'], 2);
+      final hold = Completer<void>();
+      player
+        ..seekGate = hold
+        ..seekEntered = Completer<void>();
+      final slow = handler.playFromIndex(3);
+      await player.seekEntered!.future;
+      gates['song-4'] = Completer<void>();
+      final navigation = handler.playFromIndex(4);
+      await pumpEventQueue();
+      expect(requests.where((r) => r == 'song-4'), isEmpty);
+      expect(player.volume, 0);
+      hold.complete();
+      await until(
+        () => requests.contains('song-4'),
+        reason: 'warm-up request for song-2',
+      );
+      gates['song-4']!.complete();
+      await Future.wait([slow, navigation]);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-4');
+      expect(player.volume, 1.0);
+    });
+
     test('a navigation to a local song never mutes', () async {
       await setUpHandler(localIds: {'song-1'});
       final hold = Completer<void>();
@@ -749,12 +798,19 @@ void main() {
       () async {
         await setUpHandler(prefetch: true);
         await prefetchAnswered('song-1');
+        final started = DateTime.now();
         await handler.playFromIndex(1);
+        expect(
+          DateTime.now().difference(started).inMilliseconds,
+          lessThan(400),
+        );
         await settleQueue(handler);
-        final end = records(
+        final join = records(
           'remoteWarm',
-        ).lastWhere((e) => e['phase'] == 'end' && e['trigger'] == 'navigate');
-        expect(end['elapsedMs'] as int, lessThan(400));
+        ).singleWhere((e) => e['phase'] == 'join' && e['songId'] == 'song-1');
+        expect(join['trigger'], 'navigate');
+        expect(join['outcome'], 'answered');
+        expect(count('song-1'), 1, reason: 'no second request for the song');
         expect(player.volume, 1.0);
       },
     );
@@ -866,6 +922,27 @@ void main() {
       );
       await quiet();
       expect(count('song-1'), 1, reason: 'one attempt per song');
+    });
+
+    test('a timed-out prefetch holds the full download and the navigation '
+        'sends no second request', () async {
+      final previous = remoteSettleDelay;
+      remoteSettleDelay = const Duration(seconds: 30);
+      addTearDown(() => remoteSettleDelay = previous);
+      await setUpHandler(
+        prefetch: true,
+        gated: {'song-1'},
+        timeouts: const NavisPlaybackTimeouts(
+          remoteLoad: Duration(milliseconds: 300),
+        ),
+      );
+      await prefetchAnswered('song-1');
+      expect(warmEnd('song-1')['outcome'], 'timeout');
+      expect(handler.debugRemoteFullDownloadHeld('song-1'), isTrue);
+      expect(handler.debugRemoteSettlingCount, 1);
+      await handler.playFromIndex(1);
+      await settleQueue(handler);
+      expect(count('song-1'), 1, reason: 'no parallel request');
     });
 
     test(

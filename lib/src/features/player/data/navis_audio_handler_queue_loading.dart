@@ -1866,7 +1866,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     if (trigger != 'prefetch' &&
         prefetch != null &&
         prefetch.songId == songId &&
-        !prefetch.done) {
+        (!prefetch.done || _remoteSettling.containsKey(songId))) {
       _transportTrace.record(
         'remoteWarm',
         () => <String, Object?>{
@@ -1875,8 +1875,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
           'trigger': trigger,
           'startedBy': 'prefetch',
           'ageMs': prefetch.age.elapsedMilliseconds,
+          if (prefetch.done) 'outcome': prefetch.outcome,
         },
       );
+      // An answered prefetch is a finished join: a request of our own within
+      // seconds of its answer makes the origin fetch the song again.
       while (!prefetch.done && stillWanted()) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }

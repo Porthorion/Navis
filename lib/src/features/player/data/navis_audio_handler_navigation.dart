@@ -148,8 +148,10 @@ extension _NavisNavigation on NavisAudioHandler {
     // target: a cold remote target silences the old song from this moment.
     if (_pendingLogicalQueueSongIds == null) {
       final index = _locateQueueTarget(targetId, requestedIndex);
-      if (index >= _deferredHead.length &&
-          _coldRemoteUriAt(index, targetId) != null) {
+      // The target's index is logical; the player's rows start after the
+      // deferred head.
+      final row = index - _deferredHead.length;
+      if (row >= 0 && _coldRemoteUriAt(row, targetId) != null) {
         _armWarmMute();
       }
     }
