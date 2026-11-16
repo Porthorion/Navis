@@ -144,6 +144,17 @@ extension _NavisNavigation on NavisAudioHandler {
       pendingLogicalQueueSongIds: _pendingLogicalQueueSongIds,
       navigation: true,
     );
+    // The lane may be busy for a while and the title already shows the
+    // target: a cold remote target silences the old song from this moment.
+    if (_pendingLogicalQueueSongIds == null) {
+      final index = _locateQueueTarget(targetId, requestedIndex);
+      // The target's index is logical; the player's rows start after the
+      // deferred head.
+      final row = index - _deferredHead.length;
+      if (row >= 0 && _coldRemoteUriAt(row, targetId) != null) {
+        _armWarmMute();
+      }
+    }
     final pendingSongs = _pendingLogicalQueueSongs;
     final issuedAt = _navigationIssuedAt!;
     final work = _queueLane.navigate((token) async {
@@ -335,22 +346,8 @@ extension _NavisNavigation on NavisAudioHandler {
             (item) => identical(item, startItem?.mediaItem),
           );
         } else {
-          final source = _player.audioSources.elementAtOrNull(index);
-          final uri = switch (source) {
-            UriAudioSource(:final uri) => uri,
-            // Navis uses the vendored lock-cache primitive for remote sources.
-            // ignore: experimental_member_use
-            LockCachingAudioSource(:final uri) => uri,
-            LockCacheFollowerSource(:final leader) => leader.uri,
-            _ => null,
-          };
-          final coldRemote =
-              (isExternalCatalogSource(id: targetId) ||
-                  _remoteRows.containsKey(targetId)) &&
-              _queueItems[index].extras?['sourceKind'] !=
-                  PlaybackSourceKind.file.name &&
-              uri != null &&
-              (uri.scheme == 'http' || uri.scheme == 'https');
+          final uri = _coldRemoteUriAt(index, targetId);
+          final coldRemote = uri != null;
           if (coldRemote) {
             // The old song keeps its deck until the origin answers: silent.
             _armWarmMute();

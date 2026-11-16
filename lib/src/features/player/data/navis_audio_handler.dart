@@ -749,6 +749,16 @@ class NavisAudioHandler extends BaseAudioHandler
   /// or run into its end. Cleared by [_completeQueueLoad] and by a
   /// supersession that is not itself a load.
   bool _warmMuteArmed = false;
+
+  /// The one in-flight prefetch of the next cold remote song (issue #653),
+  /// and every song already prefetched ([_remotePrefetched]: one attempt per
+  /// song). A prefetch is never cancelled, only [disposeHandler] closes it.
+  _RemotePrefetch? _remotePrefetch;
+  final Set<String> _remotePrefetched = <String>{};
+
+  /// Songs whose prefetch answered less than [remoteSettleDelay] ago, each
+  /// with the timer that re-syncs the next-song chain when it elapses.
+  final Map<String, Timer> _remoteSettling = <String, Timer>{};
   final List<PlaybackStartupTrace> _startupTraces = <PlaybackStartupTrace>[];
   PlaybackStartupTrace? _activeStartupTrace;
   int _nextStartupAttempt = 0;
@@ -3394,6 +3404,19 @@ class NavisAudioHandler extends BaseAudioHandler
   void debugCheckCrossfadeTrigger(Duration position) =>
       _checkCrossfadeTrigger(position);
 
+  /// Test hook: whether the full download of [songId] waits for its prefetch.
+  @visibleForTesting
+  bool debugRemoteFullDownloadHeld(String songId) =>
+      _remoteFullDownloadHeld(songId);
+
+  /// Test hook: the song whose Android lock-cache next-song warm runs.
+  @visibleForTesting
+  String? get debugLockCacheWarmSongId => _lockCacheWarmSongId;
+
+  /// Test hook: number of songs inside their post-answer settle delay.
+  @visibleForTesting
+  int get debugRemoteSettlingCount => _remoteSettling.length;
+
   /// Queue edits enqueued so far.
   @visibleForTesting
   int get debugQueueEditCount => _queueEditSequence;
@@ -3577,6 +3600,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _artCache?.dispose();
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
+    _disposeRemotePrefetch();
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
     _cancelCachedExtentTimer();
