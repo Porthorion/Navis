@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/presentation/mix_diagnostics.dart';
@@ -7,7 +8,9 @@ import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:flutter/services.dart';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:intl/intl.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -487,21 +490,47 @@ class _AboutInformation extends ConsumerWidget {
   final VoidCallback onShowLicenses;
   final String version;
 
+  String _playbackTraceJson(WidgetRef ref) {
+    final handler = ref.read(audioHandlerProvider);
+    final url = ref.read(serverConfigStateProvider).asData?.value?.url;
+    return redactedDiagnosticsJson(<String, Object?>{
+      'appVersion': version,
+      'channel': UpdateRepository.channelFor(),
+      'capturedAt': DateTime.now().toUtc().toIso8601String(),
+      'playback': handler?.collectPlaybackDiagnostics(),
+      'mix': mixDiagnosticsJson(ref.read),
+    }, host: Uri.tryParse(url ?? '')?.host);
+  }
+
   Future<void> _copyPlaybackTrace(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context)!;
     try {
-      final handler = ref.read(audioHandlerProvider);
-      final url = ref.read(serverConfigStateProvider).asData?.value?.url;
-      final text = redactedDiagnosticsJson(<String, Object?>{
-        'appVersion': version,
-        'channel': UpdateRepository.channelFor(),
-        'capturedAt': DateTime.now().toUtc().toIso8601String(),
-        'playback': handler?.collectPlaybackDiagnostics(),
-        'mix': mixDiagnosticsJson(ref.read),
-      }, host: Uri.tryParse(url ?? '')?.host);
+      final text = _playbackTraceJson(ref);
       await Clipboard.setData(ClipboardData(text: text));
       if (!context.mounted) return;
       showAppNotice(context, message: l10n.aboutPlaybackTraceCopied);
+    } on Object {
+      if (!context.mounted) return;
+      showAppNotice(
+        context,
+        message: l10n.playbackRecoveryActionFailed,
+        level: AppNoticeLevel.error,
+      );
+    }
+  }
+
+  Future<void> _savePlaybackTrace(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final stamp = DateFormat('yyyyMMdd-HHmmss')
+          .format(DateTime.now().toUtc());
+      final saved = await FilePicker.saveFile(
+        fileName: 'navis-playback-trace-$stamp.json',
+        bytes: Uint8List.fromList(utf8.encode(_playbackTraceJson(ref))),
+        mimeType: 'application/json',
+      );
+      if (saved == null || !context.mounted) return;
+      showAppNotice(context, message: l10n.aboutPlaybackTraceSaved);
     } on Object {
       if (!context.mounted) return;
       showAppNotice(
@@ -532,7 +561,7 @@ class _AboutInformation extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => NavService.openChangelog(context),
         ),
-        if (ref.watch(devChannelBuildProvider))
+        if (ref.watch(devChannelBuildProvider)) ...<Widget>[
           ListTile(
             key: const ValueKey<String>('about-copy-playback-trace'),
             leading: const Icon(Icons.content_copy_outlined),
@@ -540,6 +569,14 @@ class _AboutInformation extends ConsumerWidget {
             subtitle: Text(l10n.aboutCopyPlaybackTraceSub),
             onTap: () => unawaited(_copyPlaybackTrace(context, ref)),
           ),
+          ListTile(
+            key: const ValueKey<String>('about-save-playback-trace'),
+            leading: const Icon(Icons.save_alt_outlined),
+            title: Text(l10n.aboutSavePlaybackTrace),
+            subtitle: Text(l10n.aboutSavePlaybackTraceSub),
+            onTap: () => unawaited(_savePlaybackTrace(context, ref)),
+          ),
+        ],
         ListTile(
           leading: const Icon(Icons.privacy_tip_outlined),
           title: Text(l10n.privacyTitle),
