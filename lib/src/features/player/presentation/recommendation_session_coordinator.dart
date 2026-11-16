@@ -7,6 +7,21 @@ import 'package:navis/src/providers/app_providers.dart';
 /// Tracks remaining after the current song at which automatic mixes refill.
 const kRecommendationRefillLowWater = 4;
 
+/// Songs the mix still has queued after [currentIndex]. [mixSongIds] are the
+/// songs the mix appended; songs the user queued after it do not count, and
+/// removing or reordering songs keeps the count true. Without mix songs the
+/// whole tail counts.
+int mixSongsAfterCurrent(
+  PlaybackSnapshot snapshot,
+  int currentIndex,
+  Set<String>? mixSongIds,
+) {
+  final tail = snapshot.queueSongIds.skip(currentIndex + 1);
+  return mixSongIds == null
+      ? tail.length
+      : tail.where(mixSongIds.contains).length;
+}
+
 enum RecommendationMode { serverMix, sameVibes, personalRadio }
 
 class RecommendationSession {

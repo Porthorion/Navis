@@ -610,6 +610,116 @@ void main() {
     },
   );
 
+  group('removing songs from the queue', () {
+    // Activates a mix of 10 songs (rec-0-0..9) behind 'seed' and returns the
+    // queue fake, the snapshot feed and a clock advancer.
+    Future<
+      (
+        RecordingRecommendationQueue,
+        RecommendationSnapshotController,
+        void Function(),
+      )
+    >
+    activeMix() async {
+      final api = _MockSubsonicApiClient();
+      var now = DateTime.utc(2026);
+      var batch = 0;
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => songs(10, prefix: 'rec-${batch++}'));
+      final container = createRecommendationContainer(
+        overrides: [
+          instantMixProvider.overrideWith(
+            () => InstantMixNotifier(now: () => now),
+          ),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
+          audioHandlerProvider.overrideWithValue(null),
+          subsonicApiProvider.overrideWithValue(api),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+        ],
+      );
+      container.listen(instantMixProvider, (_, _) {});
+      final snapshots = container.read(recommendationSnapshotProvider.notifier);
+      snapshots.emitSnapshot(
+        snapshot(
+          queueSongIds: ['seed'],
+          currentSongId: 'seed',
+          currentIndex: 0,
+        ),
+      );
+      await container.read(instantMixProvider.notifier).activate('seed');
+      final queue = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
+      expect(queue.appendedSongBatches, hasLength(1));
+      return (
+        queue,
+        snapshots,
+        () => now = now.add(const Duration(minutes: 1)),
+      );
+    }
+
+    test('a removed mix tail brings the refill back (#659)', () async {
+      final (queue, snapshots, tick) = await activeMix();
+      tick();
+      // The user deleted the last seven mix songs: three remain.
+      final ids = ['seed', ...List.generate(3, (i) => 'rec-0-$i')];
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
+    });
+
+    test(
+      'songs removed between the current one and the mix end count',
+      () async {
+        final (queue, snapshots, tick) = await activeMix();
+        tick();
+        // Eight of ten removed, the rest scattered: two remain after current.
+        final ids = ['seed', 'rec-0-1', 'rec-0-8'];
+        snapshots.emitSnapshot(
+          snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
+        );
+        await pumpEventQueue();
+        expect(queue.appendedSongBatches, hasLength(2));
+      },
+    );
+
+    test('songs added after the mix are not mix songs', () async {
+      final (queue, snapshots, tick) = await activeMix();
+      tick();
+      // Four mix songs remain behind six the user queued afterwards.
+      final ids = [
+        'seed',
+        ...List.generate(4, (i) => 'rec-0-$i'),
+        ...List.generate(6, (i) => 'mine-$i'),
+      ];
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
+    });
+
+    test('a full mix with nothing removed does not refill', () async {
+      final (queue, snapshots, tick) = await activeMix();
+      tick();
+      final ids = ['seed', ...List.generate(10, (i) => 'rec-0-$i')];
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(1));
+    });
+  });
+
   test(
     'a fresh mix with a five-song first batch waits until four remain',
     () async {
