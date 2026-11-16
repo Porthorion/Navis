@@ -1343,6 +1343,132 @@ void main() {
     },
   );
 
+  group('removing songs from the queue', () {
+    // Activates a mix whose first batch is rec-0-0..4 behind 'seed'.
+    Future<
+      (
+        RecordingRecommendationQueue,
+        RecommendationSnapshotController,
+        void Function(),
+      )
+    >
+    activeMix() async {
+      final api = _MockSubsonicApiClient();
+      var now = DateTime.utc(2026);
+      var batch = 0;
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer(
+            (call) async => Song(
+              id: call.positionalArguments.first as String,
+              title: 'Seed',
+              artist: 'Seed Artist',
+            ),
+          );
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async {
+        final prefix = 'rec-${batch++}';
+        return [
+          for (var i = 0; i < 5; i++)
+            Song(id: '$prefix-$i', title: 'Track $i', artist: 'Artist $i'),
+        ];
+      });
+      final container = createRecommendationContainer(
+        overrides: [
+          sameVibesProvider.overrideWith(
+            () => SameVibesNotifier(now: () => now),
+          ),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
+          audioHandlerProvider.overrideWithValue(null),
+          subsonicApiProvider.overrideWithValue(api),
+          lastFmApiClientProvider.overrideWithValue(null),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(),
+          ),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+            (albumIds) async => const <String, int?>{},
+          ),
+          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+            (songIds) async => const <String>{},
+          ),
+          currentMediaItemProvider.overrideWith(
+            (ref) => Stream.value(
+              const MediaItem(id: 'seed', title: 'Seed', artist: 'Seed Artist'),
+            ),
+          ),
+        ],
+      );
+      container.listen(sameVibesProvider, (_, _) {});
+      final snapshots = container.read(recommendationSnapshotProvider.notifier);
+      snapshots.emitSnapshot(
+        snapshot(
+          queueSongIds: ['seed'],
+          currentSongId: 'seed',
+          currentIndex: 0,
+        ),
+      );
+      await container.read(sameVibesProvider.notifier).activate('seed');
+      final queue = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
+      expect(queue.appendedSongBatches, hasLength(1));
+      return (
+        queue,
+        snapshots,
+        () => now = now.add(const Duration(minutes: 1)),
+      );
+    }
+
+    test('a removed mix tail brings the refill back (#659)', () async {
+      final (queue, snapshots, tick) = await activeMix();
+      tick();
+      final ids = ['seed', 'rec-0-0', 'rec-0-1'];
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
+    });
+
+    test(
+      'songs removed between the current one and the mix end count',
+      () async {
+        final (queue, snapshots, tick) = await activeMix();
+        tick();
+        final ids = ['seed', 'rec-0-1', 'rec-0-2', 'rec-0-4'];
+        snapshots.emitSnapshot(
+          snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
+        );
+        await pumpEventQueue();
+        expect(queue.appendedSongBatches, hasLength(2));
+      },
+    );
+
+    test('songs added after the mix are not mix songs', () async {
+      final (queue, snapshots, tick) = await activeMix();
+      tick();
+      // Four mix songs remain behind six the user queued afterwards.
+      final ids = [
+        'seed',
+        ...List.generate(4, (i) => 'rec-0-$i'),
+        ...List.generate(6, (i) => 'mine-$i'),
+      ];
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
+    });
+  });
+
   test(
     'auto-refill starts at four remaining mix tracks, but not five',
     () async {
