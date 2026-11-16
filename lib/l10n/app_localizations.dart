@@ -4395,6 +4395,24 @@ abstract class AppLocalizations {
   /// **'Playback trace copied'**
   String get aboutPlaybackTraceCopied;
 
+  /// No description provided for @aboutSavePlaybackTrace.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Playback Trace'**
+  String get aboutSavePlaybackTrace;
+
+  /// No description provided for @aboutSavePlaybackTraceSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Save the full trace as a file when copying cuts it short'**
+  String get aboutSavePlaybackTraceSub;
+
+  /// No description provided for @aboutPlaybackTraceSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback trace saved'**
+  String get aboutPlaybackTraceSaved;
+
   /// No description provided for @commonLoading.
   ///
   /// In en, this message translates to:
