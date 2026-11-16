@@ -752,17 +752,12 @@ extension _NavisCrossfade on NavisAudioHandler {
 
     // Restore the main player's volume to the user-requested level.
     unawaited(
-      _player
-          .setVolume(
-            _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
-          )
-          .catchError((Object error, StackTrace stack) {
-            _crossfadeLastFailure =
-                'restore_volume_failed:${error.runtimeType}';
-            AppLogger.warning(
-              'Cross-fade volume restore failed: $error\n$stack',
-            );
-          }),
+      _writeActiveVolume(
+        _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
+      ).catchError((Object error, StackTrace stack) {
+        _crossfadeLastFailure = 'restore_volume_failed:${error.runtimeType}';
+        AppLogger.warning('Cross-fade volume restore failed: $error\n$stack');
+      }),
     );
 
     if (_crossfadeIndexSuppressed) {

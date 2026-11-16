@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Jumping to a song that has to be fetched first (Deezer) now shows '
+        'it as loading and silences the previous song instead of playing it '
+        'under the new title',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Automatic mixes top up less often: they add songs once four are left, '
         'and Same Vibes adds ten at a time instead of five',
         type: ChangelogEntryType.improvement,

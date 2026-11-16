@@ -664,7 +664,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       // volume while it runs.
       if (loading && _loadingSourceInPlayer && !_isCrossfading) {
         unawaited(
-          _player.setVolume(
+          _writeActiveVolume(
             _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
           ),
         );
@@ -693,7 +693,7 @@ extension _NavisMediaSession on NavisAudioHandler {
             : _player.sequence.elementAtOrNull(heardIndex),
       );
     }
-    unawaited(_player.setVolume(_replayGainVolumeFor(current)));
+    unawaited(_writeActiveVolume(_replayGainVolumeFor(current)));
     _applyReplayGainBoost(live: live);
   }
 
@@ -1595,6 +1595,9 @@ extension _NavisMediaSession on NavisAudioHandler {
           ? AudioProcessingState.buffering
           : _restoredQueueIndex != null && !_isLoading
           ? AudioProcessingState.ready
+          // The old song is muted under the new title: it is loading.
+          : _warmMuted
+          ? AudioProcessingState.loading
           : _mapProcessingState(_player.processingState),
       position: _restoredQueueIndex != null
           ? _restoredQueuePosition
