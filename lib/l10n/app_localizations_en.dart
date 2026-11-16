@@ -2794,6 +2794,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutPlaybackTraceCopied => 'Playback trace copied';
 
   @override
+  String get aboutSavePlaybackTrace => 'Save Playback Trace';
+
+  @override
+  String get aboutSavePlaybackTraceSub =>
+      'Save the full trace as a file when copying cuts it short';
+
+  @override
+  String get aboutPlaybackTraceSaved => 'Playback trace saved';
+
+  @override
   String get commonLoading => 'Loading…';
 
   @override

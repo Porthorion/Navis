@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -48,6 +49,31 @@ class _TraceHandler extends Fake implements NavisPlaybackHandler {
       },
     ],
   };
+}
+
+/// Stands in for the platform save dialog, recording the file it is asked to
+/// write. A null [result] behaves like a cancelled dialog.
+class _SaveFilePicker extends FilePickerPlatform {
+  new({this.result, this.onSave});
+
+  final Uri? result;
+  final void Function(String fileName, Uint8List bytes)? onSave;
+
+  @override
+  Future<Uri?> saveFile({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+    String? dialogTitle,
+    String? initialDirectory,
+    void Function(FilePickerStatus)? onFileSaving,
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async {
+    onSave?.call(fileName, bytes);
+    return result;
+  }
 }
 
 void main() {
@@ -197,6 +223,23 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    List<Override> traceOverrides() => <Override>[
+      devChannelBuildProvider.overrideWithValue(true),
+      audioHandlerProvider.overrideWithValue(_TraceHandler()),
+      playerStateProvider.overrideWithValue(const PlaybackSnapshot.idle()),
+      serverReachabilityControllerProvider.overrideWith(OnlineReachability.new),
+      serverConfigStateProvider.overrideWithValue(
+        const AsyncValue.data(
+          ServerConfigModel(
+            url: 'https://nas.example.com:4533',
+            username: 'alice',
+            password: 'pw',
+            apiVersion: '1.16.1',
+          ),
+        ),
+      ),
+    ];
+
     testWidgets(
       'hidden version long-press copies startup details and shows an app notice',
       (tester) async {
@@ -225,6 +268,10 @@ void main() {
         find.byKey(const ValueKey<String>('about-copy-playback-trace')),
         findsNothing,
       );
+      expect(
+        find.byKey(const ValueKey<String>('about-save-playback-trace')),
+        findsNothing,
+      );
     });
 
     testWidgets('dev builds copy a redacted playback trace', (tester) async {
@@ -250,24 +297,7 @@ void main() {
         tester,
         updateInfo: null,
         notices: notices,
-        extraOverrides: <Override>[
-          devChannelBuildProvider.overrideWithValue(true),
-          audioHandlerProvider.overrideWithValue(_TraceHandler()),
-          playerStateProvider.overrideWithValue(const PlaybackSnapshot.idle()),
-          serverReachabilityControllerProvider.overrideWith(
-            OnlineReachability.new,
-          ),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncValue.data(
-              ServerConfigModel(
-                url: 'https://nas.example.com:4533',
-                username: 'alice',
-                password: 'pw',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-        ],
+        extraOverrides: traceOverrides(),
       );
       final tile = find.byKey(
         const ValueKey<String>('about-copy-playback-trace'),
@@ -296,6 +326,84 @@ void main() {
       expect(text, contains('song-42'));
       expect(notices.notice?.message, 'Playback trace copied');
       notices.dismiss();
+    });
+
+    testWidgets('dev builds save a redacted playback trace to a file', (
+      tester,
+    ) async {
+      String? savedName;
+      Uint8List? savedBytes;
+      final previous = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = _SaveFilePicker(
+        result: Uri.file('/tmp/trace.json'),
+        onSave: (name, bytes) {
+          savedName = name;
+          savedBytes = bytes;
+        },
+      );
+      addTearDown(() => FilePickerPlatform.instance = previous);
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      await pumpAbout(
+        tester,
+        updateInfo: null,
+        notices: notices,
+        extraOverrides: traceOverrides(),
+      );
+
+      final tile = find.byKey(
+        const ValueKey<String>('about-save-playback-trace'),
+      );
+      await tester.scrollUntilVisible(tile, 200);
+      await tester.tap(tile);
+      await tester.pump();
+
+      expect(
+        savedName,
+        matches(RegExp(r'^navis-playback-trace-\d{8}-\d{6}\.json$')),
+      );
+      final text = utf8.decode(savedBytes!);
+      final decoded = jsonDecode(text) as Map<String, Object?>;
+      expect(decoded['appVersion'], '1.0.0');
+      final playback = decoded['playback']! as Map<String, Object?>;
+      expect(playback['transportTrace'], isNotEmpty);
+      expect(text, contains('song-42'));
+      for (final secret in <String>[
+        'alice',
+        'pw@',
+        'tok123',
+        'salt99',
+        'nas.example.com',
+        '4533',
+      ]) {
+        expect(text, isNot(contains(secret)), reason: secret);
+      }
+      expect(notices.notice?.message, 'Playback trace saved');
+      notices.dismiss();
+    });
+
+    testWidgets('a cancelled save shows no notice', (tester) async {
+      final previous = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = _SaveFilePicker();
+      addTearDown(() => FilePickerPlatform.instance = previous);
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      await pumpAbout(
+        tester,
+        updateInfo: null,
+        notices: notices,
+        extraOverrides: traceOverrides(),
+      );
+
+      final tile = find.byKey(
+        const ValueKey<String>('about-save-playback-trace'),
+      );
+      await tester.scrollUntilVisible(tile, 200);
+      await tester.tap(tile);
+      await tester.pump();
+
+      expect(notices.notice, isNull);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a failed Check now shows an error notice and subtitle', (

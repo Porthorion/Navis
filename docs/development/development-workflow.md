@@ -573,8 +573,9 @@ sequence ids (first 64), effective order and `mediaKitCurrent`.
 Dev-channel builds (`NAVIS_UPDATE_CHANNEL=dev`) record the playback transport
 trace without `NAVIS_SYNC_DIAGNOSTICS`. Settings -> About -> Copy Playback Trace
 copies the handler's `collectPlaybackDiagnostics()` as JSON with credentials,
-auth query parameters (Subsonic, `password`, `token`, `access_token`, `refresh_token`), `Bearer` and `Authorization` values, and the server host redacted, in map keys too. The tile is absent on stable
-builds. Use it to capture `userPlayDropped`, `userPlayStalled` and `loadFailure`
+auth query parameters (Subsonic, `password`, `token`, `access_token`, `refresh_token`), `Bearer` and `Authorization` values, and the server host redacted, in map keys too. The tiles are absent on stable
+builds. Save Playback Trace writes the same JSON to a chosen file; use it when
+the phone clipboard truncates the copy (seen on Samsung). Use them to capture `userPlayDropped`, `userPlayStalled` and `loadFailure`
 entries for list-tap bugs.
 
 ### Stream open diagnostics
