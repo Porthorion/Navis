@@ -24,7 +24,8 @@ const _kTargetQueueBatchSize = 10;
 /// Last.fm recommendation request limit per refill.
 const _kLastFmRecommendationLimit = 20;
 
-/// Maximum Last.fm recommendations to map with `search3`.
+/// Miss budget for mapping Last.fm recommendations with `search3` (only
+/// misses count; it matches the fetch limit, so every fetched one may be tried).
 const _kMaxSearchAttempts = 20;
 
 /// Number of song candidates to inspect per `search3` query.

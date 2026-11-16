@@ -4731,8 +4731,8 @@ its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
 Personal Radio, Server Mix and Same Vibes start background refills with four
 tracks remaining after the current song (`kRecommendationRefillLowWater`);
-Same Vibes queues up to ten songs per batch and maps up to twenty Last.fm
-candidates, counting only misses against that budget. An unavailable Next at the Personal
+Same Vibes queues up to ten songs per batch from at most twenty Last.fm
+recommendations; a shortfall is topped up from the server's similar songs. An unavailable Next at the Personal
 Radio queue tail records one pending skip in the notifier and starts the
 existing refill if one is due. After a successful recommendation append, it
 advances to the first inserted track only while the same session owns the queue

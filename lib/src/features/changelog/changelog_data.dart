@@ -201,8 +201,8 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
-        'Same Vibes and the other automatic mixes now add songs in larger, '
-        'less frequent batches instead of topping up every few songs',
+        'Automatic mixes top up less often: they add songs once four are left, '
+        'and Same Vibes adds ten at a time instead of five',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
