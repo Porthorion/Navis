@@ -67,7 +67,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// on). Refills on that song return at once; the next current song re-arms
   /// the mix.
   String? _parkedSeedSongId;
-  int? _mixSegmentEndIndex;
+
+  /// Songs this mix appended. Refill counts only these after the current
+  /// song, so queue edits and songs added later do not skew it.
+  Set<String>? _mixSongIds;
 
   /// The activation seed when it is server-addressable: the mix's own seed,
   /// which a refill falls back to when the playing song is a remote one with
@@ -113,7 +116,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     if (normalizedSeedSongId.isEmpty) {
       return;
     }
-    _mixSegmentEndIndex = null;
+    _mixSongIds = null;
     _parkedSeedSongId = null;
     _lastRefill = null;
     _consecutiveTransientFailures = 0;
@@ -161,7 +164,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _parkedSeedSongId = null;
     _anchorSeedId = null;
     _anchorSpent = false;
-    _mixSegmentEndIndex = null;
+    _mixSongIds = null;
     _activationInProgress = false;
     _suppressActivationSeedSnapshot = false;
     state = const SameVibesState.inactive();
@@ -197,16 +200,13 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
 
     if (next.queueSongIds.isEmpty) {
-      _mixSegmentEndIndex = null;
+      _mixSongIds = null;
       state = const SameVibesState.inactive();
       return;
     }
 
     final currentIndex = next.currentIndex ?? 0;
-    final mixEnd = _mixSegmentEndIndex;
-    final remaining = mixEnd != null
-        ? mixEnd - currentIndex - 1
-        : next.queueSongIds.length - currentIndex - 1;
+    final remaining = mixSongsAfterCurrent(next, currentIndex, _mixSongIds);
     if (remaining <= kRecommendationRefillLowWater) {
       unawaited(_refill());
     }
@@ -603,10 +603,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               .retainCurrentAsQueue(normalizedSeedSongId);
         }
         if (!_isCurrent(session)) return;
-        final queueLengthBeforeAppend = ref
-            .read(playerStateProvider)
-            .queueSongIds
-            .length;
         final result = await ref
             .read(queueProvider.notifier)
             .appendRecommendationTracks(
@@ -620,7 +616,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             );
         totalQueued = result.count;
         if (totalQueued > 0) {
-          _mixSegmentEndIndex = queueLengthBeforeAppend + totalQueued;
+          (_mixSongIds ??= <String>{}).addAll(result.insertedIds);
         }
       }
 

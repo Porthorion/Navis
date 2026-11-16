@@ -46,10 +46,9 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   /// new activation (a new session) starts its own refill at once.
   RecommendationSession? _refillingSession;
 
-  /// Exclusive end index of the active mix segment in the playback queue.
-  ///
-  /// Refill is based on tracks within this segment, not the pre-mix queue tail.
-  int? _mixSegmentEndIndex;
+  /// Songs this mix appended. Refill counts only these after the current
+  /// song, so queue edits and songs added later do not skew it.
+  Set<String>? _mixSongIds;
   DateTime? _nextRefillAllowedAt;
   bool _activationInProgress = false;
   bool _suppressActivationSeedSnapshot = false;
@@ -93,7 +92,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     if (normalizedSeedSongId.isEmpty) {
       return;
     }
-    _mixSegmentEndIndex = null;
+    _mixSongIds = null;
     _nextRefillAllowedAt = null;
     _transientFailures = 0;
     _parkedSeedSongId = null;
@@ -127,7 +126,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     _retryTimer = null;
     _transientFailures = 0;
     _parkedSeedSongId = null;
-    _mixSegmentEndIndex = null;
+    _mixSongIds = null;
     _nextRefillAllowedAt = null;
     _activationInProgress = false;
     _suppressActivationSeedSnapshot = false;
@@ -162,7 +161,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     if (state.refilling || state.error != null) return;
 
     if (next.queueSongIds.isEmpty) {
-      _mixSegmentEndIndex = null;
+      _mixSongIds = null;
       state = const InstantMixState.inactive();
       return;
     }
@@ -183,11 +182,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   }
 
   int _mixRemainingAfterCurrent(int currentIndex, PlaybackSnapshot snapshot) {
-    final mixEnd = _mixSegmentEndIndex;
-    if (mixEnd != null) {
-      return mixEnd - currentIndex - 1;
-    }
-    return snapshot.queueSongIds.length - currentIndex - 1;
+    return mixSongsAfterCurrent(snapshot, currentIndex, _mixSongIds);
   }
 
   bool _consumeActivationSeedSnapshot(PlaybackSnapshot snapshot) {
@@ -497,10 +492,6 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     if (songs.isEmpty) {
       return 0;
     }
-    final queueLengthBeforeAppend = ref
-        .read(playerStateProvider)
-        .queueSongIds
-        .length;
     try {
       final result = await ref
           .read(queueProvider.notifier)
@@ -516,7 +507,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
           );
       final queuedCount = result.count;
       if (queuedCount > 0) {
-        _mixSegmentEndIndex = queueLengthBeforeAppend + queuedCount;
+        (_mixSongIds ??= <String>{}).addAll(result.insertedIds);
         _nextRefillAllowedAt = _now().add(_kMinimumRefillInterval);
       }
       return queuedCount;
