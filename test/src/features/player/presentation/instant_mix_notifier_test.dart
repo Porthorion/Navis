@@ -553,7 +553,7 @@ void main() {
   });
 
   test(
-    'auto-refill updates seed at eight remaining tracks, but not nine',
+    'auto-refill updates seed at four remaining tracks, but not five',
     () async {
       final api = _MockSubsonicApiClient();
       var now = DateTime.utc(2026);
@@ -596,17 +596,74 @@ void main() {
       final ids = ['seed', ...List.generate(10, (i) => 'rec-0-$i')];
 
       snapshots.emitSnapshot(
-        snapshot(queueSongIds: ids, currentSongId: ids[1], currentIndex: 1),
+        snapshot(queueSongIds: ids, currentSongId: ids[5], currentIndex: 5),
       );
       await pumpEventQueue();
       expect(queue.appendedSongBatches, hasLength(1));
 
       snapshots.emitSnapshot(
-        snapshot(queueSongIds: ids, currentSongId: ids[2], currentIndex: 2),
+        snapshot(queueSongIds: ids, currentSongId: ids[6], currentIndex: 6),
       );
       await pumpEventQueue();
       expect(queue.appendedSongBatches, hasLength(2));
-      expect(container.read(instantMixProvider).seedSongId, ids[2]);
+      expect(container.read(instantMixProvider).seedSongId, ids[6]);
+    },
+  );
+
+  test(
+    'a fresh mix with a five-song first batch waits until four remain',
+    () async {
+      final api = _MockSubsonicApiClient();
+      var now = DateTime.utc(2026);
+      var batch = 0;
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => songs(5, prefix: 'rec-${batch++}'));
+      final container = createRecommendationContainer(
+        overrides: [
+          instantMixProvider.overrideWith(
+            () => InstantMixNotifier(now: () => now),
+          ),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
+          audioHandlerProvider.overrideWithValue(null),
+          subsonicApiProvider.overrideWithValue(api),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+        ],
+      );
+      container.listen(instantMixProvider, (_, _) {});
+      final snapshots = container.read(recommendationSnapshotProvider.notifier);
+      snapshots.emitSnapshot(
+        snapshot(
+          queueSongIds: ['seed'],
+          currentSongId: 'seed',
+          currentIndex: 0,
+        ),
+      );
+      await container.read(instantMixProvider.notifier).activate('seed');
+      final queue = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
+      expect(queue.appendedSongBatches, hasLength(1));
+      now = now.add(const Duration(minutes: 1));
+      final ids = ['seed', ...List.generate(5, (i) => 'rec-0-$i')];
+
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: ids[0], currentIndex: 0),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(1));
+
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: ids[1], currentIndex: 1),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
     },
   );
 
