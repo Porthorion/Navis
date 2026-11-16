@@ -39,6 +39,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _failedAfterApply = false;
     _isLoading = isLoading;
     _loadingSongId = isLoading ? loadingSongId : null;
+    // A superseding load inherits the warm mute; anything else ends it.
+    final releaseWarmMute = _warmMuteArmed && !isLoading;
+    _warmMuteArmed &= isLoading;
     if (isLoading && loadingSongId != null) {
       final row =
           _pendingLogicalQueueSongs
@@ -61,7 +64,39 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     _broadcastPlaybackState();
     _emitSnapshot();
+    if (releaseWarmMute) _releaseWarmMute();
     return generation;
+  }
+
+  /// Whether the playing deck is held silent for a cold remote warm-up.
+  bool get _warmMuted =>
+      _warmMuteArmed && _isLoading && !_loadingSourceInPlayer;
+
+  /// The one writer of the playing deck's volume outside a cross-fade ramp:
+  /// the warm mute turns every other value into silence. [volume] defaults to
+  /// the level [_restoreActivePlayerVolume] would pick.
+  Future<void> _writeActiveVolume([double? volume]) =>
+      _player.setVolume(_warmMuted ? 0 : volume ?? _restoreVolumeLevel());
+
+  void _armWarmMute() {
+    _warmMuteArmed = true;
+    _emitSnapshot();
+    _applyWarmMute();
+  }
+
+  /// Applies the mute state to the deck: silence and the loop pin, or, once
+  /// the mute is released, the volume and loop mode the user's state asks for.
+  void _applyWarmMute() => unawaited(
+    Future.wait<void>([_writeActiveVolume(), _syncNativeLoopMode()]).then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) =>
+          AppLogger.warning('Warm mute write failed: $error\n$stack'),
+    ),
+  );
+
+  void _releaseWarmMute() {
+    _emitSnapshot();
+    _applyWarmMute();
   }
 
   IndexedAudioSource? _nativeSourceAt(int? index) {
@@ -233,6 +268,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _activeStartupTrace?.mark(failed ? 'queueLoadFailed' : 'queueLoadComplete');
     _isLoading = false;
     _loadingSongId = null;
+    // The volume write below and the loop-mode resync end the warm mute.
+    final releaseWarmMute = _warmMuteArmed;
+    _warmMuteArmed = false;
     // A failed or completed selection returns metadata authority to the
     // source the player actually holds. Pending metadata must not outlive it.
     _clearQueueReplacementMetadataAnchor();
@@ -259,6 +297,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _captureTranscodeEndOccurrence(indexEvent: true);
     _broadcastPlaybackState();
     _applyReplayGainVolume();
+    if (releaseWarmMute) _applyWarmMute();
     _syncRemotePlaybackStallWatchdog();
     _rearmHeldRemoteRecovery();
     if (_navigationIntent.isPending &&
@@ -1378,6 +1417,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
         !startItem.source.isLocal) {
       await _warmRemoteStream(
         startItem.source.uri ?? startItem.source.lockCachingStreamUri,
+        songId: startItem.song.id,
+        trigger: 'initial',
         stillWanted: () =>
             !token.isCancelled && _isActiveLoadGeneration(generation),
       );
@@ -1804,25 +1845,39 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// ([stillWanted] turning false) ends the wait at once.
   Future<void> _warmRemoteStream(
     Uri? uri, {
+    required String songId,
+    required String trigger,
     required bool Function() stillWanted,
   }) async {
     if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
       return;
     }
+    final elapsed = Stopwatch()..start();
+    _transportTrace.record(
+      'remoteWarm',
+      () => <String, Object?>{
+        'phase': 'start',
+        'songId': songId,
+        'trigger': trigger,
+      },
+    );
     final client = HttpClient()..connectionTimeout = _timeouts.remoteLoad;
+    int? status;
+    Object? failure;
     final answered = () async {
       final request = await client.getUrl(uri);
       request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1');
       final response = await request.close();
+      status = response.statusCode;
       await response.firstWhere((chunk) => chunk.isNotEmpty);
     }();
-    final elapsed = Stopwatch()..start();
     var done = false;
     unawaited(
       answered.then<void>(
         (_) => done = true,
         onError: (Object error) {
           done = true;
+          failure = error;
           AppLogger.debug('Remote stream warm-up ended: ${error.runtimeType}');
         },
       ),
@@ -1831,6 +1886,23 @@ extension _NavisQueueLoading on NavisAudioHandler {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
     client.close(force: true);
+    final outcome = done
+        ? (failure != null || (status ?? 0) >= 400 ? 'error' : 'answered')
+        : !stillWanted()
+        ? 'superseded'
+        : 'timeout';
+    _transportTrace.record(
+      'remoteWarm',
+      () => <String, Object?>{
+        'phase': 'end',
+        'songId': songId,
+        'trigger': trigger,
+        'elapsedMs': elapsed.elapsedMilliseconds,
+        'outcome': outcome,
+        if (status != null) 'httpStatus': status,
+        if (failure != null) 'error': '${failure.runtimeType}',
+      },
+    );
   }
 
   /// The native load deadline for a queue starting at [item].
@@ -1844,14 +1916,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// plus the current song's ReplayGain. A queue load that has not applied
   /// its source yet gets the plain user volume: the old song may still be
   /// audible, and the new song's gain waits for its own source.
-  Future<void> _restoreActivePlayerVolume() {
+  Future<void> _restoreActivePlayerVolume() => _writeActiveVolume();
+
+  double _restoreVolumeLevel() {
     if ((_isLoading || _pendingLogicalQueueSongIds != null) &&
         !_loadingSourceInPlayer) {
-      return _player.setVolume(_baseVolumeFor().clamp(0.0, 1.0));
+      return _baseVolumeFor().clamp(0.0, 1.0);
     }
-    return _player.setVolume(
-      _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
-    );
+    return _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem);
   }
 
   bool _isAndroidDspInitializationFailure(Object error) {

@@ -1,0 +1,526 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:audio_service/audio_service.dart';
+import 'package:audio_service_platform_interface/audio_service_platform_interface.dart'
+    show AudioServicePlatform;
+import 'package:audio_service_platform_interface/no_op_audio_service.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+
+import 'navis_audio_handler_navigation_harness.dart';
+
+/// Issue #653: a cold remote song (Octo-Fiesta) answers only once the server
+/// holds the whole file. While navigation waits for that first byte the old
+/// song must be silent and pinned, the target must show as loading, and the
+/// wait must be visible in the transport trace.
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() => AudioServicePlatform.instance = NoOpAudioService());
+
+  const songCount = 6;
+  const ids = ['song-0', 'song-1', 'song-2', 'song-3', 'song-4', 'song-5'];
+
+  late HttpServer server;
+  late NavisAudioHandler handler;
+  late ControllableAudioPlayer player;
+  late PlaybackTransportTrace trace;
+  final requests = <String>[];
+  final gates = <String, Completer<void>>{};
+  final silent = <String>{};
+  final failing = <String>{};
+  var replayGainMode = 'off';
+
+  Future<void> setUpHandler({
+    Set<String> localIds = const {},
+    NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+    bool crossfade = false,
+    bool replayGainInPipeline = true,
+    bool cacheSongs = false,
+    Set<String>? hungLoadSongs,
+    Set<String> uncached = const {},
+  }) async {
+    final previousHttp = HttpOverrides.current;
+    HttpOverrides.global = null;
+    requests.clear();
+    gates.clear();
+    silent.clear();
+    failing.clear();
+    replayGainMode = 'off';
+    server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) async {
+      final id = request.uri.queryParameters['id'] ?? '';
+      if (request.headers.value('range') == 'bytes=0-1') requests.add(id);
+      try {
+        if (silent.contains(id)) await Completer<void>().future;
+        await gates[id]?.future;
+        if (failing.contains(id)) {
+          request.response.statusCode = 500;
+        } else {
+          request.response
+            ..contentLength = 2
+            ..add([1, 2]);
+        }
+        await request.response.close();
+      } on HttpException {
+        // The warm-up closes its probe as soon as the first byte arrives.
+      }
+    });
+    final api = SubsonicApiClient(
+      baseUrl: 'http://127.0.0.1:${server.port}',
+      authConfig: const SubsonicAuthConfig(
+        username: 'fixture',
+        password: 'synthetic',
+        apiVersion: '1.16.1',
+      ),
+      enableLogging: false,
+    );
+    final directory = await Directory.systemTemp.createTemp('navis-warm-');
+    trace = PlaybackTransportTrace(enabled: true);
+    final created = await createHandler(
+      directory,
+      songCount,
+      cacheSongs: cacheSongs,
+      hungLoadSongs: hungLoadSongs,
+      rebuiltPlayers: hungLoadSongs == null
+          ? null
+          : <ControllableAudioPlayer>[],
+      readApiClient: () => api,
+      transportTrace: trace,
+      timeouts: timeouts,
+      crossfade: crossfade,
+      replayGainInPipeline: replayGainInPipeline,
+      readReplayGainMode: () => replayGainMode,
+      replayGainUntaggedDb: -6,
+    );
+    handler = created.$1;
+    player = created.$2;
+    final database = created.$3;
+    for (final id in uncached) {
+      await database.cacheDao.removeCachedTrack(id);
+    }
+    player.simulateProgress = true;
+    addTearDown(() async {
+      for (final gate in gates.values) {
+        if (!gate.isCompleted) gate.complete();
+      }
+      await handler.disposeHandler();
+      await server.close(force: true);
+      await database.close();
+      await directory.delete(recursive: true);
+      HttpOverrides.global = previousHttp;
+    });
+    final rows = {
+      for (final row in await database.libraryDao.getSongsByIds(ids))
+        row.id: row,
+    };
+    await handler.replaceQueueWithData([
+      for (final id in ids)
+        rows[id]!.copyWith(isExternal: !localIds.contains(id)),
+    ], expandMatchFlows: false);
+    await settleQueue(handler);
+    expect(player.index, 0);
+    requests.clear();
+  }
+
+  List<Map<String, Object?>> records(String kind) => [
+    for (final entry in trace.entries)
+      if (entry['kind'] == kind) entry,
+  ];
+
+  Map<String, Object?> warmEnd(String songId) =>
+      records('remoteWarm')
+          .lastWhere((e) => e['phase'] == 'end' && e['songId'] == songId);
+
+  /// Holds [id]'s first byte, starts navigating to it and waits until the
+  /// warm-up request has reached the server.
+  Future<(Future<void>,)> navigateGated(int index, {bool pump = true}) async {
+    final id = ids[index];
+    gates[id] = Completer<void>();
+    final seen = requests.where((r) => r == id).length;
+    final navigation = handler.playFromIndex(index);
+    await until(
+      () => requests.where((r) => r == id).length > seen,
+      reason: 'warm-up request for $id',
+    );
+    if (pump) await pumpEventQueue();
+    return (navigation,);
+  }
+
+  Future<void> release(String id, (Future<void>,) navigation) async {
+    gates[id]!.complete();
+    await navigation.$1;
+    await settleQueue(handler);
+  }
+
+  group('remote warm-up trace', () {
+    test('a cold navigation records navigateLaneStart and the warm start and '
+        'answered end', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(3);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await release('song-3', navigation);
+      final kinds = [
+        for (final e in trace.entries)
+          if (const {
+            'navigate',
+            'navigateLaneStart',
+            'remoteWarm',
+          }.contains(e['kind']))
+            '${e['kind']}${e['phase'] != null ? ':${e['phase']}' : ''}',
+      ];
+      expect(kinds.skipWhile((k) => k != 'navigate').take(4), [
+        'navigate',
+        'navigateLaneStart',
+        'remoteWarm:start',
+        'remoteWarm:end',
+      ]);
+      final lane = records('navigateLaneStart').last;
+      expect(lane['targetSongId'], 'song-3');
+      expect(lane['requestedIndex'], 3);
+      expect(lane['waitedMs'], isA<int>());
+      final start = records('remoteWarm')
+          .lastWhere((e) => e['phase'] == 'start');
+      expect(start['songId'], 'song-3');
+      expect(start['trigger'], 'navigate');
+      final end = warmEnd('song-3');
+      expect(end['outcome'], 'answered');
+      expect(end['trigger'], 'navigate');
+      expect(end['elapsedMs'] as int, greaterThanOrEqualTo(200));
+    });
+
+    test('the queue load warm records trigger initial', () async {
+      await setUpHandler();
+      final initial = records('remoteWarm')
+          .where((e) => e['phase'] == 'start')
+          .first;
+      expect(initial['trigger'], 'initial');
+      expect(initial['songId'], 'song-0');
+    });
+
+    test('a cold warm superseded by a later navigation records superseded '
+        'and the later one answers', () async {
+      await setUpHandler();
+      final first = await navigateGated(3);
+      gates['song-4'] = Completer<void>()..complete();
+      await handler.playFromIndex(4);
+      await settleQueue(handler);
+      await first.$1;
+      expect(warmEnd('song-3')['outcome'], 'superseded');
+      expect(warmEnd('song-4')['outcome'], 'answered');
+      expect(handler.snapshot.currentSongId, 'song-4');
+    });
+
+    test('a silent origin records timeout and the navigation still lands, '
+        'unmuted', () async {
+      await setUpHandler(
+        timeouts: const NavisPlaybackTimeouts(
+          remoteLoad: Duration(milliseconds: 300),
+        ),
+      );
+      silent.add('song-3');
+      await handler.playFromIndex(3);
+      await settleQueue(handler);
+      expect(warmEnd('song-3')['outcome'], 'timeout');
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.off);
+    });
+
+    test('an origin error records error with the status', () async {
+      await setUpHandler();
+      failing.add('song-3');
+      await handler.playFromIndex(3);
+      await settleQueue(handler);
+      final end = warmEnd('song-3');
+      expect(end['outcome'], 'error');
+      expect(end['httpStatus'], 500);
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(player.volume, 1.0);
+    });
+  });
+
+  group('cold remote warm: the old song is silent and the target loads', () {
+    test(
+      'the snapshot shows the target loading while the warm waits',
+      () async {
+        await setUpHandler();
+        final navigation = await navigateGated(3);
+        final snapshot = handler.snapshot;
+        expect(snapshot.currentSongId, 'song-3');
+        expect(snapshot.isLoading, isTrue);
+        expect(snapshot.loadingSongId, 'song-3');
+        expect(snapshot.processingState, AudioProcessingState.loading);
+        expect(
+          shouldShowRemotePlaybackLoading(
+            playback: snapshot,
+            currentIsExternal: true,
+          ),
+          isTrue,
+        );
+        await release('song-3', navigation);
+      },
+    );
+
+    test('the previous song is muted and not paused, then the target plays '
+        'at the full volume', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(3);
+      expect(player.volume, 0);
+      expect(player.playing, isTrue);
+      expect(player.appliedLoopMode, LoopMode.one);
+      await release('song-3', navigation);
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.off);
+      expect(player.playing, isTrue);
+    });
+
+    test('the repeat mode the user chose comes back after the pin', () async {
+      await setUpHandler();
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      final navigation = await navigateGated(3);
+      expect(player.appliedLoopMode, LoopMode.one);
+      await release('song-3', navigation);
+      expect(player.appliedLoopMode, LoopMode.all);
+    });
+
+    test('a repeat change during the warm keeps the pin and applies after '
+        'the landing', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(3);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      expect(player.appliedLoopMode, LoopMode.one);
+      await release('song-3', navigation);
+      expect(player.appliedLoopMode, LoopMode.all);
+    });
+
+    test('a hung native load after a timed-out warm leaves the old deck '
+        'audible and unpinned', () async {
+      await setUpHandler(
+        timeouts: const NavisPlaybackTimeouts(
+          remoteLoad: Duration(milliseconds: 300),
+          load: Duration(milliseconds: 300),
+          reset: Duration(milliseconds: 100),
+          control: Duration(milliseconds: 100),
+        ),
+        hungLoadSongs: {'song-3'},
+      );
+      silent.add('song-3');
+      await handler.playFromIndex(3);
+      await until(
+        () => !handler.snapshot.isLoading,
+        reason: 'the navigation settles',
+      );
+      await settleQueue(handler);
+      expect(warmEnd('song-3')['outcome'], 'timeout');
+      expect(handler.debugActivePlayer.volume, greaterThan(0));
+      expect(handler.debugActivePlayer.loopMode, isNot(LoopMode.one));
+    });
+
+    test('a user volume change during the warm stays silent and lands after '
+        'the load', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(3);
+      await handler.setVolume(0.5);
+      expect(player.volume, 0);
+      await release('song-3', navigation);
+      expect(player.volume, 0.5);
+    });
+
+    test('ducking begin and end during the warm stay silent', () async {
+      await setUpHandler();
+      final session = TestAudioSession();
+      handler.debugWireAudioSession(session);
+      final navigation = await navigateGated(3);
+      session.interruptions.add(
+        AudioInterruptionEvent(true, AudioInterruptionType.duck),
+      );
+      await pumpEventQueue();
+      expect(player.volume, 0);
+      session.interruptions.add(
+        AudioInterruptionEvent(false, AudioInterruptionType.duck),
+      );
+      await pumpEventQueue();
+      expect(player.volume, 0);
+      await release('song-3', navigation);
+      expect(player.volume, 1.0);
+    });
+
+    test('a ReplayGain setting change during the warm stays silent and the '
+        'target plays at its gain', () async {
+      await setUpHandler(replayGainInPipeline: false);
+      final navigation = await navigateGated(3);
+      replayGainMode = 'track';
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(player.volume, 0);
+      await release('song-3', navigation);
+      expect(player.volume, closeTo(0.501, 0.01));
+    });
+
+    test(
+      'superseding a cold warm with a local song ends at full volume',
+      () async {
+        await setUpHandler(localIds: {'song-1'});
+        final first = await navigateGated(3);
+        expect(player.volume, 0);
+        await handler.playFromIndex(1);
+        await settleQueue(handler);
+        await first.$1;
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.volume, 1.0);
+        expect(player.appliedLoopMode, LoopMode.off);
+      },
+    );
+
+    test('a second cold navigation inherits the mute: silent throughout, '
+        'restored on load', () async {
+      await setUpHandler();
+      final first = await navigateGated(3);
+      final second = await navigateGated(4);
+      await pumpEventQueue();
+      expect(player.appliedVolumes.skipWhile((v) => v != 0), everyElement(0));
+      expect(player.volume, 0);
+      await release('song-4', second);
+      await first.$1;
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.off);
+    });
+
+    test('stop during the warm restores the volume, so a later play is '
+        'audible', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(3);
+      await handler.stop();
+      await pumpEventQueue();
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.off);
+      gates['song-3']!.complete();
+      await navigation.$1;
+      await handler.play();
+      await settleQueue(handler);
+      expect(player.volume, 1.0);
+    });
+
+    test('pause during the warm keeps the mute and play resumes into the '
+        'target', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(3);
+      await handler.pause();
+      await pumpEventQueue();
+      expect(player.volume, 0);
+      await handler.play();
+      expect(player.volume, 0);
+      await release('song-3', navigation);
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(player.volume, 1.0);
+      expect(player.playing, isTrue);
+    });
+
+    test('no crossfade starts on the muted old deck during the warm', () async {
+      await setUpHandler(crossfade: true);
+      final navigation = await navigateGated(3);
+      player.simulatedPosition =
+          const Duration(minutes: 3) - const Duration(seconds: 8);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await pumpEventQueue();
+      expect(fade(handler)['active'], isFalse);
+      expect(player.volume, 0);
+      expect(
+        (handler.debugInactiveDeck! as ControllableAudioPlayer).playing,
+        isFalse,
+      );
+      await release('song-3', navigation);
+    });
+
+    test(
+      'a cold navigation started mid-crossfade silences both decks',
+      () async {
+        await setUpHandler(
+          crossfade: true,
+          cacheSongs: true,
+          uncached: {'song-3'},
+          localIds: {
+            for (final id in ids)
+              if (id != 'song-3') id,
+          },
+        );
+        final incoming = handler.debugInactiveDeck! as ControllableAudioPlayer;
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 4);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await until(
+          () => fade(handler)['active'] == true,
+          reason: 'crossfade running',
+        );
+        final navigation = await navigateGated(3);
+        await pumpEventQueue();
+        expect(fade(handler)['active'], isFalse);
+        expect(player.volume, 0);
+        expect(incoming.volume, 0);
+        await release('song-3', navigation);
+      },
+    );
+  });
+
+  group('the old song reaches its end during the wait', () {
+    void expectPinned(String reason) {
+      expect(player.index, isNotNull, reason: reason);
+      expect(player.state, isNot(ProcessingState.completed), reason: reason);
+      expect(handler.snapshot.isLoading, isTrue, reason: reason);
+      expect(handler.playbackState.value.playing, isTrue, reason: reason);
+      expect(player.volume, 0, reason: reason);
+    }
+
+    test('old next == target: no advance, no unmute', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(1);
+      player.finishCurrentTrack();
+      await pumpEventQueue();
+      expect(player.index, 0);
+      expectPinned('old next is the target');
+      await release('song-1', navigation);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.volume, 1.0);
+    });
+
+    test('old song last in the queue: no queue finish', () async {
+      await setUpHandler();
+      await handler.playFromIndex(5);
+      await settleQueue(handler);
+      final navigation = await navigateGated(2);
+      player.finishCurrentTrack();
+      await pumpEventQueue();
+      expect(player.index, 5);
+      expectPinned('old song is last');
+      await release('song-2', navigation);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.playbackState.value.playing, isTrue);
+    });
+
+    test(
+      'old next is another cold remote song: no advance, no recovery',
+      () async {
+        await setUpHandler();
+        final navigation = await navigateGated(3);
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(player.index, 0);
+        expectPinned('old next is another cold song');
+        expect(
+          trace.entries.where((e) => '${e['kind']}'.contains('stall')),
+          isEmpty,
+        );
+        await release('song-3', navigation);
+        expect(handler.snapshot.currentSongId, 'song-3');
+      },
+    );
+  });
+}

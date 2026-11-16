@@ -219,6 +219,14 @@ Use this quick matrix to classify failures:
   - on Android, inspect source transitions (`lockCachedStream -> directStream`);
     on desktop, check sidecar activity and completed-file registration.
   - verify authenticated session is present and stream URL resolves.
+- Remote song slow to start (a server such as Octo-Fiesta answers only once it
+  holds the whole file): read `remoteWarm` in the diagnostics `transportTrace`.
+  `elapsedMs` of its `end` is the origin's wait and `outcome` says how it ended;
+  the gap from `navigate` to `navigateLaneStart` (`waitedMs`) is the lane's wait.
+  While a navigation warms a cold remote song the old song is muted and pinned
+  (native repeat-one) and the snapshot reports loading; a stuck-silent player
+  with `loadingSongId` set means the warm-up is still waiting (up to
+  `NavisPlaybackTimeouts.remoteLoad`).
 3. Android DSP initialization failure:
 - Symptoms: `Cannot initialize effect engine ... Equalizer ... Error: -3`.
 - Expected:
