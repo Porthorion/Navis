@@ -144,6 +144,15 @@ extension _NavisNavigation on NavisAudioHandler {
       pendingLogicalQueueSongIds: _pendingLogicalQueueSongIds,
       navigation: true,
     );
+    // The lane may be busy for a while and the title already shows the
+    // target: a cold remote target silences the old song from this moment.
+    if (_pendingLogicalQueueSongIds == null) {
+      final index = _locateQueueTarget(targetId, requestedIndex);
+      if (index >= _deferredHead.length &&
+          _coldRemoteUriAt(index, targetId) != null) {
+        _armWarmMute();
+      }
+    }
     final pendingSongs = _pendingLogicalQueueSongs;
     final issuedAt = _navigationIssuedAt!;
     final work = _queueLane.navigate((token) async {

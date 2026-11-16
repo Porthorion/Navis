@@ -1859,6 +1859,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       return 'skipped';
     }
     final elapsed = Stopwatch()..start();
+    // Disposal ends every wait: the connection closes with the handler.
+    final callerWants = stillWanted;
+    stillWanted = () => !_disposeHandlerStarted && callerWants();
     final prefetch = _remotePrefetch;
     if (trigger != 'prefetch' &&
         prefetch != null &&
