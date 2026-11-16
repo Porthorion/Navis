@@ -85,8 +85,11 @@ extension _NavisQueueWindow on NavisAudioHandler {
                 _deferredHead.isNotEmpty)
         ? LoopMode.off
         : _desiredLoopMode;
-    if (_player.loopMode != native) {
-      await _player.setLoopMode(native);
+    // The warm mute pins the playing deck to its song, so it can neither
+    // advance onto a silent origin nor finish the queue while silent.
+    final pinned = _warmMuted ? LoopMode.one : native;
+    if (_player.loopMode != pinned) {
+      await _player.setLoopMode(pinned);
     }
     final inactiveDeck = _crossfadePlayer;
     if (inactiveDeck != null && inactiveDeck.loopMode != native) {

@@ -145,7 +145,18 @@ extension _NavisNavigation on NavisAudioHandler {
       navigation: true,
     );
     final pendingSongs = _pendingLogicalQueueSongs;
+    final issuedAt = _navigationIssuedAt!;
     final work = _queueLane.navigate((token) async {
+      // The gap from `navigate` is the wait for the lane; the gap to the end
+      // of the remote warm-up is the origin's.
+      _transportTrace.record(
+        'navigateLaneStart',
+        () => <String, Object?>{
+          'targetSongId': targetId,
+          'requestedIndex': requestedIndex,
+          'waitedMs': DateTime.now().difference(issuedAt).inMilliseconds,
+        },
+      );
       var index = requestedIndex;
       var selectionConfirmed = false;
       var rebuiltPendingQueue = false;
@@ -341,8 +352,12 @@ extension _NavisNavigation on NavisAudioHandler {
               uri != null &&
               (uri.scheme == 'http' || uri.scheme == 'https');
           if (coldRemote) {
+            // The old song keeps its deck until the origin answers: silent.
+            _armWarmMute();
             await _warmRemoteStream(
               uri,
+              songId: targetId,
+              trigger: 'navigate',
               stillWanted: () =>
                   !token.isCancelled && _isActiveLoadGeneration(generation),
             );

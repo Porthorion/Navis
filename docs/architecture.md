@@ -6134,6 +6134,17 @@ deferred jumps), recovery and eager setup use this authority. The UI's existing
 `PlaybackStartupObserver.beginPlaybackSelection` also accepts its provisional
 song row before `QueueController` persists/readbacks API results, so search,
 Trending and recommendation taps publish without waiting for that work.
+A navigation onto a cold remote song that is already in the player (the
+materialised branch) warms its origin first (`_warmRemoteStream`, up to
+`remoteLoad`) and leaves the old deck playing meanwhile. `_warmMuteArmed` then
+holds that deck silent and pinned until the load applies its source
+(`_warmMuted` = armed, loading and source not in the player): every
+playing-deck volume write goes through `_writeActiveVolume`, `_syncNativeLoopMode`
+pins native repeat-one so the old song can neither advance onto the silent
+origin nor finish the queue, and the snapshot reports `loading` so Now Playing
+shows the remote-loading spinner. `_completeQueueLoad`, and a supersession that
+is not itself a load, release the mute; a superseding load inherits it. The warm
+records `remoteWarm` trace entries and the lane start `navigateLaneStart`.
 A queue move, removal or into-window insert that shifts the playing row sets
 `_reorderMetadataAnchor` (via `_anchorPlayingRow`) before the native edit, because
 the native index event follows the edit late; `_resolveCurrentQueueMetadata` passes

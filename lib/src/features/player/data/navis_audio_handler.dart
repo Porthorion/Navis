@@ -741,6 +741,14 @@ class NavisAudioHandler extends BaseAudioHandler
   String? _loadingSongId;
   String? _lastFailedSongId;
   bool _isLoading = false;
+
+  /// Set when a navigation's cold remote warm-up starts (issue #653). While
+  /// the load that owns it has not put its source in the player
+  /// ([_warmMuted]) the playing deck is silent, pinned to the song it plays
+  /// and reported as loading: the old song must not play under the new title
+  /// or run into its end. Cleared by [_completeQueueLoad] and by a
+  /// supersession that is not itself a load.
+  bool _warmMuteArmed = false;
   final List<PlaybackStartupTrace> _startupTraces = <PlaybackStartupTrace>[];
   PlaybackStartupTrace? _activeStartupTrace;
   int _nextStartupAttempt = 0;
@@ -1018,7 +1026,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _initialize() async {
     AppLogger.info('Audio handler init: start.');
-    await _player.setVolume(_userVolume);
+    await _writeActiveVolume(_userVolume);
     AppLogger.info(
       'Audio handler init: user volume applied '
       '(${_userVolume.toStringAsFixed(2)}).',
@@ -1349,6 +1357,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> _setVolumeIfChanged(AudioPlayer player, double target) async {
+    if (identical(player, _player) && _warmMuted) target = 0;
     if ((player.volume - target).abs() <= _volumeNoopEpsilon) {
       return;
     }
@@ -3298,7 +3307,7 @@ class NavisAudioHandler extends BaseAudioHandler
         );
       }
     } else {
-      await _player.setVolume(
+      await _writeActiveVolume(
         _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
       );
     }

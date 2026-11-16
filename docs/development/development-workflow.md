@@ -1040,7 +1040,11 @@ the tree remains otherwise usable.
   handler). In a diagnostics build `GET /v1/playback/status` adds
   `transportTrace`, a 200-entry ring of timestamped native-transport events
   (player state and index changes, source loads, recovery decisions, queue-fill
-  phases); it records nothing, and evaluates no event data, when diagnostics are
+  phases, `navigateLaneStart` `{targetSongId, requestedIndex, waitedMs}` when a
+  navigation leaves the queue lane, and `remoteWarm` `{phase: start|end,
+  songId, trigger: initial|navigate}` with, on `end`, `elapsedMs`, `outcome`
+  (`answered|error|timeout|superseded`), `httpStatus?` and `error?` for each
+  first-byte warm-up of a remote song); it records nothing, and evaluates no event data, when diagnostics are
   not compiled in.
   Clone-only `POST /v1/playback/queue-index` accepts a bounded zero-based
   index to advance the production handler and exercise recommendation refills.
