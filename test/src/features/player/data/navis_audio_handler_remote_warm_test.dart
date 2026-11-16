@@ -35,6 +35,8 @@ void main() {
   final gates = <String, Completer<void>>{};
   final silent = <String>{};
   final failing = <String>{};
+  final closed = <String>[];
+  var prefetchAllowed = false;
   var replayGainMode = 'off';
 
   Future<void> setUpHandler({
@@ -45,18 +47,55 @@ void main() {
     bool cacheSongs = false,
     Set<String>? hungLoadSongs,
     Set<String> uncached = const {},
+    bool prefetch = false,
+    Set<String> gated = const {},
+    Set<String> failIds = const {},
+    bool? desktop,
+    bool positionStreams = false,
+    bool sidecarStreams = false,
+    BridgeSidecar? sidecar,
+    NavisQueueWindow queueWindow = const NavisQueueWindow(),
+    int startIndex = 0,
   }) async {
     final previousHttp = HttpOverrides.current;
     HttpOverrides.global = null;
     requests.clear();
     gates.clear();
     silent.clear();
-    failing.clear();
+    failing
+      ..clear()
+      ..addAll(failIds);
+    closed.clear();
+    prefetchAllowed = prefetch;
+    for (final id in gated) {
+      gates[id] = Completer<void>();
+    }
     replayGainMode = 'off';
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       final id = request.uri.queryParameters['id'] ?? '';
       if (request.headers.value('range') == 'bytes=0-1') requests.add(id);
+      if (gates.containsKey(id) && !gates[id]!.isCompleted) {
+        // A held request is answered on the raw socket, so a client that
+        // hangs up while it waits is seen at once.
+        final socket = await request.response.detachSocket(writeHeaders: false);
+        socket.listen(
+          (_) {},
+          onDone: () => closed.add(id),
+          onError: (Object _) => closed.add(id),
+        );
+        await gates[id]!.future;
+        try {
+          socket.add(
+            'HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\n'.codeUnits + [1, 2],
+          );
+          await socket.flush();
+          await socket.close();
+        } on Object {
+          // The client already hung up.
+        }
+        return;
+      }
       try {
         if (silent.contains(id)) await Completer<void>().future;
         await gates[id]?.future;
@@ -92,7 +131,13 @@ void main() {
           ? null
           : <ControllableAudioPlayer>[],
       readApiClient: () => api,
+      readNextSongPrefetchAllowed: () => prefetchAllowed,
+      desktopRuntimeOverride: desktop,
+      positionStreams: positionStreams,
+      sidecarStreams: sidecarStreams,
+      sidecarDownloader: sidecar,
       transportTrace: trace,
+      queueWindow: queueWindow,
       timeouts: timeouts,
       crossfade: crossfade,
       replayGainInPipeline: replayGainInPipeline,
@@ -120,13 +165,17 @@ void main() {
       for (final row in await database.libraryDao.getSongsByIds(ids))
         row.id: row,
     };
-    await handler.replaceQueueWithData([
-      for (final id in ids)
-        rows[id]!.copyWith(isExternal: !localIds.contains(id)),
-    ], expandMatchFlows: false);
+    await handler.replaceQueueWithData(
+      [
+        for (final id in ids)
+          rows[id]!.copyWith(isExternal: !localIds.contains(id)),
+      ],
+      startIndex: startIndex,
+      expandMatchFlows: false,
+    );
     await settleQueue(handler);
-    expect(player.index, 0);
-    requests.clear();
+    expect(handler.snapshot.currentSongId, ids[startIndex]);
+    if (!prefetch) requests.clear();
   }
 
   List<Map<String, Object?>> records(String kind) => [
@@ -470,6 +519,177 @@ void main() {
     );
   });
 
+  group('the mute starts when the navigation is issued', () {
+    test('a cold navigation queued behind a slow lane op mutes before the '
+        'lane starts', () async {
+      await setUpHandler(localIds: {'song-1'});
+      final hold = Completer<void>();
+      player
+        ..seekGate = hold
+        ..seekEntered = Completer<void>();
+      final slow = handler.playFromIndex(1);
+      await player.seekEntered!.future;
+      gates['song-3'] = Completer<void>();
+      final navigation = handler.playFromIndex(3);
+      await pumpEventQueue();
+      expect(requests.where((r) => r == 'song-3'), isEmpty);
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(player.volume, 0);
+      expect(player.appliedLoopMode, LoopMode.one);
+      hold.complete();
+      await until(
+        () => requests.contains('song-3'),
+        reason: 'warm-up request for song-3',
+      );
+      expect(player.volume, 0);
+      gates['song-3']!.complete();
+      await Future.wait([slow, navigation]);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.off);
+    });
+
+    // Songs 2-4 are in the player, songs 0-1 are in the deferred head: a
+    // logical index and the player's row differ by two.
+    const headed = NavisQueueWindow(
+      deferThreshold: 4,
+      ahead: 1,
+      behind: 1,
+      lowWater: 0,
+      page: 2,
+      nearJump: 1,
+    );
+
+    test('with songs released from the front, the early mute reads the '
+        "player's row of the target", () async {
+      await setUpHandler(
+        localIds: {'song-3'},
+        queueWindow: headed,
+        startIndex: 3,
+      );
+      expect(handler.collectPlaybackDiagnostics()['deferredHeadLength'], 2);
+      final hold = Completer<void>();
+      player
+        ..seekGate = hold
+        ..seekEntered = Completer<void>();
+      final slow = handler.playFromIndex(3);
+      await player.seekEntered!.future;
+      gates['song-4'] = Completer<void>();
+      final navigation = handler.playFromIndex(4);
+      await pumpEventQueue();
+      expect(requests.where((r) => r == 'song-4'), isEmpty);
+      expect(player.volume, 0);
+      hold.complete();
+      await until(
+        () => requests.contains('song-4'),
+        reason: 'warm-up request for song-2',
+      );
+      gates['song-4']!.complete();
+      await Future.wait([slow, navigation]);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-4');
+      expect(player.volume, 1.0);
+    });
+
+    test('a navigation to a local song never mutes', () async {
+      await setUpHandler(localIds: {'song-1'});
+      final hold = Completer<void>();
+      player
+        ..seekGate = hold
+        ..seekEntered = Completer<void>();
+      final navigation = handler.playFromIndex(1);
+      await player.seekEntered!.future;
+      expect(player.appliedVolumes, everyElement(isNot(0)));
+      expect(player.volume, 1.0);
+      hold.complete();
+      await navigation;
+      expect(player.appliedVolumes, everyElement(isNot(0)));
+    });
+
+    test('a local navigation superseding a queued cold one restores the '
+        'volume on its load', () async {
+      await setUpHandler(localIds: {'song-1', 'song-2'});
+      final hold = Completer<void>();
+      player
+        ..seekGate = hold
+        ..seekEntered = Completer<void>();
+      final slow = handler.playFromIndex(2);
+      await player.seekEntered!.future;
+      gates['song-3'] = Completer<void>();
+      final cold = handler.playFromIndex(3);
+      await pumpEventQueue();
+      expect(player.volume, 0);
+      final local = handler.playFromIndex(1);
+      hold.complete();
+      await Future.wait([slow, cold, local]);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.off);
+    });
+  });
+
+  group('the warm pin and the anomaly detector', () {
+    Future<List<Object?>> wrapAfter({required bool warm}) async {
+      await setUpHandler(positionStreams: true);
+      await handler.play();
+      await Future<void>.delayed(const Duration(milliseconds: 1700));
+      (Future<void>,)? navigation;
+      if (warm) navigation = await navigateGated(3);
+      // The navigation's own position moves are explained for a while.
+      await Future<void>.delayed(const Duration(milliseconds: 1700));
+      player.simulatedPosition = const Duration(seconds: 175);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      player.simulatedPosition = const Duration(milliseconds: 500);
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      final found =
+          handler.collectPlaybackDiagnostics()['anomalies']! as List<Object?>;
+      if (navigation != null) await release('song-3', navigation);
+      return found;
+    }
+
+    test('the old song wrapping under the pin is no anomaly', () async {
+      expect(await wrapAfter(warm: true), isEmpty);
+    });
+
+    test('the same wrap outside a warm is still recorded', () async {
+      expect(await wrapAfter(warm: false), hasLength(1));
+    });
+  });
+
+  group('radio and disposal during a navigation warm', () {
+    test('radio started during the warm ends it: unmuted, unpinned', () async {
+      await setUpHandler();
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      final navigation = await navigateGated(3);
+      expect(player.volume, 0);
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example/live',
+      );
+      await pumpEventQueue();
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, isNot(LoopMode.one));
+      gates['song-3']!.complete();
+      await navigation.$1;
+      await pumpEventQueue();
+      expect(player.volume, 1.0);
+    });
+
+    test('disposeHandler during the warm closes the connection and leaves '
+        'no timer', () async {
+      await setUpHandler();
+      final navigation = await navigateGated(3);
+      await handler.disposeHandler();
+      await until(() => closed.contains('song-3'), reason: 'socket closed');
+      expect(handler.debugRemoteSettlingCount, 0);
+      gates['song-3']!.complete();
+      await navigation.$1.catchError((Object _) {});
+    });
+  });
+
   group('the old song reaches its end during the wait', () {
     void expectPinned(String reason) {
       expect(player.index, isNotNull, reason: reason);
@@ -522,5 +742,260 @@ void main() {
         expect(handler.snapshot.currentSongId, 'song-3');
       },
     );
+  });
+
+  group('next-song prefetch', () {
+    int count(String id) => requests.where((r) => r == id).length;
+    Future<void> quiet() =>
+        Future<void>.delayed(const Duration(milliseconds: 500));
+    Future<void> prefetchAnswered(String id) => until(
+      () => records('remoteWarm').any(
+        (e) =>
+            e['phase'] == 'end' &&
+            e['songId'] == id &&
+            e['trigger'] == 'prefetch',
+      ),
+      reason: 'prefetch of $id ended',
+    );
+
+    test('the next cold remote song gets one Range 0-1 GET, not one per '
+        'position tick', () async {
+      await setUpHandler(prefetch: true);
+      await prefetchAnswered('song-1');
+      await quiet();
+      expect(count('song-1'), 1);
+      expect(count('song-2'), 0);
+      final starts = records('remoteWarm')
+          .where((e) => e['phase'] == 'start' && e['songId'] == 'song-1');
+      expect(starts.map((e) => e['trigger']), ['prefetch']);
+    });
+
+    test(
+      'navigating to the song whose prefetch is in flight joins it',
+      () async {
+        await setUpHandler(prefetch: true, gated: {'song-1'});
+        await until(() => count('song-1') == 1, reason: 'prefetch request');
+        final navigation = handler.playFromIndex(1);
+        await quiet();
+        expect(handler.snapshot.isLoading, isTrue);
+        expect(player.volume, 0);
+        gates['song-1']!.complete();
+        await navigation;
+        await settleQueue(handler);
+        expect(count('song-1'), 1);
+        final join = records('remoteWarm')
+            .singleWhere((e) => e['phase'] == 'join');
+        expect(join['songId'], 'song-1');
+        expect(join['trigger'], 'navigate');
+        expect(join['startedBy'], 'prefetch');
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.volume, 1.0);
+      },
+    );
+
+    test(
+      'navigating to an answered prefetched song waits at most one poll',
+      () async {
+        await setUpHandler(prefetch: true);
+        await prefetchAnswered('song-1');
+        final started = DateTime.now();
+        await handler.playFromIndex(1);
+        expect(
+          DateTime.now().difference(started).inMilliseconds,
+          lessThan(400),
+        );
+        await settleQueue(handler);
+        final join = records(
+          'remoteWarm',
+        ).singleWhere((e) => e['phase'] == 'join' && e['songId'] == 'song-1');
+        expect(join['trigger'], 'navigate');
+        expect(join['outcome'], 'answered');
+        expect(count('song-1'), 1, reason: 'no second request for the song');
+        expect(player.volume, 1.0);
+      },
+    );
+
+    test('a queue edit that changes the next song leaves the in-flight '
+        'prefetch open; the new next song starts after it ends', () async {
+      await setUpHandler(prefetch: true, gated: {'song-1'});
+      await until(() => count('song-1') == 1, reason: 'prefetch request');
+      await handler.removeQueueItemAt(1);
+      await settleQueue(handler);
+      await quiet();
+      expect(closed, isNot(contains('song-1')));
+      expect(count('song-2'), 0);
+      gates['song-1']!.complete();
+      await until(() => count('song-2') == 1, reason: 'next prefetch');
+      expect(count('song-1'), 1);
+    });
+
+    test('no prefetch starts while paused, gated off or navigating', () async {
+      await setUpHandler(prefetch: true);
+      await prefetchAnswered('song-1');
+      await handler.pause();
+      await handler.removeQueueItemAt(1);
+      await settleQueue(handler);
+      await quiet();
+      expect(count('song-2'), 0, reason: 'paused');
+      prefetchAllowed = false;
+      await handler.play();
+      await quiet();
+      expect(count('song-2'), 0, reason: 'setting off');
+      prefetchAllowed = true;
+      gates['song-3'] = Completer<void>();
+      final navigation = handler.playFromIndex(2);
+      await until(() => handler.snapshot.isLoading, reason: 'loading');
+      expect(count('song-4'), 0, reason: 'navigation pending');
+      gates['song-3']!.complete();
+      await navigation;
+      await settleQueue(handler);
+      await until(() => count('song-4') == 1, reason: 'prefetch after load');
+    });
+
+    test('local and downloaded next songs get no prefetch', () async {
+      await setUpHandler(prefetch: true, localIds: {'song-1'});
+      await quiet();
+      expect(count('song-1'), 0);
+      await handler.disposeHandler();
+    });
+
+    test('downloaded next songs get no prefetch', () async {
+      await setUpHandler(prefetch: true, cacheSongs: true);
+      await quiet();
+      expect(count('song-1'), 0);
+    });
+
+    test(
+      'the full download waits for the prefetch and the settle delay',
+      () async {
+        final previous = remoteSettleDelay;
+        remoteSettleDelay = const Duration(seconds: 1);
+        addTearDown(() => remoteSettleDelay = previous);
+        await setUpHandler(prefetch: true, gated: {'song-1'});
+        await until(() => count('song-1') == 1, reason: 'prefetch request');
+        expect(handler.debugRemoteFullDownloadHeld('song-1'), isTrue);
+        expect(handler.debugLockCacheWarmSongId, isNull);
+        gates['song-1']!.complete();
+        await prefetchAnswered('song-1');
+        expect(handler.debugRemoteFullDownloadHeld('song-1'), isTrue);
+        expect(handler.debugRemoteSettlingCount, 1);
+        await until(
+          () => !handler.debugRemoteFullDownloadHeld('song-1'),
+          reason: 'settle delay over',
+        );
+        expect(handler.debugRemoteSettlingCount, 0);
+      },
+    );
+
+    test('Android: the next-song lock-cache warm starts only after the '
+        'prefetch answered and the settle delay', () async {
+      final previous = remoteSettleDelay;
+      remoteSettleDelay = const Duration(seconds: 1);
+      addTearDown(() => remoteSettleDelay = previous);
+      await setUpHandler(
+        prefetch: true,
+        desktop: false,
+        gated: {'song-1'},
+        localIds: {'song-0'},
+        cacheSongs: true,
+        uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
+      );
+      await until(() => count('song-1') == 1, reason: 'prefetch request');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(handler.debugLockCacheWarmSongId, isNull);
+      gates['song-1']!.complete();
+      await prefetchAnswered('song-1');
+      expect(handler.debugLockCacheWarmSongId, isNull);
+      await until(
+        () => handler.debugLockCacheWarmSongId == 'song-1',
+        reason: 'warm after the settle delay',
+      );
+    });
+
+    test('an errored prefetch does not wait the settle delay', () async {
+      await setUpHandler(prefetch: true, failIds: {'song-1'});
+      await prefetchAnswered('song-1');
+      await until(
+        () => !handler.debugRemoteFullDownloadHeld('song-1'),
+        cap: const Duration(seconds: 2),
+        reason: 'no settle wait after an error',
+      );
+      await quiet();
+      expect(count('song-1'), 1, reason: 'one attempt per song');
+    });
+
+    test('a timed-out prefetch holds the full download and the navigation '
+        'sends no second request', () async {
+      final previous = remoteSettleDelay;
+      remoteSettleDelay = const Duration(seconds: 30);
+      addTearDown(() => remoteSettleDelay = previous);
+      await setUpHandler(
+        prefetch: true,
+        gated: {'song-1'},
+        timeouts: const NavisPlaybackTimeouts(
+          remoteLoad: Duration(milliseconds: 300),
+        ),
+      );
+      await prefetchAnswered('song-1');
+      expect(warmEnd('song-1')['outcome'], 'timeout');
+      expect(handler.debugRemoteFullDownloadHeld('song-1'), isTrue);
+      expect(handler.debugRemoteSettlingCount, 1);
+      await handler.playFromIndex(1);
+      await settleQueue(handler);
+      expect(count('song-1'), 1, reason: 'no parallel request');
+    });
+
+    test(
+      'disposeHandler closes the prefetch connection and settle timers',
+      () async {
+        await setUpHandler(prefetch: true, gated: {'song-1'});
+        await until(() => count('song-1') == 1, reason: 'prefetch request');
+        await handler.disposeHandler();
+        await until(() => closed.contains('song-1'), reason: 'socket closed');
+        expect(handler.debugRemoteSettlingCount, 0);
+      },
+    );
+
+    test('no prefetch starts in radio mode', () async {
+      await setUpHandler(prefetch: true);
+      await prefetchAnswered('song-1');
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example/live',
+      );
+      await handler.removeQueueItemAt(1);
+      await pumpEventQueue();
+      await quiet();
+      expect(count('song-2'), 0);
+    });
+
+    test('desktop: the sidecar download of the next song waits for the '
+        'prefetch and the settle delay', () async {
+      final previous = remoteSettleDelay;
+      remoteSettleDelay = const Duration(seconds: 1);
+      addTearDown(() => remoteSettleDelay = previous);
+      final sidecar = BridgeSidecar();
+      await setUpHandler(
+        prefetch: true,
+        desktop: true,
+        sidecarStreams: true,
+        sidecar: sidecar,
+        gated: {'song-1'},
+      );
+      await until(() => count('song-1') == 1, reason: 'prefetch request');
+      // The current song's own download finishes, so the next one may start.
+      expect(sidecar.song, 'song-0');
+      await sidecar.finish();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(sidecar.starts, 1, reason: 'prefetch in flight');
+      gates['song-1']!.complete();
+      await prefetchAnswered('song-1');
+      expect(sidecar.starts, 1, reason: 'settle delay running');
+      await until(
+        () => sidecar.song == 'song-1',
+        reason: 'download after delay',
+      );
+    });
   });
 }

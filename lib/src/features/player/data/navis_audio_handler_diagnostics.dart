@@ -47,7 +47,9 @@ extension _NavisDiagnostics on NavisAudioHandler {
   };
 
   /// Repeat One, or Repeat All over a single entry: the song restarts itself.
+  /// The cold remote warm pins the deck to Repeat One the same way.
   bool get _anomalyLooping =>
+      _warmMuted ||
       _desiredLoopMode == LoopMode.one ||
       (_desiredLoopMode == LoopMode.all && _queueItems.length == 1);
 
