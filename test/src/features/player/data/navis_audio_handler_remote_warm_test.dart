@@ -35,6 +35,8 @@ void main() {
   final gates = <String, Completer<void>>{};
   final silent = <String>{};
   final failing = <String>{};
+  final closed = <String>[];
+  var prefetchAllowed = false;
   var replayGainMode = 'off';
 
   Future<void> setUpHandler({
@@ -45,18 +47,50 @@ void main() {
     bool cacheSongs = false,
     Set<String>? hungLoadSongs,
     Set<String> uncached = const {},
+    bool prefetch = false,
+    Set<String> gated = const {},
+    Set<String> failIds = const {},
+    bool? desktop,
   }) async {
     final previousHttp = HttpOverrides.current;
     HttpOverrides.global = null;
     requests.clear();
     gates.clear();
     silent.clear();
-    failing.clear();
+    failing
+      ..clear()
+      ..addAll(failIds);
+    closed.clear();
+    prefetchAllowed = prefetch;
+    for (final id in gated) {
+      gates[id] = Completer<void>();
+    }
     replayGainMode = 'off';
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       final id = request.uri.queryParameters['id'] ?? '';
       if (request.headers.value('range') == 'bytes=0-1') requests.add(id);
+      if (gates.containsKey(id) && !gates[id]!.isCompleted) {
+        // A held request is answered on the raw socket, so a client that
+        // hangs up while it waits is seen at once.
+        final socket = await request.response.detachSocket(writeHeaders: false);
+        socket.listen(
+          (_) {},
+          onDone: () => closed.add(id),
+          onError: (Object _) => closed.add(id),
+        );
+        await gates[id]!.future;
+        try {
+          socket.add(
+            'HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\n'.codeUnits + [1, 2],
+          );
+          await socket.flush();
+          await socket.close();
+        } on Object {
+          // The client already hung up.
+        }
+        return;
+      }
       try {
         if (silent.contains(id)) await Completer<void>().future;
         await gates[id]?.future;
@@ -92,6 +126,8 @@ void main() {
           ? null
           : <ControllableAudioPlayer>[],
       readApiClient: () => api,
+      readNextSongPrefetchAllowed: () => prefetchAllowed,
+      desktopRuntimeOverride: desktop,
       transportTrace: trace,
       timeouts: timeouts,
       crossfade: crossfade,
@@ -126,7 +162,7 @@ void main() {
     ], expandMatchFlows: false);
     await settleQueue(handler);
     expect(player.index, 0);
-    requests.clear();
+    if (!prefetch) requests.clear();
   }
 
   List<Map<String, Object?>> records(String kind) => [
@@ -520,6 +556,191 @@ void main() {
         );
         await release('song-3', navigation);
         expect(handler.snapshot.currentSongId, 'song-3');
+      },
+    );
+  });
+
+  group('next-song prefetch', () {
+    int count(String id) => requests.where((r) => r == id).length;
+    Future<void> quiet() =>
+        Future<void>.delayed(const Duration(milliseconds: 500));
+    Future<void> prefetchAnswered(String id) => until(
+      () => records('remoteWarm').any(
+        (e) =>
+            e['phase'] == 'end' &&
+            e['songId'] == id &&
+            e['trigger'] == 'prefetch',
+      ),
+      reason: 'prefetch of $id ended',
+    );
+
+    test('the next cold remote song gets one Range 0-1 GET, not one per '
+        'position tick', () async {
+      await setUpHandler(prefetch: true);
+      await prefetchAnswered('song-1');
+      await quiet();
+      expect(count('song-1'), 1);
+      expect(count('song-2'), 0);
+      final starts = records('remoteWarm')
+          .where((e) => e['phase'] == 'start' && e['songId'] == 'song-1');
+      expect(starts.map((e) => e['trigger']), ['prefetch']);
+    });
+
+    test(
+      'navigating to the song whose prefetch is in flight joins it',
+      () async {
+        await setUpHandler(prefetch: true, gated: {'song-1'});
+        await until(() => count('song-1') == 1, reason: 'prefetch request');
+        final navigation = handler.playFromIndex(1);
+        await quiet();
+        expect(handler.snapshot.isLoading, isTrue);
+        expect(player.volume, 0);
+        gates['song-1']!.complete();
+        await navigation;
+        await settleQueue(handler);
+        expect(count('song-1'), 1);
+        final join = records('remoteWarm')
+            .singleWhere((e) => e['phase'] == 'join');
+        expect(join['songId'], 'song-1');
+        expect(join['trigger'], 'navigate');
+        expect(join['startedBy'], 'prefetch');
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.volume, 1.0);
+      },
+    );
+
+    test(
+      'navigating to an answered prefetched song waits at most one poll',
+      () async {
+        await setUpHandler(prefetch: true);
+        await prefetchAnswered('song-1');
+        await handler.playFromIndex(1);
+        await settleQueue(handler);
+        final end = records(
+          'remoteWarm',
+        ).lastWhere((e) => e['phase'] == 'end' && e['trigger'] == 'navigate');
+        expect(end['elapsedMs'] as int, lessThan(400));
+        expect(player.volume, 1.0);
+      },
+    );
+
+    test('a queue edit that changes the next song leaves the in-flight '
+        'prefetch open; the new next song starts after it ends', () async {
+      await setUpHandler(prefetch: true, gated: {'song-1'});
+      await until(() => count('song-1') == 1, reason: 'prefetch request');
+      await handler.removeQueueItemAt(1);
+      await settleQueue(handler);
+      await quiet();
+      expect(closed, isNot(contains('song-1')));
+      expect(count('song-2'), 0);
+      gates['song-1']!.complete();
+      await until(() => count('song-2') == 1, reason: 'next prefetch');
+      expect(count('song-1'), 1);
+    });
+
+    test('no prefetch starts while paused, gated off or navigating', () async {
+      await setUpHandler(prefetch: true);
+      await prefetchAnswered('song-1');
+      await handler.pause();
+      await handler.removeQueueItemAt(1);
+      await settleQueue(handler);
+      await quiet();
+      expect(count('song-2'), 0, reason: 'paused');
+      prefetchAllowed = false;
+      await handler.play();
+      await quiet();
+      expect(count('song-2'), 0, reason: 'setting off');
+      prefetchAllowed = true;
+      gates['song-3'] = Completer<void>();
+      final navigation = handler.playFromIndex(2);
+      await until(() => handler.snapshot.isLoading, reason: 'loading');
+      expect(count('song-4'), 0, reason: 'navigation pending');
+      gates['song-3']!.complete();
+      await navigation;
+      await settleQueue(handler);
+      await until(() => count('song-4') == 1, reason: 'prefetch after load');
+    });
+
+    test('local and downloaded next songs get no prefetch', () async {
+      await setUpHandler(prefetch: true, localIds: {'song-1'});
+      await quiet();
+      expect(count('song-1'), 0);
+      await handler.disposeHandler();
+    });
+
+    test('downloaded next songs get no prefetch', () async {
+      await setUpHandler(prefetch: true, cacheSongs: true);
+      await quiet();
+      expect(count('song-1'), 0);
+    });
+
+    test(
+      'the full download waits for the prefetch and the settle delay',
+      () async {
+        final previous = remoteSettleDelay;
+        remoteSettleDelay = const Duration(seconds: 1);
+        addTearDown(() => remoteSettleDelay = previous);
+        await setUpHandler(prefetch: true, gated: {'song-1'});
+        await until(() => count('song-1') == 1, reason: 'prefetch request');
+        expect(handler.debugRemoteFullDownloadHeld('song-1'), isTrue);
+        expect(handler.debugLockCacheWarmSongId, isNull);
+        gates['song-1']!.complete();
+        await prefetchAnswered('song-1');
+        expect(handler.debugRemoteFullDownloadHeld('song-1'), isTrue);
+        expect(handler.debugRemoteSettlingCount, 1);
+        await until(
+          () => !handler.debugRemoteFullDownloadHeld('song-1'),
+          reason: 'settle delay over',
+        );
+        expect(handler.debugRemoteSettlingCount, 0);
+      },
+    );
+
+    test('Android: the next-song lock-cache warm starts only after the '
+        'prefetch answered and the settle delay', () async {
+      final previous = remoteSettleDelay;
+      remoteSettleDelay = const Duration(seconds: 1);
+      addTearDown(() => remoteSettleDelay = previous);
+      await setUpHandler(
+        prefetch: true,
+        desktop: false,
+        gated: {'song-1'},
+        localIds: {'song-0'},
+        cacheSongs: true,
+        uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
+      );
+      await until(() => count('song-1') == 1, reason: 'prefetch request');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(handler.debugLockCacheWarmSongId, isNull);
+      gates['song-1']!.complete();
+      await prefetchAnswered('song-1');
+      expect(handler.debugLockCacheWarmSongId, isNull);
+      await until(
+        () => handler.debugLockCacheWarmSongId == 'song-1',
+        reason: 'warm after the settle delay',
+      );
+    });
+
+    test('an errored prefetch does not wait the settle delay', () async {
+      await setUpHandler(prefetch: true, failIds: {'song-1'});
+      await prefetchAnswered('song-1');
+      await until(
+        () => !handler.debugRemoteFullDownloadHeld('song-1'),
+        cap: const Duration(seconds: 2),
+        reason: 'no settle wait after an error',
+      );
+      await quiet();
+      expect(count('song-1'), 1, reason: 'one attempt per song');
+    });
+
+    test(
+      'disposeHandler closes the prefetch connection and settle timers',
+      () async {
+        await setUpHandler(prefetch: true, gated: {'song-1'});
+        await until(() => count('song-1') == 1, reason: 'prefetch request');
+        await handler.disposeHandler();
+        await until(() => closed.contains('song-1'), reason: 'socket closed');
+        expect(handler.debugRemoteSettlingCount, 0);
       },
     );
   });

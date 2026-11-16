@@ -8,6 +8,22 @@ const _cachedExtentMaxUnchanged = 5;
 @visibleForTesting
 Duration sidecarChainRetryDelay = const Duration(seconds: 30);
 
+/// How long the full download of a song waits after its prefetch was
+/// answered. // ponytail: measured: a request within ~2 s of the first byte
+/// makes Octo-Fiesta fetch the song again, cached by 20 s; tune from traces.
+@visibleForTesting
+Duration remoteSettleDelay = const Duration(seconds: 20);
+
+/// The single in-flight prefetch of the next cold remote song.
+class _RemotePrefetch {
+  _RemotePrefetch(this.songId, this.client);
+  final String songId;
+  final HttpClient client;
+  final Stopwatch age = Stopwatch()..start();
+  String? outcome;
+  bool get done => outcome != null;
+}
+
 extension _NavisCache on NavisAudioHandler {
   /// The song that plays after [currentSongId], in play order (shuffled
   /// when shuffle is on). Repeat One replays the current song, so there is
@@ -24,6 +40,77 @@ extension _NavisCache on NavisAudioHandler {
     if (_desiredLoopMode == LoopMode.one) return currentSongId;
     if (index + 1 < ids.length) return ids[index + 1];
     return _desiredLoopMode == LoopMode.all ? ids.first : null;
+  }
+
+  /// Starts the prefetch of the next cold remote song (a first-byte warm, so
+  /// the origin has fetched it before anything plays it) when none is in
+  /// flight, the gates are open and the song was not tried yet. A started
+  /// prefetch is never cancelled: the server keeps fetching after a
+  /// disconnect and does not de-duplicate, so only [disposeHandler] closes it.
+  void _maybeStartRemotePrefetch(MediaItem current) {
+    final running = _remotePrefetch;
+    if (running != null && !running.done) return;
+    if (_disposeHandlerStarted ||
+        !_requestedPlaying ||
+        _radioStation != null ||
+        _isLoading ||
+        _pendingLogicalQueueSongIds != null ||
+        !_readRuntimeSettings().nextSongPrefetchAllowed) {
+      return;
+    }
+    var target = _rollingCacheNextSongId(current.id);
+    if (target == current.id) {
+      // Repeat One: a manual next still goes to the song after the current.
+      final ids = _logicalQueueIds;
+      final index = _logicalCurrentIndex;
+      target = index != null && index + 1 < ids.length ? ids[index + 1] : null;
+    }
+    if (target == null || _remotePrefetched.contains(target)) return;
+    final uri = _coldRemoteUriAt(
+      _queueItems.indexWhere((item) => item.id == target),
+      target,
+    );
+    if (uri == null) return;
+    final songId = target;
+    final prefetch = _RemotePrefetch(songId, HttpClient());
+    _remotePrefetch = prefetch;
+    unawaited(
+      _warmRemoteStream(
+        uri,
+        songId: songId,
+        trigger: 'prefetch',
+        stillWanted: () => !_disposeHandlerStarted,
+        client: prefetch.client,
+      ).then<void>((outcome) {
+        prefetch.outcome = outcome;
+        if (outcome == 'superseded') return;
+        _remotePrefetched.add(songId);
+        if (outcome == 'answered' && !_disposeHandlerStarted) {
+          _remoteSettling[songId] = Timer(remoteSettleDelay, () {
+            _remoteSettling.remove(songId);
+            _syncSidecarChain();
+          });
+        }
+        _syncSidecarChain();
+      }),
+    );
+  }
+
+  /// Whether the full download of [songId] waits for its prefetch: in flight,
+  /// or answered less than [remoteSettleDelay] ago.
+  bool _remoteFullDownloadHeld(String songId) {
+    final prefetch = _remotePrefetch;
+    return (prefetch != null && prefetch.songId == songId && !prefetch.done) ||
+        _remoteSettling.containsKey(songId);
+  }
+
+  /// Closes the prefetch connection and drops the settle timers.
+  void _disposeRemotePrefetch() {
+    _remotePrefetch?.client.close(force: true);
+    for (final timer in _remoteSettling.values) {
+      timer.cancel();
+    }
+    _remoteSettling.clear();
   }
 
   /// Stops lock-cache downloads of songs other than the current and next
@@ -262,6 +349,7 @@ extension _NavisCache on NavisAudioHandler {
     // new song syncs again.
     if (_resolveCurrentQueueMetadata().mediaItem?.id != current?.id) return;
     final nextId = _rollingCacheNextSongId(current?.id);
+    if (current != null) _maybeStartRemotePrefetch(current);
     if (!desktop) _pruneEndedLockCacheWarm();
     final active = desktop
         ? _sidecarDownloader.activeSongId
@@ -297,6 +385,8 @@ extension _NavisCache on NavisAudioHandler {
         _completedCacheSongIds.contains(current.id) ||
         _lockCacheFileComplete(current);
     if (!warm || !_readRuntimeSettings().nextSongPrefetchAllowed) return;
+    // The server must hold the song before the full download asks for it.
+    if (_remoteFullDownloadHeld(nextId)) return;
     if (!desktop) {
       _startLockCacheWarm(nextId, key);
       return;

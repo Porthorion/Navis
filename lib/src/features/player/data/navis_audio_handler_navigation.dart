@@ -335,22 +335,8 @@ extension _NavisNavigation on NavisAudioHandler {
             (item) => identical(item, startItem?.mediaItem),
           );
         } else {
-          final source = _player.audioSources.elementAtOrNull(index);
-          final uri = switch (source) {
-            UriAudioSource(:final uri) => uri,
-            // Navis uses the vendored lock-cache primitive for remote sources.
-            // ignore: experimental_member_use
-            LockCachingAudioSource(:final uri) => uri,
-            LockCacheFollowerSource(:final leader) => leader.uri,
-            _ => null,
-          };
-          final coldRemote =
-              (isExternalCatalogSource(id: targetId) ||
-                  _remoteRows.containsKey(targetId)) &&
-              _queueItems[index].extras?['sourceKind'] !=
-                  PlaybackSourceKind.file.name &&
-              uri != null &&
-              (uri.scheme == 'http' || uri.scheme == 'https');
+          final uri = _coldRemoteUriAt(index, targetId);
+          final coldRemote = uri != null;
           if (coldRemote) {
             // The old song keeps its deck until the origin answers: silent.
             _armWarmMute();

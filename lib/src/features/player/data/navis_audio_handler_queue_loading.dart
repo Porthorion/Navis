@@ -1842,17 +1842,43 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// connection long before that (ExoPlayer after 8 s, through the lock-cache
   /// proxy too), while once the server has the file it answers at once.
   /// Failures are left to the player's own load; a newer command
-  /// ([stillWanted] turning false) ends the wait at once.
-  Future<void> _warmRemoteStream(
+  /// ([stillWanted] turning false) ends the wait at once. A song whose
+  /// prefetch is in flight ([_remotePrefetch]) is joined, never requested a
+  /// second time: the server keeps fetching after a disconnect and does not
+  /// de-duplicate, so a second request would start a parallel fetch. A
+  /// [stillWanted] that turns false ends only this wait, not the prefetch.
+  /// Returns the outcome: answered, error, timeout or superseded.
+  Future<String> _warmRemoteStream(
     Uri? uri, {
     required String songId,
     required String trigger,
     required bool Function() stillWanted,
+    HttpClient? client,
   }) async {
     if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      return;
+      return 'skipped';
     }
     final elapsed = Stopwatch()..start();
+    final prefetch = _remotePrefetch;
+    if (trigger != 'prefetch' &&
+        prefetch != null &&
+        prefetch.songId == songId &&
+        !prefetch.done) {
+      _transportTrace.record(
+        'remoteWarm',
+        () => <String, Object?>{
+          'phase': 'join',
+          'songId': songId,
+          'trigger': trigger,
+          'startedBy': 'prefetch',
+          'ageMs': prefetch.age.elapsedMilliseconds,
+        },
+      );
+      while (!prefetch.done && stillWanted()) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      return prefetch.done ? prefetch.outcome! : 'superseded';
+    }
     _transportTrace.record(
       'remoteWarm',
       () => <String, Object?>{
@@ -1861,11 +1887,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
         'trigger': trigger,
       },
     );
-    final client = HttpClient()..connectionTimeout = _timeouts.remoteLoad;
+    client ??= HttpClient();
+    client.connectionTimeout = _timeouts.remoteLoad;
     int? status;
     Object? failure;
     final answered = () async {
-      final request = await client.getUrl(uri);
+      final request = await client!.getUrl(uri);
       request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1');
       final response = await request.close();
       status = response.statusCode;
@@ -1903,6 +1930,34 @@ extension _NavisQueueLoading on NavisAudioHandler {
         if (failure != null) 'error': '${failure.runtimeType}',
       },
     );
+    return outcome;
+  }
+
+  /// The origin stream URI of the song at native index [index] when it is a
+  /// cold remote song: a remote catalogue song that is not a file, not
+  /// downloaded or rolling-cached, with an http(s) source. Navigation and the
+  /// next-song prefetch share this one predicate.
+  Uri? _coldRemoteUriAt(int index, String songId) {
+    final item = index < 0 ? null : _queueItems.elementAtOrNull(index);
+    if (item == null ||
+        !(isExternalCatalogSource(id: songId) ||
+            _remoteRows.containsKey(songId)) ||
+        item.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
+        _completedCacheSongIds.contains(songId) ||
+        _lockCacheFileComplete(item)) {
+      return null;
+    }
+    final uri = switch (_player.audioSources.elementAtOrNull(index)) {
+      UriAudioSource(:final uri) => uri,
+      // Navis uses the vendored lock-cache primitive for remote sources.
+      // ignore: experimental_member_use
+      LockCachingAudioSource(:final uri) => uri,
+      LockCacheFollowerSource(:final leader) => leader.uri,
+      _ => null,
+    };
+    return uri != null && (uri.scheme == 'http' || uri.scheme == 'https')
+        ? uri
+        : null;
   }
 
   /// The native load deadline for a queue starting at [item].

@@ -227,6 +227,11 @@ Use this quick matrix to classify failures:
   (native repeat-one) and the snapshot reports loading; a stuck-silent player
   with `loadingSongId` set means the warm-up is still waiting (up to
   `NavisPlaybackTimeouts.remoteLoad`).
+  While a song plays, the next cold remote song is prefetched once (`remoteWarm`
+  trigger `prefetch`); a navigation to it records `phase: join` instead of its
+  own request. The prefetch is never cancelled (the server keeps fetching and
+  does not de-duplicate); the next song's full download waits for it and for
+  `remoteSettleDelay` (20 s) after it answered.
 3. Android DSP initialization failure:
 - Symptoms: `Cannot initialize effect engine ... Equalizer ... Error: -3`.
 - Expected:
