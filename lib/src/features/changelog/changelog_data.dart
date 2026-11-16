@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Same Vibes and the other automatic mixes now add songs in larger, '
+        'less frequent batches instead of topping up every few songs',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'A song that streams slowly on desktop now switches to its '
         'finished cache file instead of buffering',
         type: ChangelogEntryType.fix,

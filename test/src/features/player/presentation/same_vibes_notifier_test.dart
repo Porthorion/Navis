@@ -269,6 +269,31 @@ void main() {
               title: 'SongE',
               match: 1,
             ),
+            LastFmTrackRecommendation(
+              artist: 'ArtistF',
+              title: 'SongF',
+              match: 1,
+            ),
+            LastFmTrackRecommendation(
+              artist: 'ArtistG',
+              title: 'SongG',
+              match: 1,
+            ),
+            LastFmTrackRecommendation(
+              artist: 'ArtistH',
+              title: 'SongH',
+              match: 1,
+            ),
+            LastFmTrackRecommendation(
+              artist: 'ArtistI',
+              title: 'SongI',
+              match: 1,
+            ),
+            LastFmTrackRecommendation(
+              artist: 'ArtistJ',
+              title: 'SongJ',
+              match: 1,
+            ),
           ],
         ),
       );
@@ -365,7 +390,7 @@ void main() {
       ) as RecordingRecommendationQueue;
       final state = container.read(sameVibesProvider);
       expect(queued.retainedSongIds, <String>['seed']);
-      expect(queued.queuedSongs, hasLength(5));
+      expect(queued.queuedSongs, hasLength(10));
       expect(queued.appendedSongBatches, hasLength(1));
       expect(queued.appendedSongBatches.single.map((song) => song.id), <String>[
         'ArtistA-SongA',
@@ -373,9 +398,14 @@ void main() {
         'ArtistC-SongC',
         'ArtistD-SongD',
         'ArtistE-SongE',
+        'ArtistF-SongF',
+        'ArtistG-SongG',
+        'ArtistH-SongH',
+        'ArtistI-SongI',
+        'ArtistJ-SongJ',
       ]);
       expect(state.active, isTrue);
-      expect(state.pendingSnackbar, '5');
+      expect(state.pendingSnackbar, '10');
       verify(
         () => lastFm.getSimilarTracksResult(
           artist: any(named: 'artist'),
@@ -649,7 +679,7 @@ void main() {
     },
   );
 
-  test('activation caps Last.fm mapping at five queued songs', () async {
+  test('activation caps Last.fm mapping at ten queued songs', () async {
     final api = _MockSubsonicApiClient();
     final lastFm = _MockLastFmApiClient();
     when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
@@ -668,7 +698,7 @@ void main() {
       (_) async => LastFmTrackFetchResult(
         outcome: LastFmFetchOutcome.success,
         tracks: List<LastFmTrackRecommendation>.generate(
-          8,
+          15,
           (index) => LastFmTrackRecommendation(
             artist: 'Artist$index',
             title: 'Song$index',
@@ -751,7 +781,7 @@ void main() {
 
     final queued =
         container.read(queueProvider.notifier) as RecordingRecommendationQueue;
-    expect(queued.queuedSongs, hasLength(5));
+    expect(queued.queuedSongs, hasLength(10));
     verify(
       () => lastFm.getSimilarTracksResult(
         artist: any(named: 'artist'),
@@ -1314,7 +1344,7 @@ void main() {
   );
 
   test(
-    'auto-refill starts at eight remaining mix tracks, but not nine',
+    'auto-refill starts at four remaining mix tracks, but not five',
     () async {
       final api = _MockSubsonicApiClient();
       var now = DateTime.utc(2026);
@@ -1385,30 +1415,20 @@ void main() {
       ) as RecordingRecommendationQueue;
       expect(queue.appendedSongBatches, hasLength(1));
       now = now.add(const Duration(minutes: 1));
-      final initialIds = [...original, ...List.generate(5, (i) => 'rec-0-$i')];
+      final ids = [...original, ...List.generate(5, (i) => 'rec-0-$i')];
+      // A fresh mix with a 5-song first batch holds 5 after the current song:
+      // no top-up yet.
       snapshots.emitSnapshot(
-        snapshot(
-          queueSongIds: initialIds,
-          currentSongId: 'seed',
-          currentIndex: 0,
-        ),
+        snapshot(queueSongIds: ids, currentSongId: 'seed', currentIndex: 0),
       );
       await pumpEventQueue();
-      expect(queue.appendedSongBatches, hasLength(2));
-      now = now.add(const Duration(minutes: 1));
-      final ids = [...initialIds, ...List.generate(5, (i) => 'rec-1-$i')];
+      expect(queue.appendedSongBatches, hasLength(1));
 
       snapshots.emitSnapshot(
         snapshot(queueSongIds: ids, currentSongId: ids[1], currentIndex: 1),
       );
       await pumpEventQueue();
       expect(queue.appendedSongBatches, hasLength(2));
-
-      snapshots.emitSnapshot(
-        snapshot(queueSongIds: ids, currentSongId: ids[2], currentIndex: 2),
-      );
-      await pumpEventQueue();
-      expect(queue.appendedSongBatches, hasLength(3));
     },
   );
 
@@ -2780,7 +2800,9 @@ void main() {
       });
     });
 
-    /// Starts the mix, then plays [index] of [queue] on each call; every
+    /// Starts the mix, then plays [index] + 1 of [queue] on each call (the
+    /// first refill leaves five songs after q-0, so q-1 is the first song at
+    /// the four-left refill mark); every
     /// call differs by [position] so the snapshot listener fires.
     Future<
       ({
@@ -2811,8 +2833,8 @@ void main() {
             .emitSnapshot(
               snapshot(
                 queueSongIds: queue,
-                currentSongId: queue[index],
-                currentIndex: index,
+                currentSongId: queue[index + 1],
+                currentIndex: index + 1,
               ).copyWith(position: Duration(seconds: position)),
             );
         await pumpEventQueue();
@@ -2856,7 +2878,7 @@ void main() {
 
         await play(1, 100);
         expect(similarCalls, 3, reason: 'a new song gets its own try');
-        expect(fallbackSeeds.last, 'q-1');
+        expect(fallbackSeeds.last, 'q-2');
         expect(container.read(sameVibesProvider).active, isTrue);
         expect(container.read(sameVibesProvider).error, isNull);
       });
@@ -2933,7 +2955,7 @@ void main() {
 
       await play(1, 3);
       expect(similarCalls, 3);
-      expect(fallbackSeeds, ['seed-a', 'q-0', 'q-1']);
+      expect(fallbackSeeds, ['seed-a', 'q-1', 'q-2']);
     });
 
     test('a skip during a parking refill still gives the new song its try without another snapshot', () async {
@@ -2950,27 +2972,27 @@ void main() {
       while (container.read(sameVibesProvider).refilling) {
         await Future<void>.delayed(const Duration(milliseconds: 5));
       }
-      // Steady playback of q-1: no further snapshot. Old code had a 3 s retry
+      // Steady playback of q-2: no further snapshot. Old code had a 3 s retry
       // timer that re-read the current song.
       fakeNow = fakeNow.add(const Duration(minutes: 5));
       await Future<void>.delayed(const Duration(seconds: 4));
       container.read(sameVibesProvider);
       await pumpEventQueue();
-      expect(similarCalls, 3, reason: 'q-1 never gets its refill');
+      expect(similarCalls, 3, reason: 'q-2 never gets its refill');
     });
 
     test('a skip within the minimum refill interval of a park still gets its refill', () async {
       final (:container, :play) = await start();
       await play(0, 1);
       expect(similarCalls, 2);
-      // Skip to q-1 without the clock moving past the minimum interval.
+      // Skip to q-2 without the clock moving past the minimum interval.
       container
           .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: queue,
-              currentSongId: queue[1],
-              currentIndex: 1,
+              currentSongId: queue[2],
+              currentIndex: 2,
             ).copyWith(position: const Duration(seconds: 2)),
           );
       container.read(sameVibesProvider);
@@ -2985,7 +3007,7 @@ void main() {
       expect(
         similarCalls,
         3,
-        reason: 'q-1 refill was dropped by the 1.2 s gate',
+        reason: 'q-2 refill was dropped by the 1.2 s gate',
       );
     });
 
@@ -3106,7 +3128,7 @@ void main() {
     }
 
     test('a song Last.fm has no similar tracks for still mixes from Last.fm '
-        'through similar artists, without asking the server', () async {
+        'through similar artists', () async {
       final dio = Dio();
       addTearDown(dio.close);
       dio.interceptors.add(
@@ -3182,13 +3204,15 @@ void main() {
         'd',
         'e',
       });
-      verifyNever(
+      // Five songs are below the batch size, so the server is asked once to
+      // top up (it has nothing here).
+      verify(
         () => api.getSimilarSongs(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
         ),
-      );
+      ).called(1);
     });
 
     test('Last.fm songs below the batch size are kept and topped up from '
@@ -3238,6 +3262,7 @@ void main() {
         'l3',
         's1',
         's2',
+        's3',
       ]);
     });
   });
@@ -3245,17 +3270,28 @@ void main() {
   group('overlapping candidate lists (#377 recurrence)', () {
     // The owner's queue: one Last.fm list shared by every seed (the
     // artist-level fallback for one artist, or overlapping neighbours). Its
-    // ten best matches are the five songs the mix already queued plus five
+    // fifteen best matches are the ten songs the mix already queued plus five
     // the catalogue cannot place; five new songs sit below them.
     final ranked = <(String, double)>[
-      for (final (i, name) in ['A', 'B', 'C', 'D', 'E'].indexed)
+      for (final (i, name) in [
+        'A',
+        'B',
+        'C',
+        'D',
+        'E',
+        'F',
+        'G',
+        'H',
+        'I',
+        'J',
+      ].indexed)
         (name, 1.0 - i * 0.02),
-      for (final (i, name) in ['F', 'G', 'H', 'I', 'J'].indexed)
-        (name, 0.85 - i * 0.02),
       for (final (i, name) in ['K', 'L', 'M', 'N', 'O'].indexed)
+        (name, 0.75 - i * 0.02),
+      for (final (i, name) in ['P', 'Q', 'R', 'S', 'T'].indexed)
         (name, 0.5 - i * 0.02),
     ];
-    const unplaceable = {'F', 'G', 'H', 'I', 'J'};
+    const unplaceable = {'K', 'L', 'M', 'N', 'O'};
 
     // Plays the mix through four song changes and returns the number of
     // `search3` calls made.
@@ -3350,16 +3386,18 @@ void main() {
         queueProvider.notifier,
       ) as RecordingRecommendationQueue;
       expect(queue.queuedSongs.map((s) => s.id), [
-        'id-A',
-        'id-B',
-        'id-C',
-        'id-D',
-        'id-E',
-      ], reason: 'the first batch is the five best matches');
+        for (final name in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'])
+          'id-$name',
+      ], reason: 'the first batch is the ten best matches');
 
       // Play through the mix: every song is a new seed.
-      final mixQueue = ['seed-a', 'id-A', 'id-B', 'id-C', 'id-D', 'id-E'];
-      for (var index = 1; index < 5; index++) {
+      final mixQueue = [
+        'seed-a',
+        for (final name in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'])
+          'id-$name',
+      ];
+      // The refill mark is four songs left: index 6 of the 11-song queue.
+      for (var index = 6; index < 10; index++) {
         fakeNow = fakeNow.add(const Duration(minutes: 4));
         notifier.emitSnapshot(
           snapshot(
@@ -3376,10 +3414,10 @@ void main() {
 
       expect(
         queue.queuedSongs.map((s) => s.id),
-        containsAll(<String>['id-K', 'id-L', 'id-M', 'id-N', 'id-O']),
+        containsAll(<String>['id-P', 'id-Q', 'id-R', 'id-S', 'id-T']),
         reason:
             'Last.fm offered five new songs; the mix must not stop because '
-            'its ten search attempts went to songs it had already queued',
+            'its search attempts went to songs it had already queued',
       );
       return searchCalls;
     }

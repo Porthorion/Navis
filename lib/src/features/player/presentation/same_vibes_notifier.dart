@@ -19,13 +19,13 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Target number of tracks to queue per background refill.
-const _kTargetQueueBatchSize = 5;
+const _kTargetQueueBatchSize = 10;
 
 /// Last.fm recommendation request limit per refill.
 const _kLastFmRecommendationLimit = 20;
 
 /// Maximum Last.fm recommendations to map with `search3`.
-const _kMaxSearchAttempts = 10;
+const _kMaxSearchAttempts = 20;
 
 /// Number of song candidates to inspect per `search3` query.
 const _kSearchSongCount = 8;

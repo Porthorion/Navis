@@ -366,18 +366,18 @@ void main() {
       },
     );
 
-    test('refill starts at eight remaining tracks, but not nine', () async {
+    test('refill starts at four remaining tracks, but not five', () async {
       final radio = container.read(personalRadioProvider.notifier);
       final start = radio.start();
       final ids = List.generate(11, (index) => 'r$index');
       calls[0].complete(batchOf(ids));
       await start;
 
-      container.read(snapshots.notifier).setQueue(ids, currentIndex: 1);
+      container.read(snapshots.notifier).setQueue(ids, currentIndex: 5);
       await pumpEventQueue();
       expect(calls, hasLength(1));
 
-      container.read(snapshots.notifier).setQueue(ids, currentIndex: 2);
+      container.read(snapshots.notifier).setQueue(ids, currentIndex: 6);
       await pumpEventQueue();
       expect(calls, hasLength(2));
       expect(container.read(personalRadioProvider).busy, isTrue);
