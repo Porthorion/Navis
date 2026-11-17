@@ -48,6 +48,60 @@ api() {
   fi
 }
 
+# start_private_bus; starts a private D-Bus session bus and exports its address
+# as DBUS_SESSION_BUS_ADDRESS (sets PRIVATE_BUS_PID, PRIVATE_BUS_DIR and
+# PRIVATE_KEYRING_PID). A nested compositor and the app under test must share it:
+# a nested kwin_wayland on the user's real session bus switches off the real
+# KWin's global shortcuts until logout. The app reads its password through the
+# Secret Service when no credential file is given; without one on the bus every
+# read blocks ~25 s, so a throwaway unlocked gnome-keyring (own runtime and data
+# dirs, never the user's keyring) provides it, when installed.
+start_private_bus() {
+  local started
+  started="$(dbus-daemon --session --fork --print-address=1 --print-pid=1)" || return 1
+  DBUS_SESSION_BUS_ADDRESS="$(sed -n 1p <<<"$started")"
+  PRIVATE_BUS_PID="$(sed -n 2p <<<"$started")"
+  [[ -n "$DBUS_SESSION_BUS_ADDRESS" && -n "$PRIVATE_BUS_PID" ]] || return 1
+  export DBUS_SESSION_BUS_ADDRESS
+  if command -v gnome-keyring-daemon >/dev/null 2>&1; then
+    PRIVATE_BUS_DIR="$(mktemp -d)"
+    mkdir -m 700 "$PRIVATE_BUS_DIR/run" "$PRIVATE_BUS_DIR/data"
+    env -u GNOME_KEYRING_CONTROL -u SSH_AUTH_SOCK XDG_RUNTIME_DIR="$PRIVATE_BUS_DIR/run" XDG_DATA_HOME="$PRIVATE_BUS_DIR/data" \
+      gnome-keyring-daemon --foreground --components=secrets --unlock </dev/null >"$PRIVATE_BUS_DIR/keyring.log" 2>&1 &
+    PRIVATE_KEYRING_PID=$!
+    for _ in $(seq 1 50); do
+      busctl --user list 2>/dev/null | grep -q '^org.freedesktop.secrets ' && return 0
+      sleep 0.1
+    done
+    echo "WARNING: the private Secret Service did not start; app credential reads will time out without a credential file." >&2
+  else
+    echo "WARNING: gnome-keyring-daemon not found; app credential reads will time out without a credential file." >&2
+  fi
+}
+
+# stop_private_bus; stops what start_private_bus started (safe when nothing ran).
+stop_private_bus() {
+  if (( ${PRIVATE_KEYRING_PID:-0} > 0 )); then kill "$PRIVATE_KEYRING_PID" >/dev/null 2>&1 || true; fi
+  if (( ${PRIVATE_BUS_PID:-0} > 0 )); then kill "$PRIVATE_BUS_PID" >/dev/null 2>&1 || true; fi
+  [[ -n "${PRIVATE_BUS_DIR:-}" ]] && rm -rf "$PRIVATE_BUS_DIR"
+  return 0
+}
+
+# kglobalaccel_guard <journalctl --since time>; fails when the user journal shows
+# the nested compositor ran on the real session bus; skips without journalctl.
+kglobalaccel_guard() {
+  if ! command -v journalctl >/dev/null 2>&1; then
+    echo "WARNING: journalctl not found; kglobalaccel guard skipped." >&2
+    return 0
+  fi
+  local journal
+  journal="$(journalctl --user --since "$1" --no-pager -q 2>/dev/null || true)"
+  if [[ "$journal" == *"Failed to register service org.kde.kglobalaccel"* ]]; then
+    echo "Infrastructure error: 'Failed to register service org.kde.kglobalaccel' since $1; the compositor ran on the real session bus." >&2
+    return 1
+  fi
+}
+
 # Uses FLUTTER_PID; terminate and reap the task-owned launcher if still alive.
 cleanup_app() {
   if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then

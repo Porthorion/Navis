@@ -946,6 +946,49 @@ class PairedRepetitions(unittest.TestCase):
         self.assertEqual(record['variants']['fix/queue-edit']['status'], 'incomplete')
 
 
+class DisplayPrivateBus(unittest.TestCase):
+    """The headless KWin and the app share one private session bus; a kglobalaccel failure in the journal is an InfraError."""
+
+    def display(self, journal=''):
+        tmp = Path(tempfile.mkdtemp(dir=_ISOLATED.name))
+        launched = []
+
+        def popen(cmd, **kwargs):
+            launched.append((cmd, kwargs))
+            if cmd[0] == 'kwin_wayland':
+                (tmp / cmd[cmd.index('--socket') + 1]).touch()
+            return Mock(stdout=io.StringIO('unix:path=/tmp/private-bus\n'), poll=Mock(return_value=0))
+
+        shown = Mock(returncode=0, stdout=journal)
+        patches = (patch.dict(os.environ, {'XDG_RUNTIME_DIR': str(tmp), 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus'}),
+                   patch.object(h.subprocess, 'Popen', side_effect=popen), patch.object(h, 'run', return_value=shown))
+        return h.Display(tmp), launched, patches
+
+    def test_compositor_and_app_env_use_the_private_bus(self):
+        display, launched, patches = self.display()
+        with patches[0], patches[1], patches[2]:
+            with display as env:
+                pass
+        bus, kwin = launched
+        self.assertEqual(bus[0][:3], ['dbus-daemon', '--session', '--nofork'])
+        self.assertEqual(kwin[0][0], 'kwin_wayland')  # never wrapped in dbus-run-session or bare on the real bus
+        self.assertEqual(kwin[1]['env']['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/tmp/private-bus')
+        self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/tmp/private-bus')
+        self.assertIn('--no-global-shortcuts', kwin[0])
+
+    def test_kglobalaccel_failure_is_an_infra_error(self):
+        display, _, patches = self.display('kglobalacceld: Failed to register service org.kde.kglobalaccel\n')
+        with patches[0], patches[1], patches[2], self.assertRaisesRegex(h.InfraError, 'real session bus'):
+            display.__enter__()
+
+    def test_missing_journalctl_only_warns(self):
+        display, _, patches = self.display()
+        with patches[0], patches[1], patch.object(h, 'run', side_effect=FileNotFoundError), contextlib.redirect_stderr(io.StringIO()) as err:
+            with display:
+                pass
+        self.assertIn('journalctl', err.getvalue())
+
+
 class CodeAreaMap(unittest.TestCase):
     def test_paths(self):
         names = lambda *paths: h.map_files(list(paths))[0]

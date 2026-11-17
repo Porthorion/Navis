@@ -1833,7 +1833,12 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
 - **Safety.** The tool re-runs itself in a `systemd-run --user --scope`
   (MemoryMax 8G), takes both `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`, snapshots the sha256 of
   the downloads folder before and after, starts a headless `kwin_wayland
-  --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
+  --virtual` (Linux) on a private `dbus-daemon --session` bus that the app
+  launched by the engine shares (never the real session bus, whose global
+  shortcuts a nested KWin would switch off; an `InfraError` if `journalctl
+  --user` shows `Failed to register service org.kde.kglobalaccel` after
+  start-up or at teardown; no Secret Service runs on that bus, so signed-in
+  scenarios use the credential file) or a disposable 3072 MiB, 2-core AVD cloned from
   `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per scenario and variant), and
   stops only the processes it started. The boot wait polls `adb get-state` as well as `sys.boot_completed`: a guest
   whose adb stays `unauthorized`/`offline` gets one `adb -s <serial> reconnect` after 40 s
@@ -2612,8 +2617,13 @@ the `@navis_rg` stage in mpv's own `af` goes 10 to -3 dB at the song change (d3
 samples in the same run); skip, queue jump, seek, removing the playing song and repeat-one
 keep the right level (d2); cross-fade on has no over-boost and no 50 ms RMS
 step (d4); a pre-amp rise in a song's last second never lifts its tail, with the next song at its own level at the join (d5: qa a -6 dBFS sine boosted 5 dB, qb tagged +2 dB, +6 dB of pre-amp); the same joins hold on songs served by the fixture server (media bodies are paced at 800 KB/s, so the first pass joins songs that are still downloading and asserts that the join's seek landed on a `directStream` source; the second pass joins the same songs from the completed rolling-cache file and asserts `file`), with Q's head checked from H's last loud sample (d6).
-With no display it starts a private headless `kwin_wayland` and passes
-`--no-enable-impeller` to the build (`NAVIS_DIAGNOSTICS_RUN_ARGS`), since
+With no display it starts a private `dbus-daemon --session` bus and a headless
+`kwin_wayland` (`--no-global-shortcuts`) on it, adds a throwaway unlocked
+`gnome-keyring-daemon` with its own runtime and data directories (the app reads
+its password through the Secret Service; without one every read blocks about
+25 s), exports the bus address so the app shares it, checks `journalctl --user` for `Failed to register service
+org.kde.kglobalaccel` after start-up and at teardown (exit 70 if found), and
+passes `--no-enable-impeller` to the build (`NAVIS_DIAGNOSTICS_RUN_ARGS`), since
 Impeller's GLES backend cannot get a framebuffer there. `POST
 /v1/playback/replay-gain` sets the mode and pre-amp for d5. The same Q/H songs
 exist for the streaming fixture server as `TranscodeLibrary(...,
