@@ -11,6 +11,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
@@ -54,6 +55,7 @@ void main() {
   late HttpServer server;
   late NavisAudioHandler handler;
   late ControllableAudioPlayer player;
+  late NavisDatabase database;
   late PlaybackTransportTrace trace;
   final requests = <String>[];
 
@@ -88,6 +90,7 @@ void main() {
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
     int startIndex = 0,
     PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
+    bool Function()? readCrossfade,
   }) async {
     final previousHttp = HttpOverrides.current;
     HttpOverrides.global = null;
@@ -161,7 +164,7 @@ void main() {
     trace = PlaybackTransportTrace(enabled: true);
     final created = await createHandler(
       directory,
-      songCount,
+      songCount + 2,
       cacheSongs: cacheSongs,
       hungLoadSongs: hungLoadSongs,
       rebuiltPlayers: hungLoadSongs == null
@@ -178,13 +181,14 @@ void main() {
       wrapResolver: wrapResolver,
       timeouts: timeouts,
       crossfade: crossfade,
+      readCrossfade: readCrossfade,
       replayGainInPipeline: replayGainInPipeline,
       readReplayGainMode: () => replayGainMode,
       replayGainUntaggedDb: -6,
     );
     handler = created.$1;
     player = created.$2;
-    final database = created.$3;
+    database = created.$3;
     for (final id in uncached) {
       await database.cacheDao.removeCachedTrack(id);
     }
@@ -932,16 +936,32 @@ void main() {
     /// lock-cache source is the only thing that asks the origin for it.
     Future<void> setUpAndroid({
       bool prefetch = true,
+      bool crossfade = false,
+      bool positionStreams = false,
+      bool Function()? readCrossfade,
       Set<String> gated = const {'song-1'},
+      Set<String>? hungLoadSongs,
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     }) => setUpHandler(
+      hungLoadSongs: hungLoadSongs,
       prefetch: prefetch,
+      crossfade: crossfade,
+      readCrossfade: readCrossfade,
+      positionStreams: positionStreams,
       desktop: false,
       gated: gated,
       wrapResolver: wrapResolver,
       localIds: {'song-0'},
       cacheSongs: true,
-      uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
+      uncached: {
+        'song-1',
+        'song-2',
+        'song-3',
+        'song-4',
+        'song-5',
+        'song-6',
+        'song-7',
+      },
     );
 
     test('Android: the next cold song is fetched once, by its own lock-cache '
@@ -1258,6 +1278,384 @@ void main() {
         () => sidecar.song == 'song-1',
         reason: 'download after delay',
       );
+    });
+
+    // #653 crossfade: after a swap the active deck must keep the lock-cache
+    // followers, so navigation warms join the one writer's download. The fake
+    // player cannot show just_audio's removal-time range-fetch cancel (the
+    // vendored retain flag and the real-player tests cover it).
+    Future<ControllableAudioPlayer> swap() async {
+      final deck = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      await handler.debugStartCrossfade();
+      await until(() => deck.playing, reason: 'incoming deck started');
+      await handler.debugCompleteCrossfade();
+      await settleQueue(handler);
+      expect(handler.debugActivePlayer, same(deck));
+      return deck;
+    }
+
+    // ignore: experimental_member_use, reason: as above.
+    LockCachingAudioSource? writerOf(AudioSource? source) => switch (source) {
+      // ignore: experimental_member_use, reason: as above.
+      final LockCachingAudioSource writer => writer,
+      LockCacheFollowerSource(:final leader) => leader,
+      _ => null,
+    };
+
+    /// At most one writer per song across both decks, and every follower
+    /// reads that writer, which is the song its row plays.
+    void expectOneWriterPerSong() {
+      // ignore: experimental_member_use, reason: as above.
+      final writers = <String, Set<LockCachingAudioSource>>{};
+      for (final deck in [
+        handler.debugActivePlayer,
+        handler.debugInactiveDeck!,
+      ]) {
+        for (final source in deck.sequence) {
+          final writer = writerOf(source);
+          if (writer == null) continue;
+          final id = writer.uri.queryParameters['id']!;
+          expect(navisNativeSourceSongId(source), id, reason: 'row of $id');
+          (writers[id] ??= Set.identity()).add(writer);
+        }
+      }
+      for (final entry in writers.entries) {
+        expect(entry.value, hasLength(1), reason: 'writers of ${entry.key}');
+      }
+    }
+
+    void expectLockCacheStart(String id) {
+      expect(count(id), 0, reason: 'no Range 0-1 warm');
+      expect(fetched(id), 1, reason: 'one origin fetch');
+      final start = records('remoteWarm').lastWhere(
+        (e) =>
+            e['songId'] == id &&
+            (e['phase'] == 'start' || e['phase'] == 'join'),
+      );
+      expect(start['startedBy'], 'lockCache');
+    }
+
+    test('Android crossfade: Next after one swap is a lock-cache start with '
+        'one fetch (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      expectOneWriterPerSong();
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expectLockCacheStart('song-2');
+      expectOneWriterPerSong();
+    });
+
+    test('Android crossfade: a far jump after one swap is a lock-cache '
+        'start with one fetch (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      await handler.playFromIndex(4);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-4');
+      expectLockCacheStart('song-4');
+    });
+
+    test(
+      'Android crossfade: the swaps alternate decks without reloading the '
+      'parked deck and the follower deck keeps the lock cache (#653)',
+      () async {
+        await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+        final first = await swap();
+        expectOneWriterPerSong();
+        final loadsBeforeSecond = player.setAudioSourcesCounts.length;
+        await swap();
+        expect(
+          player.setAudioSourcesCounts,
+          hasLength(loadsBeforeSecond),
+          reason: 'the parked deck already matches the queue',
+        );
+        expectOneWriterPerSong();
+        final loadsBeforeThird = first.setAudioSourcesCounts.length;
+        expect(await swap(), same(first));
+        expect(first.setAudioSourcesCounts, hasLength(loadsBeforeThird));
+        expect(handler.snapshot.currentSongId, 'song-3');
+        expectOneWriterPerSong();
+        await handler.skipToNext();
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-4');
+        expectLockCacheStart('song-4');
+      },
+    );
+
+    Future<List<SongsTableData>> externalSongs(List<String> songIds) async => [
+      for (final row in await database.libraryDao.getSongsByIds(songIds))
+        row.copyWith(isExternal: true),
+    ];
+
+    test('Android crossfade: a song inserted after a swap reaches the parked '
+        'deck as a follower of the active writer (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      final first = await swap();
+      final parked = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      await handler.insertQueueRuns([
+        QueueInsertRun(6, await externalSongs(['song-6'])),
+      ]);
+      await settleQueue(handler);
+      final active = handler.debugActivePlayer.sequence[6];
+      final mirrored = parked.sequence[6];
+      // ignore: experimental_member_use, reason: as above.
+      expect(active, isA<LockCachingAudioSource>());
+      expect(mirrored, isA<LockCacheFollowerSource>());
+      expect(writerOf(mirrored), same(active));
+      expect(writerOf(active)!.retainDownloadForFollowers, isTrue);
+      expectOneWriterPerSong();
+      await swap();
+      expect(handler.debugActivePlayer, isNot(same(first)));
+      await handler.playFromIndex(6);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-6');
+      expectLockCacheStart('song-6');
+      expectOneWriterPerSong();
+    });
+
+    test('Android crossfade: a repeat inserted after a swap never puts the '
+        'parked deck writer on the active deck (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      await handler.insertQueueRuns([
+        QueueInsertRun(2, await externalSongs(['song-4'])),
+      ]);
+      await settleQueue(handler);
+      expectOneWriterPerSong();
+      final active = handler.debugActivePlayer.sequence;
+      expect(active[2], isA<LockCacheFollowerSource>());
+      expect(writerOf(active[2]), same(writerOf(active[5])));
+    });
+
+    test('Android crossfade: a parked deck rebuilt after a failed mirror '
+        'keeps following the live writer (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {'song-3'});
+      await swap();
+      await playerFetches('song-3');
+      final parked = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      parked.failAppendSongId = 'song-6';
+      await handler.insertQueueRuns([
+        QueueInsertRun(6, await externalSongs(['song-6'])),
+      ]);
+      await settleQueue(handler);
+      parked.failAppendSongId = null;
+      final writer = handler.debugRegisteredLockCacheSource('song-3')!;
+      expect(writerOf(handler.debugActivePlayer.sequence[3]), same(writer));
+      await handler.debugStartCrossfade();
+      await settleQueue(handler);
+      expect(parked.sequence, hasLength(7), reason: 'the deck was rebuilt');
+      expect(parked.sequence[3], isA<LockCacheFollowerSource>());
+      expect(writerOf(parked.sequence[3]), same(writer));
+      expect(handler.debugRegisteredLockCacheSource('song-3'), same(writer));
+      expect(fetched('song-3'), 1);
+      expectOneWriterPerSong();
+    });
+
+    test('Android crossfade: the diagnostics count the sources of each deck '
+        '(#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      final crossfade = fade(handler);
+      expect(crossfade['activeDeckSources'], {
+        'writer': 0,
+        'follower': 5,
+        'copy': 0,
+        'other': 1,
+      });
+      expect(crossfade['inactiveDeckSources'], {
+        'writer': 5,
+        'follower': 0,
+        'copy': 0,
+        'other': 1,
+      });
+      // Every writer that followers read is flagged.
+      for (final source in handler.debugInactiveDeck!.sequence) {
+        final writer = writerOf(source);
+        // ignore: experimental_member_use, reason: as above.
+        if (writer != null) expect(writer.retainDownloadForFollowers, isTrue);
+      }
+    });
+
+    test('Android crossfade: a plain copy of a lock-cached song is counted '
+        'as a copy, not as another source (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      final parked = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      await parked.setAudioSources([
+        for (final item in handler.queue.value)
+          AudioSource.uri(
+            Uri.parse(
+              'http://127.0.0.1:${server.port}/rest/stream?id=${item.id}',
+            ),
+            tag: item,
+          ),
+      ]);
+      expect(fade(handler)['inactiveDeckSources'], {
+        'writer': 0,
+        'follower': 0,
+        'copy': ids.length - 1,
+        'other': 1,
+      });
+    });
+
+    // ignore: experimental_member_use, reason: as above.
+    Set<LockCachingAudioSource> heldWriters() => {
+      for (final deck in [
+        handler.debugActivePlayer,
+        handler.debugInactiveDeck!,
+      ])
+        for (final source in deck.sequence)
+          if (writerOf(source) case final writer?) writer,
+    };
+
+    test('Android crossfade: timeout recovery clears the retain flag of every '
+        'writer, a follower being the retired current row (#653)', () async {
+      await setUpAndroid(
+        prefetch: false,
+        crossfade: true,
+        gated: {'song-1'},
+        hungLoadSongs: {},
+      );
+      await swap();
+      await playerFetches('song-1');
+      final active = handler.debugActivePlayer;
+      expect(
+        active.sequence[active.currentIndex!],
+        isA<LockCacheFollowerSource>(),
+      );
+      final writers = heldWriters();
+      expect(writers, isNotEmpty);
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.every((w) => w.retainDownloadForFollowers), isTrue);
+      await handler.debugRecoverPlayersFromTimeout();
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.any((w) => w.retainDownloadForFollowers), isFalse);
+      await until(() => closed.contains('song-1'), reason: 'retired download');
+      expect(handler.debugRegisteredLockCacheSource('song-1'), isNull);
+    });
+
+    test('Android crossfade: disposing the handler clears the retain flag of '
+        'every writer (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      final writers = heldWriters();
+      expect(writers, isNotEmpty);
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.every((w) => w.retainDownloadForFollowers), isTrue);
+      await handler.disposeHandler();
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.any((w) => w.retainDownloadForFollowers), isFalse);
+    });
+
+    test('Android crossfade: range priority follows a follower to its '
+        'writer (#653)', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-r653-');
+      addTearDown(() => directory.delete(recursive: true));
+      final sources = {
+        for (final id in ids)
+          id: RangeCacheSource(id, File('${directory.path}/$id.mp3')),
+      };
+      await setUpAndroid(
+        prefetch: false,
+        crossfade: true,
+        positionStreams: true,
+        gated: {},
+        wrapResolver: (base) => RangeCacheResolver(base, sources),
+      );
+      addTearDown(() async {
+        for (final source in sources.values) {
+          await source.progress.close();
+        }
+      });
+      final deck = await swap();
+      sources['song-1']!.activeRange = true;
+      deck.emitBuffered(const Duration(seconds: 2));
+      await pumpEventQueue();
+      for (final id in ['song-1', 'song-2', 'song-3']) {
+        expect(sources[id]!.paused, isTrue, reason: id);
+      }
+    });
+
+    test('Android crossfade: the download window after a swap keeps the '
+        'current and next three songs (#653)', () async {
+      await setUpAndroid(
+        prefetch: false,
+        crossfade: true,
+        gated: {'song-2', 'song-5'},
+      );
+      await playerFetches('song-2');
+      await playerFetches('song-5');
+      await swap();
+      await until(() => closed.contains('song-5'), reason: 'song-5 dropped');
+      expect(closed, isNot(contains('song-2')));
+    });
+
+    test('Android crossfade: crossfade turned off after a swap keeps Next a '
+        'lock-cache start (#653)', () async {
+      var crossfadeOn = true;
+      await setUpAndroid(
+        prefetch: false,
+        crossfade: true,
+        gated: {},
+        readCrossfade: () => crossfadeOn,
+      );
+      await swap();
+      crossfadeOn = false;
+      await handler.applyRuntimeSettings();
+      await settleQueue(handler);
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expectLockCacheStart('song-2');
+    });
+
+    test('Android crossfade: a queue replace after a swap rebuilds one '
+        'writer per song that the active deck reads (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      await handler.replaceQueueWithData(queueRows, startIndex: 0);
+      await settleQueue(handler);
+      expectOneWriterPerSong();
+      for (final id in ['song-2', 'song-3']) {
+        final index = ids.indexOf(id);
+        expect(
+          writerOf(handler.debugActivePlayer.sequence[index]),
+          same(handler.debugRegisteredLockCacheSource(id)),
+          reason: id,
+        );
+      }
+      expect(fetched('song-1'), 0);
+    });
+
+    test('Android without crossfade: Next is a lock-cache start and the '
+        'player holds no follower (#653)', () async {
+      await setUpAndroid(prefetch: false, gated: {});
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expectLockCacheStart('song-1');
+      expect(player.sequence.whereType<LockCacheFollowerSource>(), isEmpty);
+    });
+
+    test('desktop crossfade: the deck holds direct streams, no lock-cache '
+        'sources (#653)', () async {
+      await setUpHandler(
+        desktop: true,
+        crossfade: true,
+        sidecarStreams: true,
+        sidecar: BridgeSidecar(),
+        localIds: {'song-0'},
+        cacheSongs: true,
+        uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
+      );
+      final deck = await swap();
+      for (final source in [
+        ...deck.sequence,
+        ...handler.debugInactiveDeck!.sequence,
+      ]) {
+        expect(writerOf(source), isNull);
+      }
     });
   });
 }

@@ -2926,6 +2926,10 @@ class NavisAudioHandler extends BaseAudioHandler
         'inactiveDeckMatchesQueue': inactiveDeck == null
             ? null
             : _sequenceMatchesQueue(inactiveDeck),
+        'activeDeckSources': _deckSourceCounts(_player),
+        'inactiveDeckSources': inactiveDeck == null
+            ? null
+            : _deckSourceCounts(inactiveDeck),
         'phases': Map<String, int>.of(_crossfadePhaseCounts),
       },
       'shuffleEnabled': _shuffleEnabled,
@@ -3432,6 +3436,13 @@ class NavisAudioHandler extends BaseAudioHandler
         reason: 'remote playback stalled',
       );
 
+  /// Recovers the players as a timed-out native call would.
+  @visibleForTesting
+  Future<void> debugRecoverPlayersFromTimeout() => _recoverPlayersFromTimeout(
+    generation: _loadGeneration,
+    operation: 'test',
+  );
+
   /// Writes coalesced queue and transport saves and waits for persistence.
   @visibleForTesting
   Future<void> debugFlushQueuePersistence() async {
@@ -3594,6 +3605,7 @@ class NavisAudioHandler extends BaseAudioHandler
     cancelSeekPreview();
     _cancelLockCacheWarm();
     _resumeLockCacheDownloads();
+    _clearFollowerRetention();
     // Whole-file fetches the player started (or a track change kept) outlive
     // their player otherwise; sign-out and shutdown must not leave one
     // running into a folder that is about to go.

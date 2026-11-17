@@ -3503,7 +3503,9 @@ class ConcatenatingAudioSource extends AudioSource {
       if (source is StreamAudioSource) source.dispose();
       if (source is LockCachingAudioSource) {
         source.resumeDownload();
-        await source._cancelRangeFetches();
+        if (!source.retainDownloadForFollowers) {
+          await source._cancelRangeFetches();
+        }
       }
     }
   }
@@ -3838,6 +3840,11 @@ class LockCachingAudioSource extends StreamAudioSource {
   final _rangeFetches = <_LockCacheRangeFetch>{};
   int _rangeFetchBytes = 0;
 
+  /// Navis: set while a source on another player reads this one through a
+  /// `LockCacheFollowerSource`. Removal from a playlist and player disposal
+  /// then keep the whole-file download and the range fetches alive.
+  bool retainDownloadForFollowers = false;
+
   /// Navis: whether the whole-file download is running (headers pending or body streaming).
   bool get isDownloading => _downloading;
 
@@ -3878,9 +3885,23 @@ class LockCachingAudioSource extends StreamAudioSource {
   @override
   void _dispose() {
     resumeDownload();
-    unawaited(
-        continuationUri == null ? _cancelRangeFetches() : cancelDownload());
+    // Navis: a writer that followers on another player read keeps its
+    // download and range fetches; its owner cancels them by song id.
+    if (!retainDownloadForFollowers) {
+      unawaited(
+          continuationUri == null ? _cancelRangeFetches() : cancelDownload());
+    }
     super._dispose();
+  }
+
+  /// Navis: the user agent of the player this source was last attached to, so
+  /// its fetches keep it once that player is disposed.
+  String? _attachedUserAgent;
+
+  @override
+  void _onAttach(AudioPlayer player) {
+    super._onAttach(player);
+    _attachedUserAgent = player._userAgent;
   }
 
   Future<void> _init() async {
@@ -4013,7 +4034,8 @@ class LockCachingAudioSource extends StreamAudioSource {
     File getEffectiveCacheFile() =>
         partialCacheFile.existsSync() ? partialCacheFile : cacheFile;
 
-    final httpClient = _createHttpClient(userAgent: _player?._userAgent);
+    final httpClient =
+        _createHttpClient(userAgent: _player?._userAgent ?? _attachedUserAgent);
     httpClient.connectionTimeout = connectionTimeout;
     final cancelled = Completer<Never>();
     _abortDownload = () async {
@@ -4144,7 +4166,8 @@ class LockCachingAudioSource extends StreamAudioSource {
         if (!_requests.remove(request)) continue;
         final start = request.start!;
         final end = request.end ?? sourceLength;
-        final client = _createHttpClient(userAgent: _player?._userAgent)
+        final client = _createHttpClient(
+            userAgent: _player?._userAgent ?? _attachedUserAgent)
           ..connectionTimeout = connectionTimeout;
         late final _LockCacheRangeFetch fetch;
         fetch = _LockCacheRangeFetch(client, request,

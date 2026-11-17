@@ -514,22 +514,22 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _anomalies.event('reload', {'via': 'players'});
     _cancelCrossfade();
     _resumeLockCacheDownloads();
+    _clearFollowerRetention();
     // Native stop may hang; cancel this retired source before the bypass reload.
     final retiredIndex = _player.currentIndex;
     final retiredSource = retiredIndex == null || retiredIndex < 0
         ? null
         : _player.sequence.elementAtOrNull(retiredIndex);
-    // ignore: experimental_member_use, reason: close the retired player's lock-cache transport.
-    if (retiredSource is LockCachingAudioSource) {
-      await retiredSource.cancelDownload();
-    }
+    // A follower's leader is the transport to close.
+    final retiredWriter = _lockCacheSourceOf(retiredSource);
+    if (retiredWriter != null) await retiredWriter.cancelDownload();
     // The abandoned player disposes every source it held, which detaches a
     // reused one from the new player: the reload builds fresh sources.
     for (final entry in _lockCacheSources.entries.toList()) {
       // A retired source must not take the registry slot back by restarting a
       // download (onDownloadStart); the rebuilt queue builds fresh sources.
       entry.value.source.onDownloadStart = null;
-      if (!identical(entry.value.source, retiredSource)) {
+      if (!identical(entry.value.source, retiredWriter)) {
         await entry.value.source.cancelDownload();
       }
       _lockCacheSources.remove(entry.key);
@@ -1091,7 +1091,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       if (!replacesQueue) ..._heldLockCacheWriters(),
       if (!replacesQueue)
         for (final entry in _lockCacheSources.entries)
-          if (_player.sequence.any((s) => identical(s, entry.value.source)))
+          if (_player.sequence.any(
+            (s) => identical(_lockCacheSourceOf(s), entry.value.source),
+          ))
             entry.key: entry.value.source,
     };
     for (final item in prepared) {
@@ -1109,6 +1111,61 @@ extension _NavisQueueLoading on NavisAudioHandler {
         );
       }
     }
+  }
+
+  /// Clears the retain flag of every writer either deck or the registry holds,
+  /// so disposing the retired players cancels a download that restarted since
+  /// (no follower outlives them): recovery and handler disposal call it first.
+  void _clearFollowerRetention() {
+    for (final deck in [_player, _crossfadePlayer]) {
+      for (final source in deck?.sequence ?? const <IndexedAudioSource>[]) {
+        _lockCacheSourceOf(source)?.retainDownloadForFollowers = false;
+      }
+    }
+    for (final entry in _lockCacheSources.values) {
+      entry.source.retainDownloadForFollowers = false;
+    }
+  }
+
+  /// The source the inactive crossfade deck plays for [item]: a follower of
+  /// the writer the active deck holds for its cache file, else a plain clone.
+  /// A cache file has one writer across both decks and the registry. It stays
+  /// on the deck that built it, so the inactive deck never receives a
+  /// `LockCachingAudioSource`; after a swap the playing deck reads the other
+  /// deck's writer through followers, and navigation warms, the next-song warm
+  /// and the keep window keep acting on the one download. [writers] is
+  /// [_heldLockCacheWriters], read once per call site; it is empty while the
+  /// active sequence and the queue disagree in length, so every row is then a
+  /// clone. A writer whose song is not [item]'s (rows that no longer line up)
+  /// is skipped for the same reason.
+  IndexedAudioSource _inactiveDeckSource(
+    _PreparedQueueItem item,
+    // ignore: experimental_member_use, reason: as above.
+    Map<String, LockCachingAudioSource> writers,
+  ) {
+    final path = item.source.cachedFilePath;
+    final writer =
+        item.source.kind == PlaybackSourceKind.lockCachedStream && path != null
+        ? writers[path]
+        : null;
+    final writerSongId = writer == null
+        ? null
+        : navisNativeSourceSongId(writer);
+    if (writer == null ||
+        writerSongId == null ||
+        _canonicalSongId(writerSongId) != _canonicalSongId(item.mediaItem.id)) {
+      return _withReplayGain(
+        item.source.asClonedAudioSource(tag: item.mediaItem),
+        item.mediaItem,
+      );
+    }
+    // The follower's deck may be disposed or reloaded while this writer's
+    // deck plays on: its owner then keeps the download (see the vendored flag).
+    writer.retainDownloadForFollowers = true;
+    return _withReplayGain(
+      LockCacheFollowerSource(writer, tag: item.mediaItem),
+      item.mediaItem,
+    );
   }
 
   MediaItem _mediaItemForSong(
