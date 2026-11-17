@@ -144,7 +144,7 @@ a factual, non-empty reason in `tool/dead_code_baseline.json`. Use
 without reasons go to a pending file and the update is refused.
 
 A nested compositor (headless `kwin_wayland`) and the app under test run
-together on one private D-Bus session bus (`dbus-daemon --session`); never start
+together on one private D-Bus session bus (`dbus-daemon --config-file=tool/lib/private-session-bus.conf`); never start
 a bare `kwin_wayland` or point one at the real `DBUS_SESSION_BUS_ADDRESS`. A
 nested KWin that exits on the real bus switches off the real KWin's global
 shortcuts until logout. The private daemon starts with a scrubbed environment
