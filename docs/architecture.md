@@ -6091,7 +6091,8 @@ The requested `loadingSongId` remains visible through that recovery.
 On Android a lock-cache download otherwise ran to completion after the player
 had moved on; on a slow link a skipped song's download starved the new song,
 whose first load then timed out. When the current song changes, downloads of
-songs other than the current and the next three are cancelled
+songs other than the current, the navigation target and the next three are
+cancelled
 (`LockCachingAudioSource.cancelDownload`, a Navis addition to the vendored
 just_audio) and their partial files discarded; a request for the same song
 arriving meanwhile waits for the cancelled fetch to unwind and starts a fresh
@@ -6110,9 +6111,10 @@ that ends in `error` still seeks, and a range fetch beyond the cache carries the
 60 s header deadline too. Desktop already keeps a single sidecar download.
 
 While an Android lock-cached song has a live origin range, playback is requested
-and the native forward buffer is under 30 seconds, the current and next songs'
-whole-file downloads pause. The next-song lookup requires the logical queue
-index to still name the current song, including during queue transitions.
+and the native forward buffer is under 30 seconds, the whole-file downloads of
+the current song and the kept songs ahead pause. The ahead lookup requires the
+logical queue index to still name the current song, including during queue
+transitions.
 Range activity, native buffer events and the existing position ticks recalculate
 this priority without another timer. Pause, song
 change, queue replacement, Stop, disposal and player retirement release it;
