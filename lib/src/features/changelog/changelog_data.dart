@@ -207,6 +207,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'With crossfade on, songs after the first crossfade are no longer '
+        'requested twice from the server when you skip or jump to them, and '
+        'they are cached again for later plays',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Jumping to a song that has to be fetched first (Deezer) now shows '
         'it as loading and silences the previous song instead of playing it '
         'under the new title',

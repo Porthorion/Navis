@@ -878,13 +878,14 @@ extension _NavisCrossfade on NavisAudioHandler {
     final resolvedInitialIndex = (initialIndex ?? _player.currentIndex ?? 0)
         .clamp(0, math.max(0, prepared.length - 1))
         .toInt();
+    // Read after the long resolve, so it reflects what the active deck holds
+    // now. A parked deck that is rebuilt here drops its own writers: they
+    // keep serving the active deck's followers (one range-fetch cancel at
+    // most, see docs/architecture.md), so this only happens after a failed
+    // mirror.
+    final writers = _heldLockCacheWriters();
     final inactiveSources = prepared
-        .map(
-          (entry) => _withReplayGain(
-            entry.source.asClonedAudioSource(tag: entry.mediaItem),
-            entry.mediaItem,
-          ),
-        )
+        .map((entry) => _inactiveDeckSource(entry, writers))
         .toList(growable: false);
     try {
       await player.setAudioSources(
@@ -921,6 +922,25 @@ extension _NavisCrossfade on NavisAudioHandler {
     }
     await _setVolumeIfChanged(player, 0);
     await player.pause();
+  }
+
+  /// How many rows of [deck] are lock-cache writers, followers of one and
+  /// plain sources (diagnostics: after a swap the playing deck must hold
+  /// followers or writers, not clones).
+  Map<String, int> _deckSourceCounts(AudioPlayer deck) {
+    var writer = 0, follower = 0, clone = 0;
+    for (final source in deck.sequence) {
+      switch (source) {
+        // ignore: experimental_member_use, reason: as above.
+        case LockCachingAudioSource():
+          writer++;
+        case LockCacheFollowerSource():
+          follower++;
+        default:
+          clone++;
+      }
+    }
+    return {'writer': writer, 'follower': follower, 'clone': clone};
   }
 
   void _emitCrossfadeMetric({

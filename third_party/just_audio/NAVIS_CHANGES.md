@@ -471,3 +471,13 @@ current event's and whose `updateTime` is older keeps the current `updateTime`
 frozen position locally; an event in flight from before that carried the
 load-time stamp, and the position then extrapolated by the whole buffering
 time until the next native event snapped it back (I32d, #152).
+
+Lock-cache followers on the other crossfade deck (#653). `LockCachingAudioSource`
+remembers the user agent of the player it was last attached to
+(`_attachedUserAgent`, set in `_onAttach`), so its fetches keep it after that
+player is disposed. `retainDownloadForFollowers` (default false) is set by Navis
+on a writer whose `LockCacheFollowerSource` plays on the other deck. While it is
+true, player disposal and removal from a playlist skip the range-fetch cancel and,
+for an Ogg-splice writer, the `cancelDownload()` that disposal otherwise issues.
+Navis then cancels such a download itself: handler dispose and the keep-window
+cancel stop registered downloads by song id.

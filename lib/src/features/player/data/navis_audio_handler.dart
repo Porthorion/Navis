@@ -2926,6 +2926,10 @@ class NavisAudioHandler extends BaseAudioHandler
         'inactiveDeckMatchesQueue': inactiveDeck == null
             ? null
             : _sequenceMatchesQueue(inactiveDeck),
+        'activeDeckSources': _deckSourceCounts(_player),
+        'inactiveDeckSources': inactiveDeck == null
+            ? null
+            : _deckSourceCounts(inactiveDeck),
         'phases': Map<String, int>.of(_crossfadePhaseCounts),
       },
       'shuffleEnabled': _shuffleEnabled,

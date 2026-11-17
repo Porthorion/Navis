@@ -5805,7 +5805,18 @@ request, from the writer or a repeat, downloads it again through the same writer
 re-registers itself through `onDownloadStart`; a new occurrence takes its leader from the
 registry or else the writer the player holds for that cache path, `_heldLockCacheWriters`,
 so it never becomes a second writer; a request that arrives while a download is finishing
-is answered from the completed file) and the
+is answered from the completed file; the cross-fade deck follows the same rule:
+a cache file has one writer across both decks and the registry, a writer stays on the
+deck that built it and the inactive deck never receives one, so `_inactiveDeckSource`,
+used by `_loadInactiveDeck` and the mirrored inserts, gives the parked deck a
+`LockCacheFollowerSource` of the writer the active deck holds for the same song, else a
+plain clone. After a swap the playing deck therefore reads the other deck's writer through
+followers: navigation warms, the next-song warm, the range priority and the keep window
+still act on the one download, and decks alternate without a reload. The vendored
+`retainDownloadForFollowers` flag, set when such a follower is built, keeps the
+whole-file download and range fetches of a writer whose deck is disposed or reloaded
+while its followers play, and the diagnostics `crossfade` section counts the writers,
+followers and clones of each deck) and the
 registry holds the source the player holds as soon as the native call returns, before any
 cross-fade deck mirror (`_releaseTail`, `_applyMaterialisedInsert`, `_fillQueueBatch`; known limit: if the writer's native insert fails in the one-by-one fallback while its
 repeat is inserted, the repeat downloads through an unobserved writer (needs a batch
@@ -6103,8 +6114,12 @@ far ahead as its buffer budget (180 s, 32 MB) reaches, so short songs put a
 fetch it started three items ahead, and dropping it would ask the origin again.
 While a range fetch plays, all of those downloads pause, not only the current
 and next. Disposal cancels every registered unfinished download. Known
-remaining duplicate origin requests for a slow remote song: the crossfade
-incoming deck clones a lock-cached song as a direct origin source, recovery
+remaining duplicate origin requests for a slow remote song: the local-only
+(cellular) cross-fade deck still clones remote neighbours (#672), a queue
+replace, a rebuild of an out-of-sync parked deck, the local-only prewarm and the
+mirrored remove of a row cancel a beyond-cache range fetch of the other deck's
+writer once (the retain flag covers disposal and playlist removal, not these
+rebuilds), recovery
 rebuilds as a direct stream when the 12 s stall watchdog fires during a slow
 first answer, a dead song is retried by the player every few seconds, a warm
 that ends in `error` still seeks, and a range fetch beyond the cache carries the
