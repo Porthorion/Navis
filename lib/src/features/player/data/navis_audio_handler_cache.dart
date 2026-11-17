@@ -43,7 +43,8 @@ extension _NavisCache on NavisAudioHandler {
   }
 
   /// Starts the prefetch of the next cold remote song (a first-byte warm, so
-  /// the origin has fetched it before anything plays it) when none is in
+  /// the origin has fetched it before anything plays it; a song with a
+  /// lock-cache source on Android is fetched by that source instead) when none is in
   /// flight, the gates are open and the song was not tried yet. A started
   /// prefetch is never cancelled: the server keeps fetching after a
   /// disconnect and does not de-duplicate, so only [disposeHandler] closes it.
@@ -66,6 +67,10 @@ extension _NavisCache on NavisAudioHandler {
       target = index != null && index + 1 < ids.length ? ids[index + 1] : null;
     }
     if (target == null || _remotePrefetched.contains(target)) return;
+    // Android: the next song's own lock-cache fetch is the prefetch (started
+    // by `_startLockCacheWarm`, joined by the player's load and by navigation),
+    // so the server is asked once. A separate request would be a second fetch.
+    if (!_isDesktopRuntime && _lockCacheSourceOfSong(target) != null) return;
     final uri = _coldRemoteUriAt(
       _queueItems.indexWhere((item) => item.id == target),
       target,
@@ -116,17 +121,34 @@ extension _NavisCache on NavisAudioHandler {
     _remoteSettling.clear();
   }
 
-  /// Stops lock-cache downloads of songs other than the current and next
-  /// ones. Such a download otherwise runs to completion after the player has
+  /// The songs whose lock-cache downloads are not stale: the next song and
+  /// the two after it. The player prepares up to three items ahead (short
+  /// songs fit its buffer), and a fetch it started for one of them must not be
+  /// dropped at a track change: its retry would make the origin fetch again.
+  Set<String> _lockCacheAheadSongIds(String? currentSongId) {
+    final ids = _logicalQueueIds;
+    final index = _logicalCurrentIndex;
+    return <String>{
+      ?_rollingCacheNextSongId(currentSongId),
+      if (index != null &&
+          index >= 0 &&
+          index < ids.length &&
+          ids[index] == currentSongId)
+        ...ids.skip(index + 1).take(3),
+    };
+  }
+
+  /// Stops lock-cache downloads of songs other than the current and the next
+  /// few ones. Such a download otherwise runs to completion after the player has
   /// moved on and, on a slow link, starves the song now playing (its first
   /// load timed out behind a skipped song's download). The partial file is
   /// discarded; the song downloads again if it is played again.
   void _cancelStaleLockCacheDownloads(String? currentSongId) {
     if (_lockCacheSources.isEmpty) return;
-    final next = _rollingCacheNextSongId(currentSongId);
+    final keep = _lockCacheAheadSongIds(currentSongId);
     for (final entry in _lockCacheSources.entries.toList()) {
       final songId = entry.value.songId;
-      if (songId == currentSongId || songId == next) continue;
+      if (songId == currentSongId || keep.contains(songId)) continue;
       final activity = _rollingCacheActivities[entry.key];
       if (activity == null || (activity.progress ?? 0) >= 0.999) continue;
       unawaited(entry.value.source.cancelDownload());

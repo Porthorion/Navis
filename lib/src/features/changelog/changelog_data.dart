@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Slow songs from remote catalogues (Deezer) are no longer requested '
+        'twice from the server on Android, and they get up to a minute to '
+        'start',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Jumping to a song that has to be fetched first (Deezer) now shows '
         'it as loading and silences the previous song instead of playing it '
         'under the new title',

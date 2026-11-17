@@ -1885,25 +1885,38 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
       return prefetch.done ? prefetch.outcome! : 'superseded';
     }
+    // Android: the song's own lock-cache source fetches it (one request that
+    // is also the full download). `prefetch()` joins a fetch in flight, starts
+    // one otherwise, resolves at the response headers and is a no-op for a
+    // finished file. A superseded wait leaves the fetch running: the server
+    // keeps fetching anyway, and the player later joins it.
+    final lockCache = _isDesktopRuntime || trigger == 'prefetch'
+        ? null
+        : _lockCacheSourceOfSong(songId);
     _transportTrace.record(
       'remoteWarm',
       () => <String, Object?>{
-        'phase': 'start',
+        'phase': lockCache?.isDownloading == true ? 'join' : 'start',
         'songId': songId,
         'trigger': trigger,
+        if (lockCache != null) 'startedBy': 'lockCache',
       },
     );
-    client ??= HttpClient();
-    client.connectionTimeout = _timeouts.remoteLoad;
+    if (lockCache == null) {
+      client ??= HttpClient();
+      client.connectionTimeout = _timeouts.remoteLoad;
+    }
     int? status;
     Object? failure;
-    final answered = () async {
-      final request = await client!.getUrl(uri);
-      request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1');
-      final response = await request.close();
-      status = response.statusCode;
-      await response.firstWhere((chunk) => chunk.isNotEmpty);
-    }();
+    final answered = lockCache != null
+        ? lockCache.prefetch()
+        : () async {
+            final request = await client!.getUrl(uri);
+            request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1');
+            final response = await request.close();
+            status = response.statusCode;
+            await response.firstWhere((chunk) => chunk.isNotEmpty);
+          }();
     var done = false;
     unawaited(
       answered.then<void>(
@@ -1918,7 +1931,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     while (!done && stillWanted() && elapsed.elapsed < _timeouts.remoteLoad) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
-    client.close(force: true);
+    client?.close(force: true);
     final outcome = done
         ? (failure != null || (status ?? 0) >= 400 ? 'error' : 'answered')
         : !stillWanted()

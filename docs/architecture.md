@@ -4897,7 +4897,11 @@ denied activation cannot release a newer Play's focus. Permanent focus loss
 still permits a later explicit Play.
 
 Lock-cache origin and range fetches have cancellable 15-second connection and
-header deadlines and a 30-second body-progress deadline. Failed partial files
+header deadlines and a 30-second body-progress deadline; the header deadline of
+a remote catalogue (external) song is 60 seconds
+(`PlaybackSourceResolver.remoteHeaderTimeout`), because such a server sends no
+headers until it holds the whole file and a shorter deadline would drop the one
+fetch while the player's 8-second retries start another. Failed partial files
 are discarded and requests may restart. An origin disconnect or body-progress
 timeout fails streams served from the main lock-cache body; independent origin
 ranges keep streaming. Each beyond-cache range has one consumer and owns its
@@ -6059,14 +6063,19 @@ Smart repeat-one continues to skip crossfading. Desktop and iOS are unchanged.
 Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
 fill failures never reload or clear the active start item. Loading an uncached
-remote (external) song has `NavisPlaybackTimeouts.remoteLoad` (45 s) rather
+remote (external) song has `NavisPlaybackTimeouts.remoteLoad` (60 s) rather
 than the 12 s load deadline: the server fetches the whole file before it sends
 the first byte, which on a first play routinely took longer, and the abandoned
 load left the song idle even after its sidecar download finished. Before the
-player opens such a song, the handler warms the stream with a two-byte request
-and waits (cancelled by any newer command) until the first response bytes
-arrive. It then cancels the probe body even when the server ignores Range,
-rather than downloading the whole song before playback. This is needed because
+player opens such a song, the handler warms the stream and waits (cancelled by
+any newer command) until the server answers. On desktop and for a direct-stream
+source that is a two-byte request whose body is cancelled even when the server
+ignores Range, rather than downloading the whole song before playback. On
+Android a song with a registered lock-cache source is warmed by that source's
+own `prefetch()`: the one whole-file origin fetch (it joins a fetch in flight,
+resolves at the response headers, is a no-op for a finished file), so the origin
+is asked once, not once to warm and again for the load. A superseded wait leaves
+that fetch running. This is needed because
 the players give up on a silent connection long before the server has the file
 (ExoPlayer after 8 s, also through the lock-cache proxy) and the server answers
 at once afterwards. Manual Next, Previous and queue taps use the same
@@ -6079,12 +6088,14 @@ The requested `loadingSongId` remains visible through that recovery.
 On Android a lock-cache download otherwise ran to completion after the player
 had moved on; on a slow link a skipped song's download starved the new song,
 whose first load then timed out. When the current song changes, downloads of
-songs other than the current and next ones are cancelled
+songs other than the current and the next three are cancelled
 (`LockCachingAudioSource.cancelDownload`, a Navis addition to the vendored
 just_audio) and their partial files discarded; a request for the same song
 arriving meanwhile waits for the cancelled fetch to unwind and starts a fresh
-download instead of failing with it. Desktop already keeps a single sidecar
-download.
+download instead of failing with it. The next song and the two after it keep
+their downloads (`_lockCacheAheadSongIds`), because the player prepares up to
+three items ahead and a fetch it started there would otherwise be dropped and
+asked for again. Desktop already keeps a single sidecar download.
 
 While an Android lock-cached song has a live origin range, playback is requested
 and the native forward buffer is under 30 seconds, the current and next songs'

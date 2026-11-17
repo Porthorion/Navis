@@ -17,6 +17,7 @@ import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
@@ -174,6 +175,7 @@ class PlaybackSourceResolver {
     bool Function()? readUsesSidecarRollingCache,
     bool Function()? readSupportsTranscodeOffset,
     this.transportTrace,
+    this.remoteHeaderTimeout = const Duration(seconds: 60),
   }) : _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
        _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
        _readCanStream = readCanStream ?? _readTrue,
@@ -197,6 +199,13 @@ class PlaybackSourceResolver {
   /// The diagnostics trace the audio handler adopts, so a source built here
   /// can report into it (the Ogg cut splice).
   final PlaybackTransportTrace? transportTrace;
+
+  /// How long a remote catalogue song's lock-cache fetch waits for the origin's
+  /// response headers (Octo-Fiesta sends none until it holds the whole file).
+  /// The player retries a silent request every few seconds; a fetch that
+  /// outlasts the origin keeps those retries joined to one request. Equals
+  /// `NavisPlaybackTimeouts.remoteLoad`.
+  final Duration remoteHeaderTimeout;
   final bool Function() _readCachedPlaybackFirst;
   final bool Function() _readPreferAnyCache;
   final bool Function() _readCanStream;
@@ -462,6 +471,9 @@ class PlaybackSourceResolver {
       final lockCachingSource = LockCachingAudioSource(
         streamUri,
         cacheFile: cacheFile,
+        headerTimeout: song.isExternal || isExternalCatalogSource(id: song.id)
+            ? remoteHeaderTimeout
+            : const Duration(seconds: 15),
         continuationUri: splicesCut
             ? (seconds) => _buildStreamUri(
                 api: api,

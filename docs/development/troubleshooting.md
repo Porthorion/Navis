@@ -232,6 +232,11 @@ Use this quick matrix to classify failures:
   own request. The prefetch is never cancelled (the server keeps fetching and
   does not de-duplicate); the next song's full download waits for it and for
   `remoteSettleDelay` (20 s) after it answered.
+  On Android a next song with a lock-cache source has no separate prefetch: its
+  own source fetch (60 s header deadline) is the one origin request, and a
+  navigation records `startedBy: lockCache`. Two origin fetches for one song
+  there mean a direct-stream source, a queue edit or skip that cancelled the
+  fetch, or a transition before the origin answered.
 3. Android DSP initialization failure:
 - Symptoms: `Cannot initialize effect engine ... Equalizer ... Error: -3`.
 - Expected:

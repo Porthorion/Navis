@@ -32,6 +32,10 @@ void main() {
   late ControllableAudioPlayer player;
   late PlaybackTransportTrace trace;
   final requests = <String>[];
+
+  /// Origin requests that are not the Range 0-1 warm: the lock-cache
+  /// source's own whole-file fetch.
+  final fetches = <String>[];
   final gates = <String, Completer<void>>{};
   final silent = <String>{};
   final failing = <String>{};
@@ -60,6 +64,7 @@ void main() {
     final previousHttp = HttpOverrides.current;
     HttpOverrides.global = null;
     requests.clear();
+    fetches.clear();
     gates.clear();
     silent.clear();
     failing
@@ -74,7 +79,11 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       final id = request.uri.queryParameters['id'] ?? '';
-      if (request.headers.value('range') == 'bytes=0-1') requests.add(id);
+      if (request.headers.value('range') == 'bytes=0-1') {
+        requests.add(id);
+      } else {
+        fetches.add(id);
+      }
       if (gates.containsKey(id) && !gates[id]!.isCompleted) {
         // A held request is answered on the raw socket, so a client that
         // hangs up while it waits is seen at once.
@@ -887,29 +896,138 @@ void main() {
       },
     );
 
-    test('Android: the next-song lock-cache warm starts only after the '
-        'prefetch answered and the settle delay', () async {
-      final previous = remoteSettleDelay;
-      remoteSettleDelay = const Duration(seconds: 1);
-      addTearDown(() => remoteSettleDelay = previous);
+    int fetched(String id) => fetches.where((r) => r == id).length;
+
+    /// Android with a local current song, so the next cold remote song's own
+    /// lock-cache source is the only thing that asks the origin for it.
+    Future<void> setUpAndroid({
+      bool prefetch = true,
+      Set<String> gated = const {'song-1'},
+    }) => setUpHandler(
+      prefetch: prefetch,
+      desktop: false,
+      gated: gated,
+      localIds: {'song-0'},
+      cacheSongs: true,
+      uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
+    );
+
+    test('Android: the next cold song is fetched once, by its own lock-cache '
+        'source, with no Range 0-1 warm (#653)', () async {
+      await setUpAndroid();
+      await until(() => fetched('song-1') == 1, reason: 'lock-cache fetch');
+      expect(handler.debugLockCacheWarmSongId, 'song-1');
+      expect(handler.debugRemoteFullDownloadHeld('song-1'), isFalse);
+      await quiet();
+      expect(count('song-1'), 0, reason: 'no separate warm request');
+      expect(fetched('song-1'), 1);
+      expect(
+        records('remoteWarm').where((e) => e['songId'] == 'song-1'),
+        isEmpty,
+      );
+      gates['song-1']!.complete();
+      await quiet();
+      expect(fetched('song-1'), 1);
+    });
+
+    test('Android: Next onto a song whose fetch is in flight joins it: one '
+        'fetch, silent until the origin answers (#653)', () async {
+      await setUpAndroid();
+      await until(() => fetched('song-1') == 1, reason: 'lock-cache fetch');
+      final navigation = handler.playFromIndex(1);
+      await quiet();
+      expect(handler.snapshot.isLoading, isTrue);
+      expect(player.volume, 0);
+      gates['song-1']!.complete();
+      await navigation;
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.volume, 1.0);
+      expect(fetched('song-1'), 1);
+      expect(count('song-1'), 0);
+      final join = records('remoteWarm')
+          .singleWhere((e) => e['phase'] == 'join');
+      expect(join['trigger'], 'navigate');
+      expect(join['startedBy'], 'lockCache');
+      expect(warmEnd('song-1')['outcome'], 'answered');
+    });
+
+    test('Android: Next onto a cold song nobody fetched starts the source '
+        'fetch, not a two-byte warm (#653)', () async {
+      await setUpAndroid(prefetch: false);
+      await quiet();
+      expect(fetched('song-1'), 0);
+      final navigation = handler.playFromIndex(1);
+      await until(() => fetched('song-1') == 1, reason: 'lock-cache fetch');
+      await pumpEventQueue();
+      expect(handler.snapshot.isLoading, isTrue);
+      expect(player.volume, 0);
+      gates['song-1']!.complete();
+      await navigation;
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.volume, 1.0);
+      expect(fetched('song-1'), 1);
+      expect(count('song-1'), 0);
+      final start = records('remoteWarm')
+          .singleWhere((e) => e['phase'] == 'start');
+      expect(start['startedBy'], 'lockCache');
+    });
+
+    test('Android: a navigation superseded while waiting leaves the source '
+        'fetch running (#653)', () async {
+      await setUpAndroid(prefetch: false);
+      final first = handler.playFromIndex(1);
+      await until(() => fetched('song-1') == 1, reason: 'lock-cache fetch');
+      await quiet();
+      // Back to the current song: song-1 stays its next song.
+      await handler.playFromIndex(0);
+      await first;
+      await settleQueue(handler);
+      expect(warmEnd('song-1')['outcome'], 'superseded');
+      expect(closed, isNot(contains('song-1')));
+      expect(fetched('song-1'), 1);
+      expect(count('song-1'), 0);
+    });
+
+    test('Android: a fetch the player started two songs ahead survives a '
+        'track change (#653)', () async {
+      await setUpAndroid(prefetch: false, gated: {'song-3'});
+      // The player's own preload of a song further ahead than the next one.
+      unawaited(
+        handler
+            .debugRegisteredLockCacheSource('song-3')!
+            .prefetch()
+            .catchError((Object _) {}),
+      );
+      await until(() => fetched('song-3') == 1, reason: 'player fetch');
+      gates['song-1'] = Completer<void>()..complete();
+      await handler.playFromIndex(1);
+      await settleQueue(handler);
+      await quiet();
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(closed, isNot(contains('song-3')));
+      expect(fetched('song-3'), 1);
+    });
+
+    test('Android: a source whose fetch outlasts the wait times out without '
+        'a second request (#653)', () async {
       await setUpHandler(
-        prefetch: true,
+        prefetch: false,
         desktop: false,
         gated: {'song-1'},
         localIds: {'song-0'},
         cacheSongs: true,
         uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
+        timeouts: const NavisPlaybackTimeouts(
+          remoteLoad: Duration(milliseconds: 300),
+        ),
       );
-      await until(() => count('song-1') == 1, reason: 'prefetch request');
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      expect(handler.debugLockCacheWarmSongId, isNull);
-      gates['song-1']!.complete();
-      await prefetchAnswered('song-1');
-      expect(handler.debugLockCacheWarmSongId, isNull);
-      await until(
-        () => handler.debugLockCacheWarmSongId == 'song-1',
-        reason: 'warm after the settle delay',
-      );
+      await handler.playFromIndex(1);
+      await settleQueue(handler);
+      expect(warmEnd('song-1')['outcome'], 'timeout');
+      expect(fetched('song-1'), 1);
+      expect(count('song-1'), 0);
     });
 
     test('an errored prefetch does not wait the settle delay', () async {
