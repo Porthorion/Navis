@@ -51,11 +51,12 @@ AUDIO_SINK="navis_boost_$$"
 
 FIXTURE_PID=0
 cleanup() {
+  local rc=$?  # the run's own exit status; the guard below never masks a failure
   if (( FIXTURE_PID > 0 )); then kill "$FIXTURE_PID" >/dev/null 2>&1 || true; fi
   cleanup_audio_app
   if (( KWIN_PID > 0 )); then kill "$KWIN_PID" >/dev/null 2>&1 || true; wait "$KWIN_PID" 2>/dev/null || true; fi
   stop_private_bus
-  if (( KWIN_PID > 0 )) && ! kglobalaccel_guard "$GUARD_SINCE"; then exit 70; fi
+  if (( KWIN_PID > 0 )) && ! kglobalaccel_guard "$GUARD_SINCE" && (( rc == 0 )); then exit 70; fi
 }
 trap cleanup EXIT INT TERM
 

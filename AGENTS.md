@@ -147,11 +147,14 @@ A nested compositor (headless `kwin_wayland`) and the app under test run
 together on one private D-Bus session bus (`dbus-daemon --session`); never start
 a bare `kwin_wayland` or point one at the real `DBUS_SESSION_BUS_ADDRESS`. A
 nested KWin that exits on the real bus switches off the real KWin's global
-shortcuts until logout. Start any session service the test needs (Secret
-Service, portals, notifications) inside that bus, never fall back to the real
-session. `tool/playback_harness.py` and `tool/replaygain_boost_diagnostics.sh`
-abort with an infrastructure error if `journalctl --user` shows `Failed to
-register service org.kde.kglobalaccel` during the run.
+shortcuts until logout. The private daemon starts with a scrubbed environment
+(no real bus address, throwaway HOME and XDG dirs) and a config without the
+standard service directories, so no service is ever activated from the real
+session; start any session service the test needs (Secret Service, portals,
+notifications) by hand inside that bus and never fall back to the real one.
+`tool/playback_harness.py` and `tool/replaygain_boost_diagnostics.sh` abort with
+an infrastructure error if `journalctl --user` shows `Failed to register service
+org.kde.kglobalaccel` after start-up or at teardown (also when the run failed).
 
 Android runtime evidence can use a temporary emulator that you create, use
 and delete yourself; see "Temporary Android emulators" in

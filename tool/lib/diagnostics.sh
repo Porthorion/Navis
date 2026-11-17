@@ -52,31 +52,40 @@ api() {
 # as DBUS_SESSION_BUS_ADDRESS (sets PRIVATE_BUS_PID, PRIVATE_BUS_DIR and
 # PRIVATE_KEYRING_PID). A nested compositor and the app under test must share it:
 # a nested kwin_wayland on the user's real session bus switches off the real
-# KWin's global shortcuts until logout. The app reads its password through the
-# Secret Service when no credential file is given; without one on the bus every
-# read blocks ~25 s, so a throwaway unlocked gnome-keyring (own runtime and data
-# dirs, never the user's keyring) provides it, when installed.
+# KWin's global shortcuts until logout. The daemon starts with a scrubbed
+# environment (no session bus address; HOME and the XDG dirs in a throwaway
+# directory) and a config without the standard service directories, so no
+# service can ever be activated with a path to the real bus or keyring. The app
+# reads its password through the Secret Service when no credential file is given;
+# without one on the bus every read blocks ~25 s, so a throwaway unlocked
+# gnome-keyring (own dirs, never the user's keyring) provides it. Returns non-zero
+# when the bus or (if gnome-keyring-daemon is installed) the keyring cannot start.
 start_private_bus() {
-  local started
-  started="$(dbus-daemon --session --fork --print-address=1 --print-pid=1)" || return 1
+  local started dir conf
+  conf="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/private-session-bus.conf"
+  dir="$(mktemp -d)" || { echo "start_private_bus: mktemp failed" >&2; return 1; }
+  PRIVATE_BUS_DIR="$dir"
+  mkdir -m 700 "$dir/run" "$dir/data" "$dir/home" || { echo "start_private_bus: cannot create $dir/{run,data,home}" >&2; return 1; }
+  started="$(env -i PATH="$PATH" HOME="$dir/home" XDG_RUNTIME_DIR="$dir/run" XDG_DATA_HOME="$dir/data" XDG_CONFIG_HOME="$dir/home" \
+    dbus-daemon --config-file="$conf" --fork --print-address=1 --print-pid=1)" || { echo "start_private_bus: dbus-daemon failed" >&2; return 1; }
   DBUS_SESSION_BUS_ADDRESS="$(sed -n 1p <<<"$started")"
   PRIVATE_BUS_PID="$(sed -n 2p <<<"$started")"
-  [[ -n "$DBUS_SESSION_BUS_ADDRESS" && -n "$PRIVATE_BUS_PID" ]] || return 1
+  [[ -n "$DBUS_SESSION_BUS_ADDRESS" && -n "$PRIVATE_BUS_PID" ]] || { echo "start_private_bus: dbus-daemon printed no address or pid" >&2; return 1; }
   export DBUS_SESSION_BUS_ADDRESS
-  if command -v gnome-keyring-daemon >/dev/null 2>&1; then
-    PRIVATE_BUS_DIR="$(mktemp -d)"
-    mkdir -m 700 "$PRIVATE_BUS_DIR/run" "$PRIVATE_BUS_DIR/data"
-    env -u GNOME_KEYRING_CONTROL -u SSH_AUTH_SOCK XDG_RUNTIME_DIR="$PRIVATE_BUS_DIR/run" XDG_DATA_HOME="$PRIVATE_BUS_DIR/data" \
-      gnome-keyring-daemon --foreground --components=secrets --unlock </dev/null >"$PRIVATE_BUS_DIR/keyring.log" 2>&1 &
-    PRIVATE_KEYRING_PID=$!
-    for _ in $(seq 1 50); do
-      busctl --user list 2>/dev/null | grep -q '^org.freedesktop.secrets ' && return 0
-      sleep 0.1
-    done
-    echo "WARNING: the private Secret Service did not start; app credential reads will time out without a credential file." >&2
-  else
-    echo "WARNING: gnome-keyring-daemon not found; app credential reads will time out without a credential file." >&2
+  if ! command -v gnome-keyring-daemon >/dev/null 2>&1; then
+    echo "WARNING: gnome-keyring-daemon not found; the private bus has no Secret Service, so app credential reads time out (~25 s each) unless a credential file is given." >&2
+    return 0
   fi
+  env -u GNOME_KEYRING_CONTROL -u SSH_AUTH_SOCK HOME="$dir/home" XDG_RUNTIME_DIR="$dir/run" XDG_DATA_HOME="$dir/data" \
+    gnome-keyring-daemon --foreground --components=secrets --unlock </dev/null >"$dir/keyring.log" 2>&1 &
+  PRIVATE_KEYRING_PID=$!
+  for _ in $(seq 1 50); do
+    busctl --user list 2>/dev/null | grep -q '^org.freedesktop.secrets ' && return 0
+    sleep 0.1
+  done
+  echo "start_private_bus: the private Secret Service did not start:" >&2
+  tail -5 "$dir/keyring.log" >&2 || true
+  return 1
 }
 
 # stop_private_bus; stops what start_private_bus started (safe when nothing ran).

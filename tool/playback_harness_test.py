@@ -970,11 +970,65 @@ class DisplayPrivateBus(unittest.TestCase):
             with display as env:
                 pass
         bus, kwin = launched
-        self.assertEqual(bus[0][:3], ['dbus-daemon', '--session', '--nofork'])
+        self.assertEqual(bus[0][0], 'dbus-daemon')
+        self.assertIn('--nofork', bus[0])
         self.assertEqual(kwin[0][0], 'kwin_wayland')  # never wrapped in dbus-run-session or bare on the real bus
         self.assertEqual(kwin[1]['env']['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/tmp/private-bus')
         self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/tmp/private-bus')
         self.assertIn('--no-global-shortcuts', kwin[0])
+
+    def test_bus_daemon_env_is_scrubbed(self):
+        display, launched, patches = self.display()
+        with patches[0], patches[1], patches[2]:
+            with display:
+                scratch = display.scratch
+                self.assertTrue(scratch.is_dir())
+        env = launched[0][1]['env']
+        self.assertNotIn('DBUS_SESSION_BUS_ADDRESS', env)
+        self.assertEqual(env['HOME'], str(scratch / 'home'))
+        self.assertEqual(env['XDG_RUNTIME_DIR'], str(scratch / 'run'))
+        self.assertEqual(env['XDG_DATA_HOME'], str(scratch / 'data'))
+        self.assertNotEqual(env['XDG_RUNTIME_DIR'], os.environ.get('XDG_RUNTIME_DIR'))
+        self.assertFalse(scratch.exists())  # removed at teardown
+        config = h.PRIVATE_BUS_CONFIG.read_text()
+        self.assertIn(f'--config-file={h.PRIVATE_BUS_CONFIG}', launched[0][0])
+        self.assertNotIn('<standard_session_servicedirs', config.replace('<!--', '').split('-->')[-1])  # nothing is activated from user files
+
+    def test_failed_acquire_stops_the_bus_and_removes_scratch(self):
+        display, launched, patches = self.display()
+        bus = Mock(stdout=io.StringIO(''), poll=Mock(return_value=None))  # dbus-daemon that never prints an address
+        stopped = []
+        with patches[0], patches[2], patch.object(h.subprocess, 'Popen', return_value=bus), patch.object(h, 'stop_group', side_effect=stopped.append):
+            with self.assertRaisesRegex(h.InfraError, 'printed no address'):
+                display.__enter__()
+        self.assertEqual(stopped, [None, bus])  # no compositor yet, the bus is stopped
+        self.assertFalse(display.scratch.exists())
+
+    def test_teardown_guard_runs_after_an_exception_without_masking_it(self):
+        display, _, patches = self.display()
+        with patches[0], patches[1], patches[2], contextlib.redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(ValueError):
+                with patch.object(h, 'check_kglobalaccel') as guard:
+                    with display:
+                        raise ValueError('scenario failed')
+        self.assertEqual(guard.call_count, 2)  # start-up and teardown, the latter on the error path
+        self.assertNotIn('teardown guard also failed', err.getvalue())
+
+    def test_teardown_guard_failure_after_an_exception_is_logged_not_raised(self):
+        display, _, patches = self.display()
+        with patches[0], patches[1], patches[2], contextlib.redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(ValueError):
+                with patch.object(h, 'check_kglobalaccel', side_effect=[None, h.InfraError('real session bus')]):
+                    with display:
+                        raise ValueError('scenario failed')
+        self.assertIn('real session bus', err.getvalue())
+
+    def test_teardown_guard_failure_alone_is_an_infra_error(self):
+        display, _, patches = self.display()
+        with patches[0], patches[1], patches[2], patch.object(h, 'check_kglobalaccel', side_effect=[None, h.InfraError('real session bus')]):
+            with self.assertRaisesRegex(h.InfraError, 'real session bus'):
+                with display:
+                    pass
 
     def test_kglobalaccel_failure_is_an_infra_error(self):
         display, _, patches = self.display('kglobalacceld: Failed to register service org.kde.kglobalaccel\n')

@@ -28,6 +28,7 @@ import socket
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
 from contextlib import ExitStack
 from datetime import datetime, timezone
@@ -744,6 +745,7 @@ def fix_build(platform: str, out: Path) -> Path:
     return folder
 
 
+PRIVATE_BUS_CONFIG = PROJECT / 'tool' / 'lib' / 'private-session-bus.conf'
 KGLOBALACCEL_FAILURE = 'Failed to register service org.kde.kglobalaccel'
 
 
@@ -769,23 +771,31 @@ class Display:
     launched with the returned env share one private D-Bus session bus, never the user's."""
 
     def __init__(self, out: Path):
-        self.out, self.proc, self.bus = out, None, None
+        self.out, self.proc, self.bus, self.scratch = out, None, None, None
         self.socket = f'navisharness{os.getpid()}'  # unique: never adopt a session this run did not start
         self.since = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # journalctl --since, local time
 
     def __enter__(self):
         try:
             return self._acquire()
-        except BaseException:
-            self._stop()
+        except BaseException as error:
+            self.__exit__(type(error), error, error.__traceback__)
             raise
 
     def _acquire(self):
         runtime = os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
         if (Path(runtime) / self.socket).exists():
             raise InfraError(f'Wayland socket {self.socket} already exists (stale session?)')
-        self.bus = subprocess.Popen(['dbus-daemon', '--session', '--nofork', '--print-address=1'], stdout=subprocess.PIPE, text=True,
-                                    start_new_session=True, pass_fds=held_fds())
+        # The daemon passes its own environment to every service it activates, so it gets none of ours: no session bus
+        # address, and HOME and the XDG dirs in a throwaway directory (the real runtime dir holds the real bus socket).
+        self.scratch = Path(tempfile.mkdtemp(prefix='navis-bus-'))
+        for name in ('run', 'data', 'home'):
+            (self.scratch / name).mkdir(mode=0o700)
+        bus_env = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'HOME': str(self.scratch / 'home'),
+                   'XDG_RUNTIME_DIR': str(self.scratch / 'run'), 'XDG_DATA_HOME': str(self.scratch / 'data'),
+                   'XDG_CONFIG_HOME': str(self.scratch / 'home')}
+        self.bus = subprocess.Popen(['dbus-daemon', f'--config-file={PRIVATE_BUS_CONFIG}', '--nofork', '--print-address=1'],
+                                    env=bus_env, stdout=subprocess.PIPE, text=True, start_new_session=True, pass_fds=held_fds())
         address = self.bus.stdout.readline().strip()
         if not address:
             raise InfraError('private dbus-daemon printed no address')
@@ -806,16 +816,21 @@ class Display:
         check_kglobalaccel(self.since, self.out / 'kwin.log')
         return {'WAYLAND_DISPLAY': self.socket, 'GDK_BACKEND': 'wayland', 'XDG_RUNTIME_DIR': runtime, 'DBUS_SESSION_BUS_ADDRESS': address}
 
-    def _stop(self):
+    def __exit__(self, exc_type=None, *_):
         stop_group(self.proc)  # compositor first, then the bus it used
         stop_group(self.bus)
         if self.bus is not None:
             self.bus.stdout.close()
-
-    def __exit__(self, exc_type=None, *_):
-        self._stop()
-        if exc_type is None and self.proc is not None:  # never mask the error that is already propagating
+        if self.scratch is not None:
+            shutil.rmtree(self.scratch, ignore_errors=True)
+        if self.bus is None:
+            return  # nothing started, so nothing could have touched a bus
+        try:
             check_kglobalaccel(self.since, self.out / 'kwin.log')
+        except InfraError as error:
+            if exc_type is None:
+                raise
+            print(f'teardown guard also failed (the error above is kept): {error}', file=sys.stderr)  # never mask the propagating error
 
 
 def stop_group(proc, grace=10):
