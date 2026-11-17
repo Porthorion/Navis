@@ -940,8 +940,10 @@ void main() {
       bool positionStreams = false,
       bool Function()? readCrossfade,
       Set<String> gated = const {'song-1'},
+      Set<String>? hungLoadSongs,
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     }) => setUpHandler(
+      hungLoadSongs: hungLoadSongs,
       prefetch: prefetch,
       crossfade: crossfade,
       readCrossfade: readCrossfade,
@@ -1402,6 +1404,7 @@ void main() {
       expect(active, isA<LockCachingAudioSource>());
       expect(mirrored, isA<LockCacheFollowerSource>());
       expect(writerOf(mirrored), same(active));
+      expect(writerOf(active)!.retainDownloadForFollowers, isTrue);
       expectOneWriterPerSong();
       await swap();
       expect(handler.debugActivePlayer, isNot(same(first)));
@@ -1458,13 +1461,92 @@ void main() {
       expect(crossfade['activeDeckSources'], {
         'writer': 0,
         'follower': 5,
-        'clone': 1,
+        'copy': 0,
+        'other': 1,
       });
       expect(crossfade['inactiveDeckSources'], {
         'writer': 5,
         'follower': 0,
-        'clone': 1,
+        'copy': 0,
+        'other': 1,
       });
+      // Every writer that followers read is flagged.
+      for (final source in handler.debugInactiveDeck!.sequence) {
+        final writer = writerOf(source);
+        // ignore: experimental_member_use, reason: as above.
+        if (writer != null) expect(writer.retainDownloadForFollowers, isTrue);
+      }
+    });
+
+    test('Android crossfade: a plain copy of a lock-cached song is counted '
+        'as a copy, not as another source (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      final parked = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      await parked.setAudioSources([
+        for (final item in handler.queue.value)
+          AudioSource.uri(
+            Uri.parse(
+              'http://127.0.0.1:${server.port}/rest/stream?id=${item.id}',
+            ),
+            tag: item,
+          ),
+      ]);
+      expect(fade(handler)['inactiveDeckSources'], {
+        'writer': 0,
+        'follower': 0,
+        'copy': ids.length - 1,
+        'other': 1,
+      });
+    });
+
+    // ignore: experimental_member_use, reason: as above.
+    Set<LockCachingAudioSource> heldWriters() => {
+      for (final deck in [
+        handler.debugActivePlayer,
+        handler.debugInactiveDeck!,
+      ])
+        for (final source in deck.sequence)
+          if (writerOf(source) case final writer?) writer,
+    };
+
+    test('Android crossfade: timeout recovery clears the retain flag of every '
+        'writer, a follower being the retired current row (#653)', () async {
+      await setUpAndroid(
+        prefetch: false,
+        crossfade: true,
+        gated: {'song-1'},
+        hungLoadSongs: {},
+      );
+      await swap();
+      await playerFetches('song-1');
+      final active = handler.debugActivePlayer;
+      expect(
+        active.sequence[active.currentIndex!],
+        isA<LockCacheFollowerSource>(),
+      );
+      final writers = heldWriters();
+      expect(writers, isNotEmpty);
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.every((w) => w.retainDownloadForFollowers), isTrue);
+      await handler.debugRecoverPlayersFromTimeout();
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.any((w) => w.retainDownloadForFollowers), isFalse);
+      await until(() => closed.contains('song-1'), reason: 'retired download');
+      expect(handler.debugRegisteredLockCacheSource('song-1'), isNull);
+    });
+
+    test('Android crossfade: disposing the handler clears the retain flag of '
+        'every writer (#653)', () async {
+      await setUpAndroid(prefetch: false, crossfade: true, gated: {});
+      await swap();
+      final writers = heldWriters();
+      expect(writers, isNotEmpty);
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.every((w) => w.retainDownloadForFollowers), isTrue);
+      await handler.disposeHandler();
+      // ignore: experimental_member_use, reason: as above.
+      expect(writers.any((w) => w.retainDownloadForFollowers), isFalse);
     });
 
     test('Android crossfade: range priority follows a follower to its '

@@ -5815,8 +5815,15 @@ followers: navigation warms, the next-song warm, the range priority and the keep
 still act on the one download, and decks alternate without a reload. The vendored
 `retainDownloadForFollowers` flag, set when such a follower is built, keeps the
 whole-file download and range fetches of a writer whose deck is disposed or reloaded
-while its followers play, and the diagnostics `crossfade` section counts the writers,
-followers and clones of each deck) and the
+while its followers play (timeout recovery and handler disposal clear it on every writer
+first, so their disposal cancels a download that restarted since; `_clearFollowerRetention`),
+and the diagnostics `crossfade` section counts the `writer`, `follower`, `copy` (a plain
+source of a lock-cached song, the pre-#653 bug state) and `other` (local files, direct
+streams) rows of each deck; a row that falls back to a clone (queue and sequence lengths
+differ, or the writer's song id is not the row's) stays a clone until a parked-deck
+rebuild, because `_sequenceMatchesQueue` compares ids only; a queue replace in the swapped
+state can leave one writer referenced by both decks, which is benign (the detach crash
+there is pre-existing, #674)) and the
 registry holds the source the player holds as soon as the native call returns, before any
 cross-fade deck mirror (`_releaseTail`, `_applyMaterialisedInsert`, `_fillQueueBatch`; known limit: if the writer's native insert fails in the one-by-one fallback while its
 repeat is inserted, the repeat downloads through an unobserved writer (needs a batch
@@ -6115,11 +6122,10 @@ fetch it started three items ahead, and dropping it would ask the origin again.
 While a range fetch plays, all of those downloads pause, not only the current
 and next. Disposal cancels every registered unfinished download. Known
 remaining duplicate origin requests for a slow remote song: the local-only
-(cellular) cross-fade deck still clones remote neighbours (#672), a queue
-replace, a rebuild of an out-of-sync parked deck, the local-only prewarm and the
-mirrored remove of a row cancel a beyond-cache range fetch of the other deck's
-writer once (the retain flag covers disposal and playlist removal, not these
-rebuilds), recovery
+(cellular) cross-fade deck still clones remote neighbours (#672), a writer that was
+never flagged (its row fell back to a clone) has its range fetches cancelled once when
+the other deck removes or rebuilds it (a flagged writer is kept by
+`_cancelRemovedStreamRequests`, which honours the retain flag), recovery
 rebuilds as a direct stream when the 12 s stall watchdog fires during a slow
 first answer, a dead song is retried by the player every few seconds, a warm
 that ends in `error` still seeks, and a range fetch beyond the cache carries the

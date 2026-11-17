@@ -211,6 +211,7 @@ const List<ChangelogVersion> changelogs = [
         'requested twice from the server when you skip or jump to them, and '
         'they are cached again for later plays',
         type: ChangelogEntryType.fix,
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
       ),
       ChangelogEntry(
         'Jumping to a song that has to be fetched first (Deezer) now shows '

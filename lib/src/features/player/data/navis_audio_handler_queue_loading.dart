@@ -514,6 +514,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _anomalies.event('reload', {'via': 'players'});
     _cancelCrossfade();
     _resumeLockCacheDownloads();
+    _clearFollowerRetention();
     // Native stop may hang; cancel this retired source before the bypass reload.
     final retiredIndex = _player.currentIndex;
     final retiredSource = retiredIndex == null || retiredIndex < 0
@@ -1109,6 +1110,20 @@ extension _NavisQueueLoading on NavisAudioHandler {
           item.mediaItem,
         );
       }
+    }
+  }
+
+  /// Clears the retain flag of every writer either deck or the registry holds,
+  /// so disposing the retired players cancels a download that restarted since
+  /// (no follower outlives them): recovery and handler disposal call it first.
+  void _clearFollowerRetention() {
+    for (final deck in [_player, _crossfadePlayer]) {
+      for (final source in deck?.sequence ?? const <IndexedAudioSource>[]) {
+        _lockCacheSourceOf(source)?.retainDownloadForFollowers = false;
+      }
+    }
+    for (final entry in _lockCacheSources.values) {
+      entry.source.retainDownloadForFollowers = false;
     }
   }
 

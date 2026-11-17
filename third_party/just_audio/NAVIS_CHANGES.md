@@ -480,4 +480,6 @@ on a writer whose `LockCacheFollowerSource` plays on the other deck. While it is
 true, player disposal and removal from a playlist skip the range-fetch cancel and,
 for an Ogg-splice writer, the `cancelDownload()` that disposal otherwise issues.
 Navis then cancels such a download itself: handler dispose and the keep-window
-cancel stop registered downloads by song id.
+cancel stop registered downloads by song id. Timeout recovery and handler dispose
+clear the flag on every writer before the players are disposed, so no download
+outlives them.
