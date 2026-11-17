@@ -155,13 +155,9 @@ extension _NavisQueueEditing on NavisAudioHandler {
     required int at,
     required String operation,
   }) async {
+    final writers = _heldLockCacheWriters();
     final clones = inserted
-        .map(
-          (item) => _withReplayGain(
-            item.source.asClonedAudioSource(tag: item.mediaItem),
-            item.mediaItem,
-          ),
-        )
+        .map((item) => _inactiveDeckSource(item, writers))
         .toList(growable: false);
     try {
       await _runTimedPlayerOperation(

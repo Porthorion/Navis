@@ -878,13 +878,13 @@ extension _NavisCrossfade on NavisAudioHandler {
     final resolvedInitialIndex = (initialIndex ?? _player.currentIndex ?? 0)
         .clamp(0, math.max(0, prepared.length - 1))
         .toInt();
+    // Read after the long resolve, so it reflects what the active deck holds
+    // now. Rebuilding a parked deck that holds followers cancels nothing (the
+    // retain flag); one that holds unflagged writers (after a clone
+    // fallback) cancels their range fetches once, see docs/architecture.md.
+    final writers = _heldLockCacheWriters();
     final inactiveSources = prepared
-        .map(
-          (entry) => _withReplayGain(
-            entry.source.asClonedAudioSource(tag: entry.mediaItem),
-            entry.mediaItem,
-          ),
-        )
+        .map((entry) => _inactiveDeckSource(entry, writers))
         .toList(growable: false);
     try {
       await player.setAudioSources(
@@ -921,6 +921,37 @@ extension _NavisCrossfade on NavisAudioHandler {
     }
     await _setVolumeIfChanged(player, 0);
     await player.pause();
+  }
+
+  /// How many rows of [deck] are lock-cache writers, followers of one, plain
+  /// copies of a lock-cached song (the #653 bug state: a second origin
+  /// request, no cache) and other sources (local files, direct streams).
+  Map<String, int> _deckSourceCounts(AudioPlayer deck) {
+    var writer = 0, follower = 0, copy = 0, other = 0;
+    for (final source in deck.sequence) {
+      switch (source) {
+        // ignore: experimental_member_use, reason: as above.
+        case LockCachingAudioSource():
+          writer++;
+        case LockCacheFollowerSource():
+          follower++;
+        default:
+          final tag = source.tag;
+          if (tag is MediaItem &&
+              tag.extras?['sourceKind'] ==
+                  PlaybackSourceKind.lockCachedStream.name) {
+            copy++;
+          } else {
+            other++;
+          }
+      }
+    }
+    return {
+      'writer': writer,
+      'follower': follower,
+      'copy': copy,
+      'other': other,
+    };
   }
 
   void _emitCrossfadeMetric({
