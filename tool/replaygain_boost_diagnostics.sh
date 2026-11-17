@@ -21,7 +21,7 @@
 #
 # Synthetic songs only: Q is a -30 dBFS sine tagged +10 dB with its peak, H a
 # -1 dBFS sine tagged -3 dB. With no display, a private headless kwin_wayland
-# runs the app. Prints PASS/FAIL per assertion; exits 1 on any FAIL.
+# runs the app, both on one private D-Bus session bus (never the user's). Prints PASS/FAIL per assertion; exits 1 on any FAIL.
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -46,14 +46,17 @@ DIAGNOSTICS_FAILURE_PREFIX="replaygain boost diagnostics"
 DIAGNOSTICS_POLL_INTERVAL=1
 mkdir -p "$OUTPUT_ROOT/cache"; chmod 700 "$OUTPUT_ROOT"
 : > "$APP_LOG"
-FLUTTER_PID=0; AUDIO_MODULE=""; KWIN_PID=0
+FLUTTER_PID=0; AUDIO_MODULE=""; KWIN_PID=0; PRIVATE_BUS_PID=0; PRIVATE_KEYRING_PID=0; PRIVATE_BUS_DIR=""; GUARD_SINCE=""
 AUDIO_SINK="navis_boost_$$"
 
 FIXTURE_PID=0
 cleanup() {
+  local rc=$?  # the run's own exit status; the guard below never masks a failure
   if (( FIXTURE_PID > 0 )); then kill "$FIXTURE_PID" >/dev/null 2>&1 || true; fi
   cleanup_audio_app
-  if (( KWIN_PID > 0 )); then kill "$KWIN_PID" >/dev/null 2>&1 || true; fi
+  if (( KWIN_PID > 0 )); then kill "$KWIN_PID" >/dev/null 2>&1 || true; wait "$KWIN_PID" 2>/dev/null || true; fi
+  stop_private_bus
+  if (( KWIN_PID > 0 )) && ! kglobalaccel_guard "$GUARD_SINCE" && (( rc == 0 )); then exit 70; fi
 }
 trap cleanup EXIT INT TERM
 
@@ -63,11 +66,14 @@ for scenario in d1 d2 d4 d5 d6; do
   if [[ ",$SCENARIOS," == *,$scenario,* ]]; then NEEDS_LINUX=1; fi
 done
 if (( NEEDS_LINUX )) && [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
-  kwin_wayland --virtual --no-lockscreen --socket "navis-boost-$$" --width 1280 --height 900 \
-    >"$OUTPUT_ROOT/kwin.log" 2>&1 &
+  GUARD_SINCE="$(date '+%Y-%m-%d %H:%M:%S')"
+  start_private_bus || { echo "Could not start a private D-Bus session bus." >&2; exit 69; }
+  kwin_wayland --virtual --no-lockscreen --no-global-shortcuts --no-kactivities --inputmethod /bin/true \
+    --socket "navis-boost-$$" --width 1280 --height 900 >"$OUTPUT_ROOT/kwin.log" 2>&1 &
   KWIN_PID=$!
   export WAYLAND_DISPLAY="navis-boost-$$" GDK_BACKEND=wayland
   sleep 4
+  kglobalaccel_guard "$GUARD_SINCE" || exit 70
 fi
 # A virtual compositor cannot give Impeller's GLES backend a framebuffer.
 export NAVIS_DIAGNOSTICS_RUN_ARGS="${NAVIS_DIAGNOSTICS_RUN_ARGS:---no-enable-impeller}"
