@@ -227,6 +227,9 @@ void main() {
       devChannelBuildProvider.overrideWithValue(true),
       audioHandlerProvider.overrideWithValue(_TraceHandler()),
       playerStateProvider.overrideWithValue(const PlaybackSnapshot.idle()),
+      // The recommendation session listens to the API client, whose network
+      // usage meter opens a real database. The trace reads no API state.
+      subsonicApiProvider.overrideWithValue(null),
       serverReachabilityControllerProvider.overrideWith(OnlineReachability.new),
       serverConfigStateProvider.overrideWithValue(
         const AsyncValue.data(
