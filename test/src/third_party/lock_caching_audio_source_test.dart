@@ -1809,4 +1809,103 @@ void main() {
       await until(() => cacheFile.existsSync() && !source.isDownloading);
     },
   );
+  // #653: ExoPlayer gives up on a silent loopback request after 8 s and asks
+  // again. While the origin is still answering, those retries must join the one
+  // whole-file fetch, which only holds if its header deadline outlasts the
+  // origin (the control shows the shorter deadline dropping it).
+  for (final (headerTimeout, expectedHits) in [
+    (const Duration(seconds: 5), 1),
+    (const Duration(seconds: 1), 2),
+  ]) {
+    test('player retries during a slow origin answer make $expectedHits '
+        'origin fetch(es) with a ${headerTimeout.inSeconds} s header '
+        'deadline', () async {
+      final body = List<int>.generate(32 * 1024, (i) => i % 251);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      var hits = 0;
+      server.listen((request) async {
+        hits++;
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
+        try {
+          request.response
+            ..contentLength = body.length
+            ..add(body);
+          await request.response.close();
+        } on Object {
+          // The deadline already dropped this fetch.
+        }
+      });
+      // ignore: experimental_member_use, reason: the header deadline is the behaviour under test.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: File(p.join(directory.path, 'slow.mp3')),
+        headerTimeout: headerTimeout,
+      );
+      addTearDown(source.cancelDownload);
+      final player = AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      await player.setAudioSource(source);
+
+      // The timeout shape: connect, wait, hang up, ask again.
+      Future<void> abandonedRequest(Duration wait) async {
+        final client = HttpClient();
+        final request = await client.getUrl(native.player.proxyUri);
+        final response = request.close();
+        response.ignore();
+        await Future<void>.delayed(wait);
+        client.close(force: true);
+      }
+
+      await abandonedRequest(const Duration(milliseconds: 300));
+      await abandonedRequest(const Duration(milliseconds: 300));
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final client = HttpClient();
+      addTearDown(() => client.close(force: true));
+      final request = await client.getUrl(native.player.proxyUri);
+      final response = await request.close();
+      final received = await response.fold<int>(
+        0,
+        (total, chunk) => total + chunk.length,
+      );
+      if (expectedHits == 1) expect(received, body.length);
+      expect(hits, expectedHits);
+    });
+  }
+
+  test(
+    'prefetch resolves at the response headers, before the body ends',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final release = Completer<void>();
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      server.listen((request) async {
+        final response = request.response..bufferOutput = false;
+        try {
+          response.contentLength = 4096;
+          response.add(List<int>.filled(1024, 1));
+          await response.flush();
+          await release.future;
+          response.add(List<int>.filled(3072, 1));
+          await response.close();
+        } on Object {
+          // The test ended first.
+        }
+      });
+      // ignore: experimental_member_use, reason: asserts the answer signal the next-song warm relies on.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: File(p.join(directory.path, 'headers.mp3')),
+      );
+      addTearDown(source.cancelDownload);
+      await source.prefetch().timeout(const Duration(seconds: 2));
+      expect(source.isDownloading, isTrue, reason: 'the body is still coming');
+    },
+  );
 }

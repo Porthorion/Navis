@@ -106,7 +106,7 @@ class NavisPlaybackTimeouts {
     this.desktopSeekSettle = const Duration(seconds: 25),
     this.fastSeekGuard = const Duration(seconds: 3),
     this.progressIdle = const Duration(seconds: 8),
-    this.remoteLoad = const Duration(seconds: 45),
+    this.remoteLoad = const Duration(seconds: 60),
     this.focusRetry = const Duration(minutes: 2),
     this.radioRecovery = const Duration(minutes: 10),
     this.radioHealthyPlay = const Duration(minutes: 1),

@@ -355,6 +355,9 @@ extension _NavisNavigation on NavisAudioHandler {
               uri,
               songId: targetId,
               trigger: 'navigate',
+              lockCacheSource: _lockCacheSourceOf(
+                _player.audioSources.elementAtOrNull(index),
+              ),
               stillWanted: () =>
                   !token.isCancelled && _isActiveLoadGeneration(generation),
             );
