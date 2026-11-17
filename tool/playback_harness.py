@@ -818,8 +818,8 @@ class Display:
 
     def __exit__(self, exc_type=None, *_):
         stop_group(self.proc)  # compositor first, then the bus it used
-        stop_group(self.bus)
         if self.bus is not None:
+            stop_group(self.bus)
             self.bus.stdout.close()
         if self.scratch is not None:
             shutil.rmtree(self.scratch, ignore_errors=True)
