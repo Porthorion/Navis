@@ -5170,13 +5170,14 @@ void main() {
     rangeHandler({
       List<ControllableAudioPlayer>? rebuilt,
       TargetPlatform platform = TargetPlatform.android,
+      int songCount = 3,
     }) async {
       debugDefaultTargetPlatformOverride = platform;
       final directory = await Directory.systemTemp.createTemp(
         'navis-range-priority-',
       );
       final sources = {
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < songCount; i++)
           'song-$i': RangeCacheSource(
             'song-$i',
             File(p.join(directory.path, '$i.mp3')),
@@ -5184,7 +5185,7 @@ void main() {
       };
       final (handler, player, database) = await createHandler(
         directory,
-        3,
+        songCount,
         cacheSongs: false,
         positionStreams: true,
         rebuiltPlayers: rebuilt,
@@ -5207,9 +5208,7 @@ void main() {
       });
       player.simulateProgress = true;
       await handler.replaceQueue([
-        'song-0',
-        'song-1',
-        'song-2',
+        for (var i = 0; i < songCount; i++) 'song-$i',
       ], expandMatchFlows: false);
       await pumpEventQueue();
       return (handler, player, sources);
@@ -5226,7 +5225,7 @@ void main() {
       'range failed',
     ]) {
       test(
-        'range priority pauses current and next and resumes on $exit',
+        'range priority pauses current and the next two and resumes on $exit',
         () async {
           final (handler, player, sources) = await rangeHandler();
           sources['song-0']!.activeRange = true;
@@ -5234,7 +5233,7 @@ void main() {
           await pumpEventQueue();
           expect(sources['song-0']!.paused, isTrue);
           expect(sources['song-1']!.paused, isTrue);
-          expect(sources['song-2']!.paused, isFalse);
+          expect(sources['song-2']!.paused, isTrue);
           switch (exit) {
             case 'Pause':
               await handler.pause();
@@ -5258,9 +5257,23 @@ void main() {
           await pumpEventQueue();
           expect(sources['song-0']!.paused, isFalse);
           expect(sources['song-1']!.paused, isFalse);
+          expect(sources['song-2']!.paused, isFalse);
         },
       );
     }
+
+    test('range priority pauses the kept downloads three songs ahead and '
+        'not the ones beyond (#653)', () async {
+      final (handler, player, sources) = await rangeHandler(songCount: 5);
+      sources['song-0']!.activeRange = true;
+      player.emitBuffered(const Duration(seconds: 2));
+      await pumpEventQueue();
+      expect(handler.mediaItem.value!.id, 'song-0');
+      for (final id in ['song-0', 'song-1', 'song-2', 'song-3']) {
+        expect(sources[id]!.paused, isTrue, reason: id);
+      }
+      expect(sources['song-4']!.paused, isFalse);
+    });
 
     for (final progress in ['range', 'buffer', 'none']) {
       test(

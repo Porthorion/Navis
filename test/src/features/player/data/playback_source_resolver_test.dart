@@ -99,6 +99,32 @@ void main() {
       return file;
     }
 
+    test('a remote catalogue song gets a 60 s lock-cache header deadline, a '
+        'library song the 15 s default (#653)', () async {
+      final external = await _insertSong(
+        database,
+        id: 'ext-deezer-song-1',
+        title: 'Remote',
+      );
+      final library = await _insertSong(
+        database,
+        id: 'lib-1',
+        title: 'Library',
+      );
+      final resolver = resolverFor();
+
+      Future<Duration> headerTimeout(SongsTableData song) async {
+        final resolved = await resolver.resolveForSong(song);
+        expect(resolved.kind, PlaybackSourceKind.lockCachedStream);
+        // ignore: experimental_member_use, reason: the test reads the deadline of the resolved lock-cache source.
+        return (resolved.asAudioSource() as LockCachingAudioSource)
+            .headerTimeout;
+      }
+
+      expect(await headerTimeout(external), const Duration(seconds: 60));
+      expect(await headerTimeout(library), const Duration(seconds: 15));
+    }, skip: !lockCachingAvailable);
+
     test(
       'lossless formats follow inferred suffixes without treating m4a as ALAC',
       () {
