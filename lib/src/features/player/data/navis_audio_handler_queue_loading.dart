@@ -1415,10 +1415,17 @@ extension _NavisQueueLoading on NavisAudioHandler {
     if ((startItem.song.isExternal ||
             isExternalCatalogSource(id: startItem.song.id)) &&
         !startItem.source.isLocal) {
+      // Android: the source the player will hold fetches the song, so the
+      // origin is asked once. Registered first, so the stale-download cancel,
+      // dispose and a reload of the same song see (and reuse) that fetch. A
+      // direct stream (recovery, offset reload) warms with the two-byte
+      // request, never through a registered source it will not use.
+      _observeLockCacheForPrepared([startItem]);
       await _warmRemoteStream(
         startItem.source.uri ?? startItem.source.lockCachingStreamUri,
         songId: startItem.song.id,
         trigger: 'initial',
+        lockCacheSource: _lockCacheSourceOf(startItem.audioSource),
         stillWanted: () =>
             !token.isCancelled && _isActiveLoadGeneration(generation),
       );
@@ -1853,6 +1860,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required String songId,
     required String trigger,
     required bool Function() stillWanted,
+    // Android: the source the player holds for the song (identity, never a
+    // lookup by song id: a direct stream must not warm through another).
+    // ignore: experimental_member_use, reason: as above.
+    LockCachingAudioSource? lockCacheSource,
     HttpClient? client,
   }) async {
     if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
@@ -1892,7 +1903,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // keeps fetching anyway, and the player later joins it.
     final lockCache = _isDesktopRuntime || trigger == 'prefetch'
         ? null
-        : _lockCacheSourceOfSong(songId);
+        : lockCacheSource;
     _transportTrace.record(
       'remoteWarm',
       () => <String, Object?>{
@@ -1951,6 +1962,16 @@ extension _NavisQueueLoading on NavisAudioHandler {
     );
     return outcome;
   }
+
+  /// The lock-cache writer behind [source], a follower's leader included.
+  // ignore: experimental_member_use, reason: as above.
+  LockCachingAudioSource? _lockCacheSourceOf(AudioSource? source) =>
+      switch (source) {
+        // ignore: experimental_member_use, reason: as above.
+        final LockCachingAudioSource writer => writer,
+        LockCacheFollowerSource(:final leader) => leader,
+        _ => null,
+      };
 
   /// The origin stream URI of the song at native index [index] when it is a
   /// cold remote song: a remote catalogue song that is not a file, not

@@ -10,11 +10,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 import 'navis_audio_handler_navigation_harness.dart';
+
+/// A resolver that can be told to build direct streams only, as a recovery
+/// or offset reload does (`preferLockCaching: false`).
+class DirectOnlyResolver extends GatedSourceResolver {
+  new(super.delegate);
+  bool forceDirect = false;
+
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) => delegate.resolveForSong(
+    song,
+    preferLockCaching: preferLockCaching && !forceDirect,
+    allowStreaming: allowStreaming,
+    transcodeOffset: transcodeOffset,
+    fastSeekBridge: fastSeekBridge,
+  );
+}
 
 /// Issue #653: a cold remote song (Octo-Fiesta) answers only once the server
 /// holds the whole file. While navigation waits for that first byte the old
@@ -32,6 +56,9 @@ void main() {
   late ControllableAudioPlayer player;
   late PlaybackTransportTrace trace;
   final requests = <String>[];
+
+  /// The queue [setUpHandler] loaded, for tests that load it again.
+  var queueRows = <SongsTableData>[];
 
   /// Origin requests that are not the Range 0-1 warm: the lock-cache
   /// source's own whole-file fetch.
@@ -60,6 +87,7 @@ void main() {
     BridgeSidecar? sidecar,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
     int startIndex = 0,
+    PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
   }) async {
     final previousHttp = HttpOverrides.current;
     HttpOverrides.global = null;
@@ -147,6 +175,7 @@ void main() {
       sidecarDownloader: sidecar,
       transportTrace: trace,
       queueWindow: queueWindow,
+      wrapResolver: wrapResolver,
       timeouts: timeouts,
       crossfade: crossfade,
       replayGainInPipeline: replayGainInPipeline,
@@ -174,11 +203,12 @@ void main() {
       for (final row in await database.libraryDao.getSongsByIds(ids))
         row.id: row,
     };
+    queueRows = [
+      for (final id in ids)
+        rows[id]!.copyWith(isExternal: !localIds.contains(id)),
+    ];
     await handler.replaceQueueWithData(
-      [
-        for (final id in ids)
-          rows[id]!.copyWith(isExternal: !localIds.contains(id)),
-      ],
+      queueRows,
       startIndex: startIndex,
       expandMatchFlows: false,
     );
@@ -903,10 +933,12 @@ void main() {
     Future<void> setUpAndroid({
       bool prefetch = true,
       Set<String> gated = const {'song-1'},
+      PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     }) => setUpHandler(
       prefetch: prefetch,
       desktop: false,
       gated: gated,
+      wrapResolver: wrapResolver,
       localIds: {'song-0'},
       cacheSongs: true,
       uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
@@ -1008,6 +1040,118 @@ void main() {
       expect(handler.snapshot.currentSongId, 'song-1');
       expect(closed, isNot(contains('song-3')));
       expect(fetched('song-3'), 1);
+    });
+
+    /// The player's own preload of [id]: its lock-cache source fetches the
+    /// origin without any navigation asking for it.
+    Future<void> playerFetches(String id) async {
+      unawaited(
+        handler
+            .debugRegisteredLockCacheSource(id)!
+            .prefetch()
+            .catchError((Object _) {}),
+      );
+      await until(() => fetched(id) == 1, reason: 'player fetch of $id');
+    }
+
+    test('Android: the initial play of a cold remote song is one origin '
+        'request and waits for its headers (#653)', () async {
+      final release = Timer(const Duration(milliseconds: 700), () {
+        gates['song-2']!.complete();
+      });
+      addTearDown(release.cancel);
+      final watch = Stopwatch()..start();
+      await setUpHandler(
+        prefetch: true,
+        desktop: false,
+        gated: {'song-2'},
+        localIds: {'song-0'},
+        cacheSongs: true,
+        uncached: {'song-1', 'song-2', 'song-3', 'song-4', 'song-5'},
+        startIndex: 2,
+      );
+      expect(watch.elapsedMilliseconds, greaterThan(600));
+      expect(count('song-2'), 0, reason: 'no Range 0-1 warm');
+      expect(fetched('song-2'), 1);
+      final start = records(
+        'remoteWarm',
+      ).firstWhere((e) => e['phase'] == 'start' && e['trigger'] == 'initial');
+      expect(start['startedBy'], 'lockCache');
+    });
+
+    test('Android: a direct-stream reload keeps the two-byte warm and does '
+        'not fetch through the unused registered source (#653)', () async {
+      late DirectOnlyResolver resolver;
+      await setUpAndroid(
+        prefetch: false,
+        gated: {},
+        wrapResolver: (base) => resolver = DirectOnlyResolver(base),
+      );
+      expect(handler.debugRegisteredLockCacheSource('song-1'), isNotNull);
+      resolver.forceDirect = true;
+      requests.clear();
+      fetches.clear();
+      await handler.replaceQueueWithData(queueRows, startIndex: 1);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(count('song-1'), 1, reason: 'the two-byte warm');
+      expect(fetched('song-1'), 0, reason: 'no whole-file fetch');
+    });
+
+    test('Android: dispose cancels a registered download still running '
+        '(#653)', () async {
+      await setUpAndroid(prefetch: false, gated: {'song-3'});
+      await playerFetches('song-3');
+      await handler.disposeHandler();
+      await until(
+        () => closed.contains('song-3'),
+        reason: 'origin connection of song-3 closed',
+      );
+    });
+
+    test('Android: re-publishing the old current song during a far '
+        'navigation keeps the target fetch (#653)', () async {
+      await setUpAndroid(prefetch: false, gated: {'song-5'});
+      final navigation = handler.playFromIndex(5);
+      await until(() => fetched('song-5') == 1, reason: 'target fetch');
+      await pumpEventQueue();
+      // The player reports its index again and the like state re-publishes
+      // the current item, as on any state change during the wait.
+      player.emitIndexAgain();
+      await handler.toggleLike();
+      await quiet();
+      expect(closed, isNot(contains('song-5')));
+      gates['song-5']!.complete();
+      await navigation;
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-5');
+      expect(fetched('song-5'), 1);
+    });
+
+    test('Android: Repeat All keeps the downloads wrapped past the end '
+        '(#653)', () async {
+      await setUpAndroid(prefetch: false, gated: {'song-1'});
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await playerFetches('song-1');
+      await handler.playFromIndex(4);
+      await settleQueue(handler);
+      await quiet();
+      expect(handler.snapshot.currentSongId, 'song-4');
+      expect(closed, isNot(contains('song-1')));
+      expect(fetched('song-1'), 1);
+    });
+
+    test('Android: user Repeat One keeps only the current song download '
+        '(#653)', () async {
+      await setUpAndroid(prefetch: false, gated: {'song-3'});
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      await playerFetches('song-3');
+      await handler.playFromIndex(1);
+      await settleQueue(handler);
+      await until(
+        () => closed.contains('song-3'),
+        reason: 'song-3 download cancelled',
+      );
     });
 
     test('Android: a source whose fetch outlasts the wait times out without '

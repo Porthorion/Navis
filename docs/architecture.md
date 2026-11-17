@@ -6071,11 +6071,14 @@ player opens such a song, the handler warms the stream and waits (cancelled by
 any newer command) until the server answers. On desktop and for a direct-stream
 source that is a two-byte request whose body is cancelled even when the server
 ignores Range, rather than downloading the whole song before playback. On
-Android a song with a registered lock-cache source is warmed by that source's
-own `prefetch()`: the one whole-file origin fetch (it joins a fetch in flight,
+Android a song whose lock-cache source the player will hold (the start song of
+a queue load, the target of a navigation) is warmed by that source's own
+`prefetch()`: the one whole-file origin fetch (it joins a fetch in flight,
 resolves at the response headers, is a no-op for a finished file), so the origin
-is asked once, not once to warm and again for the load. A superseded wait leaves
-that fetch running. This is needed because
+is asked once, not once to warm and again for the load. The source is chosen by
+identity, never by song id, so a recovery or offset reload that builds a direct
+stream keeps the two-byte warm and starts no fetch on an unused source. A
+superseded wait leaves that fetch running. This is needed because
 the players give up on a silent connection long before the server has the file
 (ExoPlayer after 8 s, also through the lock-cache proxy) and the server answers
 at once afterwards. Manual Next, Previous and queue taps use the same
@@ -6092,10 +6095,19 @@ songs other than the current and the next three are cancelled
 (`LockCachingAudioSource.cancelDownload`, a Navis addition to the vendored
 just_audio) and their partial files discarded; a request for the same song
 arriving meanwhile waits for the cancelled fetch to unwind and starts a fresh
-download instead of failing with it. The next song and the two after it keep
-their downloads (`_lockCacheAheadSongIds`), because the player prepares up to
-three items ahead and a fetch it started there would otherwise be dropped and
-asked for again. Desktop already keeps a single sidecar download.
+download instead of failing with it. The navigation target and the next three
+songs in play order (wrapping under Repeat All; none under a user Repeat One)
+keep their downloads (`_lockCacheAheadSongIds`), because the player prepares as
+far ahead as its buffer budget (180 s, 32 MB) reaches, so short songs put a
+fetch it started three items ahead, and dropping it would ask the origin again.
+While a range fetch plays, all of those downloads pause, not only the current
+and next. Disposal cancels every registered unfinished download. Known
+remaining duplicate origin requests for a slow remote song: the crossfade
+incoming deck clones a lock-cached song as a direct origin source, recovery
+rebuilds as a direct stream when the 12 s stall watchdog fires during a slow
+first answer, a dead song is retried by the player every few seconds, a warm
+that ends in `error` still seeks, and a range fetch beyond the cache carries the
+60 s header deadline too. Desktop already keeps a single sidecar download.
 
 While an Android lock-cached song has a live origin range, playback is requested
 and the native forward buffer is under 30 seconds, the current and next songs'

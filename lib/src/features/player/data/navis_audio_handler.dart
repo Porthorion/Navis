@@ -3594,6 +3594,16 @@ class NavisAudioHandler extends BaseAudioHandler
     cancelSeekPreview();
     _cancelLockCacheWarm();
     _resumeLockCacheDownloads();
+    // Whole-file fetches the player started (or a track change kept) outlive
+    // their player otherwise; sign-out and shutdown must not leave one
+    // running into a folder that is about to go.
+    final lockCacheStops = [
+      for (final entry in _lockCacheSources.values.toList())
+        () {
+          entry.source.onDownloadStart = null;
+          return entry.source.cancelDownload();
+        }(),
+    ];
     _focusRetryTimer?.cancel();
     _networkRetryTimer?.cancel();
     final projectionDisposal = _detachNavisAudioServiceHandler(this);
@@ -3609,6 +3619,8 @@ class NavisAudioHandler extends BaseAudioHandler
     await _networkRecoverySubscription?.cancel();
     await _disposeInactiveCrossfadeDeck();
     await _flushQueueItemsPersistence();
+    await Future.wait(lockCacheStops)
+        .timeout(const Duration(seconds: 2), onTimeout: () => const <void>[]);
     await _sidecarDownloader.dispose();
     _sidecarSongsById.clear();
     _sidecarStreamUris.clear();

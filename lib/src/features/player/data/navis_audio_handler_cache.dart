@@ -44,9 +44,9 @@ extension _NavisCache on NavisAudioHandler {
 
   /// Starts the prefetch of the next cold remote song (a first-byte warm, so
   /// the origin has fetched it before anything plays it; a song with a
-  /// lock-cache source on Android is fetched by that source instead) when none is in
-  /// flight, the gates are open and the song was not tried yet. A started
-  /// prefetch is never cancelled: the server keeps fetching after a
+  /// lock-cache source on Android is fetched by that source instead) when
+  /// none is in flight, the gates are open and the song was not tried yet. A
+  /// started prefetch is never cancelled: the server keeps fetching after a
   /// disconnect and does not de-duplicate, so only [disposeHandler] closes it.
   void _maybeStartRemotePrefetch(MediaItem current) {
     final running = _remotePrefetch;
@@ -121,31 +121,42 @@ extension _NavisCache on NavisAudioHandler {
     _remoteSettling.clear();
   }
 
-  /// The songs whose lock-cache downloads are not stale: the next song and
-  /// the two after it. The player prepares up to three items ahead (short
-  /// songs fit its buffer), and a fetch it started for one of them must not be
-  /// dropped at a track change: its retry would make the origin fetch again.
+  /// The songs after [currentSongId] whose lock-cache downloads are not stale:
+  /// the next three in play order, wrapping under Repeat All. The player
+  /// prepares ahead as far as its buffer budget (180 s, 32 MB) reaches, so
+  /// short songs can be three items ahead, and a fetch it started for one of
+  /// them must not be dropped at a track change: its retry would make the
+  /// origin fetch again. A user Repeat One has no song ahead.
   Set<String> _lockCacheAheadSongIds(String? currentSongId) {
     final ids = _logicalQueueIds;
     final index = _logicalCurrentIndex;
+    if (_desiredLoopMode == LoopMode.one ||
+        index == null ||
+        index < 0 ||
+        index >= ids.length ||
+        ids[index] != currentSongId) {
+      return const {};
+    }
     return <String>{
-      ?_rollingCacheNextSongId(currentSongId),
-      if (index != null &&
-          index >= 0 &&
-          index < ids.length &&
-          ids[index] == currentSongId)
-        ...ids.skip(index + 1).take(3),
+      for (var ahead = 1; ahead <= 3; ahead++)
+        if (index + ahead < ids.length)
+          ids[index + ahead]
+        else if (_desiredLoopMode == LoopMode.all)
+          ids[(index + ahead) % ids.length],
     };
   }
 
-  /// Stops lock-cache downloads of songs other than the current and the next
-  /// few ones. Such a download otherwise runs to completion after the player has
-  /// moved on and, on a slow link, starves the song now playing (its first
-  /// load timed out behind a skipped song's download). The partial file is
-  /// discarded; the song downloads again if it is played again.
+  /// Stops lock-cache downloads of songs other than the current, the
+  /// navigation target and the next few ones. Such a download otherwise runs
+  /// to completion after the player has moved on and, on a slow link, starves
+  /// the song now playing (its first load timed out behind a skipped song's
+  /// download). The partial file is discarded; the song downloads again if it
+  /// is played again.
   void _cancelStaleLockCacheDownloads(String? currentSongId) {
     if (_lockCacheSources.isEmpty) return;
-    final keep = _lockCacheAheadSongIds(currentSongId);
+    // A re-publish of the current item during a navigation wait must not
+    // abort the target's fetch.
+    final keep = {..._lockCacheAheadSongIds(currentSongId), ?_loadingSongId};
     for (final entry in _lockCacheSources.entries.toList()) {
       final songId = entry.value.songId;
       if (songId == currentSongId || keep.contains(songId)) continue;
@@ -194,7 +205,6 @@ extension _NavisCache on NavisAudioHandler {
 
   void _syncLockCacheDownloadPriority() {
     final current = _currentMediaItem;
-    final next = _rollingCacheNextSongId(current?.id);
     final rangePlaying =
         defaultTargetPlatform == TargetPlatform.android &&
         !_disposeHandlerStarted &&
@@ -204,9 +214,13 @@ extension _NavisCache on NavisAudioHandler {
         _player.bufferedPosition - _player.position <
             const Duration(seconds: 30) &&
         _playerCurrentSource()?.hasActiveRangeFetch == true;
+    // The kept downloads ahead too: left running they starve the range fetch
+    // that the cancel of stale ones exists to protect.
+    final yielding = rangePlaying
+        ? {current?.id, ..._lockCacheAheadSongIds(current?.id)}
+        : const <String?>{};
     for (final entry in _lockCacheSources.values) {
-      if (rangePlaying &&
-          (entry.songId == current?.id || entry.songId == next)) {
+      if (yielding.contains(entry.songId)) {
         entry.source.pauseDownload();
       } else {
         entry.source.resumeDownload();

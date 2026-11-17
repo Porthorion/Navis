@@ -203,8 +203,8 @@ class PlaybackSourceResolver {
   /// How long a remote catalogue song's lock-cache fetch waits for the origin's
   /// response headers (Octo-Fiesta sends none until it holds the whole file).
   /// The player retries a silent request every few seconds; a fetch that
-  /// outlasts the origin keeps those retries joined to one request. Equals
-  /// `NavisPlaybackTimeouts.remoteLoad`.
+  /// outlasts the origin keeps those retries joined to one request. Matches
+  /// `NavisPlaybackTimeouts.remoteLoad` by value, not by wiring.
   final Duration remoteHeaderTimeout;
   final bool Function() _readCachedPlaybackFirst;
   final bool Function() _readPreferAnyCache;

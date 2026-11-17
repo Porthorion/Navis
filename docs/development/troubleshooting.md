@@ -236,7 +236,10 @@ Use this quick matrix to classify failures:
   own source fetch (60 s header deadline) is the one origin request, and a
   navigation records `startedBy: lockCache`. Two origin fetches for one song
   there mean a direct-stream source, a queue edit or skip that cancelled the
-  fetch, or a transition before the origin answered.
+  fetch, or a transition before the origin answered. Known remaining paths:
+  the crossfade incoming deck (direct origin source), the recovery rebuild
+  after the stall watchdog, retries of a dead song and range fetches beyond the
+  cache.
 3. Android DSP initialization failure:
 - Symptoms: `Cannot initialize effect engine ... Equalizer ... Error: -3`.
 - Expected:
