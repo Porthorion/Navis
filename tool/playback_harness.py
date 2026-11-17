@@ -28,6 +28,7 @@ import socket
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
 from contextlib import ExitStack
 from datetime import datetime, timezone
@@ -744,28 +745,64 @@ def fix_build(platform: str, out: Path) -> Path:
     return folder
 
 
+PRIVATE_BUS_CONFIG = PROJECT / 'tool' / 'lib' / 'private-session-bus.conf'
+KGLOBALACCEL_FAILURE = 'Failed to register service org.kde.kglobalaccel'
+
+
+def check_kglobalaccel(since: str, *logs: Path):
+    """A nested KWin on the real session bus switches off the real KWin's global shortcuts until logout. The journal since
+    [since] (and any compositor log) must never show that failure; if it does, this run touched the real bus."""
+    try:
+        journal = run(['journalctl', '--user', '--since', since, '--no-pager', '-q'], timeout=60)
+        text = journal.stdout if journal.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        text = None
+    if text is None:
+        print('WARNING: journalctl --user unavailable; kglobalaccel guard checks only the compositor log', file=sys.stderr)
+        text = ''
+    for log in logs:
+        text += log.read_text(errors='replace') if log.exists() else ''
+    if KGLOBALACCEL_FAILURE in text:
+        raise InfraError(f'"{KGLOBALACCEL_FAILURE}" since {since}: the compositor ran on the real session bus. Stop and fix the wrapper')
+
+
 class Display:
-    """A headless KWin Wayland session for the Linux app, started and killed by this tool."""
+    """A headless KWin Wayland session for the Linux app, started and killed by this tool. The compositor and every app
+    launched with the returned env share one private D-Bus session bus, never the user's."""
 
     def __init__(self, out: Path):
-        self.out, self.proc = out, None
+        self.out, self.proc, self.bus, self.scratch = out, None, None, None
         self.socket = f'navisharness{os.getpid()}'  # unique: never adopt a session this run did not start
+        self.since = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # journalctl --since, local time
 
     def __enter__(self):
         try:
             return self._acquire()
-        except BaseException:
-            self.__exit__()
+        except BaseException as error:
+            self.__exit__(type(error), error, error.__traceback__)
             raise
 
     def _acquire(self):
         runtime = os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
         if (Path(runtime) / self.socket).exists():
             raise InfraError(f'Wayland socket {self.socket} already exists (stale session?)')
+        # The daemon passes its own environment to every service it activates, so it gets none of ours: no session bus
+        # address, and HOME and the XDG dirs in a throwaway directory (the real runtime dir holds the real bus socket).
+        self.scratch = Path(tempfile.mkdtemp(prefix='navis-bus-'))
+        for name in ('run', 'data', 'home'):
+            (self.scratch / name).mkdir(mode=0o700)
+        bus_env = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'HOME': str(self.scratch / 'home'),
+                   'XDG_RUNTIME_DIR': str(self.scratch / 'run'), 'XDG_DATA_HOME': str(self.scratch / 'data'),
+                   'XDG_CONFIG_HOME': str(self.scratch / 'home')}
+        self.bus = subprocess.Popen(['dbus-daemon', f'--config-file={PRIVATE_BUS_CONFIG}', '--nofork', '--print-address=1'],
+                                    env=bus_env, stdout=subprocess.PIPE, text=True, start_new_session=True, pass_fds=held_fds())
+        address = self.bus.stdout.readline().strip()
+        if not address:
+            raise InfraError('private dbus-daemon printed no address')
         env = {k: v for k, v in os.environ.items() if k != 'DISPLAY'}
-        env.update(KWIN_COMPOSE='QPainter', QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=runtime)
+        env.update(KWIN_COMPOSE='QPainter', QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=runtime, DBUS_SESSION_BUS_ADDRESS=address)
         self.proc = subprocess.Popen(
-            ['dbus-run-session', '--', 'kwin_wayland', '--virtual', '--socket', self.socket, '--width', '1280', '--height', '800',
+            ['kwin_wayland', '--virtual', '--socket', self.socket, '--width', '1280', '--height', '800',
              '--no-lockscreen', '--no-global-shortcuts', '--no-kactivities', '--inputmethod', '/bin/true'],
             env=env, stdout=(self.out / 'kwin.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True,
             pass_fds=held_fds())
@@ -776,10 +813,24 @@ class Display:
             time.sleep(0.1)
         else:
             raise InfraError('headless kwin_wayland did not create its socket')
-        return {'WAYLAND_DISPLAY': self.socket, 'GDK_BACKEND': 'wayland', 'XDG_RUNTIME_DIR': runtime}
+        check_kglobalaccel(self.since, self.out / 'kwin.log')
+        return {'WAYLAND_DISPLAY': self.socket, 'GDK_BACKEND': 'wayland', 'XDG_RUNTIME_DIR': runtime, 'DBUS_SESSION_BUS_ADDRESS': address}
 
-    def __exit__(self, *_):
-        stop_group(self.proc)
+    def __exit__(self, exc_type=None, *_):
+        stop_group(self.proc)  # compositor first, then the bus it used
+        if self.bus is not None:
+            stop_group(self.bus)
+            self.bus.stdout.close()
+        if self.scratch is not None:
+            shutil.rmtree(self.scratch, ignore_errors=True)
+        if self.bus is None:
+            return  # nothing started, so nothing could have touched a bus
+        try:
+            check_kglobalaccel(self.since, self.out / 'kwin.log')
+        except InfraError as error:
+            if exc_type is None:
+                raise
+            print(f'teardown guard also failed (the error above is kept): {error}', file=sys.stderr)  # never mask the propagating error
 
 
 def stop_group(proc, grace=10):
