@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/seek_preview_request.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart'
     as platform;
@@ -1908,4 +1909,210 @@ void main() {
       expect(source.isDownloading, isTrue, reason: 'the body is still coming');
     },
   );
+
+  test('a source keeps the user agent of the player it was attached to after '
+      'that player is disposed (#653)', () async {
+    final agents = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      agents.add(request.headers.value(HttpHeaders.userAgentHeader));
+      request.response.contentLength = 2048;
+      request.response.add(List<int>.filled(2048, 3));
+      await request.response.close();
+    });
+    // ignore: experimental_member_use, reason: the writer behind a crossfade follower.
+    final source = LockCachingAudioSource(
+      Uri.parse('http://127.0.0.1:${server.port}/song'),
+      cacheFile: File(p.join(directory.path, 'agent.mp3')),
+    );
+    addTearDown(source.cancelDownload);
+    final player = AudioPlayer(
+      userAgent: 'NavisTest/1',
+      handleAudioSessionActivation: false,
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+    );
+    addTearDown(player.dispose);
+    await player.setAudioSource(source);
+    await player.dispose();
+    await source.prefetch().timeout(const Duration(seconds: 2));
+    expect(agents, ['NavisTest/1']);
+  });
+
+  /// A writer on player A read through a follower on player B, as the
+  /// crossfade deck reads the other deck's download (#653).
+  Future<
+    ({
+      // ignore: experimental_member_use, reason: the writer behind a follower.
+      LockCachingAudioSource leader,
+      AudioPlayer a,
+      AudioPlayer b,
+      List<int> bytes,
+      List<Object> errors,
+      Completer<void> done,
+      Completer<void> release,
+      List<String> hits,
+      File file,
+      List<int> body,
+    })
+  >
+  followedWriter({required bool splice, required bool retain}) async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final release = Completer<void>();
+    addTearDown(() {
+      if (!release.isCompleted) release.complete();
+    });
+    final hits = <String>[];
+    final body = List<int>.generate(32 * 1024, (i) => i % 251);
+    server.listen((request) async {
+      hits.add(request.headers.value(HttpHeaders.rangeHeader) ?? 'whole');
+      final response = request.response..bufferOutput = false;
+      try {
+        response.add(body.sublist(0, 1024));
+        await response.flush();
+        await release.future;
+        response.add(body.sublist(1024));
+        await response.close();
+      } on Object {
+        // A regression may cancel the origin before the gate is released.
+      }
+    });
+    final uri = Uri.parse('http://127.0.0.1:${server.port}/song');
+    final file = File(p.join(directory.path, 'followed.mp3'));
+    // ignore: experimental_member_use, reason: the writer behind a follower.
+    final leader = LockCachingAudioSource(
+      uri,
+      cacheFile: file,
+      continuationUri: splice ? (_) => uri : null,
+    );
+    addTearDown(leader.cancelDownload);
+    leader.retainDownloadForFollowers = retain;
+    AudioPlayer create() {
+      final player = AudioPlayer(
+        handleAudioSessionActivation: false,
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      return player;
+    }
+
+    // The fixture platform closes the newest player's events on any dispose.
+    final b = create();
+    final a = create();
+    await a.setAudioSources([
+      leader,
+      AudioSource.uri(Uri.parse('https://example.com/other')),
+    ]);
+    await b.setAudioSource(LockCacheFollowerSource(leader));
+    final response = await leader.request();
+    final bytes = <int>[];
+    final errors = <Object>[];
+    final done = Completer<void>();
+    response.stream.listen(
+      bytes.addAll,
+      onError: errors.add,
+      onDone: done.complete,
+    );
+    await until(() => leader.downloadedBytes == 1024);
+    return (
+      leader: leader,
+      a: a,
+      b: b,
+      bytes: bytes,
+      errors: errors,
+      done: done,
+      release: release,
+      hits: hits,
+      file: file,
+      body: body,
+    );
+  }
+
+  for (final action in ['remove', 'dispose']) {
+    test('a follower on another player keeps one origin fetch when the '
+        'writer leaves its player by $action (#653)', () async {
+      final f = await followedWriter(splice: false, retain: false);
+      if (action == 'remove') {
+        await f.a.removeAudioSourceAt(0);
+      } else {
+        await f.a.dispose();
+      }
+      f.release.complete();
+      await f.done.future.timeout(const Duration(seconds: 2));
+      expect(f.errors, isEmpty);
+      expect(f.bytes, f.body);
+      expect(f.hits, ['whole']);
+    });
+  }
+
+  test('a flagged Ogg-splice writer keeps downloading after its player is '
+      'disposed (#653)', () async {
+    final f = await followedWriter(splice: true, retain: true);
+    await f.a.dispose();
+    expect(
+      f.leader.isDownloading,
+      isTrue,
+      reason: 'followers on another player still read this download',
+    );
+    f.release.complete();
+    await f.done.future.timeout(const Duration(seconds: 2));
+    expect(f.errors, isEmpty);
+    expect(f.bytes, f.body);
+    expect(f.hits, ['whole']);
+  });
+
+  for (final action in ['remove', 'dispose']) {
+    test('a flagged writer keeps a follower\'s beyond-cache range fetch when '
+        'it leaves its player by $action (#653)', () async {
+      final closed = <int>[];
+      final (server, _) = await _serve(
+        List<int>.filled(256 * 1024, 7),
+        ranges: true,
+        closedRanges: closed,
+      );
+      addTearDown(() => server.close(force: true));
+      // ignore: experimental_member_use, reason: the writer behind a follower.
+      final leader = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: File(p.join(directory.path, 'followed-range.mp3')),
+      )..retainDownloadForFollowers = true;
+      addTearDown(leader.cancelDownload);
+      AudioPlayer create() {
+        final player = AudioPlayer(
+          handleAudioSessionActivation: false,
+          handleInterruptions: false,
+          androidApplyAudioAttributes: false,
+        );
+        addTearDown(player.dispose);
+        return player;
+      }
+
+      final b = create();
+      final a = create();
+      await a.setAudioSources([
+        leader,
+        AudioSource.uri(Uri.parse('https://example.com/other')),
+      ]);
+      await b.setAudioSource(LockCacheFollowerSource(leader));
+      await leader.prefetch().timeout(const Duration(seconds: 2));
+      final response = await leader.request(131072);
+      final received = Completer<void>();
+      var failed = false;
+      response.stream.listen((_) {
+        if (!received.isCompleted) received.complete();
+      }, onError: (Object _) => failed = true);
+      await received.future.timeout(const Duration(seconds: 2));
+      if (action == 'remove') {
+        await a.removeAudioSourceAt(0);
+      } else {
+        await a.dispose();
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(failed, isFalse);
+      expect(closed, isNot(contains(131072)));
+    });
+  }
 }

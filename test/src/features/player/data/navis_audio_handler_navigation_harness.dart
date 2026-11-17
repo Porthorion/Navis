@@ -1871,6 +1871,7 @@ createHandler(
   int rollingCacheBudgetBytes = 1024 * 1024,
   String crossfadeType = 'normal',
   String Function()? readCrossfadeType,
+  bool Function()? readCrossfade,
   bool matchFlow = false,
   int savedQueueIndex = -1,
   NavisQueueWindow queueWindow = const NavisQueueWindow(),
@@ -2021,7 +2022,7 @@ createHandler(
       fastSeekingEnabled: fastSeeking,
       nextSongPrefetchAllowed:
           readNextSongPrefetchAllowed?.call() ?? nextSongPrefetchAllowed,
-      crossfadeEnabled: crossfade,
+      crossfadeEnabled: readCrossfade?.call() ?? crossfade,
       crossfadeAllowStreaming: crossfadeAllowStreaming,
       crossfadeDurationSeconds: 5,
       crossfadeType: readCrossfadeType?.call() ?? crossfadeType,

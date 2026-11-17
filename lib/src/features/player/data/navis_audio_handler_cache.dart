@@ -191,8 +191,7 @@ extension _NavisCache on NavisAudioHandler {
     final id = _currentMediaItem?.id;
     final index = _queueItems.indexWhere((item) => item.id == id);
     final source = index < 0 ? null : _player.sequence.elementAtOrNull(index);
-    // ignore: experimental_member_use, reason: as above.
-    return source is LockCachingAudioSource ? source : null;
+    return _lockCacheSourceOf(source);
   }
 
   /// The registered lock-cache source of [songId], if any.
