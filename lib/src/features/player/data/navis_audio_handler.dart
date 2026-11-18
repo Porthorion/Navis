@@ -527,6 +527,10 @@ class NavisAudioHandler extends BaseAudioHandler
   ({String songId, Duration position})? _playerRangeStart;
   // Songs whose rolling-cache download finished, until another song plays.
   final Set<String> _completedCacheSongIds = <String>{};
+  // Songs whose desktop sidecar finished: their queue entry still holds the
+  // stream and is swapped for the cached file (#685). Not the set above, which
+  // follows the current song and the Android lock cache.
+  final Set<String> _fileSwapPending = <String>{};
   Timer? _positionPersistTimer;
   late final Future<void> _ready;
   late final Future<void> _startupQueueRestore;
@@ -3367,6 +3371,10 @@ class NavisAudioHandler extends BaseAudioHandler
   /// The player whose output is heard.
   @visibleForTesting
   AudioPlayer get debugActivePlayer => _player;
+
+  /// Songs whose finished sidecar file still waits to replace the stream.
+  @visibleForTesting
+  Set<String> get debugFileSwapPending => _fileSwapPending;
 
   /// The cross-fade deck, when cross-fade is on.
   @visibleForTesting

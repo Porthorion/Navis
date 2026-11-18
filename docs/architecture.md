@@ -5842,6 +5842,19 @@ failure plus a duplicate in the same batch); the warm pauses while the current s
 range fetch is live; no source, such as a downloaded, fully cached or
 deferred-tail song, is no warm). Its
 completed file is available to normal cache-first resolution and seek recovery.
+On desktop the end of a sidecar download adds its song to `_fileSwapPending`
+(never the Android lock-cache progress, and not `_completedCacheSongIds`, which
+follows the current song) and calls `_repairDepartedOffsetEntries`: as an
+ordinary queue edit, `_repairOffsetEntry` replaces each non-current
+direct-stream entry of such a song with the cached file, mirrored on the
+crossfade deck, so Next plays the file instead of reopening the stream (#685).
+A fresh source that is not a file (quality mismatch) drops the id; an empty
+one (reload temporarily refused) keeps it for the next trigger (navigation,
+crossfade end, recovery). A swap never touches the crossfade target: it is skipped while a fade
+runs onto the entry (`_isCrossfading`, `_crossfadeTargetIndex`), and one whose
+insert a fade overtook is rolled back like one whose song became current,
+leaving the deck alone and the id pending. The set clears on a queue
+replacement (`_replaceQueuePhase1`) and on a player recovery. The starved-with-file watchdog stays the safety net.
 `_rollingCacheNextSongId`
 defines "next" for this and for the Android stale-download and priority logic:
 the logical (shuffled) play order, the current song under Repeat One (nothing
