@@ -103,6 +103,7 @@ class _Rig {
         readLibraryAlbumTitles: any(named: 'readLibraryAlbumTitles'),
         cancelToken: any(named: 'cancelToken'),
         background: any(named: 'background'),
+        retryQuota: any(named: 'retryQuota'),
       ),
     ).thenAnswer((_) async => 27);
     radio = () async => [for (final l in _letters.take(10)) _radioTrack(l)];
@@ -112,6 +113,7 @@ class _Rig {
         limit: any(named: 'limit'),
         cancelToken: any(named: 'cancelToken'),
         background: any(named: 'background'),
+        retryQuota: any(named: 'retryQuota'),
       ),
     ).thenAnswer((_) => radio());
     this.mode = mode;
@@ -239,6 +241,7 @@ void main() {
         readLibraryAlbumTitles: any(named: 'readLibraryAlbumTitles'),
         cancelToken: any(named: 'cancelToken'),
         background: false,
+        retryQuota: any(named: 'retryQuota'),
       ),
     ).called(1);
   });
@@ -262,15 +265,41 @@ void main() {
     await refill.start();
     refill.radio = () async => <DeezerTrack>[];
     await refill.refill();
-    expect(
-      refill.notifier.lastRefill?.parkedSeedId ??
-          refill.notifier.lastRefill?.fallbackReason,
-      isNotNull,
-    );
+    expect(refill.notifier.lastRefill?.parkedSeedId, isNotNull);
     expect(
       refill.container.read(recommendationSessionProvider).stage,
       isNot('retryPending'),
     );
+  });
+
+  test('a Deezer quota refusal skips Deezer, asked without retries', () async {
+    final rig = _Rig()
+      ..radio = (() async => throw const DeezerApiException(code: 4));
+    rig.serverSimilar = [
+      for (final l in _letters.take(4)) Song(id: 'srv-$l', title: 'S$l'),
+    ];
+    await rig.start();
+
+    expect(rig.notifier.lastRefill?.mixSource, 'server');
+    verify(
+      () => rig.resolver.resolve(
+        artistId: any(named: 'artistId'),
+        name: any(named: 'name'),
+        readLibraryAlbumTitles: any(named: 'readLibraryAlbumTitles'),
+        cancelToken: any(named: 'cancelToken'),
+        background: any(named: 'background'),
+        retryQuota: false,
+      ),
+    ).called(1);
+    verify(
+      () => rig.deezer.getArtistRadio(
+        any(),
+        limit: any(named: 'limit'),
+        cancelToken: any(named: 'cancelToken'),
+        background: any(named: 'background'),
+        retryQuota: false,
+      ),
+    ).called(1);
   });
 
   test(
@@ -284,6 +313,7 @@ void main() {
           readLibraryAlbumTitles: any(named: 'readLibraryAlbumTitles'),
           cancelToken: any(named: 'cancelToken'),
           background: any(named: 'background'),
+          retryQuota: any(named: 'retryQuota'),
         ),
       ).thenAnswer((_) async => null);
       rig.serverSimilar = [
@@ -299,6 +329,7 @@ void main() {
           limit: any(named: 'limit'),
           cancelToken: any(named: 'cancelToken'),
           background: any(named: 'background'),
+          retryQuota: any(named: 'retryQuota'),
         ),
       );
     },
@@ -347,6 +378,7 @@ void main() {
           limit: any(named: 'limit'),
           cancelToken: any(named: 'cancelToken'),
           background: any(named: 'background'),
+          retryQuota: any(named: 'retryQuota'),
         ),
       ).thenAnswer((invocation) {
         seen = invocation.namedArguments[#cancelToken] as CancelToken?;
@@ -423,6 +455,7 @@ void main() {
         readLibraryAlbumTitles: any(named: 'readLibraryAlbumTitles'),
         cancelToken: any(named: 'cancelToken'),
         background: captureAny(named: 'background'),
+        retryQuota: any(named: 'retryQuota'),
       ),
     ).captured;
     expect(calls.first, isFalse, reason: 'the first tap is foreground');
@@ -458,6 +491,7 @@ void main() {
         readLibraryAlbumTitles: any(named: 'readLibraryAlbumTitles'),
         cancelToken: any(named: 'cancelToken'),
         background: any(named: 'background'),
+        retryQuota: any(named: 'retryQuota'),
       ),
     );
   });
@@ -480,6 +514,7 @@ void main() {
         limit: any(named: 'limit'),
         cancelToken: any(named: 'cancelToken'),
         background: any(named: 'background'),
+        retryQuota: any(named: 'retryQuota'),
       ),
     );
     expect(rig.notifier.lastRefill?.lastFmOutcome, 'notConfigured');

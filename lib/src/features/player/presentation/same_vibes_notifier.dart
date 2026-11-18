@@ -1042,8 +1042,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       case PreferredMixMode.sameVibesLastFm:
         break;
     }
-    // ponytail: a Last.fm key revoked mid-mix gets no Deezer fallback; the
-    // server fills and the next refill follows the resolved mode.
     if (!ref
         .read(integrationPolicyProvider)
         .allows(IntegrationFeature.lastFmSameVibes)) {
@@ -1158,6 +1156,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           name: seed.artist,
           cancelToken: cancelToken,
           background: background,
+          retryQuota: false,
         );
     if (artistId == null) {
       return const LastFmTrackFetchResult(
@@ -1172,6 +1171,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           limit: limit,
           cancelToken: cancelToken,
           background: background,
+          retryQuota: false,
         );
     // Deezer's order is the relevance; the mapper sorts by match.
     final seen = <String?>{sameVibesCanonicalSongKey(seed.artist, seed.title)};

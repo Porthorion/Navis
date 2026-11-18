@@ -583,6 +583,22 @@ void main() {
     expect(adapter.requests, hasLength(2));
   });
 
+  test('retryQuota false throws on the first code 4, one request', () async {
+    adapter
+      ..queue('/search/artist', _error(4, 'Exception', 'quota'))
+      ..queue('/artist/27/radio', _error(4, 'Exception', 'quota'));
+
+    await expectLater(
+      client.searchArtists('Queen', retryQuota: false),
+      throwsQuota,
+    );
+    await expectLater(
+      client.getArtistRadio(27, background: true, retryQuota: false),
+      throwsQuota,
+    );
+    expect(adapter.requests, hasLength(2));
+  });
+
   test('other body errors throw a typed exception without retrying', () async {
     adapter.queue(
       '/search/artist',
