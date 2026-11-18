@@ -5212,7 +5212,7 @@ class SyncDiagnosticsServer {
         .getSettings();
     final policy = integrationPolicyFromSettings(
       settings,
-      lastFmVerified: _container.read(hasLastFmApiKeyProvider),
+      lastFmVerified: lastFmVerifiedFromSettings(_container.read, settings),
     );
     return <String, Object?>{
       'master': policy.masterEnabled,

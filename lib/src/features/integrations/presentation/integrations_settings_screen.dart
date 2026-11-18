@@ -229,9 +229,13 @@ class _IntegrationsSettingsScreenState
           groupValue: selected,
           onChanged: (mode) {
             // Not guarded by `selected`, the resolved mode: tapping a
-            // fallback records it as the choice.
-            if (mode == null) return;
-            _write((repository) => repository.setPreferredMixMode(mode));
+            // fallback records it as the choice. Space/Enter on the selected
+            // tile reaches here as null (the group skips the tile callback),
+            // meaning the displayed mode.
+            final picked = mode ?? selected;
+            unawaited(
+              _write((repository) => repository.setPreferredMixMode(picked)),
+            );
           },
           child: Column(
             children: <Widget>[

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -709,6 +710,46 @@ void main() {
       expect(selected(tester), PreferredMixMode.sameVibesLastFm);
 
       await h.tap(option(PreferredMixMode.sameVibesLastFm));
+
+      final row = await h.row();
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isTrue);
+    });
+
+    testWidgets('Space on the focused Last.fm fallback records it', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(disabledJson: '["deezer"]'),
+      );
+      expect(selected(tester), PreferredMixMode.sameVibesLastFm);
+
+      await tester.scrollUntilVisible(
+        option(PreferredMixMode.sameVibesLastFm),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Tab to the tile: the group's key handler acts on the focused radio.
+      for (var i = 0; i < 40; i++) {
+        final focused = FocusManager.instance.primaryFocus?.context;
+        if (focused != null &&
+            find
+                .descendant(
+                  of: option(PreferredMixMode.sameVibesLastFm),
+                  matching: find.byWidgetPredicate(
+                    (w) => identical(w, focused.widget),
+                  ),
+                )
+                .evaluate()
+                .isNotEmpty) {
+          break;
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await h.settle();
 
       final row = await h.row();
       expect(sameVibesLastFmChosen(row.disabledIntegrations), isTrue);
