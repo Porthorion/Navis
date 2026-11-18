@@ -375,23 +375,27 @@ final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
       cancelToken: cancelToken,
       background: !foreground,
     );
-  } on Object {
-    // A cancelled build ends quietly. Any other refusal (Deezer's quota,
-    // often shared with the sync's own traffic) must not end as an error:
-    // a screen that asked in the foreground asks once more, in the
-    // background, when Home is idle; whatever fails stays empty.
+  } on Object catch (error) {
+    // A cancelled build ends quietly. Home's own (background) build keeps
+    // failing as before, so provider retry still covers network blips. A
+    // screen that asked in the foreground (Deezer's quota is often shared
+    // with the sync's own traffic) asks once more, in the background, when
+    // Home is idle; if that fails too, Trending stays empty.
     if (cancelToken.isCancelled || !ref.mounted) return;
-    if (foreground) {
-      try {
-        await ref.watch(homeDeezerIdleProvider.future);
-        if (cancelToken.isCancelled || !ref.mounted) return;
-        chart = await catalog.chartTracks(
-          cancelToken: cancelToken,
-          background: true,
-        );
-      } on Object {
-        if (cancelToken.isCancelled || !ref.mounted) return;
-      }
+    if (!foreground) rethrow;
+    AppLogger.debug(
+      'Trending: foreground chart failed, retrying when idle: $error',
+    );
+    try {
+      await ref.watch(homeDeezerIdleProvider.future);
+      if (cancelToken.isCancelled || !ref.mounted) return;
+      chart = await catalog.chartTracks(
+        cancelToken: cancelToken,
+        background: true,
+      );
+    } on Object catch (error) {
+      if (cancelToken.isCancelled || !ref.mounted) return;
+      AppLogger.debug('Trending: idle chart retry failed: $error');
     }
   }
   if (cancelToken.isCancelled) return;

@@ -385,14 +385,18 @@ void main() {
       expect(c.read(homeTrendingProvider).hasError, isFalse);
     });
 
-    test('a refused background chart leaves Trending empty', () async {
-      await library(<String>[_t(1)]);
-      final deezer = _FakeDeezer(const <DeezerTrack>[])
-        ..failures.add(const DeezerApiException(code: 4, type: 'Exception'));
-      final c = container(deezer: deezer);
-      expect(await read(c), isEmpty);
-      expect(deezer.background, [true]);
-    });
+    test(
+      'a refused background chart fails, so provider retry asks again',
+      () async {
+        await library(<String>[_t(1)]);
+        final deezer = _FakeDeezer(const <DeezerTrack>[])
+          ..failures.add(const DeezerApiException(code: 4, type: 'Exception'));
+        final c = container(deezer: deezer);
+        expect(await read(c), isEmpty);
+        // The error reached Riverpod, whose retry asked again.
+        expect(deezer.background, [true, true]);
+      },
+    );
 
     test('disposing while the chart is pending raises no error', () async {
       await library(<String>[_t(1)]);
