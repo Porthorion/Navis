@@ -323,9 +323,10 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 /// unmatched rows. Two songs are searched at once; a pull to refresh searches
 /// six, updates the rows as it goes and searches unmatched songs again. The
 /// provider lives for the session; a refresh or turning the switch off cancels
-/// its searches. A chart request Deezer
-/// refuses (its quota) leaves Trending empty; the screen's foreground request
-/// is asked once more in the background when Home is idle.
+/// its searches. A failed chart request on Home's own build ends as an error
+/// (provider retry covers transient failures); a failed foreground request
+/// from the open screen is asked once more in the background when Home is
+/// idle, and Trending stays empty if that fails too.
 final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   ref,
 ) async* {
