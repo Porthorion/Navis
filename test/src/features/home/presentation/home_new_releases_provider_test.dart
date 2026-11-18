@@ -40,6 +40,7 @@ class _FakeDeezer extends DeezerApiClient {
     int limit = 25,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     calls.add('search/artist:$name');
     this.background.add(background);

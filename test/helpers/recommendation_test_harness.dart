@@ -101,12 +101,18 @@ class RecordingRecommendationQueue extends QueueController {
 /// and lookup fakes each test needs. The container is disposed with the test.
 ProviderContainer createRecommendationContainer({
   List<Override> overrides = const <Override>[],
+  bool lastFmMode = true,
 }) {
   final container = ProviderContainer(
     overrides: <Override>[
       playerStateProvider.overrideWith(
         (ref) => ref.watch(recommendationSnapshotProvider),
       ),
+      // Same Vibes tests that predate the Deezer source run through Last.fm.
+      if (lastFmMode)
+        preferredMixModeProvider.overrideWithValue(
+          PreferredMixMode.sameVibesLastFm,
+        ),
       ...overrides,
     ],
   );

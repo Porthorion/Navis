@@ -1162,8 +1162,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>
       updateIntegrationPolicy(master: enabled);
 
-  /// Writes the Same Vibes switch's storage: `true` means Server Mix, which
-  /// is Same Vibes switched off.
+  /// Writes the Instant Mix mode column: `true` means Server Mix, `false`
+  /// Same Vibes. Which Same Vibes source is stored beside the integration
+  /// switches; use `SettingsRepository.setPreferredMixMode`.
   Future<void> updateLegacyInstantMixEnabled({required bool enabled}) {
     return _writeSettings(
       AppSettingsTableCompanion(legacyInstantMixEnabled: Value(enabled)),
@@ -1190,21 +1191,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     }
     final column = feature?.legacyColumn;
     if (column != null) {
-      final value = column.columnValueFor(featureEnabled: enabled);
       return switch (column) {
         IntegrationLegacyColumn.useLrclib => _writeSettings(
-          AppSettingsTableCompanion(useLrclib: Value(value)),
+          AppSettingsTableCompanion(useLrclib: Value(enabled)),
         ),
         IntegrationLegacyColumn.updateCheckEnabled => _writeSettings(
-          AppSettingsTableCompanion(updateCheckEnabled: Value(value)),
+          AppSettingsTableCompanion(updateCheckEnabled: Value(enabled)),
         ),
         IntegrationLegacyColumn.listenBrainzScrobblingEnabled => _writeSettings(
           AppSettingsTableCompanion(
-            listenBrainzScrobblingEnabled: Value(value),
+            listenBrainzScrobblingEnabled: Value(enabled),
           ),
         ),
-        IntegrationLegacyColumn.legacyInstantMixEnabled =>
-          updateLegacyInstantMixEnabled(enabled: value),
       };
     }
     return transaction(() async {

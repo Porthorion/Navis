@@ -82,12 +82,14 @@ class DeezerArtistResolver {
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async => (await resolveWithOutcome(
     artistId: artistId,
     name: name,
     readLibraryAlbumTitles: readLibraryAlbumTitles,
     cancelToken: cancelToken,
     background: background,
+    retryQuota: retryQuota,
   )).id;
 
   /// [resolve], also telling whether the answer is conclusive: false when an
@@ -99,6 +101,7 @@ class DeezerArtistResolver {
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     final direct = idFromLibraryArtistId(artistId);
     if (direct != null) return (id: direct, conclusive: true);
@@ -126,6 +129,7 @@ class DeezerArtistResolver {
       readLibraryAlbumTitles: readLibraryAlbumTitles,
       cancelToken: cancelToken,
       background: background,
+      retryQuota: retryQuota,
     );
     _inFlight[mappingKey] = resolution;
     try {
@@ -142,6 +146,7 @@ class DeezerArtistResolver {
     required Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     required CancelToken? cancelToken,
     required bool background,
+    required bool retryQuota,
   }) async {
     final cached = await _cache.read(DeezerCache.artistIdNamespace, mappingKey);
     final value = cached?.value;
@@ -157,6 +162,7 @@ class DeezerArtistResolver {
       name,
       cancelToken: cancelToken,
       background: background,
+      retryQuota: retryQuota,
     );
     final namesakes = found
         .where((artist) => normalizeMetadata(artist.name) == nameKey)

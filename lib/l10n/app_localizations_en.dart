@@ -2017,11 +2017,41 @@ class AppLocalizationsEn extends AppLocalizations {
       'Puts the most popular matches first and shows Top Results. Sends what you type in Search to Deezer.';
 
   @override
-  String get integrationsFeatureLastFmSameVibesTitle => 'Same Vibes Mixes';
+  String get integrationsFeatureDeezerSameVibesTitle =>
+      'Same Vibes through Deezer';
+
+  @override
+  String get integrationsFeatureDeezerSameVibesSubtitle =>
+      'Lets Instant Mix find similar songs through Deezer.';
+
+  @override
+  String get integrationsFeatureLastFmSameVibesTitle =>
+      'Same Vibes through Last.fm';
 
   @override
   String get integrationsFeatureLastFmSameVibesSubtitle =>
-      'On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server\'s mix.';
+      'Lets Instant Mix find similar songs through Last.fm when you choose it under Instant Mix.';
+
+  @override
+  String get integrationsMixModeTitle => 'Instant Mix';
+
+  @override
+  String get integrationsMixModeHelper =>
+      'Same Vibes finds similar songs through the service you pick. Server Mix uses your server\'s own mix.';
+
+  @override
+  String get integrationsMixModeDeezer => 'Same Vibes (Deezer)';
+
+  @override
+  String get integrationsMixModeLastFm => 'Same Vibes (Last.fm)';
+
+  @override
+  String get integrationsMixModeServer => 'Server Mix';
+
+  @override
+  String integrationsMixModeSwitchedOff(String service) {
+    return 'Switched off under $service below.';
+  }
 
   @override
   String get integrationsFeatureLastFmRadioTitle => 'Instant Radio';
@@ -2950,8 +2980,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Same Vibes started — $count similar tracks from Last.fm queued.',
-      one: 'Same Vibes started — 1 similar track from Last.fm queued.',
+      other: 'Same Vibes started — $count similar tracks queued.',
+      one: 'Same Vibes started — 1 similar track queued.',
       zero: 'No similar tracks found.',
     );
     return '$_temp0';

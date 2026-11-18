@@ -3,7 +3,9 @@ import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart'
     show AudioServiceRepeatMode, AudioServiceShuffleMode;
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -23,6 +25,13 @@ const _kTargetQueueBatchSize = 10;
 
 /// Last.fm recommendation request limit per refill.
 const _kLastFmRecommendationLimit = 20;
+
+/// The whole Deezer leg (artist lookup and radio) must answer within this, or
+/// the server fills the refill instead.
+const _kDeezerLegTimeout = Duration(seconds: 6);
+
+/// Deezer was over its quota or too slow; the server fills, nothing retries.
+const _kDeezerSkippedReason = 'deezer_skipped';
 
 /// Miss budget for mapping Last.fm recommendations with `search3` (only
 /// misses count; it matches the fetch limit, so every fetched one may be tried).
@@ -60,6 +69,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
   final math.Random _random = math.Random();
   Timer? _retryTimer;
+
+  /// `deezer` or `lastFm`: the source the latest recommendation fetch used.
+  String _recommendationSource = 'lastFm';
   DateTime? _nextRefillAllowedAt;
   int _consecutiveTransientFailures = 0;
 
@@ -341,6 +353,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         'downloaded=${candidatePreferences.downloadedSongIds.length} '
         'cached=${candidatePreferences.cachedSongIds.length}',
       );
+      _recommendationSource = 'lastFm';
       var lastFmResult = const LastFmTrackFetchResult(
         outcome: LastFmFetchOutcome.noResults,
         tracks: <LastFmTrackRecommendation>[],
@@ -348,10 +361,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       var mappedSongCount = 0;
       final mappedSongs = <Song>[];
       if (seed != null) {
-        lastFmResult = await _fetchLastFmRecommendations(
-          expectedArtist: seed.artist,
-          expectedTitle: seed.title,
+        lastFmResult = await _fetchRecommendations(
+          seed: seed,
           limit: _kLastFmRecommendationLimit,
+          background: !isInitial,
         );
         AppLogger.debug(
           'SameVibes diagnostics: seed resolved artist="${seed.artist}" '
@@ -439,7 +452,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           fallbackDecision = 'attempt';
           fallbackReason = switch (lastFmResult.outcome) {
             LastFmFetchOutcome.notConfigured => 'lastfm_not_configured',
-            LastFmFetchOutcome.noResults => 'lastfm_no_results',
+            LastFmFetchOutcome.noResults =>
+              lastFmResult.message == _kDeezerSkippedReason
+                  ? _kDeezerSkippedReason
+                  : 'lastfm_no_results',
             LastFmFetchOutcome.networkError => 'lastfm_network_error',
             LastFmFetchOutcome.parseError => 'lastfm_parse_error',
             LastFmFetchOutcome.apiError => 'lastfm_api_error',
@@ -628,7 +644,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           await _restorePreviousQueue(snapshot, session);
         }
         final terminalError =
-            lastFmResult.apiErrorCode == 10 || lastFmResult.apiErrorCode == 26
+            // A rejected bundled key is not the user's to fix: stay silent and
+            // fall through (silent self-healing, #694).
+            (lastFmResult.apiErrorCode == 10 ||
+                    lastFmResult.apiErrorCode == 26) &&
+                !ref.read(lastFmBundledKeyProvider)
             ? SameVibesError.invalidKey
             : lastFmResult.statusCode == 429 || lastFmResult.apiErrorCode == 29
             ? SameVibesError.rateLimited
@@ -695,7 +715,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         refilling: false,
         pendingSnackbar: isInitial ? '$totalQueued' : null,
       );
+      // Where the songs came from, by the source this refill asked.
+      final mixSource = mappedSongs.isEmpty ? 'server' : _recommendationSource;
       _lastRefill = SameVibesRefillRecord(
+        mixSource: mixSource,
         at: _now().toUtc(),
         seedId: normalizedSeedSongId,
         isInitial: isInitial,
@@ -717,7 +740,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             // exhausted); a refill that queued songs, or parked, is 'active'.
             stage: totalQueued > 0 || parked ? 'active' : null,
             retryCount: totalQueued > 0 || parked ? 0 : null,
-            source: mappedSongs.isNotEmpty ? 'lastFm' : 'server',
+            source: mixSource,
             candidateCount: songsToQueue.length,
             insertedCount: totalQueued,
           );
@@ -840,7 +863,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         mediaItem?.id == seedSongId &&
             mediaTitle.isNotEmpty &&
             mediaArtist.isNotEmpty
-        ? _SeedMetadata(title: mediaTitle, artist: mediaArtist)
+        ? _SeedMetadata(
+            title: mediaTitle,
+            artist: mediaArtist,
+            artistId: (mediaItem?.extras?['artistId'] as String?)?.trim(),
+          )
         : null;
     // A server-addressable seed needs nothing more than its title and
     // artist. A remote seed also needs getSong even while it plays: a server
@@ -864,6 +891,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           title: fromMediaItem.title,
           artist: fromMediaItem.artist,
           libraryCopyId: libraryCopyId,
+          artistId: fromMediaItem.artistId ?? song.artistId?.trim(),
         );
       }
       if (title.isEmpty || artist.isEmpty) {
@@ -873,6 +901,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         title: title,
         artist: artist,
         libraryCopyId: libraryCopyId,
+        artistId: song.artistId?.trim(),
       );
     } on SubsonicNotFoundException {
       if (rethrowNotFound) rethrow;
@@ -989,11 +1018,30 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     return mappedCount;
   }
 
-  Future<LastFmTrackFetchResult> _fetchLastFmRecommendations({
-    required String expectedArtist,
-    required String expectedTitle,
+  /// Similar-song candidates from the source Instant Mix is set to. Deezer
+  /// mode never calls Last.fm, so only that source's errors can end a mix.
+  Future<LastFmTrackFetchResult> _fetchRecommendations({
+    required _SeedMetadata seed,
     required int limit,
+    required bool background,
   }) async {
+    switch (ref.read(preferredMixModeProvider)) {
+      case PreferredMixMode.sameVibesDeezer:
+        _recommendationSource = 'deezer';
+        return _fetchDeezerRadio(
+          seed: seed,
+          limit: limit,
+          background: background,
+        );
+      case PreferredMixMode.legacyInstantMix:
+        // The user switched to Server Mix after this mix started.
+        return const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.notConfigured,
+          tracks: <LastFmTrackRecommendation>[],
+        );
+      case PreferredMixMode.sameVibesLastFm:
+        break;
+    }
     if (!ref
         .read(integrationPolicyProvider)
         .allows(IntegrationFeature.lastFmSameVibes)) {
@@ -1014,18 +1062,142 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       );
     }
 
+    _recommendationSource = 'lastFm';
     final result = await client.getSimilarTracksResult(
-      artist: expectedArtist,
-      track: expectedTitle,
+      artist: seed.artist,
+      track: seed.title,
       limit: limit,
     );
+    // Last.fm rejected the key: the user chose a source they cannot use, so
+    // Deezer carries this fetch. Without songs from Deezer, the Last.fm
+    // answer stands and its one-time notice can show.
+    if ((result.apiErrorCode == 10 || result.apiErrorCode == 26) &&
+        ref
+            .read(integrationPolicyProvider)
+            .allows(IntegrationFeature.deezerSameVibes)) {
+      final deezer = await _fetchDeezerRadio(
+        seed: seed,
+        limit: limit,
+        background: background,
+      );
+      if (deezer.tracks.isNotEmpty) {
+        _recommendationSource = 'deezer';
+        return deezer;
+      }
+    }
     AppLogger.debug(
       'SameVibes diagnostics: lastfm recommendations=${result.tracks.length} '
-      'artist="$expectedArtist" track="$expectedTitle" '
+      'artist="${seed.artist}" track="${seed.title}" '
       'outcome=${result.outcome.name} source=${result.source.name} '
       'status=${result.statusCode} apiCode=${result.apiErrorCode}',
     );
     return result;
+  }
+
+  /// The Deezer leg: the seed artist's radio as recommendations, within
+  /// [_kDeezerLegTimeout]. Quota or a timeout reads as "skipped" (no retry);
+  /// codes stay null so Last.fm's terminal errors cannot come from here.
+  ///
+  /// ponytail: an empty radio has no `/top` fallback; the server fills.
+  Future<LastFmTrackFetchResult> _fetchDeezerRadio({
+    required _SeedMetadata seed,
+    required int limit,
+    required bool background,
+  }) async {
+    const skipped = LastFmTrackFetchResult(
+      outcome: LastFmFetchOutcome.noResults,
+      tracks: <LastFmTrackRecommendation>[],
+      message: _kDeezerSkippedReason,
+    );
+    final cancelToken = CancelToken();
+    try {
+      return await _deezerRadioLeg(
+        seed: seed,
+        limit: limit,
+        background: background,
+        cancelToken: cancelToken,
+      ).timeout(
+        _kDeezerLegTimeout,
+        onTimeout: () {
+          cancelToken.cancel();
+          return skipped;
+        },
+      );
+    } on DeezerApiException catch (error) {
+      AppLogger.debug('SameVibes diagnostics: deezer leg $error');
+      return error.isQuotaExceeded
+          ? skipped
+          : const LastFmTrackFetchResult(
+              outcome: LastFmFetchOutcome.networkError,
+              tracks: <LastFmTrackRecommendation>[],
+            );
+    } on DioException catch (error) {
+      AppLogger.debug('SameVibes diagnostics: deezer leg ${error.type.name}');
+      return CancelToken.isCancel(error)
+          ? skipped
+          : const LastFmTrackFetchResult(
+              outcome: LastFmFetchOutcome.networkError,
+              tracks: <LastFmTrackRecommendation>[],
+            );
+    }
+  }
+
+  Future<LastFmTrackFetchResult> _deezerRadioLeg({
+    required _SeedMetadata seed,
+    required int limit,
+    required bool background,
+    required CancelToken cancelToken,
+  }) async {
+    // Read the providers directly: an unlistened provider is paused.
+    final artistId = await ref
+        .read(deezerArtistResolverProvider)
+        .resolve(
+          artistId: seed.artistId ?? '',
+          name: seed.artist,
+          cancelToken: cancelToken,
+          background: background,
+          retryQuota: false,
+        );
+    if (artistId == null) {
+      return const LastFmTrackFetchResult(
+        outcome: LastFmFetchOutcome.noResults,
+        tracks: <LastFmTrackRecommendation>[],
+      );
+    }
+    final radio = await ref
+        .read(deezerApiClientProvider)
+        .getArtistRadio(
+          artistId,
+          limit: limit,
+          cancelToken: cancelToken,
+          background: background,
+          retryQuota: false,
+        );
+    // Deezer's order is the relevance; the mapper sorts by match.
+    final seen = <String?>{sameVibesCanonicalSongKey(seed.artist, seed.title)};
+    final tracks = <LastFmTrackRecommendation>[];
+    for (final track in radio) {
+      final recommendation = LastFmTrackRecommendation(
+        artist: track.artist.name,
+        title: track.title,
+        match: 1 - tracks.length / math.max(radio.length, 1),
+      );
+      if (recommendation.isUsable &&
+          seen.add(
+            sameVibesCanonicalSongKey(
+              recommendation.artist,
+              recommendation.title,
+            ),
+          )) {
+        tracks.add(recommendation);
+      }
+    }
+    return LastFmTrackFetchResult(
+      outcome: tracks.isEmpty
+          ? LastFmFetchOutcome.noResults
+          : LastFmFetchOutcome.success,
+      tracks: tracks,
+    );
   }
 
   /// Last.fm then server similar songs for the mix's anchor seed, filtered
@@ -1078,10 +1250,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     } else {
       final blockedCopy = seed.libraryCopyId;
       if (blockedCopy != null) blockedIds.add(blockedCopy);
-      final lastFm = await _fetchLastFmRecommendations(
-        expectedArtist: seed.artist,
-        expectedTitle: seed.title,
+      final lastFm = await _fetchRecommendations(
+        seed: seed,
         limit: _kLastFmRecommendationLimit,
+        background: true,
       );
       lastFmOutcome = lastFm.outcome.name;
       final lastFmFailed = switch (lastFm.outcome) {
@@ -1525,10 +1697,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 }
 
 class _SeedMetadata {
-  const new({required this.artist, required this.title, this.libraryCopyId});
+  const new({
+    required this.artist,
+    required this.title,
+    this.libraryCopyId,
+    this.artistId,
+  });
 
   final String artist;
   final String title;
+
+  /// The server's artist id, when known; it keys the Deezer artist lookup.
+  final String? artistId;
 
   /// The server's library copy of a remote seed, when it has one.
   final String? libraryCopyId;
@@ -1596,6 +1776,7 @@ final sameVibesProvider = NotifierProvider<SameVibesNotifier, SameVibesState>(
 class SameVibesRefillRecord {
   const new({
     required this.at,
+    required this.mixSource,
     required this.seedId,
     required this.isInitial,
     required this.lastFmOutcome,
@@ -1610,6 +1791,10 @@ class SameVibesRefillRecord {
   });
 
   final DateTime at;
+
+  /// Where the queued songs came from: `deezer`, `lastFm` or `server`. The
+  /// `lastFm*` fields below keep their names for readers of the diagnostics.
+  final String mixSource;
   final String seedId;
   final bool isInitial;
   final String lastFmOutcome;
@@ -1624,6 +1809,7 @@ class SameVibesRefillRecord {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'at': at.toIso8601String(),
+    'mixSource': mixSource,
     'seedId': seedId,
     'isInitial': isInitial,
     'lastFmOutcome': lastFmOutcome,
