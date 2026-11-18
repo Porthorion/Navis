@@ -406,6 +406,22 @@ final networkTypeProvider = Provider<NetworkType>((ref) {
   return results == null ? NetworkType.other : resolveNetworkType(results);
 });
 
+/// Streaming is allowed when the device reads connected or the server answered
+/// its last probe: a stale `[none]` from the platform must not refuse songs the
+/// server can serve. The diagnostics override always wins. Cellular metering
+/// still comes from [networkTypeProvider] alone.
+bool resolveCanStream({
+  required NetworkType networkType,
+  required ServerReachabilityStatus reachability,
+  required NetworkType? diagnosticsOverride,
+}) {
+  if (diagnosticsOverride != null) {
+    return diagnosticsOverride != NetworkType.offline;
+  }
+  return networkType != NetworkType.offline ||
+      reachability == ServerReachabilityStatus.online;
+}
+
 final networkCostBridgeProvider = Provider<NetworkCostBridge>((ref) {
   return NetworkCostBridge();
 });
@@ -1337,6 +1353,11 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     if (next.status == ServerReachabilityStatus.online &&
         next.lastCheckedAt != previous?.lastCheckedAt) {
       recoveredNetwork.add(null);
+      // The server answered while the device reads offline: the platform value
+      // is stale, so re-read it once and let the state heal itself.
+      if (ref.read(networkTypeProvider) == NetworkType.offline) {
+        unawaited(_refreshDeviceConnected(ref).then((_) {}, onError: (_) {}));
+      }
     }
   });
   ref.listen<AsyncValue<List<ConnectivityResult>>>(connectivityProvider, (
@@ -1425,8 +1446,13 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         },
         readPreferAnyCache: () =>
             ref.read(networkTypeProvider) == NetworkType.cellular,
-        readCanStream: () =>
-            ref.read(networkTypeProvider) != NetworkType.offline,
+        readCanStream: () => resolveCanStream(
+          networkType: ref.read(networkTypeProvider),
+          reachability: ref.read(serverReachabilityControllerProvider).status,
+          diagnosticsOverride: _syncDiagnosticsEnabled
+              ? ref.read(syncDiagnosticsOverridesProvider).networkType
+              : null,
+        ),
         // media_kit cannot seek LockCachingAudioSource's local proxy; desktop
         // plays via direct HTTPS and fills the rolling cache with a sidecar.
         readUsesSidecarRollingCache: () => isDesktopRuntime,

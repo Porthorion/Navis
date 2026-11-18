@@ -1666,18 +1666,29 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required OperationToken token,
     required String operation,
     required Future<void> Function(List<AudioSource> sources) apply,
+    void Function(int index)? onRetryLater,
   }) async {
     _checkQueueWorkCurrent(token, generation);
     // Each resolution is independent and mostly waits on a database or file
     // check, so resolve the batch concurrently. Results keep queue order.
     final resolveWatch = Stopwatch()..start();
-    final resolved = await Future.wait(
-      batch.map(_prepareSingleItemForQueueFill),
-    );
+    var retryFrom = batch.length;
+    final resolved = await Future.wait([
+      for (var i = 0; i < batch.length; i++)
+        _prepareSingleItemForQueueFill(
+          batch[i],
+          onRetryLater: onRetryLater == null
+              ? null
+              : () => retryFrom = math.min(retryFrom, i),
+        ),
+    ]);
     _queueFillResolveMs += resolveWatch.elapsedMilliseconds;
+    // The caller defers the songs from the first one that is only unavailable
+    // for now, so none of them is skipped or applied here.
+    if (retryFrom < batch.length) onRetryLater!(retryFrom);
     final prepared = <_PreparedQueueItem>[];
     final preparedIndexes = <int>[];
-    for (var j = 0; j < batch.length; j++) {
+    for (var j = 0; j < retryFrom; j++) {
       final item = resolved[j];
       if (item == null) {
         skippedSongIds.add(batch[j].id);
