@@ -628,7 +628,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           await _restorePreviousQueue(snapshot, session);
         }
         final terminalError =
-            lastFmResult.apiErrorCode == 10 || lastFmResult.apiErrorCode == 26
+            // A rejected bundled key is not the user's to fix: stay silent and
+            // fall through (silent self-healing, #694).
+            (lastFmResult.apiErrorCode == 10 ||
+                    lastFmResult.apiErrorCode == 26) &&
+                !ref.read(lastFmBundledKeyProvider)
             ? SameVibesError.invalidKey
             : lastFmResult.statusCode == 429 || lastFmResult.apiErrorCode == 29
             ? SameVibesError.rateLimited
