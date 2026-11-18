@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:navis/src/api/models/deezer_models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -322,7 +323,9 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 /// unmatched rows. Two songs are searched at once; a pull to refresh searches
 /// six, updates the rows as it goes and searches unmatched songs again. The
 /// provider lives for the session; a refresh or turning the switch off cancels
-/// its searches. A failed chart request leaves Trending empty.
+/// its searches. A chart request Deezer
+/// refuses (its quota) leaves Trending empty; the screen's foreground request
+/// is asked once more in the background when Home is idle.
 final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   ref,
 ) async* {
@@ -366,10 +369,31 @@ final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   final manual = ref.read(homeTrendingRefreshProvider.notifier).takeManual();
 
   final timer = Stopwatch()..start();
-  final chart = await catalog.chartTracks(
-    cancelToken: cancelToken,
-    background: !foreground,
-  );
+  var chart = const <DeezerTrack>[];
+  try {
+    chart = await catalog.chartTracks(
+      cancelToken: cancelToken,
+      background: !foreground,
+    );
+  } on Object {
+    // A cancelled build ends quietly. Any other refusal (Deezer's quota,
+    // often shared with the sync's own traffic) must not end as an error:
+    // a screen that asked in the foreground asks once more, in the
+    // background, when Home is idle; whatever fails stays empty.
+    if (cancelToken.isCancelled || !ref.mounted) return;
+    if (foreground) {
+      try {
+        await ref.watch(homeDeezerIdleProvider.future);
+        if (cancelToken.isCancelled || !ref.mounted) return;
+        chart = await catalog.chartTracks(
+          cancelToken: cancelToken,
+          background: true,
+        );
+      } on Object {
+        if (cancelToken.isCancelled || !ref.mounted) return;
+      }
+    }
+  }
   if (cancelToken.isCancelled) return;
   if (chart.isEmpty) {
     yield const <ResolvedArtistTopTrack>[];
