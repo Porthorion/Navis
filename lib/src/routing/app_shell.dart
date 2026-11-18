@@ -848,7 +848,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Global Same Vibes snackbar / error notifications.
     ref.listen<SameVibesState>(sameVibesProvider, (prev, next) {
       if (!mounted) return;
-      if (ref.read(preferredMixModeProvider) != PreferredMixMode.sameVibes) {
+      if (!ref.read(preferredMixModeProvider).isSameVibes) {
         return;
       }
       if (!(prev?.active ?? false) && next.active && next.refilling) {

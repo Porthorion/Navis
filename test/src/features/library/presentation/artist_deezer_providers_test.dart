@@ -28,6 +28,7 @@ class _FakeDeezer extends DeezerApiClient {
     int limit = 25,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     calls.add('search/artist');
     return const [DeezerArtist(id: 1105, name: 'ONE OK ROCK')];

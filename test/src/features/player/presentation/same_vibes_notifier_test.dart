@@ -721,7 +721,10 @@ void main() {
             lastFmApiClientProvider.overrideWithValue(lastFm),
             lastFmBundledKeyProvider.overrideWithValue(bundled),
             integrationPolicyProvider.overrideWithValue(
-              const IntegrationPolicy(lastFmVerified: true),
+              const IntegrationPolicy(
+                lastFmVerified: true,
+                disabledKeys: {'deezer.sameVibes'},
+              ),
             ),
             currentMediaItemProvider.overrideWith(
               (ref) => Stream<MediaItem?>.value(
@@ -4050,6 +4053,7 @@ void main() {
           .toJson();
       expect(json.keys.toSet(), <String>{
         'at',
+        'mixSource',
         'seedId',
         'isInitial',
         'lastFmOutcome',

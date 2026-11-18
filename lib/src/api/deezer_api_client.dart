@@ -93,6 +93,7 @@ class DeezerApiClient {
     int limit = 25,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     final query = name.trim();
     if (query.isEmpty) return const [];
@@ -101,6 +102,7 @@ class DeezerApiClient {
       <String, Object>{'q': query, 'limit': limit},
       cancelToken: cancelToken,
       background: background,
+      retryQuota: retryQuota,
     );
     return data.map(DeezerArtist.fromJson).where(_hasId).toList();
   }
@@ -198,6 +200,25 @@ class DeezerApiClient {
     return data.map(DeezerArtist.fromJson).where(_hasId).toList();
   }
 
+  /// `/artist/{id}/radio`: tracks by the artist and similar artists, in
+  /// Deezer's mix order. Not cached: every call is a fresh mix.
+  Future<List<DeezerTrack>> getArtistRadio(
+    int artistId, {
+    int limit = 40,
+    CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
+  }) async {
+    final data = await _getData(
+      'artist/$artistId/radio',
+      <String, Object>{'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    );
+    return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
+  }
+
   /// `/chart/0/tracks`: the most played tracks on Deezer in the caller's
   /// country, most played first.
   Future<List<DeezerTrack>> getChartTracks({
@@ -220,12 +241,14 @@ class DeezerApiClient {
     Map<String, Object> query, {
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     final body = await getJson(
       path,
       query,
       cancelToken: cancelToken,
       background: background,
+      retryQuota: retryQuota,
     );
     final data = body?['data'];
     if (data is! List) return const [];
@@ -240,12 +263,14 @@ class DeezerApiClient {
   ///
   /// The building block for every endpoint, so a new endpoint inherits the
   /// limiter and the error handling. A [background] request yields the
-  /// limiter to foreground ones.
+  /// limiter to foreground ones. With [retryQuota] false a quota refusal
+  /// throws at once (the pause still applies to later requests).
   Future<Map<String, dynamic>?> getJson(
     String path,
     Map<String, Object> query, {
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     for (var attempt = 0; ; attempt++) {
       final response = await _limiter.run(
@@ -296,7 +321,9 @@ class DeezerApiClient {
       final quotaRetries = background
           ? backgroundQuotaRetries
           : foregroundQuotaRetries;
-      if (exception.isQuotaExceeded && attempt < quotaRetries) continue;
+      if (retryQuota && exception.isQuotaExceeded && attempt < quotaRetries) {
+        continue;
+      }
       throw exception;
     }
   }

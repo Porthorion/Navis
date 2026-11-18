@@ -71,6 +71,7 @@ class _FakeDeezerApiClient extends DeezerApiClient {
     int limit = 25,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     artistSearches++;
     return const [DeezerArtist(id: 9, name: 'Test Artist', fanCount: 10)];

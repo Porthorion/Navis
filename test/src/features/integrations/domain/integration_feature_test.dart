@@ -7,7 +7,6 @@ IntegrationPolicy _policy({
   bool useLrclib = true,
   bool updateCheckEnabled = true,
   bool listenBrainzScrobblingEnabled = true,
-  bool legacyInstantMixEnabled = false,
   bool lastFmVerified = true,
   bool listenBrainzVerified = true,
 }) => IntegrationPolicy.resolve(
@@ -16,7 +15,6 @@ IntegrationPolicy _policy({
   useLrclib: useLrclib,
   updateCheckEnabled: updateCheckEnabled,
   listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
-  legacyInstantMixEnabled: legacyInstantMixEnabled,
   lastFmVerified: lastFmVerified,
   listenBrainzVerified: listenBrainzVerified,
 );
@@ -59,6 +57,7 @@ void main() {
         'deezer.newReleases',
         'deezer.trending',
         'deezer.searchRanking',
+        'deezer.sameVibes',
         'lastfm.sameVibes',
         'lastfm.radio',
         'lastfm.topSongs',
@@ -87,7 +86,7 @@ void main() {
       expect(_policy(master: false).allows(feature), isFalse);
     });
 
-    test('only the four legacy-column features are column-backed', () {
+    test('only the three legacy-column features are column-backed', () {
       final backed = {
         for (final f in IntegrationFeature.values)
           if (f.legacyColumn != null) f.key: f.legacyColumn,
@@ -97,24 +96,48 @@ void main() {
         'updates.automatic': IntegrationLegacyColumn.updateCheckEnabled,
         'listenbrainz.scrobbling':
             IntegrationLegacyColumn.listenBrainzScrobblingEnabled,
-        'lastfm.sameVibes': IntegrationLegacyColumn.legacyInstantMixEnabled,
       });
+    });
+
+    test('the Same Vibes features are JSON-stored and on by default', () {
+      for (final feature in [
+        IntegrationFeature.deezerSameVibes,
+        IntegrationFeature.lastFmSameVibes,
+      ]) {
+        expect(feature.legacyColumn, isNull);
+        expect(_policy().allows(feature), isTrue);
+        expect(
+          _policy(disabledJson: '["${feature.key}"]').allows(feature),
+          isFalse,
+        );
+      }
+      expect(IntegrationFeature.deezerSameVibes.key, 'deezer.sameVibes');
       expect(
-        IntegrationLegacyColumn.legacyInstantMixEnabled.featureEnabledFor(
-          columnValue: true,
+        IntegrationFeature.deezerSameVibes.service,
+        IntegrationService.deezer,
+      );
+    });
+
+    test('the Last.fm source entry is kept by the parser, never a switch', () {
+      expect(
+        parseDisabledIntegrationKeys(
+          '["$sameVibesLastFmSettingsKey","deezer"]',
         ),
-        isFalse,
+        {sameVibesLastFmSettingsKey, 'deezer'},
       );
+      // Wrong case and look-alikes are ignored.
       expect(
-        IntegrationLegacyColumn.legacyInstantMixEnabled.columnValueFor(
-          featureEnabled: true,
-        ),
-        isFalse,
+        parseDisabledIntegrationKeys('["SameVibes.source.lastfm"]'),
+        isEmpty,
       );
-      expect(
-        IntegrationLegacyColumn.useLrclib.featureEnabledFor(columnValue: true),
-        isTrue,
-      );
+      expect(sameVibesLastFmChosen('["$sameVibesLastFmSettingsKey"]'), isTrue);
+      expect(sameVibesLastFmChosen('["SameVibes.source.lastfm"]'), isFalse);
+      expect(sameVibesLastFmChosen('not json'), isFalse);
+      expect(sameVibesLastFmChosen(null), isFalse);
+      // It never disables anything and is stripped from the policy.
+      final policy = _policy(disabledJson: '["$sameVibesLastFmSettingsKey"]');
+      expect(policy.disabledKeys, isEmpty);
+      expect(isIntegrationKey(sameVibesLastFmSettingsKey), isFalse);
     });
 
     test('isIntegrationKey allows service and feature keys only', () {
@@ -199,19 +222,13 @@ void main() {
         useLrclib: false,
         updateCheckEnabled: false,
         listenBrainzScrobblingEnabled: false,
-        legacyInstantMixEnabled: true,
       );
       expect(policy.allows(IntegrationFeature.lrclibLyrics), isFalse);
       expect(policy.allows(IntegrationFeature.updatesAutomatic), isFalse);
       expect(policy.allows(IntegrationFeature.listenBrainzScrobbling), isFalse);
-      // legacyInstantMixEnabled is inverted: true means Same Vibes is off.
-      expect(policy.allows(IntegrationFeature.lastFmSameVibes), isFalse);
       // Other features of those services are untouched.
       expect(policy.allows(IntegrationFeature.lastFmRadio), isTrue);
       expect(policy.allows(IntegrationFeature.listenBrainzFeedback), isTrue);
-
-      final on = _policy(legacyInstantMixEnabled: false);
-      expect(on.allows(IntegrationFeature.lastFmSameVibes), isTrue);
     });
 
     test('a column-backed key in the JSON set is ignored', () {

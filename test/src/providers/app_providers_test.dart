@@ -3115,67 +3115,220 @@ void main() {
     );
   });
 
+  group('resolvePreferredMixMode', () {
+    // Rows of the Phase 2 truth table in the plan (deezer-152).
+    IntegrationPolicy policy({
+      bool master = true,
+      bool deezerAllowed = true,
+      bool lastFmAllowed = true,
+    }) => IntegrationPolicy(
+      masterEnabled: master,
+      lastFmVerified: lastFmAllowed,
+      disabledKeys: {if (!deezerAllowed) 'deezer.sameVibes'},
+    );
+
+    final rows = <String, (PreferredMixMode, IntegrationPolicy, bool, bool)>{
+      '1 master off': (
+        PreferredMixMode.legacyInstantMix,
+        policy(master: false),
+        false,
+        true,
+      ),
+      '2 Server Mix chosen': (
+        PreferredMixMode.legacyInstantMix,
+        policy(),
+        true,
+        true,
+      ),
+      '3 Deezer, no key': (
+        PreferredMixMode.sameVibesDeezer,
+        policy(lastFmAllowed: false),
+        false,
+        false,
+      ),
+      '4 Deezer chosen, key valid': (
+        PreferredMixMode.sameVibesDeezer,
+        policy(),
+        false,
+        false,
+      ),
+      '5 Last.fm chosen, key valid': (
+        PreferredMixMode.sameVibesLastFm,
+        policy(),
+        false,
+        true,
+      ),
+      '6 Last.fm chosen, key gone: silent Deezer': (
+        PreferredMixMode.sameVibesDeezer,
+        policy(lastFmAllowed: false),
+        false,
+        true,
+      ),
+      '7 Deezer service off, key valid': (
+        PreferredMixMode.sameVibesLastFm,
+        const IntegrationPolicy(lastFmVerified: true, disabledKeys: {'deezer'}),
+        false,
+        true,
+      ),
+      '8 deezer.sameVibes off, key valid, Deezer chosen': (
+        PreferredMixMode.sameVibesLastFm,
+        policy(deezerAllowed: false),
+        false,
+        false,
+      ),
+      '9 neither allowed': (
+        PreferredMixMode.legacyInstantMix,
+        policy(deezerAllowed: false, lastFmAllowed: false),
+        false,
+        true,
+      ),
+      '10 settings loading (denyAll)': (
+        PreferredMixMode.legacyInstantMix,
+        const IntegrationPolicy.denyAll(),
+        false,
+        true,
+      ),
+    };
+    for (final row in rows.entries) {
+      test(row.key, () {
+        final (expected, p, serverMix, lastFm) = row.value;
+        expect(
+          resolvePreferredMixMode(
+            p,
+            serverMixChosen: serverMix,
+            lastFmChosen: lastFm,
+          ),
+          expected,
+        );
+      });
+    }
+
+    test('Last.fm feature switch off falls back to Deezer', () {
+      expect(
+        resolvePreferredMixMode(
+          const IntegrationPolicy(
+            lastFmVerified: true,
+            disabledKeys: {'lastfm.sameVibes'},
+          ),
+          serverMixChosen: false,
+          lastFmChosen: true,
+        ),
+        PreferredMixMode.sameVibesDeezer,
+      );
+    });
+
+    test('isSameVibes is true for both Same Vibes modes only', () {
+      expect(PreferredMixMode.sameVibesDeezer.isSameVibes, isTrue);
+      expect(PreferredMixMode.sameVibesLastFm.isSameVibes, isTrue);
+      expect(PreferredMixMode.legacyInstantMix.isSameVibes, isFalse);
+    });
+  });
+
   group('preferredMixModeProvider', () {
-    test('forces legacy mode when no Last.fm API key is available', () {
+    ProviderContainer containerFor(AppSettingsModel settings, String key) {
       final container = ProviderContainer(
         overrides: [
-          lastFmApiKeyProvider.overrideWithValue(''),
-          appSettingsProvider.overrideWithValue(
-            AsyncData(
-              AppSettingsModel.defaults().copyWith(
-                legacyInstantMixEnabled: false,
-              ),
-            ),
-          ),
+          lastFmApiKeyProvider.overrideWithValue(key),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
         ],
       );
       addTearDown(container.dispose);
+      return container;
+    }
 
+    test('defaults to Deezer when no Last.fm API key is available', () {
       expect(
-        container.read(preferredMixModeProvider),
+        containerFor(
+          AppSettingsModel.defaults(),
+          '',
+        ).read(preferredMixModeProvider),
+        PreferredMixMode.sameVibesDeezer,
+      );
+    });
+
+    test('uses Server Mix when the column says so', () {
+      expect(
+        containerFor(
+          AppSettingsModel.defaults().copyWith(legacyInstantMixEnabled: true),
+          'test-key',
+        ).read(preferredMixModeProvider),
         PreferredMixMode.legacyInstantMix,
       );
     });
 
-    test('uses legacy mode when setting is enabled', () {
-      final container = ProviderContainer(
-        overrides: [
-          lastFmApiKeyProvider.overrideWithValue('test-key'),
-          appSettingsProvider.overrideWithValue(
-            AsyncData(
-              AppSettingsModel.defaults().copyWith(
-                legacyInstantMixEnabled: true,
-              ),
-            ),
-          ),
-        ],
+    test('uses Last.fm only when chosen and the key is available', () {
+      final chosen = AppSettingsModel.defaults().copyWith(
+        disabledIntegrations: '["$sameVibesLastFmSettingsKey"]',
       );
-      addTearDown(container.dispose);
-
       expect(
-        container.read(preferredMixModeProvider),
+        containerFor(chosen, 'test-key').read(preferredMixModeProvider),
+        PreferredMixMode.sameVibesLastFm,
+      );
+      expect(
+        containerFor(chosen, '').read(preferredMixModeProvider),
+        PreferredMixMode.sameVibesDeezer,
+      );
+      expect(
+        containerFor(
+          AppSettingsModel.defaults(),
+          'test-key',
+        ).read(preferredMixModeProvider),
+        PreferredMixMode.sameVibesDeezer,
+      );
+    });
+  });
+
+  group('preferredMixModeFromSettings', () {
+    test('matches the provider for stored settings', () {
+      final settings = AppSettingsModel.defaults().copyWith(
+        disabledIntegrations: '["$sameVibesLastFmSettingsKey"]',
+      );
+      expect(
+        preferredMixModeFromSettings(settings, lastFmVerified: true),
+        PreferredMixMode.sameVibesLastFm,
+      );
+      expect(
+        preferredMixModeFromSettings(settings, lastFmVerified: false),
+        PreferredMixMode.sameVibesDeezer,
+      );
+      expect(
+        preferredMixModeFromSettings(
+          settings.copyWith(legacyInstantMixEnabled: true),
+          lastFmVerified: true,
+        ),
         PreferredMixMode.legacyInstantMix,
       );
     });
+  });
 
-    test('uses same vibes when setting is disabled and key is available', () {
+  group('lastFmVerifiedFromSettings', () {
+    test('uses the key in freshly loaded settings before the stream emits', () {
       final container = ProviderContainer(
         overrides: [
-          lastFmApiKeyProvider.overrideWithValue('test-key'),
-          appSettingsProvider.overrideWithValue(
-            AsyncData(
-              AppSettingsModel.defaults().copyWith(
-                legacyInstantMixEnabled: false,
-              ),
-            ),
-          ),
+          appSettingsProvider.overrideWithValue(const AsyncLoading()),
         ],
       );
       addTearDown(container.dispose);
+      final withKey = AppSettingsModel.defaults().copyWith(
+        lastFmApiKey: ' own-key ',
+        disabledIntegrations: '["$sameVibesLastFmSettingsKey"]',
+      );
 
+      expect(container.read(hasLastFmApiKeyProvider), isFalse);
+      expect(lastFmVerifiedFromSettings(container.read, withKey), isTrue);
       expect(
-        container.read(preferredMixModeProvider),
-        PreferredMixMode.sameVibes,
+        preferredMixModeFromSettings(
+          withKey,
+          lastFmVerified: lastFmVerifiedFromSettings(container.read, withKey),
+        ),
+        PreferredMixMode.sameVibesLastFm,
+      );
+      expect(
+        lastFmVerifiedFromSettings(
+          container.read,
+          AppSettingsModel.defaults().copyWith(lastFmApiKey: '  '),
+        ),
+        isFalse,
       );
     });
   });
@@ -3434,10 +3587,10 @@ void main() {
       );
     });
 
-    test('follows the lastfm.sameVibes switch, stored inverted', () {
+    test('follows the stored mode column', () {
       expect(
         modeFor(AsyncData(const AppSettingsModel.defaults())),
-        PreferredMixMode.sameVibes,
+        PreferredMixMode.sameVibesDeezer,
       );
       expect(
         modeFor(
@@ -3451,28 +3604,31 @@ void main() {
       );
     });
 
-    test('is the server mix when the Last.fm service or master is off', () {
-      expect(
-        modeFor(
-          AsyncData(
-            const AppSettingsModel.defaults().copyWith(
-              disabledIntegrations: '["lastfm"]',
+    test(
+      'stays on Deezer when Last.fm is off, Server Mix when master is off',
+      () {
+        expect(
+          modeFor(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                disabledIntegrations: '["lastfm"]',
+              ),
             ),
           ),
-        ),
-        PreferredMixMode.legacyInstantMix,
-      );
-      expect(
-        modeFor(
-          AsyncData(
-            const AppSettingsModel.defaults().copyWith(
-              externalIntegrationsEnabled: false,
+          PreferredMixMode.sameVibesDeezer,
+        );
+        expect(
+          modeFor(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                externalIntegrationsEnabled: false,
+              ),
             ),
           ),
-        ),
-        PreferredMixMode.legacyInstantMix,
-      );
-    });
+          PreferredMixMode.legacyInstantMix,
+        );
+      },
+    );
   });
 
   group('updateProvider', () {

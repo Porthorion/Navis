@@ -5,7 +5,7 @@ Integrations lists each one with what it sends and to which host, a switch per
 service and per feature, and a master "Online services" switch; with it off,
 Navis only talks to your server. Everything is on by default.
 
-- **Deezer** — artist top songs (Last.fm as fallback), matched to your server in
+- **Deezer** — a Same Vibes source (artist radio), artist top songs (Last.fm as fallback), matched to your server in
   "This Is <Artist>" using the shared weekly-playlist resolver rules; with
   neither source enabled, Top Tracks and the "This Is" card are hidden. It also
   supplies artist photos and fan counts, "Fans also like", missing albums
@@ -27,9 +27,9 @@ Navis only talks to your server. Everything is on by default.
   reshuffle. Nothing is sent offline, while a Playlists or Radio filter is on,
   or with the switch, Deezer or Online services off. A profile that already had
   Deezer or Online services off when this arrived starts with the switch off.
-- **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
-  is your server's mix), the Instant Radio fill and a top-songs fallback. No
-  Last.fm scrobbling. Release builds bundle an API key, masked at build time to
+- **Last.fm** — an optional Same Vibes source (chosen under **Instant Mix**
+  below, offered only with a valid key), the Instant Radio fill and a
+  top-songs fallback. No Last.fm scrobbling. Release builds bundle an API key, masked at build time to
   deter casual extraction (a Last.fm API key is a client identifier, not a
   secret, and Navis uses no shared secret); builds without one show a field for
   your own key. A rejected bundled key (Last.fm requires a paid plan for keys
@@ -40,6 +40,43 @@ Navis only talks to your server. Everything is on by default.
 - **LRCLIB** synced lyrics (server lyrics as fallback), **update checks**,
   **AutoEQ** headphone profiles, **internet radio** now-playing info and
   **artwork** your server links from other sites.
+
+**Instant Mix** is a three-way choice at the top of the page, a radio group
+like the update source: **Same Vibes (Deezer)**, the default; **Same Vibes
+(Last.fm)**, shown only when Last.fm has a verified key and enabled while the
+Last.fm service and `lastfm.sameVibes` are on; and **Server Mix**. The selected
+option is always the resolved mode (`resolvePreferredMixMode`, used by every
+caller): Deezer needs `deezer.sameVibes` and the Deezer service; a Last.fm
+choice that stops being allowed (key removed, service or feature off) falls
+back silently to Deezer, and Last.fm is also the fallback when Deezer is off.
+With neither source allowed, or the master switch off, it is Server Mix and the
+group is disabled. Storage: `legacyInstantMixEnabled` is now the mix-mode
+column only (`true` is Server Mix); the Same Vibes source is the reserved entry
+`sameVibes.source.lastfm` in the `disabled_integrations` JSON list, kept
+by the parser and stripped from the policy like `updates.source.github`.
+`SettingsRepository.setPreferredMixMode` writes both in one transaction;
+choosing Server Mix keeps the remembered source. `lastfm.sameVibes` and
+`deezer.sameVibes` are ordinary JSON-stored switches that only mean "Same
+Vibes may call this service"; they no longer switch the mode, so scripts that
+toggled `lastfm.sameVibes` to change modes must use the picker or the column.
+
+**Same Vibes sources.** In Deezer mode a refill resolves the seed's artist
+(the server artist id, else the name; `DeezerArtistResolver`, cached 30 days)
+and queues `artist/{id}/radio`, mapped to your server by the same search
+matching as Last.fm; it never calls Last.fm. The whole Deezer leg (lookup and
+radio) runs under 6 seconds with a cancel token; Deezer's quota (error code 4,
+answered as HTTP 200) or a timeout skips Deezer for that refill
+(`deezer_skipped`): the server's similar songs fill, nothing retries, and the
+quota pause is not extended. No artist match, an empty radio or Deezer's "no
+data" is an ordinary empty result; a transport error is a transient failure
+that retries. The first refill is a foreground request; later refills and the
+anchor fetch yield to the user (`background`). There is no `/top` fallback.
+In Last.fm mode the Last.fm call is unchanged, except that a key Last.fm
+rejects (error 10 or 26) hands that fetch to the Deezer leg when Deezer is
+allowed, so the mix continues. Server Mix mid-mix makes the next refill call
+nothing external. The mode is read on every refill, so a source switch applies
+at the next one. The diagnostics report the real source (`mixSource` in the
+last refill, `selectedSongMix` `deezer|lastfm|server`).
 
 A feature whose service needs a credential stays locked until the key or token
 is verified. Subsonic/OpenSubsonic server scrobbling stays independent of
