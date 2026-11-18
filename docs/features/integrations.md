@@ -32,7 +32,9 @@ Navis only talks to your server. Everything is on by default.
   Last.fm scrobbling. Release builds bundle an API key, masked at build time to
   deter casual extraction (a Last.fm API key is a client identifier, not a
   secret, and Navis uses no shared secret); builds without one show a field for
-  your own key.
+  your own key. A rejected bundled key (Last.fm requires a paid plan for keys
+  from 1 Dec 2026) is silent: Same Vibes and Personal Radio fall back to the
+  server, and only a rejected key you entered yourself shows a notice.
 - **ListenBrainz** — scrobbling, likes (sent as loved) and weekly playlists,
   after its User Token validates.
 - **LRCLIB** synced lyrics (server lyrics as fallback), **update checks**,

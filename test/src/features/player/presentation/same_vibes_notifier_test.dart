@@ -679,6 +679,96 @@ void main() {
     },
   );
 
+  for (final bundled in [true, false]) {
+    test(
+      'a rejected Last.fm key ${bundled ? 'stays silent when bundled' : 'is reported when it is the user\'s own'} (#694)',
+      () async {
+        final api = _MockSubsonicApiClient();
+        final lastFm = _MockLastFmApiClient();
+        when(
+          () => api.getSong(any(), cancelToken: any(named: 'cancelToken')),
+        ).thenAnswer(
+          (_) async =>
+              const Song(id: 'seed', title: 'Seed Song', artist: 'Seed Artist'),
+        );
+        when(
+          () => lastFm.getSimilarTracksResult(
+            artist: any(named: 'artist'),
+            track: any(named: 'track'),
+            limit: any(named: 'limit'),
+          ),
+        ).thenAnswer(
+          (_) async => const LastFmTrackFetchResult(
+            outcome: LastFmFetchOutcome.apiError,
+            tracks: <LastFmTrackRecommendation>[],
+            apiErrorCode: 10,
+          ),
+        );
+        when(
+          () => api.getSimilarSongs(
+            any(),
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async => const <Song>[]);
+
+        final container = createRecommendationContainer(
+          overrides: [
+            queueProvider.overrideWith(
+              () => RecordingRecommendationQueue(insertedCount: 0),
+            ),
+            subsonicApiProvider.overrideWithValue(api),
+            lastFmApiClientProvider.overrideWithValue(lastFm),
+            lastFmBundledKeyProvider.overrideWithValue(bundled),
+            integrationPolicyProvider.overrideWithValue(
+              const IntegrationPolicy(lastFmVerified: true),
+            ),
+            currentMediaItemProvider.overrideWith(
+              (ref) => Stream<MediaItem?>.value(
+                const MediaItem(
+                  id: 'seed',
+                  title: 'Seed Song',
+                  artist: 'Seed Artist',
+                ),
+              ),
+            ),
+            downloadedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            cachedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+              (albumIds) async => const <String, int?>{},
+            ),
+            sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+              (songIds) async => const <String>{},
+            ),
+          ],
+        );
+        container
+            .read(recommendationSnapshotProvider.notifier)
+            .emitSnapshot(
+              snapshot(
+                queueSongIds: const <String>['seed'],
+                currentSongId: 'seed',
+                currentIndex: 0,
+              ),
+            );
+
+        await container.read(sameVibesProvider.notifier).activate('seed');
+        await Future<void>.delayed(Duration.zero);
+
+        final error = container.read(sameVibesProvider).error;
+        if (bundled) {
+          expect(error, isNot(SameVibesError.invalidKey));
+        } else {
+          expect(error, SameVibesError.invalidKey);
+        }
+      },
+    );
+  }
+
   test('activation caps Last.fm mapping at ten queued songs', () async {
     final api = _MockSubsonicApiClient();
     final lastFm = _MockLastFmApiClient();
