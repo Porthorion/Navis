@@ -803,7 +803,7 @@ bool navisShouldWatchRemotePlaybackForStall({
 /// tens of seconds to produce the first byte of an uncached song. Once per
 /// song and transport generation ([used]); a seek inside a playing song, a
 /// stream that already buffered, radio and other platforms keep the short
-/// stall timeout.
+/// stall timeout; so does a `timeOffset` stream ([hasPositionOffset]: a seek).
 @visibleForTesting
 bool navisFirstByteAllowance({
   required bool desktop,
@@ -811,8 +811,10 @@ bool navisFirstByteAllowance({
   required Duration position,
   required Duration bufferedPosition,
   required bool used,
+  required bool hasPositionOffset,
 }) =>
     desktop &&
+    !hasPositionOffset &&
     sourceKind == PlaybackSourceKind.directStream.name &&
     position == Duration.zero &&
     bufferedPosition == Duration.zero &&

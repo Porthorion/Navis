@@ -204,6 +204,22 @@ void main() {
       },
     );
 
+    test('a buffering/ready flip at 0/0 re-arms without spending it', () async {
+      final (_, player) = await start();
+      nudge(player);
+      await wait(500);
+      player.state = ProcessingState.ready;
+      nudge(player);
+      await pumpEventQueue(times: 20);
+      player.state = ProcessingState.buffering;
+      nudge(player);
+      await wait(1000);
+      expect(fired(), isEmpty);
+      await wait(700);
+      expect(fired().first['timeoutMs'], 1500);
+      expect(fired().first['firstByte'], isTrue);
+    });
+
     test('Android keeps the short timeout', () async {
       final (_, player) = await start(desktop: false);
       nudge(player);

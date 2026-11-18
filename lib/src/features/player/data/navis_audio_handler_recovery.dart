@@ -1824,6 +1824,8 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackStallSongId = currentSongId;
     _remotePlaybackStallPosition = position;
     _remotePlaybackStallBufferedPosition = bufferedPosition;
+    // User commands (play/pause/seek/navigation) start a new transport
+    // generation and so re-grant the 60 s; recovery reloads do not.
     final allowanceKey = '$_transportGeneration:$currentSongId';
     final firstByte = navisFirstByteAllowance(
       desktop: _isDesktopRuntime,
@@ -1831,6 +1833,7 @@ extension _NavisRecovery on NavisAudioHandler {
       position: position,
       bufferedPosition: bufferedPosition,
       used: _firstByteAllowanceUsed.contains(allowanceKey),
+      hasPositionOffset: _positionOffsetOf(_currentMediaItem) != Duration.zero,
     );
     final timeout = firstByte
         ? _timeouts.remoteLoad

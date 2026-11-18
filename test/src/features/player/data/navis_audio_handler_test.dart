@@ -441,14 +441,17 @@ void main() {
         Duration position = Duration.zero,
         Duration buffered = Duration.zero,
         bool used = false,
+        bool offset = false,
       }) => navisFirstByteAllowance(
         desktop: desktop,
         sourceKind: sourceKind,
         position: position,
         bufferedPosition: buffered,
         used: used,
+        hasPositionOffset: offset,
       );
       expect(allowed(), isTrue);
+      expect(allowed(offset: true), isFalse);
       expect(allowed(desktop: false), isFalse);
       expect(allowed(sourceKind: 'lockCachedStream'), isFalse);
       expect(allowed(sourceKind: 'file'), isFalse);
