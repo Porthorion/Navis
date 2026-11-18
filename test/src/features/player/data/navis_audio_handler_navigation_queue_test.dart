@@ -31,6 +31,7 @@ import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -96,11 +97,15 @@ void main() {
       bool remote = false,
       int count = 3,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+      bool Function()? readCanStream,
+      PlaybackTransportTrace? trace,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-idle-');
       final created = await createHandler(
         directory,
         count,
+        readCanStream: readCanStream,
+        transportTrace: trace,
         reconcileNetwork: reconcile,
         checkDeviceConnected: deviceConnected,
         recoveredNetwork: recovered,
@@ -243,6 +248,82 @@ void main() {
       expect(player.position, const Duration(seconds: 42));
       expect(player.playing, isTrue);
     });
+
+    test(
+      'a reload refused as temporarily unavailable retries instead of skipping',
+      () async {
+        var canStream = true;
+        final trace = PlaybackTransportTrace(enabled: true);
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+          readCanStream: () => canStream,
+          trace: trace,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        canStream = false;
+        player
+          ..simulatedPosition = const Duration(seconds: 42)
+          ..state = ProcessingState.buffering;
+        await handler.debugRecoverCurrentSong();
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(
+          trace.entries.where((e) => e['decision'] == 'skipPastFailedSong'),
+          isEmpty,
+        );
+        expect(handler.snapshot.currentSongId, 'song-0');
+        canStream = true;
+        final loads = player.sourceLoads;
+        await Future<void>.delayed(const Duration(milliseconds: 3500));
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(player.sourceLoads, greaterThan(loads));
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(player.position, const Duration(seconds: 42));
+      },
+    );
+
+    test(
+      'offline, a queue rebuild skips a missing song and keeps the downloads',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-gate-');
+        final api = SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final (handler, player, database) = await createHandler(
+          directory,
+          4,
+          readApiClient: () => api,
+          readCanStream: () => false,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await database.cacheDao.removeCachedTrack('song-1');
+        final ids = List<String>.generate(4, (i) => 'song-$i');
+        await handler.replaceQueue(ids, expandMatchFlows: false);
+        await settleQueue(handler);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-2', 'song-3']);
+        await handler.skipToNext();
+        await pumpEventQueue(times: 50);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        player.moveTo(2);
+        await pumpEventQueue(times: 50);
+        expect(handler.snapshot.currentSongId, 'song-3');
+      },
+    );
 
     test(
       'a second verified network outage reloads the same song again',

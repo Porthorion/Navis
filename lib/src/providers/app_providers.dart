@@ -406,6 +406,33 @@ final networkTypeProvider = Provider<NetworkType>((ref) {
   return results == null ? NetworkType.other : resolveNetworkType(results);
 });
 
+/// Streaming is allowed when the device reads connected or the server answered
+/// its last probe: a stale `[none]` from the platform must not refuse songs the
+/// server can serve. The diagnostics override always wins. Cellular metering
+/// still comes from [networkTypeProvider] alone.
+bool resolveCanStream({
+  required NetworkType networkType,
+  required ServerReachabilityStatus reachability,
+  required NetworkType? diagnosticsOverride,
+}) {
+  if (diagnosticsOverride != null) {
+    return diagnosticsOverride != NetworkType.offline;
+  }
+  return networkType != NetworkType.offline ||
+      reachability == ServerReachabilityStatus.online;
+}
+
+/// The playback source resolver's stream gate; reads state at call time.
+final canStreamProvider = Provider<bool Function()>((ref) {
+  return () => resolveCanStream(
+    networkType: ref.read(networkTypeProvider),
+    reachability: ref.read(serverReachabilityControllerProvider).status,
+    diagnosticsOverride: _syncDiagnosticsEnabled
+        ? ref.read(syncDiagnosticsOverridesProvider).networkType
+        : null,
+  );
+});
+
 final networkCostBridgeProvider = Provider<NetworkCostBridge>((ref) {
   return NetworkCostBridge();
 });
@@ -478,6 +505,36 @@ Future<bool> _refreshDeviceConnected(Ref ref) async {
       .read(connectivityProvider.future)
       .timeout(const Duration(seconds: 3));
   return resolveNetworkType(connectivity) != NetworkType.offline;
+}
+
+/// A server probe that succeeds while the device reads offline means the
+/// platform value is stale: re-read connectivity. Only once per offline
+/// stretch, because the re-read itself re-probes the server through the
+/// reachability controller and would otherwise loop.
+void healStaleOfflineConnectivity(Ref ref) {
+  var reread = false;
+  ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+    previous,
+    next,
+  ) {
+    if (!reread &&
+        next.status == ServerReachabilityStatus.online &&
+        next.lastCheckedAt != previous?.lastCheckedAt &&
+        ref.read(networkTypeProvider) == NetworkType.offline) {
+      reread = true;
+      unawaited(_refreshDeviceConnected(ref).then((_) {}, onError: (_) {}));
+    }
+  });
+  // Re-arm once the device reads connected again.
+  ref.listen<AsyncValue<List<ConnectivityResult>>>(connectivityProvider, (
+    _,
+    next,
+  ) {
+    final results = next.value;
+    if (results != null && resolveNetworkType(results) != NetworkType.offline) {
+      reread = false;
+    }
+  });
 }
 
 /// Device connectivity alone, for third-party hosts such as radio stations
@@ -1339,6 +1396,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       recoveredNetwork.add(null);
     }
   });
+  healStaleOfflineConnectivity(ref);
   ref.listen<AsyncValue<List<ConnectivityResult>>>(connectivityProvider, (
     previous,
     next,
@@ -1425,8 +1483,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         },
         readPreferAnyCache: () =>
             ref.read(networkTypeProvider) == NetworkType.cellular,
-        readCanStream: () =>
-            ref.read(networkTypeProvider) != NetworkType.offline,
+        readCanStream: ref.read(canStreamProvider),
         // media_kit cannot seek LockCachingAudioSource's local proxy; desktop
         // plays via direct HTTPS and fills the rolling cache with a sidecar.
         readUsesSidecarRollingCache: () => isDesktopRuntime,
