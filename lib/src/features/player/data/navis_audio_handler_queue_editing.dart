@@ -707,10 +707,17 @@ extension _NavisQueueEditing on NavisAudioHandler {
     // The player may have advanced onto the old entry while the twin was
     // inserted: keep that source and drop the twin; the discontinuity reopen
     // restarts it from 0.
-    final becameCurrent = _player.currentIndex == at;
+    // A crossfade may also have started onto the entry during the insert: the
+    // deck plays it, so the deck is left alone and the twin is dropped.
+    final becameCurrent =
+        _player.currentIndex == at ||
+        (_isCrossfading && at == _crossfadeTargetIndex);
     final dropAt = becameCurrent ? at + 1 : at;
     if (becameCurrent) {
-      AppLogger.debug('Offset repair rolled back: ${item.id} became current.');
+      AppLogger.debug(
+        'Offset repair rolled back: ${item.id} became current or a fade '
+        'target.',
+      );
     }
     final removed = _queueItems.removeAt(dropAt);
     await _timedQueueEdit(

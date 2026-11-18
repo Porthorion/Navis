@@ -3372,6 +3372,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   AudioPlayer get debugActivePlayer => _player;
 
+  /// Songs whose finished sidecar file still waits to replace the stream.
+  @visibleForTesting
+  Set<String> get debugFileSwapPending => _fileSwapPending;
+
   /// The cross-fade deck, when cross-fade is on.
   @visibleForTesting
   AudioPlayer? get debugInactiveDeck => _crossfadePlayer;

@@ -1803,30 +1803,27 @@ void main() {
       },
     );
 
-    test('a song that became current before the swap is not touched, and '
-        'starved recovery still works', () async {
+    test('a song that became current during the swap insert keeps its stream '
+        'and stays pending', () async {
       await setUpDesktop();
       await finishSidecarOf('song-0');
-      probe.blockedSongId = 'song-1';
-      probe.release = Completer<void>();
+      final stream = player.audioSources[1];
+      final gate = Completer<void>();
+      player.insertGate = gate;
+      player.insertEntered = Completer<void>();
       await finishSidecarOf('song-1');
-      await until(() => probe.calls.contains('song-1'), reason: 'resolving');
-      final before = player.audioSources[1];
-      final next = handler.skipToNext();
-      await pumpEventQueue();
-      probe.release!.complete();
-      await next;
+      await player.insertEntered!.future;
+      player.index = 1;
+      player.indexEvents.add(1);
+      gate.complete();
       await settleQueue(handler);
-      expect(handler.snapshot.currentSongId, 'song-1');
-      expect(player.index, 1);
-      // Whichever source the current entry holds, it is playing and the
-      // queue still mirrors the player (settleQueue checked that).
-      expect(player.audioSources[1], isNotNull);
-      expect(player.playing, isTrue);
+      expect(player.sequence.length, 6);
+      expect(player.audioSources[1], same(stream));
+      expect(isFile(1), isFalse);
+      expect(handler.debugFileSwapPending, contains('song-1'));
       expect([
         for (final s in player.sequence) navisNativeSourceSongId(s),
-      ], ids.take(player.sequence.length).toList());
-      expect(before, isNotNull);
+      ], ids.take(6).toList());
     });
 
     test('crossfade on, not fading: the deck mirror gets the file', () async {
@@ -1877,14 +1874,65 @@ void main() {
       await until(() => deck.sequence.isNotEmpty, reason: 'deck loaded');
       await settleQueue(handler);
       final removedBefore = deck.sequence.length;
+      final targetBefore = deck.sequence[1];
       final loads = deck.sourceLoads + player.sourceLoads;
       final base = resolves('song-1');
       await finishSidecarOf('song-1');
       await settleQueue(handler);
       expect(deck.sequence.length, removedBefore);
+      expect(deck.sequence[1], same(targetBefore));
       expect(deck.sourceLoads + player.sourceLoads, loads);
       expect(resolves('song-1'), base);
       expect(fade(handler)['active'], isTrue);
+    });
+
+    test('a crossfade starting during the swap insert keeps the deck entry, '
+        'and the id stays pending', () async {
+      await setUpDesktop(crossfade: true);
+      final first = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      await handler.debugStartCrossfade();
+      await until(() => first.playing, reason: 'incoming deck started');
+      await handler.debugCompleteCrossfade();
+      await settleQueue(handler);
+      final active = handler.debugActivePlayer as ControllableAudioPlayer;
+      final deck = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      for (var i = 0; i < 4; i++) {
+        if (sidecar.downloadUri!.queryParameters['id'] == 'song-2') break;
+        await sidecar.finish();
+        await pumpEventQueue();
+      }
+      expect(sidecar.downloadUri!.queryParameters['id'], 'song-2');
+      await settleQueue(handler);
+      final deckBefore = deck.sequence[2];
+      final mainBefore = active.sequence[2];
+      final gate = Completer<void>();
+      active.insertGate = gate;
+      active.insertEntered = Completer<void>();
+      await sidecar.finish();
+      await active.insertEntered!.future;
+      active.simulatedPosition =
+          const Duration(minutes: 3) - const Duration(seconds: 4);
+      handler.debugCheckCrossfadeTrigger(active.position);
+      await until(() => fade(handler)['active'] == true, reason: 'fading');
+      gate.complete();
+      await settleQueue(handler);
+      expect(deck.sequence[2], same(deckBefore));
+      expect(active.sequence[2], same(mainBefore));
+      expect(active.sequence.length, 6);
+      expect(handler.debugFileSwapPending, contains('song-2'));
+    });
+
+    test('a queue replacement clears the pending swaps', () async {
+      await setUpDesktop();
+      await finishSidecarOf('song-0');
+      probe.blockedSongId = 'song-1';
+      probe.failure = StateError('unavailable');
+      await finishSidecarOf('song-1');
+      await settleQueue(handler);
+      expect(handler.debugFileSwapPending, contains('song-1'));
+      await handler.replaceQueueWithData(queueRows, startIndex: 0);
+      await settleQueue(handler);
+      expect(handler.debugFileSwapPending, isEmpty);
     });
 
     test('Android lock-cache completion makes no queue edit', () async {
@@ -1899,12 +1947,12 @@ void main() {
         (s) => s.uri.queryParameters['id'] == 'song-1',
       );
       File('${directory.path}/song-1.mp3').writeAsBytesSync(List.filled(64, 1));
-      final before = player.audioSources[1];
       final loads = player.sourceLoads;
       lock.progress.add(1);
       await pumpEventQueue(times: 50);
       await settleQueue(handler);
-      expect(player.audioSources[1], same(before));
+      expect(handler.debugLockCacheCompleted('song-1'), isTrue);
+      expect(handler.debugFileSwapPending, isEmpty);
       expect(player.sourceLoads, loads);
     });
 

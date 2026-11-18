@@ -1363,6 +1363,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     final clampedIndex = startIndex.clamp(0, songs.length - 1);
     final startSong = songs[clampedIndex];
     _checkQueueWorkCurrent(token, generation);
+    // The rebuilt queue holds fresh sources: no old swap applies to it (#685).
+    _fileSwapPending.clear();
     _isLoading = true;
     _loadingSongId = startSong.id;
     _setQueueReplacementMetadataAnchor(

@@ -5850,9 +5850,11 @@ direct-stream entry of such a song with the cached file, mirrored on the
 crossfade deck, so Next plays the file instead of reopening the stream (#685).
 A fresh source that is not a file (quality mismatch) drops the id; an empty
 one (reload temporarily refused) keeps it for the next trigger (navigation,
-crossfade end, recovery). Nothing is swapped while a crossfade runs
-(`_isCrossfading`, `_crossfadeTargetIndex`), and the set clears on a queue
-replacement. The starved-with-file watchdog stays the safety net.
+crossfade end, recovery). A swap never touches the crossfade target: it is skipped while a fade
+runs onto the entry (`_isCrossfading`, `_crossfadeTargetIndex`), and one whose
+insert a fade overtook is rolled back like one whose song became current,
+leaving the deck alone and the id pending. The set clears on a queue
+replacement (`_replaceQueuePhase1`) and on a player recovery. The starved-with-file watchdog stays the safety net.
 `_rollingCacheNextSongId`
 defines "next" for this and for the Android stale-download and priority logic:
 the logical (shuffled) play order, the current song under Repeat One (nothing
