@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Songs that are not downloaded no longer refuse to play when the '
+        'device reports no connection while your server is reachable, and a '
+        'song reload refused for now retries instead of being skipped',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A slow song from a remote catalogue (Deezer) that plays next or is '
         'skipped to is no longer requested twice from the server on Android, '
         'and it gets up to a minute to start',

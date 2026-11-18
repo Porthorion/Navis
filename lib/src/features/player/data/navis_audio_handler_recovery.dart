@@ -2133,6 +2133,7 @@ extension _NavisRecovery on NavisAudioHandler {
       outcome: StartupOutcome.changed,
     );
 
+    var retryScheduled = false;
     // Install the seek request before awaiting Pause's native acknowledgement.
     try {
       if (isRetry) {
@@ -2271,6 +2272,30 @@ extension _NavisRecovery on NavisAudioHandler {
           return;
         } on OperationCancelledException {
           return;
+        } on PlaybackSourceTemporarilyUnavailableException {
+          // The source gate refused (outage not yet confirmed): keep the song
+          // and retry once the network is back; skipping would drop it.
+          AppLogger.startup(
+            StartupEvent.streamRecovery,
+            outcome: StartupOutcome.offline,
+          );
+          if (_isCurrentTransportIntent(transportGeneration) &&
+              !_ownsRemoteRecovery(songId)) {
+            _pendingRemoteRecovery = (
+              generation: transportGeneration,
+              songId: songId,
+              position: position,
+              autoPlay: autoPlay,
+              requested: false,
+            );
+          }
+          // The reload did not spend the song's retry, and the next attempt
+          // must be a retry again.
+          _remotePlaybackRecoveryAttempts.remove(attemptKey);
+          _remoteRecoveryWasOffline = true;
+          retryScheduled = true;
+          _scheduleNetworkPlaybackRetry();
+          return;
         } on Object {
           AppLogger.startup(
             StartupEvent.streamRecovery,
@@ -2305,7 +2330,7 @@ extension _NavisRecovery on NavisAudioHandler {
       _remotePlaybackRecoveryInProgress = false;
       // A Play during the reload re-armed this song; the reload yielded to it.
       final request = _pendingRemoteRecovery;
-      if (request != null && _ownsRemoteRecovery(songId)) {
+      if (!retryScheduled && request != null && _ownsRemoteRecovery(songId)) {
         if (_remoteSourceFailed) {
           _rearmHeldRemoteRecovery();
         } else {
