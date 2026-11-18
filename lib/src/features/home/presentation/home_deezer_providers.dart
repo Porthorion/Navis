@@ -257,7 +257,8 @@ class HomeTrendingRefreshNotifier extends Notifier<({int epoch, bool manual})> {
 
 /// Whether Trending's own screen is open. A user who opened it wants the
 /// chart now, so [homeTrendingProvider] skips [homeDeezerIdleProvider] and
-/// reads it as a foreground request; Home's sections keep the gate.
+/// reads it as a foreground request; Home's sections keep the gate. A bool,
+/// not a counter: Trending's screen is never stacked on itself.
 class TrendingScreenOpenNotifier extends Notifier<bool> {
   @override
   bool build() => false;
@@ -328,7 +329,6 @@ final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   ref
     ..watch(homeTrendingSyncRefreshBridgeProvider)
     ..watch(homeTrendingRefreshProvider);
-  final manual = ref.read(homeTrendingRefreshProvider.notifier).takeManual();
   final scope = ref.watch(integrationAccountScopeProvider);
   final allowed = ref.watch(
     integrationPolicyProvider.select(
@@ -361,6 +361,9 @@ final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
     if (!ref.mounted) return;
   }
   waiting = false;
+  // Taken only now: a build restarted at the gate must still see a manual
+  // request made while it waited.
+  final manual = ref.read(homeTrendingRefreshProvider.notifier).takeManual();
 
   final timer = Stopwatch()..start();
   final chart = await catalog.chartTracks(

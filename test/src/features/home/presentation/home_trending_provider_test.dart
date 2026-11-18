@@ -284,6 +284,45 @@ void main() {
       },
     );
 
+    test('reopening after the gate passed restarts nothing', () async {
+      await library(<String>[_t(1)]);
+      final deezer = _FakeDeezer(<DeezerTrack>[_chartTrack(1, _t(1), 'Known')]);
+      final c = container(deezer: deezer, syncRunning: true);
+      var events = 0;
+      final sub = c.listen(homeTrendingProvider, (_, _) => events++);
+      addTearDown(sub.close);
+      c.read(trendingScreenOpenProvider.notifier).value = true;
+      await settle();
+      final before = events;
+      c.read(trendingScreenOpenProvider.notifier).value = false;
+      c.read(trendingScreenOpenProvider.notifier).value = true;
+      await settle();
+      expect(events, before);
+    });
+
+    test('a manual refresh made while waiting survives the open', () async {
+      await library(<String>[_t(1)]);
+      final deezer = _FakeDeezer(<DeezerTrack>[_chartTrack(1, _t(1), 'Known')]);
+      final recorder = IntegrationCallRecorder();
+      final c = container(
+        deezer: deezer,
+        syncRunning: true,
+        recorder: recorder,
+      );
+      final sub = c.listen(homeTrendingProvider, (_, _) {});
+      addTearDown(sub.close);
+      await settle();
+      c.read(homeTrendingRefreshProvider.notifier).refresh(manual: true);
+      await settle();
+      expect(deezer.chartCalls, 0);
+      c.read(trendingScreenOpenProvider.notifier).value = true;
+      await settle();
+      final span = recorder.recentSpans().lastWhere(
+        (span) => span.name == kHomeTrendingSpan,
+      );
+      expect(span.counts['manual'], 1);
+    });
+
     test('a screen open from the start does not wait either', () async {
       await library(<String>[_t(1)]);
       final deezer = _FakeDeezer(<DeezerTrack>[_chartTrack(1, _t(1), 'Known')]);
