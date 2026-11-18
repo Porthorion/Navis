@@ -434,6 +434,33 @@ void main() {
       );
     });
 
+    test('the first-byte allowance needs a cold desktop direct stream', () {
+      bool allowed({
+        bool desktop = true,
+        String? sourceKind = 'directStream',
+        Duration position = Duration.zero,
+        Duration buffered = Duration.zero,
+        bool used = false,
+        bool offset = false,
+      }) => navisFirstByteAllowance(
+        desktop: desktop,
+        sourceKind: sourceKind,
+        position: position,
+        bufferedPosition: buffered,
+        used: used,
+        hasPositionOffset: offset,
+      );
+      expect(allowed(), isTrue);
+      expect(allowed(offset: true), isFalse);
+      expect(allowed(desktop: false), isFalse);
+      expect(allowed(sourceKind: 'lockCachedStream'), isFalse);
+      expect(allowed(sourceKind: 'file'), isFalse);
+      expect(allowed(sourceKind: null), isFalse);
+      expect(allowed(position: const Duration(seconds: 1)), isFalse);
+      expect(allowed(buffered: const Duration(milliseconds: 1)), isFalse);
+      expect(allowed(used: true), isFalse);
+    });
+
     test('a starved stream recovers from its file only when it safely can', () {
       bool recover({
         String? sourceKind = 'directStream',

@@ -646,6 +646,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Duration? _remotePlaybackStallBufferedPosition;
   bool _remotePlaybackRecoveryInProgress = false;
   final Set<String> _remotePlaybackRecoveryAttempts = <String>{};
+  final Set<String> _firstByteAllowanceUsed = <String>{};
   bool _isDucked = false;
   // The most-recently requested user volume (0–1). Used as the reference level
   // for ducking and crossfade restoration so track changes never override the

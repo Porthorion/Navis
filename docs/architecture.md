@@ -5902,13 +5902,20 @@ next playable song paused. Newer seeks, selections and a removed occurrence
 retire the request.
 
 The song stall watchdog fires `remoteStall` (12 s) after a buffering remote
-stream shows no position or buffered-position change. A slow origin defeats it:
-trickling bytes move the buffered position and `ready` blips cancel it, so a
-song could buffer for minutes. A second, starvation watchdog covers the case
-where the current direct stream's sidecar file is already complete (and the
-stream is not a `timeOffset` transcode, radio, mid-crossfade, paused or at its
-end): once the player has been buffering for `starvedWithFile` (2 s), neither
-progress nor brief `ready` blips restart that wait. A `ready` at the deadline
+stream shows no position or buffered-position change. On desktop a direct
+stream that has delivered nothing yet (raw position and buffered position both
+0, `navisFirstByteAllowance`) gets `remoteLoad` (60 s) instead, once per song
+and transport generation: the allowance is spent when that long timer fires, so
+the reload gets the 12 s timeout, and a new song or navigation starts afresh.
+A `timeOffset` stream (a seek) keeps the 12 s timeout. A refused or failing
+server still errors at once; only a black-holed one waits (60 s, reload, 12 s,
+skip). Radio and the other platforms are unchanged. A slow origin defeats the
+watchdog: trickling bytes move the buffered position and `ready` blips cancel
+it, so a song could buffer for minutes. A second, starvation watchdog covers
+the case where the current direct stream's sidecar file is already complete
+(and the stream is not a `timeOffset` transcode, radio, mid-crossfade, paused
+or at its end): once the player has been buffering for `starvedWithFile` (2 s),
+neither progress nor brief `ready` blips restart that wait. A `ready` at the deadline
 only marks the song overdue: its next buffering event recovers at once. A song
 or source change, Pause, stop or recovery clears the wait. It then calls
 the ordinary remote recovery (`stream starved, file complete`, trace decision

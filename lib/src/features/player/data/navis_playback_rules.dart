@@ -797,6 +797,29 @@ bool navisShouldWatchRemotePlaybackForStall({
   return isRemoteSource && isWaitingForRemoteData;
 }
 
+/// Whether a desktop song stream that has delivered nothing yet (raw player
+/// position and buffered position both zero) gets the long first-byte window
+/// (`remoteLoad`) before the stall watchdog recovers it: a server can take
+/// tens of seconds to produce the first byte of an uncached song. Once per
+/// song and transport generation ([used]); a seek inside a playing song, a
+/// stream that already buffered, radio and other platforms keep the short
+/// stall timeout; so does a `timeOffset` stream ([hasPositionOffset]: a seek).
+@visibleForTesting
+bool navisFirstByteAllowance({
+  required bool desktop,
+  required String? sourceKind,
+  required Duration position,
+  required Duration bufferedPosition,
+  required bool used,
+  required bool hasPositionOffset,
+}) =>
+    desktop &&
+    !hasPositionOffset &&
+    sourceKind == PlaybackSourceKind.directStream.name &&
+    position == Duration.zero &&
+    bufferedPosition == Duration.zero &&
+    !used;
+
 /// Whether a stream that is starving should be reloaded from its complete
 /// cache file: a plain direct stream (no `timeOffset` transcode, no radio)
 /// that is playing, not mid-crossfade or at its end, whose file is complete
