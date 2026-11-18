@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -371,11 +372,11 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Same Vibes Mixes'), findsOneWidget);
+    expect(find.text('Same Vibes through Last.fm'), findsOneWidget);
     expect(
       find.text(
-        'On: Instant Mix finds similar songs through Last.fm. Off: Instant '
-        "Mix uses your server's mix.",
+        'Lets Instant Mix find similar songs through Last.fm when you choose '
+        'it under Instant Mix.',
       ),
       findsOneWidget,
     );
@@ -622,21 +623,167 @@ void main() {
     );
   });
 
-  testWidgets('the Same Vibes switch is the Instant Mix mode', (tester) async {
-    final h = await _pump(tester);
-    expect(
-      h.container.read(preferredMixModeProvider),
-      PreferredMixMode.sameVibes,
-    );
+  group('Instant Mix source picker', () {
+    Finder option(PreferredMixMode mode) =>
+        find.byKey(ValueKey<String>('integrations-mix-mode-${mode.name}'));
+    RadioListTile<PreferredMixMode> tile(
+      WidgetTester tester,
+      PreferredMixMode mode,
+    ) => tester.widget<RadioListTile<PreferredMixMode>>(option(mode));
+    PreferredMixMode? selected(WidgetTester tester) => tester
+        .widget<RadioGroup<PreferredMixMode>>(
+          find.byType(RadioGroup<PreferredMixMode>),
+        )
+        .groupValue;
 
-    await h.tap(h.feature(IntegrationFeature.lastFmSameVibes));
+    testWidgets('hides Last.fm without a key and defaults to Deezer', (
+      tester,
+    ) async {
+      await _pump(tester, lastFmBundled: false, lastFmApiKey: '');
+      expect(option(PreferredMixMode.sameVibesDeezer), findsOneWidget);
+      expect(option(PreferredMixMode.legacyInstantMix), findsOneWidget);
+      expect(option(PreferredMixMode.sameVibesLastFm), findsNothing);
+      expect(selected(tester), PreferredMixMode.sameVibesDeezer);
+    });
 
-    // Stored inverted: Same Vibes off is legacyInstantMixEnabled on.
-    expect((await h.row()).legacyInstantMixEnabled, isTrue);
-    expect(
-      h.container.read(preferredMixModeProvider),
-      PreferredMixMode.legacyInstantMix,
-    );
+    testWidgets('with a key offers all three and persists each choice', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      expect(option(PreferredMixMode.sameVibesLastFm), findsOneWidget);
+      expect(selected(tester), PreferredMixMode.sameVibesDeezer);
+
+      await h.tap(option(PreferredMixMode.sameVibesLastFm));
+      var row = await h.row();
+      expect(row.legacyInstantMixEnabled, isFalse);
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isTrue);
+      expect(selected(tester), PreferredMixMode.sameVibesLastFm);
+      expect(
+        h.container.read(preferredMixModeProvider),
+        PreferredMixMode.sameVibesLastFm,
+      );
+
+      await h.tap(option(PreferredMixMode.legacyInstantMix));
+      row = await h.row();
+      expect(row.legacyInstantMixEnabled, isTrue);
+      expect(selected(tester), PreferredMixMode.legacyInstantMix);
+
+      await h.tap(option(PreferredMixMode.sameVibesDeezer));
+      row = await h.row();
+      expect(row.legacyInstantMixEnabled, isFalse);
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isFalse);
+      expect(
+        h.container.read(preferredMixModeProvider),
+        PreferredMixMode.sameVibesDeezer,
+      );
+    });
+
+    testWidgets('disables Last.fm while its service is off', (tester) async {
+      await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(disabledJson: '["lastfm"]'),
+      );
+      expect(tile(tester, PreferredMixMode.sameVibesLastFm).enabled, isFalse);
+      expect(tile(tester, PreferredMixMode.sameVibesDeezer).enabled, isTrue);
+      expect(selected(tester), PreferredMixMode.sameVibesDeezer);
+    });
+
+    testWidgets('falls to Last.fm and locks Deezer while Deezer is off', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(disabledJson: '["deezer"]'),
+      );
+      expect(tile(tester, PreferredMixMode.sameVibesDeezer).enabled, isFalse);
+      expect(tile(tester, PreferredMixMode.sameVibesLastFm).enabled, isTrue);
+      expect(selected(tester), PreferredMixMode.sameVibesLastFm);
+    });
+
+    testWidgets('tapping the Last.fm fallback records it as the choice', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(disabledJson: '["deezer"]'),
+      );
+      expect(selected(tester), PreferredMixMode.sameVibesLastFm);
+
+      await h.tap(option(PreferredMixMode.sameVibesLastFm));
+
+      final row = await h.row();
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isTrue);
+    });
+
+    testWidgets('Space on the focused Last.fm fallback records it', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(disabledJson: '["deezer"]'),
+      );
+      expect(selected(tester), PreferredMixMode.sameVibesLastFm);
+
+      await tester.scrollUntilVisible(
+        option(PreferredMixMode.sameVibesLastFm),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Tab to the tile: the group's key handler acts on the focused radio.
+      for (var i = 0; i < 40; i++) {
+        final focused = FocusManager.instance.primaryFocus?.context;
+        if (focused != null &&
+            find
+                .descendant(
+                  of: option(PreferredMixMode.sameVibesLastFm),
+                  matching: find.byWidgetPredicate(
+                    (w) => identical(w, focused.widget),
+                  ),
+                )
+                .evaluate()
+                .isNotEmpty) {
+          break;
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await h.settle();
+
+      final row = await h.row();
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isTrue);
+    });
+
+    testWidgets('tapping the Deezer fallback records it as the choice', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(
+          disabledJson: '["lastfm","$sameVibesLastFmSettingsKey"]',
+        ),
+      );
+      expect(selected(tester), PreferredMixMode.sameVibesDeezer);
+
+      await h.tap(option(PreferredMixMode.sameVibesDeezer));
+
+      final row = await h.row();
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isFalse);
+    });
+
+    testWidgets('master off selects Server Mix and disables the group', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(master: false),
+      );
+      expect(selected(tester), PreferredMixMode.legacyInstantMix);
+      for (final mode in PreferredMixMode.values) {
+        expect(tile(tester, mode).enabled, isFalse, reason: mode.name);
+      }
+    });
   });
 
   testWidgets('validating a ListenBrainz token saves it and unlocks features', (

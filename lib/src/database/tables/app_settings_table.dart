@@ -275,7 +275,8 @@ class AppSettingsTable extends Table {
   /// Whether LRCLIB fallback is used when server lyrics are unavailable.
   BoolColumn get useLrclib => boolean().withDefault(const Constant(true))();
 
-  /// When true, use legacy local-only Instant Mix instead of Last.fm Same Vibes.
+  /// When true, Instant Mix uses the server's mix instead of Same Vibes. Which
+  /// Same Vibes source (Deezer or Last.fm) is stored in `disabledIntegrations`.
   BoolColumn get legacyInstantMixEnabled =>
       boolean().withDefault(const Constant(false))();
 
@@ -438,8 +439,9 @@ class AppSettingsTable extends Table {
 
   /// JSON list of switched-off integration service keys and feature keys that
   /// have no column of their own. Features stored in `useLrclib`,
-  /// `updateCheckEnabled`, `listenBrainzScrobblingEnabled` and
-  /// `legacyInstantMixEnabled` are never listed here. Written only by the
+  /// `updateCheckEnabled` and `listenBrainzScrobblingEnabled` are never listed
+  /// here; the reserved metadata entries `updates.source.github` and
+  /// `sameVibes.source.lastfm` are. Written only by the
   /// integration-policy writers.
   TextColumn get disabledIntegrations =>
       text().withDefault(const Constant('[]'))();

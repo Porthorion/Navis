@@ -194,6 +194,11 @@ void main() {
       queueSongIds: const <String>['ext-remote-1'],
       currentSongId: 'ext-remote-1',
     );
+    await tester.runAsync(
+      () => container
+          .read(settingsRepositoryProvider)
+          .setPreferredMixMode(PreferredMixMode.legacyInstantMix),
+    );
     await _pumpNowPlaying(tester, container);
     await tester.pumpAndSettle();
 
@@ -229,6 +234,11 @@ void main() {
     );
     final notices = AppNoticeController();
     addTearDown(notices.dispose);
+    await tester.runAsync(
+      () => container
+          .read(settingsRepositoryProvider)
+          .setPreferredMixMode(PreferredMixMode.legacyInstantMix),
+    );
     await _pumpNowPlaying(tester, container, notices: notices);
     await tester.pumpAndSettle();
 

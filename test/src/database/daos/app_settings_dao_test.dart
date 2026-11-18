@@ -892,21 +892,34 @@ void main() {
           'listenbrainz.scrobbling',
           enabled: true,
         );
-        // Same Vibes off is stored as legacyInstantMixEnabled = true.
-        await dao.setIntegrationEnabled('lastfm.sameVibes', enabled: false);
         var settings = (await dao.getSettings())!;
         expect(settings.useLrclib, isFalse);
         expect(settings.updateCheckEnabled, isFalse);
         expect(settings.listenBrainzScrobblingEnabled, isTrue);
-        expect(settings.legacyInstantMixEnabled, isTrue);
         // None of them touch the JSON set.
         expect(settings.disabledIntegrations, '[]');
 
-        await dao.setIntegrationEnabled('lastfm.sameVibes', enabled: true);
         await dao.setIntegrationEnabled('lrclib.lyrics', enabled: true);
         settings = (await dao.getSettings())!;
-        expect(settings.legacyInstantMixEnabled, isFalse);
         expect(settings.useLrclib, isTrue);
+      });
+
+      test('the Same Vibes switches live in the JSON set and leave the mode '
+          'column alone', () async {
+        final dao = database.appSettingsDao;
+        await dao.setIntegrationEnabled('lastfm.sameVibes', enabled: false);
+        await dao.setIntegrationEnabled('deezer.sameVibes', enabled: false);
+        var settings = (await dao.getSettings())!;
+        expect(settings.legacyInstantMixEnabled, isFalse);
+        expect(parseDisabledIntegrationKeys(settings.disabledIntegrations), {
+          'lastfm.sameVibes',
+          'deezer.sameVibes',
+        });
+        await dao.setIntegrationEnabled('lastfm.sameVibes', enabled: true);
+        settings = (await dao.getSettings())!;
+        expect(parseDisabledIntegrationKeys(settings.disabledIntegrations), {
+          'deezer.sameVibes',
+        });
       });
 
       test('setIntegrationEnabled edits the JSON set for other keys', () async {

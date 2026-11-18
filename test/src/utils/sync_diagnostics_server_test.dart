@@ -1086,13 +1086,17 @@ void main() {
         containsPair('switchOn', false),
       );
 
-      // A column-backed feature writes its column, not the JSON set.
+      // The Same Vibes switch is a JSON-set feature; the mode column is untouched.
       final sameVibes = await fixture.post('/v1/presentation/integrations', {
         'key': 'lastfm.sameVibes',
         'enabled': false,
       });
       expect(sameVibes.statusCode, HttpStatus.ok);
-      expect(sameVibes.body['disabled'], ['deezer.topSongs', 'lrclib']);
+      expect(sameVibes.body['disabled'], [
+        'deezer.topSongs',
+        'lastfm.sameVibes',
+        'lrclib',
+      ]);
       expect(
         (sameVibes.body['features']! as Map)['lastfm.sameVibes'],
         containsPair('switchOn', false),
@@ -1115,8 +1119,11 @@ void main() {
           .appSettingsDao
           .getSettings())!;
       expect(persisted.externalIntegrationsEnabled, isFalse);
-      expect(persisted.legacyInstantMixEnabled, isTrue);
-      expect(persisted.disabledIntegrations, '["deezer.topSongs","lrclib"]');
+      expect(persisted.legacyInstantMixEnabled, isFalse);
+      expect(
+        persisted.disabledIntegrations,
+        '["deezer.topSongs","lastfm.sameVibes","lrclib"]',
+      );
 
       await fixture.close();
       final primary = await _startFixture(
