@@ -108,18 +108,6 @@ enum IntegrationLegacyColumn {
   useLrclib,
   updateCheckEnabled,
   listenBrainzScrobblingEnabled,
-
-  /// Stored inverted: `legacyInstantMixEnabled == true` means Same Vibes is
-  /// off (Server Mix).
-  legacyInstantMixEnabled;
-
-  /// Whether the feature is on when the column holds [columnValue].
-  bool featureEnabledFor({required bool columnValue}) =>
-      this == legacyInstantMixEnabled ? !columnValue : columnValue;
-
-  /// The column value that stores the feature as [featureEnabled].
-  bool columnValueFor({required bool featureEnabled}) =>
-      this == legacyInstantMixEnabled ? !featureEnabled : featureEnabled;
 }
 
 /// A single switchable use of an external service.
@@ -131,11 +119,13 @@ enum IntegrationFeature {
   deezerNewReleases('deezer.newReleases', IntegrationService.deezer),
   deezerTrending('deezer.trending', IntegrationService.deezer),
   deezerSearchRanking('deezer.searchRanking', IntegrationService.deezer),
-  lastFmSameVibes(
-    'lastfm.sameVibes',
-    IntegrationService.lastFm,
-    legacyColumn: IntegrationLegacyColumn.legacyInstantMixEnabled,
-  ),
+
+  /// Same Vibes may call Deezer. Which source Instant Mix uses is the mix
+  /// mode, resolved by [resolvePreferredMixMode].
+  deezerSameVibes('deezer.sameVibes', IntegrationService.deezer),
+
+  /// Same Vibes may call Last.fm, when the user chooses it.
+  lastFmSameVibes('lastfm.sameVibes', IntegrationService.lastFm),
   lastFmRadio('lastfm.radio', IntegrationService.lastFm),
   lastFmTopSongs('lastfm.topSongs', IntegrationService.lastFm),
   listenBrainzScrobbling(
@@ -198,9 +188,52 @@ bool isIntegrationKey(String key) =>
     IntegrationService.tryParse(key) != null ||
     IntegrationFeature.tryParse(key) != null;
 
+/// Reserved metadata in the integration-settings JSON list: the user chose
+/// Last.fm as the Same Vibes source. Like [UpdateSource.githubSettingsKey] it
+/// is not a service or feature key and cannot be toggled as one.
+const sameVibesLastFmSettingsKey = 'sameVibes.source.lastfm';
+
+/// Whether the stored integration JSON holds the Last.fm source choice.
+bool sameVibesLastFmChosen(String? raw) =>
+    parseDisabledIntegrationKeys(raw).contains(sameVibesLastFmSettingsKey);
+
+/// What Instant Mix uses: Same Vibes through Deezer or Last.fm, or the
+/// server's own mix.
+enum PreferredMixMode {
+  sameVibesDeezer,
+  sameVibesLastFm,
+  legacyInstantMix;
+
+  bool get isSameVibes => this != legacyInstantMix;
+}
+
+/// Decides the Instant Mix mode from the policy and the stored choices.
+///
+/// Deezer is the default source; Last.fm is used when chosen and allowed, and
+/// is the fallback only when Deezer is not allowed. A chosen source that has
+/// stopped being allowed falls back silently. Server Mix when neither Same
+/// Vibes source is allowed or the user chose it.
+PreferredMixMode resolvePreferredMixMode(
+  IntegrationPolicy policy, {
+  required bool serverMixChosen,
+  required bool lastFmChosen,
+}) {
+  if (serverMixChosen) return PreferredMixMode.legacyInstantMix;
+  final lastFm = policy.allows(IntegrationFeature.lastFmSameVibes);
+  if (policy.allows(IntegrationFeature.deezerSameVibes)) {
+    return lastFm && lastFmChosen
+        ? PreferredMixMode.sameVibesLastFm
+        : PreferredMixMode.sameVibesDeezer;
+  }
+  return lastFm
+      ? PreferredMixMode.sameVibesLastFm
+      : PreferredMixMode.legacyInstantMix;
+}
+
 /// Parses the `disabled_integrations` JSON into the set of known keys that
 /// the JSON may hold: service keys and features without a legacy column.
-/// The reserved update-source metadata entry is retained by toggle writers.
+/// The reserved metadata entries (update source, Same Vibes source) are
+/// retained by toggle writers.
 /// Unknown keys, non-string entries and malformed JSON are ignored, so a
 /// damaged value never disables or enables more than it names.
 Set<String> parseDisabledIntegrationKeys(String? raw) {
@@ -212,7 +245,8 @@ Set<String> parseDisabledIntegrationKeys(String? raw) {
       for (final entry in decoded)
         if (entry is String &&
             (_isJsonStoredKey(entry) ||
-                entry == UpdateSource.githubSettingsKey))
+                entry == UpdateSource.githubSettingsKey ||
+                entry == sameVibesLastFmSettingsKey))
           entry,
     };
   } on FormatException {
@@ -254,7 +288,7 @@ class IntegrationPolicy {
 
   /// Builds the policy from stored settings.
   ///
-  /// The four legacy columns are folded into the disabled keys through
+  /// The three legacy columns are folded into the disabled keys through
   /// [IntegrationLegacyColumn]; the JSON set holds the rest.
   factory resolve({
     required bool masterEnabled,
@@ -262,7 +296,6 @@ class IntegrationPolicy {
     required bool useLrclib,
     required bool updateCheckEnabled,
     required bool listenBrainzScrobblingEnabled,
-    required bool legacyInstantMixEnabled,
     required bool lastFmVerified,
     required bool listenBrainzVerified,
   }) {
@@ -271,14 +304,13 @@ class IntegrationPolicy {
       IntegrationLegacyColumn.updateCheckEnabled: updateCheckEnabled,
       IntegrationLegacyColumn.listenBrainzScrobblingEnabled:
           listenBrainzScrobblingEnabled,
-      IntegrationLegacyColumn.legacyInstantMixEnabled: legacyInstantMixEnabled,
     };
     final disabled = <String>{...parseDisabledIntegrationKeys(disabledJson)}
-      ..remove(UpdateSource.githubSettingsKey);
+      ..remove(UpdateSource.githubSettingsKey)
+      ..remove(sameVibesLastFmSettingsKey);
     for (final feature in IntegrationFeature.values) {
       final column = feature.legacyColumn;
-      if (column != null &&
-          !column.featureEnabledFor(columnValue: columnValues[column]!)) {
+      if (column != null && !columnValues[column]!) {
         disabled.add(feature.key);
       }
     }

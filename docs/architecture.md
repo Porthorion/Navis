@@ -3422,14 +3422,15 @@ and Subsonic delivery continues independently.
   weekly playlists revalidating a stored ListenBrainz token.
 - **Storage** (`app_settings`, schema 91): `external_integrations_enabled`
   (master), `disabled_integrations` (JSON list of disabled service and feature
-  keys) and `integrations_notice_dismissed`. Four features keep the column that
+  keys) and `integrations_notice_dismissed`. Three features keep the column that
   already stored their switch, so no data moved and every reader and diagnostics
   script keeps working: `useLrclib` (`lrclib.lyrics`), `updateCheckEnabled`
-  (`updates.automatic`), `listenBrainzScrobblingEnabled`
-  (`listenbrainz.scrobbling`) and `legacyInstantMixEnabled`, **inverted**
-  (`lastfm.sameVibes`; `legacyInstantMixEnabled == true` means Same Vibes is
-  off). Only features without a column live in the JSON set, and a
-  column-backed key found there is ignored. The migration also turns
+  (`updates.automatic`) and `listenBrainzScrobblingEnabled`
+  (`listenbrainz.scrobbling`). `legacyInstantMixEnabled` is no feature's switch
+  any more: it is the Instant Mix mode column (`true` is Server Mix), and the
+  Same Vibes source is the reserved JSON entry `sameVibes.source.lastfm`
+  (see `docs/features/integrations.md`). Only features without a column live in
+  the JSON set, and a column-backed key found there is ignored. The migration also turns
   `listenbrainz.feedback` off for an install with a valid token and scrobbling
   off, which keeps the old coupling of feedback to the scrobbling switch; from
   then on feedback follows only its own policy switches.
@@ -3452,9 +3453,10 @@ and Subsonic delivery continues independently.
   **fail-closed**: while settings load or have failed it is
   `IntegrationPolicy.denyAll()`. Code that must not trust a possibly loading
   provider (queue actions, `startPreferredMix`) builds the policy from freshly
-  read settings with `integrationPolicyFromSettings`. `preferredMixModeProvider`
-  is Same Vibes while the policy allows `lastfm.sameVibes` and the server mix
-  otherwise.
+  read settings with `integrationPolicyFromSettings`. The Instant Mix mode is
+  decided by the pure `resolvePreferredMixMode` (Same Vibes through Deezer or
+  Last.fm, or Server Mix); `preferredMixModeProvider` and
+  `preferredMixModeFromSettings` are its only entry points.
 - **Update checks.** `updateProvider` reads the manual "Check now" request before
   deciding. Only the master and `updates` service switches block a manual check;
   `updates.automatic` blocks only the automatic one. The request is a plain
@@ -4699,10 +4701,10 @@ artifact scan.
 
 ### Recommendation sessions
 
-Song-based **Server Mix** and **Last.fm · Same Vibes** are the two Instant Mix
-modes. Settings › Integrations › Last.fm › "Same Vibes mixes" chooses between
-them (`preferredMixModeProvider`); Server Mix is used whenever the policy does
-not allow `lastfm.sameVibes`. Server Mix calls the standard Subsonic
+Song-based **Server Mix** and **Same Vibes** (through Deezer or, with a user
+key, Last.fm) are the Instant Mix modes. The Settings › Integrations › Instant
+Mix picker chooses among them (`preferredMixModeProvider`); Server Mix is used
+when chosen or when neither source is allowed. Server Mix calls the standard Subsonic
 `getSimilarSongs2` endpoint, then the original `getSimilarSongs` when
 unsupported. The existing Navidrome `getInstantMix` endpoint is a final
 compatibility fallback only when both standard endpoints are unsupported.

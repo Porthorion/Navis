@@ -819,8 +819,23 @@
   "integrationsFeatureDeezerTrendingSubtitle": "Deezer's chart in You Might Like and your playlists.",
   "integrationsFeatureDeezerSearchRankingTitle": "Rank search results by popularity",
   "integrationsFeatureDeezerSearchRankingSubtitle": "Puts the most popular matches first and shows Top Results. Sends what you type in Search to Deezer.",
-  "integrationsFeatureLastFmSameVibesTitle": "Same Vibes Mixes",
-  "integrationsFeatureLastFmSameVibesSubtitle": "On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server's mix.",
+  "integrationsFeatureDeezerSameVibesTitle": "Same Vibes through Deezer",
+  "integrationsFeatureDeezerSameVibesSubtitle": "Lets Instant Mix find similar songs through Deezer.",
+  "integrationsFeatureLastFmSameVibesTitle": "Same Vibes through Last.fm",
+  "integrationsFeatureLastFmSameVibesSubtitle": "Lets Instant Mix find similar songs through Last.fm when you choose it under Instant Mix.",
+  "integrationsMixModeTitle": "Instant Mix",
+  "integrationsMixModeHelper": "Same Vibes finds similar songs through the service you pick. Server Mix uses your server's own mix.",
+  "integrationsMixModeDeezer": "Same Vibes (Deezer)",
+  "integrationsMixModeLastFm": "Same Vibes (Last.fm)",
+  "integrationsMixModeServer": "Server Mix",
+  "integrationsMixModeSwitchedOff": "Switched off under {service} below.",
+  "@integrationsMixModeSwitchedOff": {
+    "placeholders": {
+      "service": {
+        "type": "String"
+      }
+    }
+  },
   "integrationsFeatureLastFmRadioTitle": "Instant Radio",
   "integrationsFeatureLastFmRadioSubtitle": "Adds similar songs from Last.fm when your server's suggestions run short.",
   "integrationsFeatureLastFmTopSongsTitle": "Top Songs",

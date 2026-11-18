@@ -298,6 +298,29 @@ class SettingsRepository {
         );
       });
 
+  /// Persists the Instant Mix choice atomically: the mode column and the
+  /// reserved Last.fm source entry. Choosing Server Mix writes only the column
+  /// and keeps the remembered Same Vibes source.
+  Future<void> setPreferredMixMode(PreferredMixMode mode) =>
+      _dao.transaction(() async {
+        await _dao.updateLegacyInstantMixEnabled(
+          enabled: mode == PreferredMixMode.legacyInstantMix,
+        );
+        if (mode == PreferredMixMode.legacyInstantMix) return;
+        final row = await _dao.getSettings();
+        final entries = {
+          ...parseDisabledIntegrationKeys(row?.disabledIntegrations),
+        };
+        if (mode == PreferredMixMode.sameVibesLastFm) {
+          entries.add(sameVibesLastFmSettingsKey);
+        } else {
+          entries.remove(sameVibesLastFmSettingsKey);
+        }
+        await _dao.updateIntegrationPolicy(
+          disabledJson: encodeDisabledIntegrationKeys(entries),
+        );
+      });
+
   /// Writes the "Online services" master switch.
   Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>
       _dao.setExternalIntegrationsEnabled(enabled: enabled);

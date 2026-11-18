@@ -3124,17 +3124,65 @@ abstract class AppLocalizations {
   /// **'Puts the most popular matches first and shows Top Results. Sends what you type in Search to Deezer.'**
   String get integrationsFeatureDeezerSearchRankingSubtitle;
 
+  /// No description provided for @integrationsFeatureDeezerSameVibesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Same Vibes through Deezer'**
+  String get integrationsFeatureDeezerSameVibesTitle;
+
+  /// No description provided for @integrationsFeatureDeezerSameVibesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lets Instant Mix find similar songs through Deezer.'**
+  String get integrationsFeatureDeezerSameVibesSubtitle;
+
   /// No description provided for @integrationsFeatureLastFmSameVibesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Same Vibes Mixes'**
+  /// **'Same Vibes through Last.fm'**
   String get integrationsFeatureLastFmSameVibesTitle;
 
   /// No description provided for @integrationsFeatureLastFmSameVibesSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server\'s mix.'**
+  /// **'Lets Instant Mix find similar songs through Last.fm when you choose it under Instant Mix.'**
   String get integrationsFeatureLastFmSameVibesSubtitle;
+
+  /// No description provided for @integrationsMixModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant Mix'**
+  String get integrationsMixModeTitle;
+
+  /// No description provided for @integrationsMixModeHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Same Vibes finds similar songs through the service you pick. Server Mix uses your server\'s own mix.'**
+  String get integrationsMixModeHelper;
+
+  /// No description provided for @integrationsMixModeDeezer.
+  ///
+  /// In en, this message translates to:
+  /// **'Same Vibes (Deezer)'**
+  String get integrationsMixModeDeezer;
+
+  /// No description provided for @integrationsMixModeLastFm.
+  ///
+  /// In en, this message translates to:
+  /// **'Same Vibes (Last.fm)'**
+  String get integrationsMixModeLastFm;
+
+  /// No description provided for @integrationsMixModeServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Mix'**
+  String get integrationsMixModeServer;
+
+  /// No description provided for @integrationsMixModeSwitchedOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched off under {service} below.'**
+  String integrationsMixModeSwitchedOff(String service);
 
   /// No description provided for @integrationsFeatureLastFmRadioTitle.
   ///

@@ -201,6 +201,14 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Instant Mix now has a source choice under Settings > Integrations: '
+        'Same Vibes (Deezer), Same Vibes (Last.fm) once you add your own '
+        'Last.fm key, or your server\'s mix. If Instant Mix used your '
+        'server\'s mix only because Last.fm was unavailable, it now uses Same '
+        'Vibes; switch back there',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Same Vibes and Instant Radio no longer show a Last.fm key error when '
         'the key built into the app is rejected; they fall back to your '
         'server quietly',

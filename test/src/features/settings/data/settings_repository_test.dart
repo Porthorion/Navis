@@ -7,6 +7,8 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
@@ -49,6 +51,78 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    group('setPreferredMixMode', () {
+      Future<({bool serverMix, bool lastFm})> mode() async {
+        final row = await repository.getSettings();
+        return (
+          serverMix: row.legacyInstantMixEnabled,
+          lastFm: sameVibesLastFmChosen(row.disabledIntegrations),
+        );
+      }
+
+      test('writes the column and the source entry together', () async {
+        await repository.setPreferredMixMode(PreferredMixMode.sameVibesLastFm);
+        expect(await mode(), (serverMix: false, lastFm: true));
+        await repository.setPreferredMixMode(PreferredMixMode.sameVibesDeezer);
+        expect(await mode(), (serverMix: false, lastFm: false));
+      }, skip: !sqliteAvailable);
+
+      test('Server Mix keeps the remembered source', () async {
+        await repository.setPreferredMixMode(PreferredMixMode.sameVibesLastFm);
+        await repository.setPreferredMixMode(PreferredMixMode.legacyInstantMix);
+        expect(await mode(), (serverMix: true, lastFm: true));
+        await repository.setPreferredMixMode(PreferredMixMode.sameVibesDeezer);
+        expect(await mode(), (serverMix: false, lastFm: false));
+      }, skip: !sqliteAvailable);
+
+      test('observers never see the column without its entry', () async {
+        await repository.setPreferredMixMode(PreferredMixMode.legacyInstantMix);
+        final seen = <({bool serverMix, bool lastFm})>[];
+        final sub = repository.watchSettings().listen(
+          (row) => seen.add((
+            serverMix: row.legacyInstantMixEnabled,
+            lastFm: sameVibesLastFmChosen(row.disabledIntegrations),
+          )),
+        );
+        await pumpEventQueue();
+        seen.clear();
+        await repository.setPreferredMixMode(PreferredMixMode.sameVibesLastFm);
+        await pumpEventQueue();
+        await sub.cancel();
+        expect(seen, isNotEmpty);
+        expect(seen, everyElement((serverMix: false, lastFm: true)));
+      }, skip: !sqliteAvailable);
+
+      test('integration toggles and the update source keep the entry, and '
+          'the entry survives them', () async {
+        await repository.setPreferredMixMode(PreferredMixMode.sameVibesLastFm);
+        await repository.setUpdateSource(UpdateSource.github);
+        await repository.setIntegrationEnabled(
+          'deezer.topSongs',
+          enabled: false,
+        );
+        await repository.setIntegrationEnabled(
+          'lastfm.sameVibes',
+          enabled: false,
+        );
+        expect((await mode()).lastFm, isTrue);
+        final row = await repository.getSettings();
+        expect(parseDisabledIntegrationKeys(row.disabledIntegrations), {
+          sameVibesLastFmSettingsKey,
+          UpdateSource.githubSettingsKey,
+          'deezer.topSongs',
+          'lastfm.sameVibes',
+        });
+        await repository.setPreferredMixMode(PreferredMixMode.sameVibesDeezer);
+        final after = parseDisabledIntegrationKeys(
+          (await repository.getSettings()).disabledIntegrations,
+        );
+        expect(after, isNot(contains(sameVibesLastFmSettingsKey)));
+        expect(after, contains(UpdateSource.githubSettingsKey));
+        expect(after, contains('lastfm.sameVibes'));
+      }, skip: !sqliteAvailable);
+    });
 
     test('prefetch next on mobile data defaults on and roundtrips', () async {
       final initial = await repository.getSettings();
@@ -574,10 +648,7 @@ void main() {
           'updates.automatic',
           enabled: false,
         );
-        await repository.setIntegrationEnabled(
-          'lastfm.sameVibes',
-          enabled: false,
-        );
+        await repository.setPreferredMixMode(PreferredMixMode.legacyInstantMix);
         await repository.setIntegrationEnabled(
           'listenbrainz.scrobbling',
           enabled: false,

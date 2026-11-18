@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
@@ -33,13 +32,10 @@ Future<PreferredMixMode> _resolvePreferredMixMode({
   // Settings are read from storage rather than the policy provider, which
   // denies everything until the settings stream has emitted.
   final settings = await loadSettings();
-  final policy = integrationPolicyFromSettings(
+  return preferredMixModeFromSettings(
     settings,
     lastFmVerified: readLastFmVerified(),
   );
-  return policy.allows(IntegrationFeature.lastFmSameVibes)
-      ? PreferredMixMode.sameVibes
-      : PreferredMixMode.legacyInstantMix;
 }
 
 Future<void> activatePreferredMixMode(

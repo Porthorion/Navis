@@ -156,6 +156,7 @@ class _IntegrationsSettingsScreenState
               subtitle: Text(l10n.integrationsMasterSubtitle),
             ),
             const Divider(height: NavisSpace.lg),
+            _buildMixMode(context, policy),
             for (final group in _groups)
               ..._buildGroup(
                 context,
@@ -167,6 +168,87 @@ class _IntegrationsSettingsScreenState
           ],
         ),
       ),
+    );
+  }
+
+  /// The Instant Mix source choice. The selected option is always the
+  /// resolved mode, so a source that stopped being allowed shows the one that
+  /// is actually used. Last.fm appears only once its key is verified.
+  Widget _buildMixMode(BuildContext context, IntegrationPolicy policy) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final selected = ref.watch(preferredMixModeProvider);
+    final masterOn = policy.masterEnabled;
+
+    Widget option(
+      PreferredMixMode mode,
+      String label, {
+      required bool enabled,
+      IntegrationFeature? feature,
+    }) {
+      String? note;
+      if (feature != null && masterOn && !enabled) {
+        final lock = policy.lockReason(feature);
+        final service = feature.service.displayName;
+        note = lock == null
+            ? l10n.integrationsMixModeSwitchedOff(service)
+            : integrationLockReasonText(
+                lock,
+                service: feature.service,
+                serviceName: service,
+                l10n: l10n,
+              );
+      }
+      return RadioListTile<PreferredMixMode>(
+        key: ValueKey<String>('integrations-mix-mode-${mode.name}'),
+        contentPadding: EdgeInsets.zero,
+        value: mode,
+        enabled: masterOn && enabled,
+        title: Text(label),
+        subtitle: note == null ? null : Text(note),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(l10n.integrationsMixModeTitle, style: theme.textTheme.titleSmall),
+        RadioGroup<PreferredMixMode>(
+          groupValue: selected,
+          onChanged: (mode) {
+            if (mode == null || mode == selected) return;
+            _write((repository) => repository.setPreferredMixMode(mode));
+          },
+          child: Column(
+            children: <Widget>[
+              option(
+                PreferredMixMode.sameVibesDeezer,
+                l10n.integrationsMixModeDeezer,
+                enabled: policy.allows(IntegrationFeature.deezerSameVibes),
+                feature: IntegrationFeature.deezerSameVibes,
+              ),
+              if (policy.isVerified(IntegrationService.lastFm))
+                option(
+                  PreferredMixMode.sameVibesLastFm,
+                  l10n.integrationsMixModeLastFm,
+                  enabled: policy.allows(IntegrationFeature.lastFmSameVibes),
+                  feature: IntegrationFeature.lastFmSameVibes,
+                ),
+              option(
+                PreferredMixMode.legacyInstantMix,
+                l10n.integrationsMixModeServer,
+                enabled: true,
+              ),
+            ],
+          ),
+        ),
+        Text(
+          l10n.integrationsMixModeHelper,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 
