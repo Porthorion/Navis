@@ -540,6 +540,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     _lockCacheWarmSongId = null;
     _sidecarChainKey = null;
+    _fileSwapPending.clear();
     _silenceAbandonedPlayer(_player);
     final inactive = _crossfadePlayer;
     if (inactive != null) _silenceAbandonedPlayer(inactive);

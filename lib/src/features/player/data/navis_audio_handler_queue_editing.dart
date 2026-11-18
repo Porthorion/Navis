@@ -597,6 +597,20 @@ extension _NavisQueueEditing on NavisAudioHandler {
         _positionOffsetOf(_queueItems.elementAtOrNull(index)) > Duration.zero;
   }
 
+  /// Whether the entry at [index] streams a song whose sidecar file finished
+  /// (#685). Not while a fade runs: the deck plays the target entry.
+  bool _entryHasCompletedSidecar(int index) {
+    final item = _queueItems.elementAtOrNull(index);
+    return item != null &&
+        !_isCrossfading &&
+        index != _crossfadeTargetIndex &&
+        _fileSwapPending.contains(item.id) &&
+        item.extras?['sourceKind'] == PlaybackSourceKind.directStream.name;
+  }
+
+  bool _entryNeedsRepair(int index) =>
+      _entryHasOffset(index) || _entryHasCompletedSidecar(index);
+
   /// A song left mid-way as an offset (transcode) stream still holds its
   /// offset and would start there when played again. Replaces every such
   /// non-current entry with a fresh, offset-free source, as an ordinary queue
@@ -608,7 +622,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
         !List<int>.generate(
           _queueItems.length,
           (i) => i,
-        ).any((i) => i != current && _entryHasOffset(i))) {
+        ).any((i) => i != current && _entryNeedsRepair(i))) {
       return;
     }
     // One repair covers every stale entry, including songs left while it
@@ -632,7 +646,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
       final stale = <MediaItem>[
         for (var i = 0; i < _queueItems.length; i++)
           if (i != _player.currentIndex &&
-              _entryHasOffset(i) &&
+              _entryNeedsRepair(i) &&
               !tried.contains(_queueItems[i]))
             _queueItems[i],
       ];
@@ -661,9 +675,18 @@ extension _NavisQueueEditing on NavisAudioHandler {
     // earlier one may have moved, removed or reached the entry: find it
     // again by identity, with no await before the native calls.
     final at = _queueItems.indexWhere((entry) => identical(entry, item));
+    if (at >= 0 && prepared.isNotEmpty && !_entryHasOffset(at)) {
+      // A finished sidecar: only the cached file replaces the stream. Another
+      // kind (quality mismatch) is dropped for good, so it cannot loop.
+      if (prepared.first.source.kind != PlaybackSourceKind.file) {
+        _fileSwapPending.remove(item.id);
+        return false;
+      }
+    }
     if (prepared.isEmpty ||
         at < 0 ||
         at == _player.currentIndex ||
+        (_isCrossfading && at == _crossfadeTargetIndex) ||
         !_sequenceMatchesQueue(_player)) {
       return false;
     }
@@ -718,6 +741,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
         }
       }
     }
+    if (!becameCurrent) _fileSwapPending.remove(removed.id);
     return !becameCurrent;
   }
 

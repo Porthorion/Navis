@@ -1711,4 +1711,253 @@ void main() {
       expect(warmEnd('song-3')['trigger'], 'navigate');
     });
   });
+
+  group('desktop: a finished sidecar replaces the queued stream (#685)', () {
+    late BridgeSidecar sidecar;
+    late SwapProbeResolver probe;
+
+    Future<void> setUpDesktop({bool crossfade = false}) async {
+      sidecar = BridgeSidecar();
+      await setUpHandler(
+        prefetch: true,
+        desktop: true,
+        crossfade: crossfade,
+        sidecarStreams: true,
+        sidecar: sidecar,
+        wrapResolver: (base) => probe = SwapProbeResolver(base),
+      );
+      await settleQueue(handler);
+    }
+
+    /// Lets the chain reach [id], then finishes its download.
+    Future<void> finishSidecarOf(String id) async {
+      // The fake clears `song` after each completion, so count the starts.
+      final start = ids.indexOf(id) + 1;
+      await until(() => sidecar.starts >= start, reason: 'sidecar on $id');
+      expect(sidecar.downloadUri!.queryParameters['id'], id);
+      await sidecar.finish();
+    }
+
+    bool isFile(int index) {
+      final source = player.sequence[index];
+      return source is UriAudioSource && source.uri.scheme == 'file';
+    }
+
+    int resolves(String id) => probe.calls.where((c) => c == id).length;
+
+    int starved() => [
+      for (final e in trace.entries)
+        if (e['decision'] == 'starvedWithFile') e,
+    ].length;
+
+    void expectNoStreamTraffic() {
+      expect(fetches, isEmpty);
+      expect(requests, isEmpty);
+    }
+
+    test('the finished next song is a file; Next plays it with no rebuild '
+        'and no stream request', () async {
+      await setUpDesktop();
+      await finishSidecarOf('song-0');
+      await finishSidecarOf('song-1');
+      await settleQueue(handler);
+      expect(player.sourceIds.take(2), ['song-0', 'song-1']);
+      expect(isFile(1), isTrue);
+      final loads = player.sourceLoads;
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(isFile(1), isTrue);
+      expect(player.sourceLoads, loads);
+      expect(starved(), 0);
+      expectNoStreamTraffic();
+    });
+
+    test('Next while the swap is still queued lands on the file', () async {
+      await setUpDesktop();
+      await finishSidecarOf('song-0');
+      await finishSidecarOf('song-1');
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(isFile(1), isTrue);
+      expectNoStreamTraffic();
+    });
+
+    test(
+      'a quality mismatch resolves once and is dropped, no swap loop',
+      () async {
+        await setUpDesktop();
+        probe.streamOnly.add('song-1');
+        await finishSidecarOf('song-0');
+        final base = resolves('song-1');
+        await finishSidecarOf('song-1');
+        await settleQueue(handler);
+        expect(resolves('song-1'), base + 1);
+        expect(isFile(1), isFalse);
+        // Another trigger finds nothing pending for it.
+        await handler.skipToNext();
+        await handler.skipToNext();
+        await settleQueue(handler);
+        expect(resolves('song-1'), base + 1);
+      },
+    );
+
+    test('a song that became current before the swap is not touched, and '
+        'starved recovery still works', () async {
+      await setUpDesktop();
+      await finishSidecarOf('song-0');
+      probe.blockedSongId = 'song-1';
+      probe.release = Completer<void>();
+      await finishSidecarOf('song-1');
+      await until(() => probe.calls.contains('song-1'), reason: 'resolving');
+      final before = player.audioSources[1];
+      final next = handler.skipToNext();
+      await pumpEventQueue();
+      probe.release!.complete();
+      await next;
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.index, 1);
+      // Whichever source the current entry holds, it is playing and the
+      // queue still mirrors the player (settleQueue checked that).
+      expect(player.audioSources[1], isNotNull);
+      expect(player.playing, isTrue);
+      expect([
+        for (final s in player.sequence) navisNativeSourceSongId(s),
+      ], ids.take(player.sequence.length).toList());
+      expect(before, isNotNull);
+    });
+
+    test('crossfade on, not fading: the deck mirror gets the file', () async {
+      await setUpDesktop(crossfade: true);
+      // One completed fade leaves both decks holding the whole queue.
+      final deck = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      await handler.debugStartCrossfade();
+      await until(() => deck.playing, reason: 'incoming deck started');
+      await handler.debugCompleteCrossfade();
+      await settleQueue(handler);
+      final other = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      expect(other.sequence.length, 6);
+      // Each finish starts the next download; walk to song-2's.
+      for (var i = 0; i < 4; i++) {
+        if (sidecar.downloadUri!.queryParameters['id'] == 'song-2') break;
+        await sidecar.finish();
+        await pumpEventQueue();
+      }
+      expect(sidecar.downloadUri!.queryParameters['id'], 'song-2');
+      await sidecar.finish();
+      await settleQueue(handler);
+      for (final p in [deck, other]) {
+        final source = p.sequence[2];
+        expect(source is UriAudioSource && source.uri.scheme == 'file', isTrue);
+      }
+    });
+
+    test('the current song re-published before the edit does not lose the '
+        'swap', () async {
+      await setUpDesktop();
+      await finishSidecarOf('song-0');
+      await finishSidecarOf('song-1');
+      // Removing a later song re-publishes the current media item.
+      await handler.removeQueueItemAt(5);
+      await settleQueue(handler);
+      expect(isFile(1), isTrue);
+    });
+
+    test('a sidecar finishing while a crossfade onto it runs is skipped, '
+        'with no deck removal and no cut', () async {
+      await setUpDesktop(crossfade: true);
+      await finishSidecarOf('song-0');
+      final deck = handler.debugInactiveDeck! as ControllableAudioPlayer;
+      player.simulatedPosition =
+          const Duration(minutes: 3) - const Duration(seconds: 4);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await until(() => fade(handler)['active'] == true, reason: 'fading');
+      await until(() => deck.sequence.isNotEmpty, reason: 'deck loaded');
+      await settleQueue(handler);
+      final removedBefore = deck.sequence.length;
+      final loads = deck.sourceLoads + player.sourceLoads;
+      final base = resolves('song-1');
+      await finishSidecarOf('song-1');
+      await settleQueue(handler);
+      expect(deck.sequence.length, removedBefore);
+      expect(deck.sourceLoads + player.sourceLoads, loads);
+      expect(resolves('song-1'), base);
+      expect(fade(handler)['active'], isTrue);
+    });
+
+    test('Android lock-cache completion makes no queue edit', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-lock-');
+      addTearDown(() => directory.delete(recursive: true));
+      final created = <WarmRangeSource>[];
+      await setUpHandler(
+        desktop: false,
+        wrapResolver: (base) => FreshRangeResolver(base, directory, created),
+      );
+      final lock = created.firstWhere(
+        (s) => s.uri.queryParameters['id'] == 'song-1',
+      );
+      File('${directory.path}/song-1.mp3').writeAsBytesSync(List.filled(64, 1));
+      final before = player.audioSources[1];
+      final loads = player.sourceLoads;
+      lock.progress.add(1);
+      await pumpEventQueue(times: 50);
+      await settleQueue(handler);
+      expect(player.audioSources[1], same(before));
+      expect(player.sourceLoads, loads);
+    });
+
+    test('an unavailable prepared source keeps the id pending; a later '
+        'trigger swaps', () async {
+      await setUpDesktop();
+      await finishSidecarOf('song-0');
+      probe.blockedSongId = 'song-1';
+      probe.failure = StateError('unavailable');
+      await finishSidecarOf('song-1');
+      await settleQueue(handler);
+      expect(isFile(1), isFalse);
+      probe.blockedSongId = null;
+      probe.failure = null;
+      // Moving two songs ahead leaves song-1 behind: navigation repairs it.
+      await handler.skipToNext();
+      await handler.skipToNext();
+      await settleQueue(handler);
+      await until(() => isFile(1), reason: 'later trigger swaps');
+    });
+  });
+}
+
+/// Counts resolves and can answer a stream where a finished file would be.
+class SwapProbeResolver extends GatedSourceResolver {
+  new(super.delegate);
+  final calls = <String>[];
+  final streamOnly = <String>{};
+
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) async {
+    final resolved = await super.resolveForSong(
+      song,
+      preferLockCaching: preferLockCaching,
+      allowStreaming: allowStreaming,
+      transcodeOffset: transcodeOffset,
+      fastSeekBridge: fastSeekBridge,
+    );
+    calls.add(song.id);
+    if (resolved.kind == PlaybackSourceKind.file &&
+        streamOnly.contains(song.id)) {
+      return ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: Uri.parse('https://fixture.invalid/stream?id=${song.id}'),
+        metadata: const ResolvedPlaybackMetadata(isTranscoded: false),
+      );
+    }
+    return resolved;
+  }
 }
