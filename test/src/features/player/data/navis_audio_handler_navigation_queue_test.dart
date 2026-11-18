@@ -86,6 +86,188 @@ void main() {
     });
   });
 
+  group('first-byte allowance (#685)', () {
+    const timeouts = NavisPlaybackTimeouts(
+      remoteStall: Duration(milliseconds: 300),
+      remoteLoad: Duration(milliseconds: 1500),
+    );
+    late PlaybackTransportTrace trace;
+
+    Future<(NavisAudioHandler, ControllableAudioPlayer)> start({
+      bool desktop = true,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-i685-');
+      trace = PlaybackTransportTrace(enabled: true);
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        desktopRuntimeOverride: desktop,
+        timeouts: timeouts,
+        transportTrace: trace,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      player
+        ..bufferAfterLoad = true
+        ..resetBufferedOnAdvance = true;
+      await handler.replaceQueue([
+        'song-0',
+        'song-1',
+        'song-2',
+      ], expandMatchFlows: false);
+      await settleQueue(handler);
+      return (handler, player);
+    }
+
+    List<Map<String, Object?>> fired() => trace.entries
+        .where((e) => e['decision'] == 'stallWatchdogFired')
+        .toList();
+
+    void nudge(ControllableAudioPlayer player) =>
+        player.playbackEvents.add(player.playbackEvent);
+
+    Future<void> wait(int ms) =>
+        Future<void>.delayed(Duration(milliseconds: ms));
+
+    test(
+      'a cold desktop stream waits the load window for its first byte',
+      () async {
+        final (_, player) = await start();
+        nudge(player);
+        await wait(1000);
+        expect(fired(), isEmpty);
+        await wait(700);
+        expect(fired().first['timeoutMs'], 1500);
+        expect(fired().first['firstByte'], isTrue);
+      },
+    );
+
+    test('a stream that buffered then froze uses the short timeout', () async {
+      final (_, player) = await start();
+      player.simulatedBuffered = const Duration(seconds: 1);
+      nudge(player);
+      await wait(700);
+      expect(fired().first['timeoutMs'], 300);
+      expect(fired().first.containsKey('firstByte'), isFalse);
+    });
+
+    test('the reload after the long wait gets the short timeout', () async {
+      final (_, player) = await start();
+      nudge(player);
+      await wait(2300);
+      // The reload is cold again (nothing buffered) but already used its
+      // allowance.
+      expect(fired().first['timeoutMs'], 1500);
+      expect(fired()[1]['timeoutMs'], 300);
+      expect(fired()[1].containsKey('firstByte'), isFalse);
+    });
+
+    test('Next onto a new cold song gets the long wait again', () async {
+      final (handler, player) = await start();
+      nudge(player);
+      await wait(1800);
+      await pumpEventQueue(times: 100);
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      List<Map<String, Object?>> next() =>
+          fired().where((e) => e['songId'] == 'song-1').toList();
+      player.state = ProcessingState.buffering;
+      nudge(player);
+      await wait(700);
+      expect(next(), isEmpty);
+      await wait(1000);
+      expect(next().first['timeoutMs'], 1500);
+      expect(next().first['firstByte'], isTrue);
+    });
+
+    test(
+      'Next from a song with a large buffer is still a cold start',
+      () async {
+        final (handler, player) = await start();
+        player
+          ..state = ProcessingState.ready
+          ..simulatedBuffered = const Duration(minutes: 2);
+        nudge(player);
+        await handler.skipToNext();
+        await settleQueue(handler);
+        player.state = ProcessingState.buffering;
+        nudge(player);
+        await wait(700);
+        expect(fired(), isEmpty);
+        await wait(1000);
+        expect(fired().first['timeoutMs'], 1500);
+      },
+    );
+
+    test('a buffering/ready flip at 0/0 re-arms without spending it', () async {
+      final (_, player) = await start();
+      nudge(player);
+      await wait(500);
+      player.state = ProcessingState.ready;
+      nudge(player);
+      await pumpEventQueue(times: 20);
+      player.state = ProcessingState.buffering;
+      nudge(player);
+      await wait(1000);
+      expect(fired(), isEmpty);
+      await wait(700);
+      expect(fired().first['timeoutMs'], 1500);
+      expect(fired().first['firstByte'], isTrue);
+    });
+
+    test('Android keeps the short timeout', () async {
+      final (_, player) = await start(desktop: false);
+      nudge(player);
+      await wait(700);
+      expect(fired().first['timeoutMs'], 300);
+    });
+
+    test('a player error inside the window recovers at once', () async {
+      final (_, player) = await start();
+      final loads = player.sourceLoads;
+      player
+        ..state = ProcessingState.idle
+        ..errorCode = 0;
+      nudge(player);
+      await wait(600);
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, greaterThan(loads));
+      expect(fired(), isEmpty);
+    });
+
+    test('a station keeps the short stall timeout', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-i685r-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        1,
+        timeouts: timeouts,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      final loads = player.sourceLoads;
+      player
+        ..state = ProcessingState.buffering
+        ..isPlaying = true;
+      nudge(player);
+      await wait(700);
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+    });
+  });
+
   group('idle playback recovery', () {
     NetworkReconciliation net({required bool online}) =>
         (connected: online, serverReachable: online);
