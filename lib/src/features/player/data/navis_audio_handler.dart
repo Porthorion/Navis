@@ -1622,7 +1622,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final afterStart = deferTail && allAfterStart.length > _queueWindow.ahead
         ? allAfterStart.sublist(0, _queueWindow.ahead)
         : allAfterStart;
-    var deferredSongs = allAfterStart.sublist(afterStart.length);
+    final deferredSongs = allAfterStart.sublist(afterStart.length);
 
     // We need to rebuild the player's audio source list to include all songs
     // in the correct order.  First, resolve sources for the remaining songs.
@@ -1678,8 +1678,6 @@ class NavisAudioHandler extends BaseAudioHandler
         appended + _queueFillBatchSize(appended - alreadyAppended),
         afterStart.length,
       );
-      final batchStart = appended;
-      int? retryAt;
       await _fillQueueBatch(
         batch: afterStart.sublist(appended, batchEnd),
         firstOriginalIndex: clampedIndex + 1 + appended,
@@ -1689,14 +1687,7 @@ class NavisAudioHandler extends BaseAudioHandler
         token: token,
         operation: 'replace queue append after',
         apply: _player.addAudioSources,
-        onRetryLater: (i) => retryAt = batchStart + i,
       );
-      if (retryAt case final at?) {
-        // A song only unavailable for now (offline gate) stays queued with
-        // every song after it; the deferred tail releases it later.
-        deferredSongs = [...afterStart.sublist(at), ...deferredSongs];
-        break;
-      }
       appended = batchEnd;
     }
 

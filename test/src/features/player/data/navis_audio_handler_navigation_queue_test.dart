@@ -288,7 +288,7 @@ void main() {
     );
 
     test(
-      'a queue rebuild keeps songs the source gate refuses for now',
+      'offline, a queue rebuild skips a missing song and keeps the downloads',
       () async {
         final directory = await Directory.systemTemp.createTemp('navis-gate-');
         final api = SubsonicApiClient(
@@ -300,9 +300,9 @@ void main() {
           ),
           enableLogging: false,
         );
-        final (handler, _, database) = await createHandler(
+        final (handler, player, database) = await createHandler(
           directory,
-          5,
+          4,
           readApiClient: () => api,
           readCanStream: () => false,
         );
@@ -311,13 +311,17 @@ void main() {
           await database.close();
           await directory.delete(recursive: true);
         });
-        for (final id in ['song-2', 'song-3']) {
-          await database.cacheDao.removeCachedTrack(id);
-        }
-        final ids = List<String>.generate(5, (i) => 'song-$i');
+        await database.cacheDao.removeCachedTrack('song-1');
+        final ids = List<String>.generate(4, (i) => 'song-$i');
         await handler.replaceQueue(ids, expandMatchFlows: false);
         await settleQueue(handler);
-        expect(handler.snapshot.queueSongIds, ids);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-2', 'song-3']);
+        await handler.skipToNext();
+        await pumpEventQueue(times: 50);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        player.moveTo(2);
+        await pumpEventQueue(times: 50);
+        expect(handler.snapshot.currentSongId, 'song-3');
       },
     );
 

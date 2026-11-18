@@ -201,9 +201,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
-        'Songs that are not downloaded no longer refuse to play, and queued '
-        'songs are no longer dropped, when the device reports no connection '
-        'while your server is reachable',
+        'Songs that are not downloaded no longer refuse to play when the '
+        'device reports no connection while your server is reachable, and a '
+        'song reload refused for now retries instead of being skipped',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

@@ -539,9 +539,10 @@ was online, so a stale platform `none` cannot refuse songs the server can
 serve. The diagnostics network override still wins, and metering still reads
 `networkTypeProvider`. A successful probe while the device reads offline
 re-reads connectivity once per offline stretch (`healStaleOfflineConnectivity`;
-re-armed when the device reads connected), since the re-read itself re-probes. A recovery reload or queue rebuild refused as
-temporarily unavailable keeps the song and retries with the network retry
-timer instead of skipping or dropping it.
+re-armed when the device reads connected), since the re-read itself re-probes. A recovery reload refused as temporarily unavailable keeps the song and
+retries with the network retry timer instead of skipping it. A queue rebuild
+that is genuinely offline still skips songs that are not downloaded and keeps
+playing the downloaded ones, as in 1.5.1.
 
 Search supplements local results remotely during `checking` and switches to
 local-only mode on confirmed `offline`. Device playlists and device radio
