@@ -4099,7 +4099,11 @@ works like the weekly playlists. `homeTrendingProvider`
   is signed in or the library has no artists (it watches the account scope,
   like New Releases); otherwise waits for `homeDeezerIdleProvider` and reads
   `/chart/0/tracks?limit=100` (`DeezerCatalog.chartTracks`, cached 6 hours)
-  as a background request.
+  as a background request. While `TrendingDetailScreen` is open
+  (`trendingScreenOpenProvider`, set after the first frame, cleared on
+  dispose) it skips the idle gate and reads the chart as a foreground
+  request; a build already waiting at the gate restarts past it, one already
+  past it is not restarted.
 - Matches every chart song with the top-songs matcher on its own resolver
   and store (`trendingTrackResolverProvider`, `trendingMatchStoreProvider`:
   namespace `trending.matches`, key `deezer-chart`, per account, entries kept

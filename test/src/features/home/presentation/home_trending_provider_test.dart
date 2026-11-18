@@ -161,6 +161,7 @@ void main() {
     IntegrationPolicy policy = const IntegrationPolicy(),
     IntegrationCallRecorder? recorder,
     _MutableLibrarySyncController? sync,
+    bool syncRunning = false,
   }) {
     final root = cacheRoot;
     final container = ProviderContainer(
@@ -175,7 +176,7 @@ void main() {
           deezerApiClientProvider.overrideWithValue(deezer),
           subsonicApiProvider.overrideWithValue(api),
           homeDeezerStartupDelayProvider.overrideWithValue(Duration.zero),
-          homeDeezerSyncRunningProvider.overrideWithValue(false),
+          homeDeezerSyncRunningProvider.overrideWithValue(syncRunning),
           librarySyncControllerProvider.overrideWith(
             () => sync ?? _MutableLibrarySyncController(),
           ),
@@ -239,6 +240,83 @@ void main() {
 
     await read(container(deezer: deezer));
     expect(deezer.background, [true]);
+  });
+
+  group('while a library sync runs', () {
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 600));
+
+    test('still waits for the sync when the screen is not open', () async {
+      await library(<String>[_t(1)]);
+      final deezer = _FakeDeezer(<DeezerTrack>[_chartTrack(1, _t(1), 'Known')]);
+      final c = container(deezer: deezer, syncRunning: true);
+      final sub = c.listen(homeTrendingProvider, (_, _) {});
+      addTearDown(sub.close);
+      await settle();
+      expect(deezer.chartCalls, 0);
+      expect(c.read(homeTrendingProvider).isLoading, isTrue);
+    });
+
+    test(
+      'an opened screen reads the chart now, as a foreground request',
+      () async {
+        await library(<String>[_t(1)]);
+        final deezer = _FakeDeezer(<DeezerTrack>[
+          _chartTrack(1, _t(1), 'Known'),
+        ]);
+        final c = container(deezer: deezer, syncRunning: true);
+        final sub = c.listen(homeTrendingProvider, (_, _) {});
+        addTearDown(sub.close);
+        await settle();
+        expect(deezer.chartCalls, 0);
+
+        c.read(trendingScreenOpenProvider.notifier).value = true;
+        await settle();
+        expect(deezer.chartCalls, 1);
+        expect(deezer.background, [false]);
+        expect(c.read(homeTrendingProvider).value, hasLength(1));
+
+        // Closing and opening again neither restarts nor refetches.
+        c.read(trendingScreenOpenProvider.notifier).value = false;
+        c.read(trendingScreenOpenProvider.notifier).value = true;
+        await settle();
+        expect(deezer.chartCalls, 1);
+      },
+    );
+
+    test('a screen open from the start does not wait either', () async {
+      await library(<String>[_t(1)]);
+      final deezer = _FakeDeezer(<DeezerTrack>[_chartTrack(1, _t(1), 'Known')]);
+      final c = container(deezer: deezer, syncRunning: true);
+      c.read(trendingScreenOpenProvider.notifier).value = true;
+      final sub = c.listen(homeTrendingProvider, (_, _) {});
+      addTearDown(sub.close);
+      await settle();
+      expect(deezer.background, [false]);
+      expect(c.read(homeTrendingProvider).value, hasLength(1));
+    });
+
+    test(
+      'an opened screen with the switch off or no artists stays empty',
+      () async {
+        final deezer = _FakeDeezer(const <DeezerTrack>[]);
+        final empty = container(deezer: deezer, syncRunning: true);
+        empty.read(trendingScreenOpenProvider.notifier).value = true;
+        expect(await read(empty), isEmpty);
+
+        await library(<String>['A']);
+        final off = container(
+          deezer: deezer,
+          syncRunning: true,
+          policy: const IntegrationPolicy(
+            disabledKeys: <String>{'deezer.trending'},
+          ),
+        );
+        off.read(trendingScreenOpenProvider.notifier).value = true;
+        expect(await read(off), isEmpty);
+        expect(deezer.chartCalls, 0);
+      },
+    );
   });
 
   test('keeps every chart song in chart order, matched or not', () async {

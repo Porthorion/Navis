@@ -79,6 +79,7 @@ final homeDeezerIdleProvider = FutureProvider<void>((ref) async {
   }
 
   await syncFinished();
+  if (!ref.mounted) return;
   final delay = ref.read(homeDeezerStartupDelayProvider);
   if (delay > Duration.zero && ref.mounted) {
     await Future<void>.delayed(delay);
@@ -254,6 +255,22 @@ class HomeTrendingRefreshNotifier extends Notifier<({int epoch, bool manual})> {
   }
 }
 
+/// Whether Trending's own screen is open. A user who opened it wants the
+/// chart now, so [homeTrendingProvider] skips [homeDeezerIdleProvider] and
+/// reads it as a foreground request; Home's sections keep the gate.
+class TrendingScreenOpenNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  // A plain setter: the screen calls it after the frame, never in build.
+  set value(bool open) => state = open;
+}
+
+final trendingScreenOpenProvider =
+    NotifierProvider<TrendingScreenOpenNotifier, bool>(
+      TrendingScreenOpenNotifier.new,
+    );
+
 final homeTrendingRefreshProvider =
     NotifierProvider<HomeTrendingRefreshNotifier, ({int epoch, bool manual})>(
       HomeTrendingRefreshNotifier.new,
@@ -294,7 +311,8 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 /// weekly playlists are.
 ///
 /// Empty, without asking Deezer, while the switch is off or the library has
-/// no artists. Otherwise, once Home is idle, it reads `/chart/0/tracks`
+/// no artists. Otherwise, once Home is idle (at once while Trending's screen
+/// is open, as a foreground request), it reads `/chart/0/tracks`
 /// (100, cached 6 hours, a background request) and matches every song with
 /// the top-song matcher on Trending's own store: remembered matches and
 /// `ext-deezer-song-<id>` rows, the library pass, then `search3` on the
@@ -331,13 +349,23 @@ final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
     return;
   }
   if (!ref.mounted) return;
-  await ref.watch(homeDeezerIdleProvider.future);
-  if (!ref.mounted) return;
+  // Opening the screen while this build waits for Home to go idle restarts
+  // it past the gate; once past, opening it changes nothing.
+  var waiting = true;
+  ref.listen<bool>(trendingScreenOpenProvider, (_, open) {
+    if (open && waiting) ref.invalidateSelf();
+  });
+  final foreground = ref.read(trendingScreenOpenProvider);
+  if (!foreground) {
+    await ref.watch(homeDeezerIdleProvider.future);
+    if (!ref.mounted) return;
+  }
+  waiting = false;
 
   final timer = Stopwatch()..start();
   final chart = await catalog.chartTracks(
     cancelToken: cancelToken,
-    background: true,
+    background: !foreground,
   );
   if (cancelToken.isCancelled) return;
   if (chart.isEmpty) {
