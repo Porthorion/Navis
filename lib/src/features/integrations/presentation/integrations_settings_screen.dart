@@ -203,6 +203,18 @@ class _IntegrationsSettingsScreenState
         key: ValueKey<String>('integrations-mix-mode-${mode.name}'),
         contentPadding: EdgeInsets.zero,
         value: mode,
+        // A tap on the selected (resolved) option still records the choice.
+        toggleable: true,
+        // The group reports a tap on the selected option only as null, so the
+        // tile's own callback is the one that knows which option it was.
+        // ignore: deprecated_member_use
+        onChanged: (picked) {
+          if (picked == null) {
+            unawaited(
+              _write((repository) => repository.setPreferredMixMode(mode)),
+            );
+          }
+        },
         enabled: masterOn && enabled,
         title: Text(label),
         subtitle: note == null ? null : Text(note),
@@ -216,7 +228,9 @@ class _IntegrationsSettingsScreenState
         RadioGroup<PreferredMixMode>(
           groupValue: selected,
           onChanged: (mode) {
-            if (mode == null || mode == selected) return;
+            // Not guarded by `selected`, the resolved mode: tapping a
+            // fallback records it as the choice.
+            if (mode == null) return;
             _write((repository) => repository.setPreferredMixMode(mode));
           },
           child: Column(

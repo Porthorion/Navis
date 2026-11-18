@@ -3301,6 +3301,38 @@ void main() {
     });
   });
 
+  group('lastFmVerifiedFromSettings', () {
+    test('uses the key in freshly loaded settings before the stream emits', () {
+      final container = ProviderContainer(
+        overrides: [
+          appSettingsProvider.overrideWithValue(const AsyncLoading()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final withKey = AppSettingsModel.defaults().copyWith(
+        lastFmApiKey: ' own-key ',
+        disabledIntegrations: '["$sameVibesLastFmSettingsKey"]',
+      );
+
+      expect(container.read(hasLastFmApiKeyProvider), isFalse);
+      expect(lastFmVerifiedFromSettings(container.read, withKey), isTrue);
+      expect(
+        preferredMixModeFromSettings(
+          withKey,
+          lastFmVerified: lastFmVerifiedFromSettings(container.read, withKey),
+        ),
+        PreferredMixMode.sameVibesLastFm,
+      );
+      expect(
+        lastFmVerifiedFromSettings(
+          container.read,
+          AppSettingsModel.defaults().copyWith(lastFmApiKey: '  '),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('integrationPolicyProvider', () {
     ProviderContainer containerFor(
       AsyncValue<AppSettingsModel> settings, {

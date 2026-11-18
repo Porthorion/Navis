@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
@@ -1225,6 +1226,19 @@ PreferredMixMode preferredMixModeFromSettings(
   lastFmChosen: sameVibesLastFmChosen(settings.disabledIntegrations),
 );
 
+/// Whether a Last.fm key is usable for settings just read from storage:
+/// [lastFmApiKeyProvider]'s precedence (diagnostics, then the bundled key, then
+/// the user's), without waiting for the settings stream to emit.
+bool lastFmVerifiedFromSettings(
+  T Function<T>(ProviderListenable<T>) read,
+  AppSettingsModel settings,
+) {
+  if (_syncDiagnosticsEnabled || AppConstants.lastFmApiKey.trim().isNotEmpty) {
+    return read(hasLastFmApiKeyProvider);
+  }
+  return (settings.lastFmApiKey?.trim() ?? '').isNotEmpty;
+}
+
 /// What Instant Mix uses now: Same Vibes through Deezer or Last.fm, or the
 /// server's mix. The server's mix while settings load.
 final preferredMixModeProvider = Provider<PreferredMixMode>((ref) {
@@ -1581,7 +1595,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
             .getSettings();
         final useServer = !preferredMixModeFromSettings(
           settings,
-          lastFmVerified: ref.read(hasLastFmApiKeyProvider),
+          lastFmVerified: lastFmVerifiedFromSettings(ref.read, settings),
         ).isSameVibes;
         if (useServer) {
           ref.read(sameVibesProvider.notifier).deactivate();
@@ -1603,7 +1617,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
             .getSettings();
         final useServer = !preferredMixModeFromSettings(
           settings,
-          lastFmVerified: ref.read(hasLastFmApiKeyProvider),
+          lastFmVerified: lastFmVerifiedFromSettings(ref.read, settings),
         ).isSameVibes;
         if (useServer && ref.read(instantMixProvider).active) {
           ref.read(instantMixProvider.notifier).deactivate();

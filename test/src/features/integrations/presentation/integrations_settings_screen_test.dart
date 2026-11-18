@@ -699,6 +699,38 @@ void main() {
       expect(selected(tester), PreferredMixMode.sameVibesLastFm);
     });
 
+    testWidgets('tapping the Last.fm fallback records it as the choice', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(disabledJson: '["deezer"]'),
+      );
+      expect(selected(tester), PreferredMixMode.sameVibesLastFm);
+
+      await h.tap(option(PreferredMixMode.sameVibesLastFm));
+
+      final row = await h.row();
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isTrue);
+    });
+
+    testWidgets('tapping the Deezer fallback records it as the choice', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(
+          disabledJson: '["lastfm","$sameVibesLastFmSettingsKey"]',
+        ),
+      );
+      expect(selected(tester), PreferredMixMode.sameVibesDeezer);
+
+      await h.tap(option(PreferredMixMode.sameVibesDeezer));
+
+      final row = await h.row();
+      expect(sameVibesLastFmChosen(row.disabledIntegrations), isFalse);
+    });
+
     testWidgets('master off selects Server Mix and disables the group', (
       tester,
     ) async {

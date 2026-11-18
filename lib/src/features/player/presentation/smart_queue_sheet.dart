@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
@@ -10,7 +11,7 @@ import 'package:navis/src/providers/app_providers.dart';
 
 Future<PreferredMixMode> _readPreferredMixMode(WidgetRef ref) async {
   return await _resolvePreferredMixMode(
-    readLastFmVerified: () => ref.read(hasLastFmApiKeyProvider),
+    read: ref.read,
     loadSettings: () => ref.read(settingsRepositoryProvider).getSettings(),
   );
 }
@@ -19,14 +20,14 @@ Future<PreferredMixMode> _readPreferredMixModeFromContainer(
   ProviderContainer container,
 ) async {
   return await _resolvePreferredMixMode(
-    readLastFmVerified: () => container.read(hasLastFmApiKeyProvider),
+    read: container.read,
     loadSettings: () =>
         container.read(settingsRepositoryProvider).getSettings(),
   );
 }
 
 Future<PreferredMixMode> _resolvePreferredMixMode({
-  required bool Function() readLastFmVerified,
+  required T Function<T>(ProviderListenable<T>) read,
   required Future<AppSettingsModel> Function() loadSettings,
 }) async {
   // Settings are read from storage rather than the policy provider, which
@@ -34,7 +35,7 @@ Future<PreferredMixMode> _resolvePreferredMixMode({
   final settings = await loadSettings();
   return preferredMixModeFromSettings(
     settings,
-    lastFmVerified: readLastFmVerified(),
+    lastFmVerified: lastFmVerifiedFromSettings(read, settings),
   );
 }
 
