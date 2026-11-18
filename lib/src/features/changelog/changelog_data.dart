@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Desktop no longer skips a slow-to-start remote song after 12 '
+        'seconds; it waits up to a minute for the first audio',
+        type: ChangelogEntryType.fix,
+        platforms: ChangelogPlatform.desktop,
+      ),
+      ChangelogEntry(
         'Songs that are not downloaded no longer refuse to play when the '
         'device reports no connection while your server is reachable, and a '
         'song reload refused for now retries instead of being skipped',

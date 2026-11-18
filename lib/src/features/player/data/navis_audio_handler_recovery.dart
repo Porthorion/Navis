@@ -1824,7 +1824,19 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackStallSongId = currentSongId;
     _remotePlaybackStallPosition = position;
     _remotePlaybackStallBufferedPosition = bufferedPosition;
-    _remotePlaybackStallTimer = Timer(_remotePlaybackStallTimeout, () {
+    final allowanceKey = '$_transportGeneration:$currentSongId';
+    final firstByte = navisFirstByteAllowance(
+      desktop: _isDesktopRuntime,
+      sourceKind: _currentSourceKind,
+      position: position,
+      bufferedPosition: bufferedPosition,
+      used: _firstByteAllowanceUsed.contains(allowanceKey),
+    );
+    final timeout = firstByte
+        ? _timeouts.remoteLoad
+        : _remotePlaybackStallTimeout;
+    _remotePlaybackStallTimer = Timer(timeout, () {
+      if (firstByte) _firstByteAllowanceUsed.add(allowanceKey);
       _anomalies.event('stall');
       _transportTrace.record(
         'recovery',
@@ -1833,7 +1845,8 @@ extension _NavisRecovery on NavisAudioHandler {
           'songId': currentSongId,
           'positionMs': _player.position.inMilliseconds,
           'bufferedMs': _player.bufferedPosition.inMilliseconds,
-          'timeoutMs': _remotePlaybackStallTimeout.inMilliseconds,
+          'timeoutMs': timeout.inMilliseconds,
+          if (firstByte) 'firstByte': true,
         },
       );
       unawaited(

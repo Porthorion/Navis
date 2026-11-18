@@ -26,6 +26,7 @@ extension _NavisNavigation on NavisAudioHandler {
     _pendingRadioRecovery = null;
     _radioRecovered = null;
     _remotePlaybackRecoveryAttempts.clear();
+    _firstByteAllowanceUsed.clear();
     if (shouldPlay != null) _latestExplicitTransportPlaying = shouldPlay;
     return ++_transportGeneration;
   }

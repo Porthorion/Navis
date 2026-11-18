@@ -861,6 +861,10 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
   bool seekIndexNeverLands = false;
   bool gateNonEmptyLoadsOnly = false;
   bool bufferAfterLoad = false;
+
+  /// A move to another queue index reports nothing buffered, as the runtime
+  /// trace shows for a Next onto a cold song.
+  bool resetBufferedOnAdvance = false;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
   StateError? blockedLoadError;
@@ -1690,7 +1694,12 @@ class ControllableAudioPlayer extends Fake implements AudioPlayer {
       emitPlayerEvent();
       return;
     }
-    if (index != null) this.index = index;
+    if (index != null) {
+      if (resetBufferedOnAdvance && index != this.index) {
+        simulatedBuffered = Duration.zero;
+      }
+      this.index = index;
+    }
     indexEvents.add(this.index);
     emitPlayerEvent();
   });
