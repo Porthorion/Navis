@@ -2980,8 +2980,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Same Vibes started — $count similar tracks from Last.fm queued.',
-      one: 'Same Vibes started — 1 similar track from Last.fm queued.',
+      other: 'Same Vibes started — $count similar tracks queued.',
+      one: 'Same Vibes started — 1 similar track queued.',
       zero: 'No similar tracks found.',
     );
     return '$_temp0';

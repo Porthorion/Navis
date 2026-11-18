@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Same Vibes now finds similar songs through Deezer; add your own '
+        'Last.fm key in Settings to choose Last.fm instead',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Instant Mix now has a source choice under Settings > Integrations: '
         'Same Vibes (Deezer), Same Vibes (Last.fm) once you add your own '
         'Last.fm key, or your server\'s mix. If Instant Mix used your '

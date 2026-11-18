@@ -198,6 +198,23 @@ class DeezerApiClient {
     return data.map(DeezerArtist.fromJson).where(_hasId).toList();
   }
 
+  /// `/artist/{id}/radio`: tracks by the artist and similar artists, in
+  /// Deezer's mix order. Not cached: every call is a fresh mix.
+  Future<List<DeezerTrack>> getArtistRadio(
+    int artistId, {
+    int limit = 40,
+    CancelToken? cancelToken,
+    bool background = false,
+  }) async {
+    final data = await _getData(
+      'artist/$artistId/radio',
+      <String, Object>{'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+    );
+    return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
+  }
+
   /// `/chart/0/tracks`: the most played tracks on Deezer in the caller's
   /// country, most played first.
   Future<List<DeezerTrack>> getChartTracks({

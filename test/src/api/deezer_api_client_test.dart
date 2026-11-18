@@ -409,6 +409,33 @@ void main() {
     expect(adapter.requests.single.queryParameters['limit'], '100');
   });
 
+  test('getArtistRadio reads artist/{id}/radio and sends the limit', () async {
+    adapter.queue('/artist/27/radio', <String, Object?>{
+      'data': <Object?>[_track(1, 'First'), _track(2, 'Second')],
+    });
+
+    final radio = await client.getArtistRadio(27, limit: 40);
+
+    expect(radio.map((track) => track.title), <String>['First', 'Second']);
+    expect(adapter.requests.single.path, '/artist/27/radio');
+    expect(adapter.requests.single.queryParameters['limit'], '40');
+  });
+
+  test('getArtistRadio reads code 4 as the quota exception', () async {
+    adapter.queue('/artist/27/radio', _error(4, 'Exception', 'quota'));
+
+    await expectLater(
+      client.getArtistRadio(27, background: true),
+      throwsA(
+        isA<DeezerApiException>().having(
+          (e) => e.isQuotaExceeded,
+          'quota',
+          true,
+        ),
+      ),
+    );
+  });
+
   test('code 800 (no data) reads as an empty result', () async {
     adapter.queue('/artist/0/top', _error(800, 'DataException', 'no data'));
 

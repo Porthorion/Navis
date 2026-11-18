@@ -4710,7 +4710,7 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingSameVibesStarted.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track from Last.fm queued.} other{Same Vibes started — {count} similar tracks from Last.fm queued.}}'**
+  /// **'{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}'**
   String nowPlayingSameVibesStarted(int count);
 
   /// No description provided for @nowPlayingSameVibesUnsupported.

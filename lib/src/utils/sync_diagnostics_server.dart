@@ -296,14 +296,20 @@ class SyncDiagnosticsServer {
         final body = await _readJson(request);
         final rawMode = body['mode'];
         final mode = rawMode == 'selected'
-            ? (_container.read(preferredMixModeProvider) ==
-                      PreferredMixMode.legacyInstantMix
-                  ? 'server'
-                  : 'lastfm')
+            ? switch (_container.read(preferredMixModeProvider)) {
+                PreferredMixMode.legacyInstantMix => 'server',
+                PreferredMixMode.sameVibesDeezer => 'deezer',
+                PreferredMixMode.sameVibesLastFm => 'lastfm',
+              }
             : rawMode;
-        if (mode != 'server' && mode != 'lastfm' && mode != 'radio') {
+        // `deezer` and `lastfm` both start Same Vibes, which uses the chosen
+        // source.
+        if (mode != 'server' &&
+            mode != 'lastfm' &&
+            mode != 'deezer' &&
+            mode != 'radio') {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
-            'error': 'mode must be selected, server, lastfm, or radio',
+            'error': 'mode must be selected, server, deezer, lastfm, or radio',
           });
           return;
         }

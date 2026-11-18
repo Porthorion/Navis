@@ -1301,7 +1301,7 @@
   "nowPlayingInstantMixUnsupported": "Your server doesn\u0027t support Instant Mix.",
   "nowPlayingInstantMixError": "Couldn\u0027t start Instant Mix.",
   "nowPlayingSameVibesLabel": "Same Vibes",
-  "nowPlayingSameVibesStarted": "{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track from Last.fm queued.} other{Same Vibes started — {count} similar tracks from Last.fm queued.}}",
+  "nowPlayingSameVibesStarted": "{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}",
   "@nowPlayingSameVibesStarted": {
     "placeholders": {
       "count": {

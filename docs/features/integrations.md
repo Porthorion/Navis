@@ -5,7 +5,7 @@ Integrations lists each one with what it sends and to which host, a switch per
 service and per feature, and a master "Online services" switch; with it off,
 Navis only talks to your server. Everything is on by default.
 
-- **Deezer** — artist top songs (Last.fm as fallback), matched to your server in
+- **Deezer** — a Same Vibes source (artist radio), artist top songs (Last.fm as fallback), matched to your server in
   "This Is <Artist>" using the shared weekly-playlist resolver rules; with
   neither source enabled, Top Tracks and the "This Is" card are hidden. It also
   supplies artist photos and fan counts, "Fans also like", missing albums
@@ -59,6 +59,24 @@ choosing Server Mix keeps the remembered source. `lastfm.sameVibes` and
 `deezer.sameVibes` are ordinary JSON-stored switches that only mean "Same
 Vibes may call this service"; they no longer switch the mode, so scripts that
 toggled `lastfm.sameVibes` to change modes must use the picker or the column.
+
+**Same Vibes sources.** In Deezer mode a refill resolves the seed's artist
+(the server artist id, else the name; `DeezerArtistResolver`, cached 30 days)
+and queues `artist/{id}/radio`, mapped to your server by the same search
+matching as Last.fm; it never calls Last.fm. The whole Deezer leg (lookup and
+radio) runs under 6 seconds with a cancel token; Deezer's quota (error code 4,
+answered as HTTP 200) or a timeout skips Deezer for that refill
+(`deezer_skipped`): the server's similar songs fill, nothing retries, and the
+quota pause is not extended. No artist match, an empty radio or Deezer's "no
+data" is an ordinary empty result; a transport error is a transient failure
+that retries. The first refill is a foreground request; later refills and the
+anchor fetch yield to the user (`background`). There is no `/top` fallback.
+In Last.fm mode the Last.fm call is unchanged, except that a key Last.fm
+rejects (error 10 or 26) hands that fetch to the Deezer leg when Deezer is
+allowed, so the mix continues. Server Mix mid-mix makes the next refill call
+nothing external. The mode is read on every refill, so a source switch applies
+at the next one. The diagnostics report the real source (`mixSource` in the
+last refill, `selectedSongMix` `deezer|lastfm|server`).
 
 A feature whose service needs a credential stays locked until the key or token
 is verified. Subsonic/OpenSubsonic server scrobbling stays independent of
