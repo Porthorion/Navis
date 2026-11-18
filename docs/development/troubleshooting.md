@@ -221,6 +221,10 @@ Use this quick matrix to classify failures:
   - verify authenticated session is present and stream URL resolves.
 - Remote song slow to start (a server such as Octo-Fiesta answers only once it
   holds the whole file): read `remoteWarm` in the diagnostics `transportTrace`.
+  Desktop (Linux, Windows, macOS) does no remote warm and no mute and holds no
+  next-song download for one (#681): a cold song is fetched once, by the
+  sidecar download, and a desktop trace has no `remoteWarm` entries. The rest of
+  this entry is Android and iOS.
   `elapsedMs` of its `end` is the origin's wait and `outcome` says how it ended;
   the gap from `navigate` to `navigateLaneStart` (`waitedMs`) is the lane's wait.
   While a navigation warms a cold remote song the old song is muted and pinned

@@ -6266,6 +6266,9 @@ void main() {
           queueWindow: tiny,
           players: players,
           readApiClient: () => api,
+          // Android's direct-stream warm; desktop does none (#681).
+          desktopRuntimeOverride: false,
+          wrapResolver: DirectStreamResolver.new,
         );
         final invariant = watchAudioMetadata(handler, players);
         final log = <String>[];
