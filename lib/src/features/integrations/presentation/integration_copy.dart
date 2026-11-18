@@ -72,6 +72,10 @@ String integrationServiceDescription(
     title: l10n.integrationsFeatureDeezerSearchRankingTitle,
     subtitle: l10n.integrationsFeatureDeezerSearchRankingSubtitle,
   ),
+  IntegrationFeature.deezerSameVibes => (
+    title: l10n.integrationsFeatureDeezerSameVibesTitle,
+    subtitle: l10n.integrationsFeatureDeezerSameVibesSubtitle,
+  ),
   IntegrationFeature.lastFmSameVibes => (
     title: l10n.integrationsFeatureLastFmSameVibesTitle,
     subtitle: l10n.integrationsFeatureLastFmSameVibesSubtitle,

@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
@@ -112,6 +113,9 @@ import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+
+export 'package:navis/src/features/integrations/domain/integration_feature.dart'
+    show PreferredMixMode, resolvePreferredMixMode;
 
 const String _syncDiagnosticsRoot = String.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS_ROOT',
@@ -1135,7 +1139,6 @@ final integrationPolicyProvider = Provider<IntegrationPolicy>((ref) {
         useLrclib: settings.useLrclib,
         updateCheckEnabled: settings.updateCheckEnabled,
         listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
-        legacyInstantMixEnabled: settings.legacyInstantMixEnabled,
         listenBrainzTokenValid: settings.listenBrainzTokenValid,
       );
     }),
@@ -1149,7 +1152,6 @@ final integrationPolicyProvider = Provider<IntegrationPolicy>((ref) {
     useLrclib: inputs.useLrclib,
     updateCheckEnabled: inputs.updateCheckEnabled,
     listenBrainzScrobblingEnabled: inputs.listenBrainzScrobblingEnabled,
-    legacyInstantMixEnabled: inputs.legacyInstantMixEnabled,
     lastFmVerified: ref.watch(hasLastFmApiKeyProvider),
     listenBrainzVerified: inputs.listenBrainzTokenValid,
   );
@@ -1207,22 +1209,56 @@ IntegrationPolicy integrationPolicyFromSettings(
     useLrclib: settings.useLrclib,
     updateCheckEnabled: settings.updateCheckEnabled,
     listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
-    legacyInstantMixEnabled: settings.legacyInstantMixEnabled,
     lastFmVerified: lastFmVerified,
     listenBrainzVerified: settings.listenBrainzTokenValid,
   );
 }
 
-enum PreferredMixMode { sameVibes, legacyInstantMix }
+/// The Instant Mix mode for settings just read from storage, for code that
+/// must not trust a provider that may still be loading. The single resolution
+/// every caller uses; see [resolvePreferredMixMode].
+PreferredMixMode preferredMixModeFromSettings(
+  AppSettingsModel settings, {
+  required bool lastFmVerified,
+}) => resolvePreferredMixMode(
+  integrationPolicyFromSettings(settings, lastFmVerified: lastFmVerified),
+  serverMixChosen: settings.legacyInstantMixEnabled,
+  lastFmChosen: sameVibesLastFmChosen(settings.disabledIntegrations),
+);
 
-/// Same Vibes while the policy allows `lastfm.sameVibes`, the server's mix
-/// otherwise.
+/// Whether a Last.fm key is usable for settings just read from storage:
+/// [lastFmApiKeyProvider]'s precedence (diagnostics, then the bundled key, then
+/// the user's), without waiting for the settings stream to emit.
+bool lastFmVerifiedFromSettings(
+  T Function<T>(ProviderListenable<T>) read,
+  AppSettingsModel settings,
+) {
+  if (_syncDiagnosticsEnabled || AppConstants.lastFmApiKey.trim().isNotEmpty) {
+    return read(hasLastFmApiKeyProvider);
+  }
+  return (settings.lastFmApiKey?.trim() ?? '').isNotEmpty;
+}
+
+/// What Instant Mix uses now: Same Vibes through Deezer or Last.fm, or the
+/// server's mix. The server's mix while settings load.
 final preferredMixModeProvider = Provider<PreferredMixMode>((ref) {
-  return ref
-          .watch(integrationPolicyProvider)
-          .allows(IntegrationFeature.lastFmSameVibes)
-      ? PreferredMixMode.sameVibes
-      : PreferredMixMode.legacyInstantMix;
+  final policy = ref.watch(integrationPolicyProvider);
+  final choice = ref.watch(
+    appSettingsProvider.select((async) {
+      final settings = async.asData?.value;
+      if (settings == null) return null;
+      return (
+        serverMix: settings.legacyInstantMixEnabled,
+        lastFm: sameVibesLastFmChosen(settings.disabledIntegrations),
+      );
+    }),
+  );
+  if (choice == null) return PreferredMixMode.legacyInstantMix;
+  return resolvePreferredMixMode(
+    policy,
+    serverMixChosen: choice.serverMix,
+    lastFmChosen: choice.lastFm,
+  );
 });
 
 final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
@@ -1557,10 +1593,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         final settings = await ref
             .read(settingsRepositoryProvider)
             .getSettings();
-        final useServer = !integrationPolicyFromSettings(
+        final useServer = !preferredMixModeFromSettings(
           settings,
-          lastFmVerified: ref.read(hasLastFmApiKeyProvider),
-        ).allows(IntegrationFeature.lastFmSameVibes);
+          lastFmVerified: lastFmVerifiedFromSettings(ref.read, settings),
+        ).isSameVibes;
         if (useServer) {
           ref.read(sameVibesProvider.notifier).deactivate();
           await ref.read(instantMixProvider.notifier).activate(seedId);
@@ -1579,10 +1615,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         final settings = await ref
             .read(settingsRepositoryProvider)
             .getSettings();
-        final useServer = !integrationPolicyFromSettings(
+        final useServer = !preferredMixModeFromSettings(
           settings,
-          lastFmVerified: ref.read(hasLastFmApiKeyProvider),
-        ).allows(IntegrationFeature.lastFmSameVibes);
+          lastFmVerified: lastFmVerifiedFromSettings(ref.read, settings),
+        ).isSameVibes;
         if (useServer && ref.read(instantMixProvider).active) {
           ref.read(instantMixProvider.notifier).deactivate();
           return;

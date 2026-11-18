@@ -32,6 +32,7 @@ class _FakeDeezer extends DeezerApiClient {
     int limit = 25,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     searchCalls++;
     this.background.add(background);

@@ -18,10 +18,11 @@ Map<String, Object?> mixDiagnosticsJson(
   final lastFm = read(sameVibesProvider);
   return <String, Object?>{
     'appVersion': read(packageInfoProvider).asData?.value.version,
-    'selectedSongMix':
-        read(preferredMixModeProvider) == PreferredMixMode.legacyInstantMix
-        ? 'server'
-        : 'lastfm',
+    'selectedSongMix': switch (read(preferredMixModeProvider)) {
+      PreferredMixMode.legacyInstantMix => 'server',
+      PreferredMixMode.sameVibesDeezer => 'deezer',
+      PreferredMixMode.sameVibesLastFm => 'lastfm',
+    },
     'mode': session.mode?.name,
     'operationId': session.generation,
     'seedId': session.seedId,

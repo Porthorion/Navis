@@ -123,6 +123,40 @@ void main() {
       expect(instantMixSpy.activateCalls, isEmpty);
     });
 
+    test(
+      'routes to same vibes without a Last.fm key (Deezer source)',
+      () async {
+        final instantMixSpy = _SpyInstantMixNotifier();
+        final sameVibesSpy = _SpySameVibesNotifier();
+        final repository = _MockSettingsRepository();
+        when(repository.watchSettings)
+            .thenAnswer((_) => const Stream<AppSettingsModel>.empty());
+        when(repository.getSettings).thenAnswer(
+          (_) async =>
+              _settings(legacyInstantMixEnabled: false)
+                  .copyWith(lastFmApiKey: ''),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            lastFmApiKeyProvider.overrideWithValue(''),
+            instantMixProvider.overrideWith(() => instantMixSpy),
+            sameVibesProvider.overrideWith(() => sameVibesSpy),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await activatePreferredMixModeFromContainer(
+          container,
+          seedSongId: 'seed-2',
+        );
+
+        expect(sameVibesSpy.activateCalls, ['seed-2']);
+        expect(instantMixSpy.deactivateCalled, isTrue);
+        expect(instantMixSpy.activateCalls, isEmpty);
+      },
+    );
+
     test('awaits settings before routing to legacy instant mix', () async {
       final instantMixSpy = _SpyInstantMixNotifier();
       final sameVibesSpy = _SpySameVibesNotifier();
