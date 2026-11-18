@@ -533,12 +533,13 @@ conservatively metered. A real `none`/empty connectivity result still resolves
 to offline. A first resolved interface can still replace the initial client;
 the reachability replacement check handles that startup transition.
 
-Streaming is gated by `resolveCanStream`, not by `networkTypeProvider` alone:
+Streaming is gated by `canStreamProvider` (`resolveCanStream`), not by `networkTypeProvider` alone:
 a song may stream when the device reads connected or the server's last probe
 was online, so a stale platform `none` cannot refuse songs the server can
 serve. The diagnostics network override still wins, and metering still reads
 `networkTypeProvider`. A successful probe while the device reads offline
-re-reads connectivity once. A recovery reload or queue rebuild refused as
+re-reads connectivity once per offline stretch (`healStaleOfflineConnectivity`;
+re-armed when the device reads connected), since the re-read itself re-probes. A recovery reload or queue rebuild refused as
 temporarily unavailable keeps the song and retries with the network retry
 timer instead of skipping or dropping it.
 
