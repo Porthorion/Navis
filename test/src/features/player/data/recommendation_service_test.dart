@@ -477,6 +477,7 @@ void main() {
       LastFmTrackFetchResult result, {
       IntegrationPolicy policy = const IntegrationPolicy(lastFmVerified: true),
       bool withClient = true,
+      bool bundledKey = false,
     }) async {
       final database = createTestDatabase();
       addTearDown(database.close);
@@ -502,6 +503,7 @@ void main() {
               withClient ? _CountingLastFmApiClient(result) : null,
             ),
             integrationPolicyProvider.overrideWithValue(policy),
+            lastFmBundledKeyProvider.overrideWithValue(bundledKey),
           ],
         ),
       );
@@ -529,6 +531,15 @@ void main() {
       expect(batch.songs, isNotEmpty);
       expect(batch.issue, RecommendationIssue.none);
       expect(batch.lastFmIssue, RecommendationIssue.invalidKey);
+    }, skip: !sqliteAvailable);
+
+    test('a rejected bundled key stays silent (#694)', () async {
+      final batch = await radioBatchWith(
+        failure(LastFmFetchOutcome.apiError, code: 10),
+        bundledKey: true,
+      );
+      expect(batch.songs, isNotEmpty);
+      expect(batch.lastFmIssue, RecommendationIssue.none);
     }, skip: !sqliteAvailable);
 
     // One test database per test, like runRadio below: several open at

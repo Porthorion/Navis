@@ -430,7 +430,9 @@ class RecommendationService {
           count: wantedRelated - related.length,
           identities: identities,
         );
-        if (lastFm.issue == RecommendationIssue.invalidKey) {
+        // Only the user's own key is theirs to fix (#694).
+        if (lastFm.issue == RecommendationIssue.invalidKey &&
+            !_ref.read(lastFmBundledKeyProvider)) {
           lastFmIssue = lastFm.issue;
         }
         _addEligible(
