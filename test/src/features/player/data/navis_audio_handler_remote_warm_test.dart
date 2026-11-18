@@ -172,13 +172,16 @@ void main() {
           : <ControllableAudioPlayer>[],
       readApiClient: () => api,
       readNextSongPrefetchAllowed: () => prefetchAllowed,
-      desktopRuntimeOverride: desktop,
+      // Unset means Android on its direct-stream path: the host platform would
+      // make these tests desktop, which does no warm (#681).
+      desktopRuntimeOverride: desktop ?? false,
       positionStreams: positionStreams,
       sidecarStreams: sidecarStreams,
       sidecarDownloader: sidecar,
       transportTrace: trace,
       queueWindow: queueWindow,
-      wrapResolver: wrapResolver,
+      wrapResolver:
+          wrapResolver ?? (desktop == null ? DirectStreamResolver.new : null),
       timeouts: timeouts,
       crossfade: crossfade,
       readCrossfade: readCrossfade,
@@ -1252,31 +1255,28 @@ void main() {
       expect(count('song-2'), 0);
     });
 
-    test('desktop: the sidecar download of the next song waits for the '
-        'prefetch and the settle delay', () async {
-      final previous = remoteSettleDelay;
-      remoteSettleDelay = const Duration(seconds: 1);
-      addTearDown(() => remoteSettleDelay = previous);
+    test('desktop: no warm request, the next song\'s sidecar download '
+        'starts at once (#681)', () async {
       final sidecar = BridgeSidecar();
       await setUpHandler(
         prefetch: true,
         desktop: true,
         sidecarStreams: true,
         sidecar: sidecar,
-        gated: {'song-1'},
       );
-      await until(() => count('song-1') == 1, reason: 'prefetch request');
-      // The current song's own download finishes, so the next one may start.
       expect(sidecar.song, 'song-0');
       await sidecar.finish();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      expect(sidecar.starts, 1, reason: 'prefetch in flight');
-      gates['song-1']!.complete();
-      await prefetchAnswered('song-1');
-      expect(sidecar.starts, 1, reason: 'settle delay running');
+      // The fake clears `song` after the completion callback, which already
+      // started the next download: two starts, no settle delay in between.
       await until(
-        () => sidecar.song == 'song-1',
-        reason: 'download after delay',
+        () => sidecar.starts == 2,
+        reason: 'download of the next song, not held',
+      );
+      await quiet();
+      expect(requests, isEmpty);
+      expect(
+        records('remoteWarm').where((e) => e['trigger'] == 'prefetch'),
+        isEmpty,
       );
     });
 
@@ -1656,6 +1656,59 @@ void main() {
       ]) {
         expect(writerOf(source), isNull);
       }
+    });
+  });
+
+  group('desktop restores the 1.5.1 start: no remote warm (#681)', () {
+    test('the queue load sends no warm request', () async {
+      await setUpHandler(desktop: true);
+      expect(records('remoteWarm'), isEmpty);
+      expect(requests, isEmpty);
+    });
+
+    test(
+      'Next to a cold remote song switches at once: no warm, no mute',
+      () async {
+        await setUpHandler(desktop: true);
+        final navigation = handler.skipToNext();
+        await pumpEventQueue();
+        expect(player.volume, 1.0);
+        await navigation;
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(requests, isEmpty);
+        expect(records('remoteWarm'), isEmpty);
+        expect(player.volume, 1.0);
+      },
+    );
+
+    test(
+      'a jump to a cold remote song is not muted and sends no warm',
+      () async {
+        await setUpHandler(desktop: true);
+        final navigation = handler.playFromIndex(3);
+        await pumpEventQueue();
+        expect(player.volume, 1.0);
+        await navigation;
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-3');
+        expect(requests, isEmpty);
+        expect(records('remoteWarm'), isEmpty);
+      },
+    );
+  });
+
+  group('Android keeps the remote warm (#681)', () {
+    test('the queue load and a navigation still warm', () async {
+      await setUpHandler(desktop: false);
+      expect(
+        records('remoteWarm')
+            .where((e) => e['phase'] == 'start' && e['trigger'] == 'initial'),
+        isNotEmpty,
+      );
+      await handler.playFromIndex(3);
+      await settleQueue(handler);
+      expect(warmEnd('song-3')['trigger'], 'navigate');
     });
   });
 }

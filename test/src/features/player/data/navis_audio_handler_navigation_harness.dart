@@ -275,6 +275,26 @@ class SlowDisposeDownloader extends RollingCacheSidecarDownloader {
   }
 }
 
+/// Android's direct-stream path (recovery, offset reloads): no lock-cache
+/// source, so the two-byte warm is what asks the origin.
+class DirectStreamResolver extends GatedSourceResolver {
+  new(super.delegate);
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) => super.resolveForSong(
+    song,
+    preferLockCaching: false,
+    allowStreaming: allowStreaming,
+    transcodeOffset: transcodeOffset,
+    fastSeekBridge: fastSeekBridge,
+  );
+}
+
 class RangeCacheResolver extends GatedSourceResolver {
   new(super.delegate, this.sources);
   final Map<String, RangeCacheSource> sources;
