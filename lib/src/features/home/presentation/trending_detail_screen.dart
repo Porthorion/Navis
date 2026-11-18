@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -15,11 +17,41 @@ import 'package:navis/src/routing/desktop_layout.dart';
 /// every Deezer chart song, numbered by chart position, in the "This Is"
 /// layout. Songs found on neither the library nor the server stay as faded
 /// "Not on server" rows with a Search action, like the weekly playlists'.
-class TrendingDetailScreen extends ConsumerWidget {
+class TrendingDetailScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TrendingDetailScreen> createState() =>
+      _TrendingDetailScreenState();
+}
+
+class _TrendingDetailScreenState extends ConsumerState<TrendingDetailScreen> {
+  late final _open = ref.read(trendingScreenOpenProvider.notifier);
+
+  @override
+  void initState() {
+    super.initState();
+    // Tells Trending a user is waiting, so it skips Home's startup gate.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _open.value = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    // After the tree is unlocked; a disposed container just ignores it.
+    scheduleMicrotask(() {
+      try {
+        _open.value = false;
+      } on Object {
+        // Container already gone.
+      }
+    });
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final body = ref

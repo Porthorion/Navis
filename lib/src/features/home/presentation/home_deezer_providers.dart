@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:navis/src/api/models/deezer_models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -79,6 +80,7 @@ final homeDeezerIdleProvider = FutureProvider<void>((ref) async {
   }
 
   await syncFinished();
+  if (!ref.mounted) return;
   final delay = ref.read(homeDeezerStartupDelayProvider);
   if (delay > Duration.zero && ref.mounted) {
     await Future<void>.delayed(delay);
@@ -254,6 +256,23 @@ class HomeTrendingRefreshNotifier extends Notifier<({int epoch, bool manual})> {
   }
 }
 
+/// Whether Trending's own screen is open. A user who opened it wants the
+/// chart now, so [homeTrendingProvider] skips [homeDeezerIdleProvider] and
+/// reads it as a foreground request; Home's sections keep the gate. A bool,
+/// not a counter: Trending's screen is never stacked on itself.
+class TrendingScreenOpenNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  // A plain setter: the screen calls it after the frame, never in build.
+  set value(bool open) => state = open;
+}
+
+final trendingScreenOpenProvider =
+    NotifierProvider<TrendingScreenOpenNotifier, bool>(
+      TrendingScreenOpenNotifier.new,
+    );
+
 final homeTrendingRefreshProvider =
     NotifierProvider<HomeTrendingRefreshNotifier, ({int epoch, bool manual})>(
       HomeTrendingRefreshNotifier.new,
@@ -294,7 +313,8 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 /// weekly playlists are.
 ///
 /// Empty, without asking Deezer, while the switch is off or the library has
-/// no artists. Otherwise, once Home is idle, it reads `/chart/0/tracks`
+/// no artists. Otherwise, once Home is idle (at once while Trending's screen
+/// is open, as a foreground request), it reads `/chart/0/tracks`
 /// (100, cached 6 hours, a background request) and matches every song with
 /// the top-song matcher on Trending's own store: remembered matches and
 /// `ext-deezer-song-<id>` rows, the library pass, then `search3` on the
@@ -303,14 +323,16 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 /// unmatched rows. Two songs are searched at once; a pull to refresh searches
 /// six, updates the rows as it goes and searches unmatched songs again. The
 /// provider lives for the session; a refresh or turning the switch off cancels
-/// its searches. A failed chart request leaves Trending empty.
+/// its searches. A failed chart request on Home's own build ends as an error
+/// (provider retry covers transient failures); a failed foreground request
+/// from the open screen is asked once more in the background when Home is
+/// idle, and Trending stays empty if that fails too.
 final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   ref,
 ) async* {
   ref
     ..watch(homeTrendingSyncRefreshBridgeProvider)
     ..watch(homeTrendingRefreshProvider);
-  final manual = ref.read(homeTrendingRefreshProvider.notifier).takeManual();
   final scope = ref.watch(integrationAccountScopeProvider);
   final allowed = ref.watch(
     integrationPolicyProvider.select(
@@ -331,14 +353,52 @@ final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
     return;
   }
   if (!ref.mounted) return;
-  await ref.watch(homeDeezerIdleProvider.future);
-  if (!ref.mounted) return;
+  // Opening the screen while this build waits for Home to go idle restarts
+  // it past the gate; once past, opening it changes nothing.
+  var waiting = true;
+  ref.listen<bool>(trendingScreenOpenProvider, (_, open) {
+    if (open && waiting) ref.invalidateSelf();
+  });
+  final foreground = ref.read(trendingScreenOpenProvider);
+  if (!foreground) {
+    await ref.watch(homeDeezerIdleProvider.future);
+    if (!ref.mounted) return;
+  }
+  waiting = false;
+  // Taken only now: a build restarted at the gate must still see a manual
+  // request made while it waited.
+  final manual = ref.read(homeTrendingRefreshProvider.notifier).takeManual();
 
   final timer = Stopwatch()..start();
-  final chart = await catalog.chartTracks(
-    cancelToken: cancelToken,
-    background: true,
-  );
+  var chart = const <DeezerTrack>[];
+  try {
+    chart = await catalog.chartTracks(
+      cancelToken: cancelToken,
+      background: !foreground,
+    );
+  } on Object catch (error) {
+    // A cancelled build ends quietly. Home's own (background) build keeps
+    // failing as before, so provider retry still covers network blips. A
+    // screen that asked in the foreground (Deezer's quota is often shared
+    // with the sync's own traffic) asks once more, in the background, when
+    // Home is idle; if that fails too, Trending stays empty.
+    if (cancelToken.isCancelled || !ref.mounted) return;
+    if (!foreground) rethrow;
+    AppLogger.debug(
+      'Trending: foreground chart failed, retrying when idle: $error',
+    );
+    try {
+      await ref.watch(homeDeezerIdleProvider.future);
+      if (cancelToken.isCancelled || !ref.mounted) return;
+      chart = await catalog.chartTracks(
+        cancelToken: cancelToken,
+        background: true,
+      );
+    } on Object catch (error) {
+      if (cancelToken.isCancelled || !ref.mounted) return;
+      AppLogger.debug('Trending: idle chart retry failed: $error');
+    }
+  }
   if (cancelToken.isCancelled) return;
   if (chart.isEmpty) {
     yield const <ResolvedArtistTopTrack>[];
