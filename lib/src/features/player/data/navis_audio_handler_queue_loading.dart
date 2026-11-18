@@ -79,6 +79,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
       _player.setVolume(_warmMuted ? 0 : volume ?? _restoreVolumeLevel());
 
   void _armWarmMute() {
+    // Desktop does no warm (#681): the old song is never held for one.
+    if (_isDesktopRuntime) return;
     _warmMuteArmed = true;
     _emitSnapshot();
     _applyWarmMute();
@@ -1923,7 +1925,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
     LockCachingAudioSource? lockCacheSource,
     HttpClient? client,
   }) async {
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+    // Desktop: the warm does not make the song servable (the origin keeps
+    // nothing after a 2-byte request), so mpv's own request would fetch it a
+    // second time; the sidecar download is the one fetch, as in 1.5.1 (#681).
+    if (_isDesktopRuntime ||
+        uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
       return 'skipped';
     }
     final elapsed = Stopwatch()..start();
@@ -1958,9 +1965,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // one otherwise, resolves at the response headers and is a no-op for a
     // finished file. A superseded wait leaves the fetch running: the server
     // keeps fetching anyway, and the player later joins it.
-    final lockCache = _isDesktopRuntime || trigger == 'prefetch'
-        ? null
-        : lockCacheSource;
+    final lockCache = trigger == 'prefetch' ? null : lockCacheSource;
     _transportTrace.record(
       'remoteWarm',
       () => <String, Object?>{

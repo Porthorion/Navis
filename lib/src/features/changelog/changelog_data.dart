@@ -218,6 +218,7 @@ const List<ChangelogVersion> changelogs = [
         'it as loading and silences the previous song instead of playing it '
         'under the new title',
         type: ChangelogEntryType.fix,
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
       ),
       ChangelogEntry(
         'Automatic mixes top up less often: they add songs once four are left, '

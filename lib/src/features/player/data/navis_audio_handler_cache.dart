@@ -42,7 +42,8 @@ extension _NavisCache on NavisAudioHandler {
     return _desiredLoopMode == LoopMode.all ? ids.first : null;
   }
 
-  /// Starts the prefetch of the next cold remote song (a first-byte warm, so
+  /// Android only (desktop starts none, #681). Starts the prefetch of the next
+  /// cold remote song (a first-byte warm, so
   /// the origin has fetched it before anything plays it; a song with a
   /// lock-cache source on Android is fetched by that source instead) when
   /// none is in flight, the gates are open and the song was not tried yet. A
@@ -51,7 +52,9 @@ extension _NavisCache on NavisAudioHandler {
   void _maybeStartRemotePrefetch(MediaItem current) {
     final running = _remotePrefetch;
     if (running != null && !running.done) return;
-    if (_disposeHandlerStarted ||
+    // Desktop does no warm (#681): the sidecar download is the one fetch.
+    if (_isDesktopRuntime ||
+        _disposeHandlerStarted ||
         !_requestedPlaying ||
         _radioStation != null ||
         _isLoading ||
@@ -70,7 +73,7 @@ extension _NavisCache on NavisAudioHandler {
     // Android: the next song's own lock-cache fetch is the prefetch (started
     // by `_startLockCacheWarm`, joined by the player's load and by navigation),
     // so the server is asked once. A separate request would be a second fetch.
-    if (!_isDesktopRuntime && _lockCacheSourceOfSong(target) != null) return;
+    if (_lockCacheSourceOfSong(target) != null) return;
     final uri = _coldRemoteUriAt(
       _queueItems.indexWhere((item) => item.id == target),
       target,
