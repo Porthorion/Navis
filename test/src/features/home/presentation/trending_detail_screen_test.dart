@@ -108,6 +108,22 @@ void main() {
     ResolvedArtistTopTrack(rank: 3, title: 'Missing Song', artist: 'X'),
   ];
 
+  testWidgets('marks Trending open while shown, closed once left', (
+    tester,
+  ) async {
+    final container = await pump(tester, (ref) => Stream.value(chart));
+    expect(container.read(trendingScreenOpenProvider), isTrue);
+
+    // Leave the screen but keep the scope.
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const Text('x')),
+        );
+    await tester.pumpAndSettle();
+    expect(container.read(trendingScreenOpenProvider), isFalse);
+  });
+
   test('the route lives under Library', () {
     expect(AppRoutes.trending, '/library/trending');
   });
