@@ -346,6 +346,8 @@ extension _NavisCache on NavisAudioHandler {
             ),
             cacheFilePath: cacheFile.path,
           );
+          _fileSwapPending.add(song.id);
+          _repairDepartedOffsetEntries();
           _syncSidecarChain();
         },
         onTerminated: () {
