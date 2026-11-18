@@ -98,6 +98,8 @@ void main() {
       ScrobbleService? scrobbleService,
       String replayGainMode = 'off',
       NavisPlaybackTimeouts timeouts = deadlines,
+      // Android's direct-stream path: desktop does no remote warm (#681).
+      bool androidDirect = false,
     }) async {
       final directory = await Directory.systemTemp.createTemp(
         'navis-invariant-',
@@ -115,6 +117,8 @@ void main() {
         hungLoadSongs: hungLoadSongs,
         scrobbleService: scrobbleService,
         replayGainMode: replayGainMode,
+        desktopRuntimeOverride: androidDirect ? false : null,
+        wrapResolver: androidDirect ? DirectStreamResolver.new : null,
       );
       addTearDown(() async {
         var disposed = false;
@@ -826,6 +830,7 @@ void main() {
                 api: api,
                 queueWindow: const NavisQueueWindow(),
                 timeouts: failure == 'load' ? hungRemoteDeadlines : deadlines,
+                androidDirect: true,
               );
               addTearDown(() async {
                 if (!firstBytes.isCompleted) firstBytes.complete();
@@ -4047,6 +4052,9 @@ void main() {
       1,
       sidecarStreams: true,
       readApiClient: () => api,
+      // Android's direct-stream warm; desktop does none (#681).
+      desktopRuntimeOverride: false,
+      wrapResolver: DirectStreamResolver.new,
     );
     final song = (await database.libraryDao.getSongsByIds(['song-0'])).single;
     final replacing = handler.replaceQueueWithData([
