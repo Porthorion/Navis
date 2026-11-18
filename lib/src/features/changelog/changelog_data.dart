@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Pressing Next onto a song that already finished caching now plays '
+        'the cached file instead of opening the stream again',
+        type: ChangelogEntryType.fix,
+        platforms: ChangelogPlatform.desktop,
+      ),
+      ChangelogEntry(
         'Desktop no longer skips a slow-to-start remote song after 12 '
         'seconds; it waits up to a minute for the first audio',
         type: ChangelogEntryType.fix,

@@ -2162,10 +2162,12 @@ void main() {
 
     test('the next song downloads once the current one completes', () async {
       final s = await serveQueue(3);
+      // Read before the download ends: the finished file replaces the stream
+      // entry, which then carries no sidecar path (#685).
+      final next = s.handler.queue.value[1].extras!['sidecarCacheFilePath'];
       await until(() => s.requests.contains('song-1'));
       await settle();
       expect(s.requests, ['song-0', 'song-1']);
-      final next = s.handler.queue.value[1].extras!['sidecarCacheFilePath'];
       expect(File(next as String).existsSync(), isTrue);
     });
 
