@@ -118,19 +118,23 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     },
   );
 
-  /// Clears the local like of songs the server no longer has and drops their
-  /// pending deliveries, without queueing an unstar: the server would only
-  /// retry it forever for an id it no longer knows.
-  Future<void> clearSongLikesLocally(Iterable<String> songIds) {
+  /// Clears the local like of songs (or, with [itemType], albums or artists)
+  /// the server no longer has and drops their pending deliveries, without
+  /// queueing an unstar: the server would only retry it forever for an id it
+  /// no longer knows.
+  Future<void> clearSongLikesLocally(
+    Iterable<String> songIds, {
+    String itemType = 'song',
+  }) {
     final ids = songIds.toList(growable: false);
     return transaction(() async {
       for (final id in ids) {
-        await attachedDatabase.libraryDao.setEntityStarred('song', id, null);
+        await attachedDatabase.libraryDao.setEntityStarred(itemType, id, null);
       }
       for (final chunk in chunked(ids, 500)) {
         await (delete(starSyncQueueTable)..where(
               (t) =>
-                  t.itemType.equals('song') &
+                  t.itemType.equals(itemType) &
                   t.operation.equals('star') &
                   t.itemId.isIn(chunk),
             ))
