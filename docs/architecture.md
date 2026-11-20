@@ -7872,6 +7872,11 @@ contract.
   `remapAlbumIdentity`/`remapArtistIdentity` move song and album references,
   transfer star queue entries, absence evidence, and local mutations, merge
   favorites and ratings with local precedence, and record typed aliases.
+  After an album remap, a library album that received remote copies (external
+  provisional songs) is marked pending hydration so the targeted hydration
+  drain and song identity pass remove copies the sync could not match (#707).
+  A full-sync album upsert keeps such an album pending until the drain ran.
+  Provisional songs with a like (`starred`) are never garbage collected.
   Evidence-less or contested rows keep their user state as provisional rows
   and become review entries with typed reasons.
 - **Recovery review.** Pending entries (with evidence generation, reason, and
@@ -7886,6 +7891,22 @@ contract.
   replacement candidates offer a possible-replacements action. Keep for later
   and Remove from Liked are unchanged. Sync evidence never overwrites a user
   disposition.
+  Only items the user chose are listed: starred, rated, or in a local or own
+  playlist (the same case-insensitive owner rule as `isOwnPlaylist`: a
+  null owner counts, read-only and auto-imported playlists do not; the owner is
+  the promoted server's user), never external (`ext-`, `remote-`) rows and never songs kept only by history,
+  queue, scrobbles, downloads or match flows (they are still retained,
+  silently). Song rows are recorded after the late identity pass so relinked
+  songs are never listed, and every remap deletes its own pending row.
+  `autoResolveRecoveryReview` runs on every promotion and deletes pending rows
+  (never a disposition, so an item that disappears again is listed again)
+  whose id is live again (`missingFromCatalog` songs, and album and artist
+  rows of any reason; ambiguous song rows are exempt), that have an identity alias,
+  whose row is gone, or (missing-from-catalog rows) that no longer have a
+  user-chosen reference. Star-absence reconciliation skips songs retained with
+  `server_deleted_at`, and clears their earlier absence records, so a liked unavailable song keeps
+  its like and needs two fresh absences after it returns. The pass is chunked
+  (500 ids per statement), never per row.
 - **Repair sessions.** Ordinary Repair Library runs non-blocking from Sync
   Settings. The settings action and authenticated diagnostics `/v1/sync/repair`
   route both enter through `LibrarySyncController.repairLibrary`. The coordinator

@@ -1600,6 +1600,197 @@ void main() {
       });
     }, skip: !sqliteAvailable);
 
+    test(
+      'a liked song retained as unavailable keeps starred across 3 full syncs',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'gone-liked',
+            title: 'Gone liked',
+            starred: Value(DateTime(2026, 1, 1)),
+          ),
+        ]);
+        await database.customStatement(
+          "UPDATE songs SET server_deleted_at = 1769904000 WHERE id = 'gone-liked'",
+        );
+        api.starredContent = const StarredContent();
+        for (var i = 0; i < 3; i++) {
+          await engine.syncStarredContent();
+        }
+        expect(
+          await database.libraryDao.getSongStarred('gone-liked'),
+          DateTime(2026, 1, 1),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a liked unavailable song with a pending star_sync_queue row keeps starred across 3 syncs', () async {
+      await saveSession(lastSynced: DateTime.now());
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'gone-liked',
+          title: 'Gone liked',
+          starred: Value(DateTime(2026, 1, 1)),
+        ),
+      ]);
+      await database.customStatement(
+        "UPDATE songs SET server_deleted_at = 1769904000 WHERE id = 'gone-liked'",
+      );
+      await database.starSyncDao.queueStarAction(
+        itemId: 'gone-liked',
+        itemType: 'song',
+        action: 'star',
+      );
+      api.starredContent = const StarredContent();
+      for (var i = 0; i < 3; i++) {
+        await engine.syncStarredContent();
+      }
+      expect(
+        await database.libraryDao.getSongStarred('gone-liked'),
+        DateTime(2026, 1, 1),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a like on a song that left and came back survives: absence needs two fresh observations', () async {
+      await saveSession(lastSynced: DateTime.now());
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'flaky',
+          title: 'Flaky',
+          starred: Value(DateTime(2026, 1, 1)),
+        ),
+      ]);
+      api.starredContent = const StarredContent();
+      // Live and not listed as starred: one absence recorded.
+      await engine.syncStarredContent();
+      await database.customStatement(
+        "UPDATE songs SET server_deleted_at = 1769904000 WHERE id = 'flaky'",
+      );
+      await engine.syncStarredContent();
+      await database.customStatement(
+        "UPDATE songs SET server_deleted_at = NULL WHERE id = 'flaky'",
+      );
+      // Back with the same id: this is the first absence again, not the second.
+      await engine.syncStarredContent();
+      expect(
+        await database.libraryDao.getSongStarred('flaky'),
+        DateTime(2026, 1, 1),
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'a retained song relinked by the late identity pass is never listed',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-old',
+            name: 'Album',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            songCount: 3,
+          ),
+        ];
+        api.albumDetails['album-old'] = const Album(
+          id: 'album-old',
+          name: 'Album',
+          artistId: 'artist-1',
+          songCount: 3,
+          songs: <Song>[
+            Song(
+              id: 'song-old',
+              title: 'Track',
+              albumId: 'album-old',
+              artistId: 'artist-1',
+              musicBrainzId: 'rec-1',
+            ),
+            Song(
+              id: 'song-kept',
+              title: 'Kept',
+              albumId: 'album-old',
+              artistId: 'artist-1',
+            ),
+            Song(
+              id: 'song-playlisted',
+              title: 'Playlisted',
+              albumId: 'album-old',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+        await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        await database.customStatement(
+          'UPDATE songs SET starred = 1767225600 '
+          "WHERE id IN ('song-old', 'song-kept')",
+        );
+        // A playlist owned by the promoted server's user (case differs).
+        await database.playlistDao.upsertPlaylists([
+          PlaylistsTableCompanion.insert(
+            id: 'pl',
+            name: 'Mine',
+            owner: const Value('ALICE'),
+          ),
+        ]);
+        await database.playlistDao.replacePlaylistSongs('pl', [
+          PlaylistSongsTableCompanion.insert(
+            playlistId: 'pl',
+            songId: 'song-playlisted',
+            sortOrder: 0,
+          ),
+        ]);
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-new',
+            name: 'Album',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            songCount: 1,
+          ),
+        ];
+        api.albumDetails['album-new'] = const Album(
+          id: 'album-new',
+          name: 'Album',
+          artistId: 'artist-1',
+          songCount: 1,
+          songs: <Song>[
+            Song(
+              id: 'song-new',
+              title: 'Track',
+              albumId: 'album-new',
+              artistId: 'artist-1',
+              musicBrainzId: 'rec-1',
+            ),
+          ],
+        );
+
+        await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        final result = await engine.executeSyncPlan(
+          await repairPlanAfterDialog(database),
+        );
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(await database.libraryDao.getSongById('song-old'), isNull);
+        expect(await database.libraryDao.getSongById('song-new'), isNotNull);
+        // The unrelated liked song stays retained and listed; the relinked one
+        // never appears.
+        expect(
+          (await pendingRecoveryReviews(
+            database,
+            1,
+          )).where((r) => r.entityType == 'song').map((r) => r.oldId),
+          <String>['song-kept', 'song-playlisted'],
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('playlist headers store readonly and preserve local rows without fetching them', () async {
       await saveSession(lastSynced: DateTime.now());
       final serverId = (await serverConfigRepository.getActiveServer())!.id!;

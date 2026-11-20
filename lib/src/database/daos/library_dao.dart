@@ -1059,7 +1059,34 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       artistId: artistId,
       artistName: artistName,
       relatedSongAlbumIds: relatedIds,
+      songAddedAt: await _latestSongCreatedByAlbum(
+        candidates.map((album) => album.id),
+      ),
     );
+  }
+
+  /// The newest song `created_at` per album: Navidrome can leave an album's
+  /// own `created` stale after a re-import while its songs carry the real
+  /// date, so the artist page orders by whichever is newer.
+  Future<Map<String, DateTime>> _latestSongCreatedByAlbum(
+    Iterable<String> albumIds,
+  ) async {
+    final newest = songsTable.createdAt.max();
+    final result = <String, DateTime>{};
+    for (final chunk in chunked(albumIds.toList(), _safeSqlVariableChunkSize)) {
+      final query = selectOnly(songsTable)
+        ..addColumns([songsTable.albumId, newest])
+        ..where(
+          songsTable.albumId.isIn(chunk) & songsTable.serverDeletedAt.isNull(),
+        )
+        ..groupBy([songsTable.albumId]);
+      for (final row in await query.get()) {
+        final albumId = row.read(songsTable.albumId);
+        final created = row.read(newest);
+        if (albumId != null && created != null) result[albumId] = created;
+      }
+    }
+    return result;
   }
 
   /// The artist page's primary and Featured In albums. Each album or song
@@ -1130,6 +1157,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           .map((song) => song.albumId?.trim() ?? '')
           .where((albumId) => albumId.isNotEmpty)
           .toSet(),
+      songAddedAt: await _latestSongCreatedByAlbum(
+        albums.map((album) => album.id),
+      ),
     );
   }
 
@@ -2526,10 +2556,18 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull().map((row) => row?.starred != null);
   }
 
-  Future<Set<String>> getStarredIds(String type) async {
+  /// Ids with a local favorite. [excludeUnavailable] drops songs retained
+  /// after leaving the server (`server_deleted_at`): the server can never list
+  /// them as starred, so their absence is not an unlike. Albums and artists
+  /// carry no such marker.
+  Future<Set<String>> getStarredIds(
+    String type, {
+    bool excludeUnavailable = false,
+  }) async {
     final table = _entityTable(type);
     final rows = await customSelect(
-      'SELECT id FROM ${table.actualTableName} WHERE starred IS NOT NULL',
+      'SELECT id FROM ${table.actualTableName} WHERE starred IS NOT NULL'
+      '${excludeUnavailable && type == 'song' ? ' AND server_deleted_at IS NULL' : ''}',
       readsFrom: {table},
     ).get();
     return rows.map((row) => row.read<String>('id')).toSet();
@@ -4658,6 +4696,7 @@ CASE WHEN navis_fold($column) = ?1 THEN $base
     required String artistId,
     required String? artistName,
     required Set<String> relatedSongAlbumIds,
+    Map<String, DateTime> songAddedAt = const {},
   }) {
     final primaryAlbumsById = <String, AlbumsTableData>{};
     final featuredAlbumsById = <String, AlbumsTableData>{};
@@ -4687,13 +4726,15 @@ CASE WHEN navis_fold($column) = ?1 THEN $base
       }
     }
 
+    int compare(AlbumsTableData a, AlbumsTableData b) =>
+        _compareArtistAlbums(a, b, songAddedAt);
     final primaryAlbums = primaryAlbumsById.values.toList(growable: false)
-      ..sort(_compareArtistAlbums);
+      ..sort(compare);
     final featuredInAlbums =
         featuredAlbumsById.values
             .where((album) => !primaryAlbumsById.containsKey(album.id))
             .toList(growable: false)
-          ..sort(_compareArtistAlbums);
+          ..sort(compare);
 
     return ArtistAlbumBuckets(
       primaryAlbums: primaryAlbums,
@@ -4736,15 +4777,19 @@ CASE WHEN navis_fold($column) = ?1 THEN $base
     return false;
   }
 
-  int _compareArtistAlbums(AlbumsTableData a, AlbumsTableData b) {
+  int _compareArtistAlbums(
+    AlbumsTableData a,
+    AlbumsTableData b,
+    Map<String, DateTime> songAddedAt,
+  ) {
     final yearCompare = _compareNullableIntDesc(a.year, b.year);
     if (yearCompare != 0) {
       return yearCompare;
     }
 
     final createdCompare = _compareNullableDateTimeDesc(
-      a.serverCreatedAt,
-      b.serverCreatedAt,
+      _albumAddedAt(a, songAddedAt),
+      _albumAddedAt(b, songAddedAt),
     );
     if (createdCompare != 0) {
       return createdCompare;
@@ -4756,6 +4801,18 @@ CASE WHEN navis_fold($column) = ?1 THEN $base
     }
 
     return a.id.compareTo(b.id);
+  }
+
+  DateTime? _albumAddedAt(
+    AlbumsTableData album,
+    Map<String, DateTime> songAddedAt,
+  ) {
+    final albumDate = album.serverCreatedAt;
+    final songDate = songAddedAt[album.id];
+    if (songDate == null) return albumDate;
+    return albumDate != null && albumDate.isAfter(songDate)
+        ? albumDate
+        : songDate;
   }
 
   int _compareNullableIntDesc(int? a, int? b) {

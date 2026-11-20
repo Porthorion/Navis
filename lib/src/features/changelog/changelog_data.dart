@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Albums you download from remote no longer keep showing remote '
+        'copies of their songs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Last.fm features now use your own Last.fm API key (Settings > '
         'Integrations); Same Vibes uses Deezer by default',
         type: ChangelogEntryType.improvement,
@@ -215,12 +220,27 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Newly added albums now appear at the top of their year on artist pages',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Instant Mix now has a source choice under Settings > Integrations: '
         'Same Vibes (Deezer), Same Vibes (Last.fm) once you add your own '
         'Last.fm key, or your server\'s mix. If Instant Mix used your '
         'server\'s mix only because Last.fm was unavailable, it now uses Same '
         'Vibes; switch back there',
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Liked songs that are removed from the server no longer lose their '
+        'like',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Unavailable items now resolve on their own when a song comes back or '
+        'is matched, and only list music you liked, rated or put in a '
+        'playlist',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Trending opens right away when you open it while the library syncs '

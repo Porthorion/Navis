@@ -515,6 +515,99 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    group('artist album order (#706)', () {
+      Future<List<String>> order() async =>
+          (await database.libraryDao.watchArtistAlbumBuckets('l9').first)
+              .primaryAlbums
+              .map((album) => album.id)
+              .toList();
+
+      Future<void> seed(
+        String id,
+        int? year,
+        String? created, {
+        String? songCreated,
+        bool external = false,
+      }) async {
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: id,
+            name: id,
+            artistId: const Value('l9'),
+            artistName: const Value('LEVEL NINE'),
+            year: Value(year),
+            isExternal: Value(external),
+            serverCreatedAt: Value(
+              created == null ? null : DateTime.parse(created),
+            ),
+          ),
+        ]);
+        if (songCreated != null) {
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(
+              id: '$id-song',
+              title: 'Song',
+              albumId: Value(id),
+              createdAt: Value(DateTime.parse(songCreated)),
+            ),
+          ]);
+        }
+      }
+
+      setUp(() async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'l9', name: 'LEVEL NINE'),
+        ]);
+      });
+
+      test('newly imported songs lift an album with a stale date', () async {
+        await seed('june', 2026, '2026-06-01T00:00:00Z');
+        await seed(
+          'stale-a',
+          2026,
+          '2026-01-22T00:00:00Z',
+          songCreated: '2026-11-13T00:00:00Z',
+        );
+        await seed(
+          'stale-b',
+          2026,
+          '2026-01-22T00:00:00Z',
+          songCreated: '2026-11-15T00:00:00Z',
+        );
+        await seed('old-year', 2025, '2026-01-22T00:00:00Z');
+        expect(await order(), ['stale-b', 'stale-a', 'june', 'old-year']);
+      });
+
+      test(
+        'falls back to the album date without songs, and keeps tie-breaks',
+        () async {
+          await seed('june', 2026, '2026-06-01T00:00:00Z');
+          await seed('no-songs', 2026, '2026-08-01T00:00:00Z');
+          await seed('b-tie', 2026, '2026-03-01T00:00:00Z');
+          await seed('a-tie', 2026, '2026-03-01T00:00:00Z');
+          await seed('no-year', null, '2026-12-01T00:00:00Z');
+          await seed('no-dates', 2026, null);
+          expect(await order(), [
+            'no-songs',
+            'june',
+            'a-tie',
+            'b-tie',
+            'no-dates',
+            'no-year',
+          ]);
+        },
+      );
+
+      test(
+        'a remote album with no dates sorts after dated ones in its year',
+        () async {
+          await seed('ext-deezer-album-1', 2026, null, external: true);
+          await seed('june', 2026, '2026-06-01T00:00:00Z');
+          expect(await order(), ['june', 'ext-deezer-album-1']);
+        },
+      );
+    });
+
     test('watchArtistAlbumBuckets keeps primary albums separate from featured appearances', () async {
       await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
         ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),

@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
@@ -36,9 +35,12 @@ class EntityIdentityReconciliationSummary {
 /// Runs inside the promotion transaction so a crash cannot leave aliases and
 /// row moves half-applied.
 class EntityIdentityReconciler {
-  const new(this._database);
+  const new(this._database, {this.owner});
 
   final NavisDatabase _database;
+
+  /// Username owning the playlists that count as user-chosen references.
+  final String? owner;
 
   Future<EntityIdentityReconciliationSummary> reconcile({
     required int serverId,
@@ -93,13 +95,20 @@ class EntityIdentityReconciler {
       },
       relationshipTargets: albumTargets,
       needsReview: _albumNeedsReview,
-      remap: (oldId, canonicalId, reason) =>
-          _database.songIdentityDao.remapAlbumIdentity(
-            oldAlbumId: oldId,
-            canonicalAlbumId: canonicalId,
-            matchReason: reason,
-            matchedAt: DateTime.now(),
-          ),
+      remap: (oldId, canonicalId, reason) async {
+        final restoredLike = await _database.songIdentityDao.remapAlbumIdentity(
+          oldAlbumId: oldId,
+          canonicalAlbumId: canonicalId,
+          matchReason: reason,
+          matchedAt: DateTime.now(),
+        );
+        // Remote copies that moved onto the library album are cleaned up by
+        // the per-album identity pass of the pending hydration drain (#707).
+        await _database.songIdentityDao.markAlbumPendingIfRemoteCopies(
+          canonicalId,
+        );
+        return restoredLike;
+      },
     );
     summary.albumAliases = albumAliases.length;
     summary.albumRestoredLikes = albumRestoredLikes;
@@ -349,36 +358,17 @@ class EntityIdentityReconciler {
     return a.trim().toLowerCase() == b.trim().toLowerCase();
   }
 
-  /// A review entry is only worth showing when the row still carries user
-  /// state or live references; ephemeral provisional parents are garbage
-  /// collected instead.
-  Future<bool> _albumNeedsReview(AlbumsTableData album) async {
-    if (album.starred != null || album.userRating != null) {
-      return true;
-    }
-    final referencing = await _database
-        .customSelect(
-          'SELECT COUNT(*) AS amount FROM songs WHERE album_id = ? LIMIT 1;',
-          variables: <Variable<Object>>[Variable<String>(album.id)],
-        )
-        .getSingle();
-    return referencing.read<int>('amount') > 0;
-  }
+  /// A review entry is only worth showing when the user chose something on
+  /// the row (starred, rated, or a song in a local or own playlist);
+  /// ephemeral provisional parents are garbage collected instead, and
+  /// retention itself is unchanged.
+  Future<bool> _albumNeedsReview(AlbumsTableData album) => _database
+      .librarySyncDao
+      .hasUserChosenReference('album', album.id, owner: owner);
 
-  Future<bool> _artistNeedsReview(ArtistsTableData artist) async {
-    if (artist.starred != null) {
-      return true;
-    }
-    final row = await _database
-        .customSelect(
-          'SELECT EXISTS(SELECT 1 FROM songs WHERE artist_id = ?1) '
-          'OR EXISTS(SELECT 1 FROM albums WHERE artist_id = ?1) AS needs_review',
-          variables: [Variable<String>(artist.id)],
-          readsFrom: {_database.songsTable, _database.albumsTable},
-        )
-        .getSingle();
-    return row.read<bool>('needs_review');
-  }
+  Future<bool> _artistNeedsReview(ArtistsTableData artist) => _database
+      .librarySyncDao
+      .hasUserChosenReference('artist', artist.id, owner: owner);
 
   String _candidateJson(List<String> candidateIds, String matchReason) {
     return jsonEncode(<String, Object?>{

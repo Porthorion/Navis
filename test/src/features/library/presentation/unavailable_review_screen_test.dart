@@ -256,6 +256,61 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  testWidgets(
+    'an entry deleted while Find Match is open shows already resolved',
+    (tester) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final serverId = await database
+          .into(database.serverConfigTable)
+          .insert(
+            ServerConfigTableCompanion.insert(
+              url: 'https://example.com',
+              username: 'alice',
+              apiVersion: '1.16.1',
+            ),
+          );
+      await database.librarySyncDao.recordRecoveryReview(
+        serverId: serverId,
+        entityType: 'song',
+        oldId: 'song-gone',
+        savedTitle: 'Missing Favorite',
+        savedSubtitle: 'An Artist',
+        reason: 'missingFromCatalog',
+        evidenceGeneration: 3,
+      );
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song-new', title: 'Missing Favorite'),
+      ]);
+
+      final notices = AppNoticeController();
+      await _pumpScreen(tester, database, serverId, notices: notices);
+
+      await tester.tap(find.text('Find Match'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Missing Favorite').last);
+      await tester.pumpAndSettle();
+      // A sync resolves (deletes) the row while the preview is open.
+      await database.customStatement('DELETE FROM library_recovery_review');
+      await tester.tap(find.text('Relink'));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(notices.notice?.message, 'This entry was already resolved.');
+      expect(tester.takeException(), isNull);
+      final aliases = await database
+          .customSelect('SELECT old_id FROM entity_identity_aliases;')
+          .get();
+      expect(aliases, isEmpty);
+
+      // Let the notice's auto-dismiss timer finish.
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+    skip: !sqliteAvailable,
+  );
 }
 
 Future<void> _pumpScreen(
