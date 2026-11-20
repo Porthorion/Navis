@@ -3414,8 +3414,8 @@ and Subsonic delivery continues independently.
   `allows(feature) = master && !disabled(service) && !disabled(feature) &&
   verified(service)`, `isUserToggleable(feature)` and `lockReason(feature)`
   (`masterOff`, `serviceOff`, `notVerified`, in that precedence).
-- **Verification.** Last.fm is verified by `hasLastFmApiKeyProvider` (the bundled
-  key, or a stored custom key validated on save); ListenBrainz by
+- **Verification.** Last.fm is verified by `hasLastFmApiKeyProvider` (a stored
+  key validated on save, or the local-development define); ListenBrainz by
   `listenBrainzTokenValid`, which the existing 401/403 handling clears. Every
   other service needs no credential. `isEnabled(feature)` is `allows` without the
   credential check, for flows that validate the credential themselves, such as
@@ -3662,8 +3662,9 @@ and Subsonic delivery continues independently.
   only; feature switches are untouched); Finish then writes
   `updateIntegrationsNoticeDismissed(dismissed: true)`. Skip writes nothing, so
   the defaults (all on) stay and the 1.5.0 notice stays pending. Last.fm is
-  locked with its reason until a key is verified (bundled, or validated in the
-  draft); the key field appears only in keyless builds. The ListenBrainz
+  locked with its reason until a key is verified (validated in the draft, or
+  supplied by the local-development define); the key field is hidden only
+  when that define supplies one. The ListenBrainz
   switch is not locked by a missing token: switched on, it shows the token
   field, whose validation (`userInitiated: true`) stores the token at once as
   before. Both fields hide while the master switch or their own service
@@ -4692,16 +4693,11 @@ signed `channel` differs is rejected. This ensures sidecar/dev builds never sugg
 stable release as an upgrade. Builds with another channel name (for example `staging`)
 read that channel's manifest; see [release-r2.md](release/release-r2.md).
 
-The Last.fm API key used by "Same Vibes" instant mix mode is injected at build
-time as a masked pair, `NAVIS_LASTFM_API_KEY_MASKED` (key XOR a per-build random
-pad) and `NAVIS_LASTFM_API_KEY_PAD`, both hex, passed through
-`--dart-define-from-file`. `AppConstants.lastFmApiKey` XORs them back once at
-runtime and returns an empty key for a missing, malformed or mismatched pair. A
-plain `NAVIS_LASTFM_API_KEY` define is still accepted when the pair is absent so
-local dev runs work. Masking deters casual extraction and is not secrecy: a
-Last.fm API key is a client identifier and no shared secret is used. See
-[ci-cd.md](development/ci-cd.md#lastfm-key) for the build scripts and the post-build
-artifact scan.
+Navis ships no Last.fm API key: no build script bundles one, and the key
+Last.fm features use is the one the user saves in Settings > Integrations.
+`AppConstants.lastFmApiKey` reads a plain `NAVIS_LASTFM_API_KEY` dart-define for
+local development only and is empty in every shipped build. See
+[ci-cd.md](development/ci-cd.md#lastfm-key).
 
 ### Recommendation sessions
 

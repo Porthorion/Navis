@@ -72,11 +72,6 @@ ACTUAL_CERT="$("${TOOLS_DIR}/apksigner" verify --print-certs "${APK}" \
 [[ -n "${EXPECTED_CERT}" && "${EXPECTED_CERT}" == "${ACTUAL_CERT}" ]] || {
   echo "Error: dev APK release signer mismatch." >&2; exit 1;
 }
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/lib/scan_artifact_secret.sh"
-if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
-  scan_artifact_for_secret "${APK}" "${NAVIS_LASTFM_API_KEY}"
-fi
 "${SCRIPT_DIR}/r2_publish.sh" publish --tag="${TAG}" --channel=dev --build="${BUILD}" \
   --prune-previous "${PUBLISH_ARGS[@]}" "${APK}"
 echo "APK download URL: https://downloads.porthorion.com/${R2_PREFIX:-navis}/releases/${TAG}/$(basename "${APK}")"

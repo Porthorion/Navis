@@ -87,7 +87,7 @@ Android disables application backup and excludes all root, file, database, prefe
 
 Desktop databases now live in application support. Before opening, Navis migrates the legacy documents database with WAL, SHM and journal sidecars. Cross-device moves verify copies before deleting originals; failures restore the file family and open the legacy location. Directory readers preserve diagnostics profile overrides. Android and iOS retain the documents location.
 
-English disclosures name Deezer image servers, artist/album/track queries, and the bundled or custom Last.fm key. Existing feature subtitles cover Same Vibes, Instant Radio and artist Top Songs fallback. AutoEQ displays both raw.githubusercontent.com and api.github.com through a display-only host getter; policy enforcement and update-check destinations are unchanged.
+English disclosures name Deezer image servers, artist/album/track queries, and the custom Last.fm key. Existing feature subtitles cover Same Vibes, Instant Radio and artist Top Songs fallback. AutoEQ displays both raw.githubusercontent.com and api.github.com through a display-only host getter; policy enforcement and update-check destinations are unchanged.
 
 External HTTP requests identify Navis with its version, project URL and support email. Radio metadata and update clients receive the shared header through their existing guarded Dio factory; AutoEQ and cover-art HTTP clients use it too. Update endpoints and behavior are unchanged.
 

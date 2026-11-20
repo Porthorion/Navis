@@ -122,7 +122,7 @@ Flutter's Gradle plugin reads this property and skips its usual split APK
 `abiVersionCode * 1000 + versionCode` override. Universal and split APKs
 therefore share the release build number (10500 for 1.5.0), allowing updates
 between them without an ABI offset causing a downgrade. Every APK must pass
-package, version name/code, release-certificate, secret-scan and release-string
+package, version name/code, release-certificate and release-string
 validation before publication.
 
 The universal APK is copied outside `build/app` before the split build cleans

@@ -233,7 +233,7 @@ void main() {
       'Online Services',
       'Off: Navis only talks to your server.',
       "Sends artist, album and track names, and what you type in Search, to api.deezer.com and loads images from Deezer's image servers.",
-      'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
+      'Sends track and artist names to ws.audioscrobbler.com, using your own API key.',
       'Sends your listens and likes to api.listenbrainz.org.',
       'Sends track title, artist, album and duration to lrclib.net.',
       'Sends an app version check to downloads.porthorion.com.',

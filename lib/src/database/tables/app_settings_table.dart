@@ -394,7 +394,7 @@ class AppSettingsTable extends Table {
       boolean().withDefault(const Constant(false))();
 
   /// User-provided Last.fm API key. Null when not configured or when a
-  /// build-time key (NAVIS_LASTFM_API_KEY) is bundled instead.
+  /// local development define (NAVIS_LASTFM_API_KEY) supplies one instead.
   TextColumn get lastFmApiKey => text().nullable()();
 
   /// Deprecated compatibility column. Last.fm scrobble dispatch was removed.

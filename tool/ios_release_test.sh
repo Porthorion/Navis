@@ -14,7 +14,7 @@ repo="${tmp}/repo with space"
 home="${tmp}/home"
 mkdir -p "${repo}/tool/lib" "${repo}/ios" "${tmp}/bin" "${home}"
 cp "${SCRIPT_DIR}/release.sh" "${SCRIPT_DIR}/release_tag_guard.sh" "${SCRIPT_DIR}/dev_build_number.py" "${repo}/tool/"
-cp "${SCRIPT_DIR}/lib/"{release_dist,release_notes,lastfm_key_defines,r2_tags,github_release,scan_artifact_secret}.sh "${repo}/tool/lib/"
+cp "${SCRIPT_DIR}/lib/"{release_dist,release_notes,r2_tags,github_release}.sh "${repo}/tool/lib/"
 cp "${SCRIPT_DIR}/../ios/ExportOptions.plist" "${repo}/ios/"
 printf 'version: 1.5.0+10500\n' > "${repo}/pubspec.yaml"
 printf 'build/\ndist/\ntool/release.env\n*.zip\n*.ipa\n' > "${repo}/.gitignore"
@@ -50,14 +50,14 @@ if [[ "$1 $2" == "build ios" ]]; then
   [[ ! -e "$app" ]] || { echo "stale sideload app present" >> "$LOG"; exit 1; }
   mkdir -p "$app"
   python3 -I -c "import plistlib, sys; plistlib.dump({\"CFBundleShortVersionString\": \"1.5.0\", \"CFBundleVersion\": \"${BAD_BUILD:-10500}\"}, open(sys.argv[1], \"wb\"))" "$app/Info.plist"
-  printf 'runner %s' "${LEAK_INTO_SIDELOAD:-}" > "$app/Runner"
+  printf 'runner' > "$app/Runner"
   [[ "${SIDELOAD_NO_APP:-}" != 1 ]] || rm -rf "$app"
 elif [[ "$1 $2" == "build ipa" ]]; then
   [[ "$*" != *NAVIS_IOS_SIDELOAD* && "$*" != *--no-codesign* ]] || { echo "App Store build carries the sideload define" >> "$LOG"; exit 1; }
   dir="$PWD/build/ios/ipa"
   [[ -z "$(ls -A "$dir" 2>/dev/null)" ]] || { echo "stale IPA present" >> "$LOG"; exit 1; }
   mkdir -p "$dir"
-  python3 -I -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1], \"w\").writestr(\"Payload/App\", \"ipa \" + sys.argv[2])" "$dir/Navis.ipa" "${LEAK_INTO_IPA:-}"
+  python3 -I -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1], \"w\").writestr(\"Payload/App\", \"ipa\")" "$dir/Navis.ipa"
 else
   echo "unexpected flutter call" >> "$LOG"; exit 1
 fi
@@ -204,22 +204,13 @@ cp "${key_file}" "${tmp}/elsewhere/rel key.p8"
   || { cat "${tmp}/out" >&2; fail "relative ASC_KEY_PATH run failed"; }
 expect_in "--p8-file-path ${tmp}/elsewhere/rel key.p8" "$(cat "${LOG}")"
 
-# The IPA secret scan runs, and a leaked Last.fm key fails the release before any upload.
+# A Last.fm key in the environment is never bundled: no defines file, no key in any flutter call.
+: > "${LOG}"
 NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_ok --targets=ios --ios-upload
-expect_in 'Scanning Navis.ipa' "${out}"
-NAVIS_LASTFM_API_KEY=fixture-lastfm-key run_ok --targets=ios
-expect_in 'Scanning navis-v1.5.0-ios-sideload.ipa' "${out}"
-rm -rf "${repo}/dist"
-LEAK_INTO_IPA=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios --ios-upload
-expect_in 'plaintext Last.fm API key' "${out}"
-expect_not_in 'xcrun' "$(cat "${LOG}")"
-
-# A leaked key in the sideload IPA fails the release before the App Store build.
-LEAK_INTO_SIDELOAD=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios
-expect_in 'Scanning navis-v1.5.0-ios-sideload.ipa' "${out}"
-expect_in 'plaintext Last.fm API key' "${out}"
-expect_not_in 'flutter:build ipa' "$(cat "${LOG}")"
-expect_not_in 'xcrun' "$(cat "${LOG}")"
+expect_not_in 'dart-define-from-file' "$(cat "${LOG}")"
+expect_not_in 'LASTFM' "$(cat "${LOG}")"
+expect_not_in 'fixture-lastfm-key' "$(cat "${LOG}")"
+expect_not_in 'Scanning' "${out}"
 
 # The unsigned app must still carry the release version and build number, and exist.
 BAD_BUILD=1 run_bad --targets=ios
