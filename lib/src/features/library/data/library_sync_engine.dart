@@ -3743,6 +3743,9 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       // still waiting for its drain with remote copies must stay pending (#707).
       final pendingBefore =
           (await _database.libraryDao.getPendingHydrationAlbumIds()).toSet();
+      // Albums that were not in the catalog before this promotion; only these
+      // can be the re-id of an old row (EntityIdentityReconciler foldedName).
+      final newAlbumIds = <String>{};
       await for (final page in _keysetPages(
         fetch: (afterId) =>
             _database.librarySyncCandidateDao.getChangedAlbumsPage(
@@ -3754,6 +3757,17 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         id: (row) => row.id,
       )) {
         changedAlbumIds.addAll(page.map((album) => album.id));
+        final knownAlbumIds = {
+          for (final row in await _database.libraryDao.getAlbumsByIds(
+            page.map((album) => album.id),
+          ))
+            row.id,
+        };
+        newAlbumIds.addAll(
+          page
+              .map((album) => album.id)
+              .where((id) => !knownAlbumIds.contains(id)),
+        );
         await _database.libraryDao.upsertAlbums([
           for (final album in page)
             AlbumsTableCompanion.insert(
@@ -3993,6 +4007,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
               ...provisionalSongs,
               ...lateProvisionalSongs,
             ],
+            newAlbumIds: newAlbumIds,
           );
       if (entityIdentitySummary.aliases > 0 ||
           entityIdentitySummary.reviewCount > 0) {
