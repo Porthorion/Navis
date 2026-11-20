@@ -317,4 +317,52 @@ void main() {
       }
     });
   });
+
+  test('one version per song: live, remix, acoustic and junk collapse', () {
+    final studio = songVersionTitleKey('Song');
+    for (final title in [
+      'Song (Live)',
+      'Song - Live at Ft. Worth',
+      'Song [Acoustic]',
+      'Song (Skrillex Remix)',
+      'Song - Sped Up',
+      'Song (Slowed + Reverb)',
+      'Song (Nightcore Version)',
+      'Song (8D Audio)',
+      'Song (Karaoke Version)',
+      'Song - Instrumental',
+      'Song (Remastered 2011)',
+      'Song (feat. Guest)',
+    ]) {
+      expect(songVersionTitleKey(title), studio, reason: title);
+    }
+  });
+
+  test('one version per song keeps different songs and language editions', () {
+    expect(
+      songVersionTitleKey('Wonder (Japanese Version)'),
+      isNot(songVersionTitleKey('Wonder (English Version)')),
+    );
+    expect(songVersionTitleKey('花'), isNot(songVersionTitleKey('嵐')));
+    expect(songVersionTitleKey('Intro - Outro'), 'intro outro');
+    expect(songVersionTitleKey('(Intro)'), isNotEmpty);
+    expect(songVersionTitleKey('Reverb'), 'reverb');
+  });
+
+  test('junk versions are flagged only by a qualifier', () {
+    for (final title in [
+      'Song - Sped Up',
+      'Song (Sped Up)',
+      'Song (Slowed + Reverb)',
+      'Song [Nightcore]',
+      'Song (8D Audio)',
+      'Song (Karaoke Version)',
+      'Song - Instrumental',
+    ]) {
+      expect(isJunkSongVersion(title), isTrue, reason: title);
+    }
+    for (final title in ['Song', 'Reverb', 'Song (Live)', 'Song (Remix)']) {
+      expect(isJunkSongVersion(title), isFalse, reason: title);
+    }
+  });
 }

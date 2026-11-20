@@ -78,18 +78,60 @@ final RegExp _nonEditionQualifier = RegExp(
 /// `_nonEditionQualifier`). Use it to prefer the same edition among
 /// candidates that share a [normalizeMetadata] key, and to deduplicate
 /// releases without merging language versions.
-String normalizeMetadataKeepingEdition(String value) {
+String normalizeMetadataKeepingEdition(String value) =>
+    _keepingQualifiers(value, _isNonEdition);
+
+String _keepingQualifiers(String value, bool Function(String) dropped) {
   final folded =
       _stripFeaturing(_fold(value).replaceAll(_bracketedFeaturing, ' '))
           .replaceAllMapped(
             _bracketed,
-            (match) => _isNonEdition(match[1]!) ? ' ' : ' ${match[1]} ',
+            (match) => dropped(match[1]!) ? ' ' : ' ${match[1]} ',
           )
           .replaceFirstMapped(
             _dashSuffix,
-            (match) => _isNonEdition(match[1]!) ? '' : match[0]!,
+            (match) => dropped(match[1]!) ? '' : match[0]!,
           );
   return _words(folded);
+}
+
+// Re-uploads and fan edits: never worth queueing next to the real song.
+const String _junkWords =
+    'sped up|speed(?:ed)? up|slowed(?: down)?|nightcore|reverb|8d|'
+    'karaoke|instrumental';
+final RegExp _junkVersion = RegExp('\\b(?:$_junkWords)\\b');
+
+/// Alternate cuts that play the same song again: live, remix, acoustic,
+/// radio or extended edit, and the junk versions.
+final RegExp _recordingVariant = RegExp(
+  r'\b(?:live|remix(?:ed)?|acoustic|(?:radio|extended) (?:edit|mix|version)|'
+  '$_junkWords)\\b',
+);
+
+bool _isVariant(String qualifier) {
+  final words = _words(qualifier);
+  return _nonEditionQualifier.hasMatch(words) ||
+      _recordingVariant.hasMatch(words);
+}
+
+/// The key of one song across its versions: [normalizeMetadataKeepingEdition]
+/// that also drops live, remix, acoustic, radio edit and junk qualifiers
+/// ([isJunkSongVersion]), so "Song", "Song (Live)" and "Song - Sped Up" share
+/// it. Language editions ("Wonder (Japanese Version)") stay distinct, and a
+/// title that is only a qualifier word ("Reverb") keeps it.
+String songVersionTitleKey(String value) =>
+    _keepingQualifiers(value, _isVariant);
+
+/// Whether [title] says it is a sped-up, slowed, nightcore, reverb, 8D,
+/// karaoke or instrumental version, by a bracketed qualifier or a " - "
+/// suffix. A title that is just the word ("Reverb") is a song, not a version.
+bool isJunkSongVersion(String title) {
+  final folded = _fold(title);
+  final tail = _dashSuffix.firstMatch(folded)?[1];
+  return [
+    for (final match in _bracketed.allMatches(folded)) match[1]!,
+    ?tail,
+  ].any((qualifier) => _junkVersion.hasMatch(_words(qualifier)));
 }
 
 // A credit after a space: "Song feat. X", "Song ft X". A title that starts

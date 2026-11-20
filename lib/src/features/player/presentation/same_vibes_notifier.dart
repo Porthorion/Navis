@@ -12,6 +12,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
+import 'package:navis/src/features/player/domain/artist_spacing.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -25,6 +26,18 @@ const _kTargetQueueBatchSize = 10;
 
 /// Last.fm recommendation request limit per refill.
 const _kLastFmRecommendationLimit = 20;
+
+/// Deezer artist radio length: the filters below drop many, and the single
+/// call and its 6 s budget stay the same.
+const _kDeezerRadioLimit = 40;
+
+/// The server fill asks for more than a batch so the artist spacing has a
+/// choice.
+const _kServerFillLimit = 20;
+
+/// Candidates by one artist that may reach the library search; the rest of a
+/// run by one artist cannot all be queued anyway.
+const _kMaxSearchedPerArtist = 3;
 
 /// The whole Deezer leg (artist lookup and radio) must answer within this, or
 /// the server fills the refill instead.
@@ -84,6 +97,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// song, so queue edits and songs added later do not skew it.
   Set<String>? _mixSongIds;
 
+  /// Version keys of every song the mix queued or played as a seed. Together
+  /// with [_mixSongIds] it is the session memory: a song queued once is not
+  /// queued again, even after it played and left the queue.
+  Set<String>? _mixSongKeys;
+
   /// The activation seed when it is server-addressable: the mix's own seed,
   /// which a refill falls back to when the playing song is a remote one with
   /// no library copy (#377). A mix started from a remote seed has none.
@@ -129,6 +147,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     _mixSongIds = null;
+    _mixSongKeys = null;
     _parkedSeedSongId = null;
     _lastRefill = null;
     _consecutiveTransientFailures = 0;
@@ -177,6 +196,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _anchorSeedId = null;
     _anchorSpent = false;
     _mixSongIds = null;
+    _mixSongKeys = null;
     _activationInProgress = false;
     _suppressActivationSeedSnapshot = false;
     state = const SameVibesState.inactive();
@@ -213,6 +233,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
     if (next.queueSongIds.isEmpty) {
       _mixSongIds = null;
+      _mixSongKeys = null;
       state = const SameVibesState.inactive();
       return;
     }
@@ -342,7 +363,19 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (libraryCopyId != null) {
         queuedIds.add(libraryCopyId);
       }
+      // Session memory: what this mix queued or played stays blocked after it
+      // left the queue. The seed itself played, so it counts too.
+      queuedIds.addAll(_mixSongIds ?? const <String>{});
+      queuedSongKeys.addAll(_mixSongKeys ?? const <String>{});
+      final seedKey = seed == null
+          ? null
+          : sameVibesCanonicalSongKey(seed.artist, seed.title);
+      if (seedKey != null) {
+        queuedSongKeys.add(seedKey);
+        (_mixSongKeys ??= <String>{}).add(seedKey);
+      }
       final candidatePreferences = _CandidatePreferenceContext(
+        allowJunkVersions: seed != null && isJunkSongVersion(seed.title),
         downloadedSongIds: await _readPreferenceSongIds(
           downloadedSongIdsProvider,
         ),
@@ -489,17 +522,19 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           try {
             final fallback = await api.getSimilarSongs(
               fallbackSeedSongId,
-              count: targetBatch,
+              count: _kServerFillLimit,
             );
             AppLogger.debug(
               'SameVibes diagnostics: fallback candidates=${fallback.length}',
             );
             fallbackSongs = _mergeUniqueSongs(
-              primary: const <Song>[],
               fallback: fallback,
               excludedIds: queuedIds,
               excludedSongKeys: queuedSongKeys,
               targetCount: targetBatch - mappedSongCount,
+              chosen: mappedSongs,
+              seedTitle: seed?.title,
+              allowJunk: candidatePreferences.allowJunkVersions,
             );
             if (fallbackSongs.isNotEmpty) {
               for (final song in fallbackSongs) {
@@ -608,7 +643,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         return;
       }
 
-      final songsToQueue = <Song>[...mappedSongs, ...fallbackSongs];
+      // Spread the artists of the whole batch; nothing is dropped here.
+      final songsToQueue = spaceByArtist<Song>(
+        [...mappedSongs, ...fallbackSongs],
+        artistOf: _artistKey,
+        count: mappedSongs.length + fallbackSongs.length,
+      );
       var totalQueued = 0;
       var parked = false;
       if (songsToQueue.isNotEmpty) {
@@ -633,6 +673,16 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         totalQueued = result.count;
         if (totalQueued > 0) {
           (_mixSongIds ??= <String>{}).addAll(result.insertedIds);
+          final keys = _mixSongKeys ??= <String>{};
+          for (final song in songsToQueue) {
+            final key = sameVibesCanonicalSongKey(
+              song.artist ?? '',
+              song.title,
+            );
+            if (key != null && result.insertedIds.contains(song.id)) {
+              keys.add(key);
+            }
+          }
         }
       }
 
@@ -929,13 +979,30 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     // is "already have", not a miss: overlapping Last.fm lists (#377) would
     // otherwise fill the whole budget with queued songs and park every seed.
     // Walks the full requested list; only misses spend `maxSearchAttempts`.
-    final attemptsLimit = [
-      for (final rec in recommendations)
-        if (!blockedSongKeys.contains(
-          sameVibesCanonicalSongKey(rec.artist, rec.title),
-        ))
-          rec,
-    ]..sort((a, b) => (b.match ?? 0).compareTo(a.match ?? 0));
+    // Also dropped before any search: junk versions, a second version of a
+    // song already in the list, and a long run by one artist, so the miss
+    // budget goes to songs that can be used.
+    final sorted = [...recommendations]
+      ..sort((a, b) => (b.match ?? 0).compareTo(a.match ?? 0));
+    final seenKeys = <String>{...blockedSongKeys};
+    final searchedPerArtist = <String, int>{};
+    final attemptsLimit = <LastFmTrackRecommendation>[];
+    for (final rec in sorted) {
+      final key = sameVibesCanonicalSongKey(rec.artist, rec.title);
+      final artist = looseArtistKey(rec.artist);
+      if ((key != null && seenKeys.contains(key)) ||
+          (!preferences.allowJunkVersions && isJunkSongVersion(rec.title)) ||
+          (searchedPerArtist[artist] ?? 0) >= _kMaxSearchedPerArtist) {
+        continue;
+      }
+      if (key != null) seenKeys.add(key);
+      searchedPerArtist[artist] = (searchedPerArtist[artist] ?? 0) + 1;
+      attemptsLimit.add(rec);
+    }
+    // Two per artist while the list lasts; the rest wait in [deferred] and
+    // fill a short batch (three, then any number per artist).
+    final spacing = ArtistSpacing();
+    final deferred = <Song>[];
     var attempts = 0;
     var misses = 0;
     var mappedCount = 0;
@@ -982,9 +1049,15 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         }
         final key = sameVibesCanonicalSongKey(best.artist ?? '', best.title);
         if (blockedIds.contains(id) ||
-            (key != null && blockedSongKeys.contains(key))) {
+            (key != null && blockedSongKeys.contains(key)) ||
+            (!preferences.allowJunkVersions && isJunkSongVersion(best.title))) {
           continue;
         }
+        if (!spacing.allows(_artistKey(best), cap: 2, backToBack: true)) {
+          if (!deferred.any((song) => song.id.trim() == id)) deferred.add(best);
+          continue;
+        }
+        spacing.add(_artistKey(best));
         pendingChunk.add(best);
         blockedIds.add(id);
         if (key != null) {
@@ -1003,6 +1076,20 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
     }
 
+    if (state.active && mappedCount < targetCount) {
+      for (final song in spaceByArtist<Song>(
+        deferred,
+        artistOf: _artistKey,
+        count: targetCount - mappedCount,
+        spacing: spacing,
+      )) {
+        pendingChunk.add(song);
+        blockedIds.add(song.id.trim());
+        final key = sameVibesCanonicalSongKey(song.artist ?? '', song.title);
+        if (key != null) blockedSongKeys.add(key);
+        mappedCount += 1;
+      }
+    }
     if (state.active && pendingChunk.isNotEmpty) {
       final flushed = await onChunk(List<Song>.from(pendingChunk));
       if (flushed > 0) {
@@ -1028,11 +1115,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     switch (ref.read(preferredMixModeProvider)) {
       case PreferredMixMode.sameVibesDeezer:
         _recommendationSource = 'deezer';
-        return _fetchDeezerRadio(
-          seed: seed,
-          limit: limit,
-          background: background,
-        );
+        return _fetchDeezerRadio(seed: seed, background: background);
       case PreferredMixMode.legacyInstantMix:
         // The user switched to Server Mix after this mix started.
         return const LastFmTrackFetchResult(
@@ -1077,7 +1160,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             .allows(IntegrationFeature.deezerSameVibes)) {
       final deezer = await _fetchDeezerRadio(
         seed: seed,
-        limit: limit,
         background: background,
       );
       if (deezer.tracks.isNotEmpty) {
@@ -1101,7 +1183,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// ponytail: an empty radio has no `/top` fallback; the server fills.
   Future<LastFmTrackFetchResult> _fetchDeezerRadio({
     required _SeedMetadata seed,
-    required int limit,
     required bool background,
   }) async {
     const skipped = LastFmTrackFetchResult(
@@ -1113,7 +1194,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     try {
       return await _deezerRadioLeg(
         seed: seed,
-        limit: limit,
         background: background,
         cancelToken: cancelToken,
       ).timeout(
@@ -1144,7 +1224,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
   Future<LastFmTrackFetchResult> _deezerRadioLeg({
     required _SeedMetadata seed,
-    required int limit,
     required bool background,
     required CancelToken cancelToken,
   }) async {
@@ -1168,7 +1247,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         .read(deezerApiClientProvider)
         .getArtistRadio(
           artistId,
-          limit: limit,
+          limit: _kDeezerRadioLimit,
           cancelToken: cancelToken,
           background: background,
           retryQuota: false,
@@ -1285,11 +1364,16 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     if (mapped.length < targetBatch) {
       try {
         similar = _mergeUniqueSongs(
-          primary: const <Song>[],
-          fallback: await api.getSimilarSongs(anchorSeedId, count: targetBatch),
+          fallback: await api.getSimilarSongs(
+            anchorSeedId,
+            count: _kServerFillLimit,
+          ),
           excludedIds: blockedIds,
           excludedSongKeys: blockedSongKeys,
           targetCount: targetBatch - mapped.length,
+          chosen: mapped,
+          seedTitle: seed?.title,
+          allowJunk: preferences.allowJunkVersions,
         );
       } on SubsonicException catch (error) {
         AppLogger.debug('SameVibes diagnostics: anchor fallback: $error');
@@ -1660,40 +1744,57 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
   }
 
+  /// The server's similar songs that are new to the mix, up to
+  /// [targetCount], one version per song and spread over artists (counting
+  /// the [chosen] songs of this batch already). A seed that is itself a
+  /// variant (live, remix) prefers variants; the rest prefer the studio cut.
   List<Song> _mergeUniqueSongs({
-    required List<Song> primary,
     required List<Song> fallback,
     required Set<String> excludedIds,
     required Set<String> excludedSongKeys,
     required int targetCount,
+    required Iterable<Song> chosen,
+    required String? seedTitle,
+    required bool allowJunk,
   }) {
-    final merged = <Song>[];
+    bool isVariant(String title) =>
+        normalizeMetadataKeepingEdition(title) != songVersionTitleKey(title);
+    final seedIsVariant = seedTitle != null && isVariant(seedTitle);
+    final ordered = [
+      ...fallback.where((song) => isVariant(song.title) == seedIsVariant),
+      ...fallback.where((song) => isVariant(song.title) != seedIsVariant),
+    ];
     final seen = <String>{...excludedIds};
     final seenSongKeys = <String>{...excludedSongKeys};
-
-    void push(Song song) {
-      if (merged.length >= targetCount) {
-        return;
-      }
+    final unique = <Song>[];
+    for (final song in ordered) {
       final id = song.id.trim();
-      if (id.isEmpty || seen.contains(id)) {
-        return;
-      }
       final key = sameVibesCanonicalSongKey(song.artist ?? '', song.title);
-      if (key != null && seenSongKeys.contains(key)) {
-        return;
+      if (id.isEmpty ||
+          seen.contains(id) ||
+          (key != null && seenSongKeys.contains(key)) ||
+          (!allowJunk && isJunkSongVersion(song.title))) {
+        continue;
       }
-      merged.add(song);
+      unique.add(song);
       seen.add(id);
-      if (key != null) {
-        seenSongKeys.add(key);
-      }
+      if (key != null) seenSongKeys.add(key);
     }
-
-    primary.forEach(push);
-    fallback.forEach(push);
-    return merged;
+    final spacing = ArtistSpacing();
+    for (final song in chosen) {
+      spacing.add(_artistKey(song));
+    }
+    return spaceByArtist<Song>(
+      unique,
+      artistOf: _artistKey,
+      count: targetCount,
+      spacing: spacing,
+    );
   }
+
+  /// The artist identity the spacing compares: spellings and "The"/"&"
+  /// variants of one artist are one.
+  static String _artistKey(Song song) => looseArtistKey(song.artist ?? '');
 }
 
 class _SeedMetadata {
@@ -1715,10 +1816,18 @@ class _SeedMetadata {
 }
 
 class _CandidatePreferenceContext {
-  const new({required this.downloadedSongIds, required this.cachedSongIds});
+  const new({
+    required this.downloadedSongIds,
+    required this.cachedSongIds,
+    this.allowJunkVersions = false,
+  });
 
   final Set<String> downloadedSongIds;
   final Set<String> cachedSongIds;
+
+  /// The seed is itself a sped-up, slowed, nightcore... version, so the mix
+  /// keeps those.
+  final bool allowJunkVersions;
 }
 
 /// Only apply availability preference when textual match quality is close.
@@ -1744,10 +1853,11 @@ final sameVibesAlbumSongCountLookupProvider = Provider<_AlbumSongCountLookup>((
   };
 });
 
-/// Shared queue and merge identity; language editions remain distinct.
+/// Shared queue, memory and merge identity: one song across its live, remix,
+/// acoustic and junk versions; language editions remain distinct.
 String? sameVibesCanonicalSongKey(String artist, String title) {
   final artistKey = normalizeMetadata(artist);
-  final titleKey = normalizeMetadataKeepingEdition(title);
+  final titleKey = songVersionTitleKey(title);
   if (artistKey.isEmpty || titleKey.isEmpty) return null;
   return '$artistKey|$titleKey';
 }
