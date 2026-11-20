@@ -7875,6 +7875,7 @@ contract.
   After an album remap, a library album that received remote copies (external
   provisional songs) is marked pending hydration so the targeted hydration
   drain and song identity pass remove copies the sync could not match (#707).
+  A full-sync album upsert keeps such an album pending until the drain ran.
   Provisional songs with a like (`starred`) are never garbage collected.
   Evidence-less or contested rows keep their user state as provisional rows
   and become review entries with typed reasons.

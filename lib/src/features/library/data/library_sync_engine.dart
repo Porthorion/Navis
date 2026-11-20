@@ -3730,6 +3730,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         ]);
       }
 
+      // The upsert below resets songs_hydrated from the candidate; an album
+      // still waiting for its drain with remote copies must stay pending (#707).
+      final pendingBefore =
+          (await _database.libraryDao.getPendingHydrationAlbumIds()).toSet();
       await for (final page in _keysetPages(
         fetch: (afterId) =>
             _database.librarySyncCandidateDao.getChangedAlbumsPage(
@@ -3768,6 +3772,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
               catalogAvailability: const Value(null),
             ),
         ], preserveHydrationState: false);
+        for (final album in page) {
+          if (pendingBefore.contains(album.id)) {
+            await _database.songIdentityDao.markAlbumPendingIfRemoteCopies(
+              album.id,
+            );
+          }
+        }
       }
 
       await for (final page in _keysetPages(

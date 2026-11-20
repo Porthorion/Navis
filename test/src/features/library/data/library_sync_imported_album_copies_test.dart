@@ -131,6 +131,26 @@ void main() {
     [id],
   );
 
+  /// A finished permanent download, so the provisional garbage collection
+  /// cannot delete the copy and only the hydration pass can remove it.
+  Future<File> download(String songId) async {
+    final files = await Directory.systemTemp.createTemp('navis_707d_');
+    addTearDown(() => files.delete(recursive: true));
+    final file = File('${files.path}/$songId.mp3')..writeAsBytesSync([1, 2, 3]);
+    await database.cacheDao.upsertCachedTrack(
+      CachedTracksTableCompanion.insert(
+        songId: songId,
+        filePath: file.path,
+        fileSize: 3,
+        format: 'mp3',
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+        lastAccessedAt: DateTime.utc(2026),
+      ),
+    );
+    return file;
+  }
+
   Future<List<String>> listedIds() async => [
     for (final song
         in await database.libraryDao.watchSongsByAlbum('lib-album').first)
@@ -168,7 +188,25 @@ void main() {
   test('a copy contested by a song of another album is removed '
       'from the imported album', () async {
     await seedRemoteCopies();
+    final file = await download('ext-deezer-song-3');
     serveWithRival();
+    await sync();
+    await drainPending();
+    expect(await listedIds(), ['lib-song-1', 'lib-song-2', 'lib-song-3']);
+    expect(await database.libraryDao.getSongById('ext-deezer-song-3'), isNull);
+    expect(
+      (await database.cacheDao.getCachedTrack('lib-song-3'))?.filePath,
+      file.path,
+    );
+    expect(file.existsSync(), isTrue);
+  }, skip: !sqliteAvailable);
+
+  test('a second full sync before the drain keeps the album pending so the '
+      'contested copy is still removed', () async {
+    await seedRemoteCopies();
+    await download('ext-deezer-song-3');
+    serveWithRival();
+    await sync();
     await sync();
     await drainPending();
     expect(await listedIds(), ['lib-song-1', 'lib-song-2', 'lib-song-3']);
@@ -298,11 +336,11 @@ void main() {
         .garbageCollectUnreferencedProvisionalMetadata();
     expect((await listedIds()).where((id) => id == copy), hasLength(1));
     expect(await database.libraryDao.getSongStarred(copy), isNotNull);
-    // Re-fetches per unchanged sync cycle: the full sync's own getAlbum
-    // plus at most the one-shot targeted pass, never an unbounded loop.
+    // The album holds a copy, so the full sync re-fetches it once; the drain
+    // finds nothing pending, so no second fetch.
     expect(
       api.calls.where((c) => c == 'getAlbum:lib-album').length - before,
-      lessThanOrEqualTo(2),
+      1,
     );
   }, skip: !sqliteAvailable);
 
