@@ -922,7 +922,6 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       --asset-prefix="${ASSET_PREFIX}" \
       --package="${WINDOWS_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
-      \
       --remote-dir="${WINDOWS_REMOTE_DIR}" \
       --flutter-dir="${WINDOWS_FLUTTER_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."

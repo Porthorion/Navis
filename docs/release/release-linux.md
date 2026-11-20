@@ -52,8 +52,7 @@ that builder.
 The entry point defaults to AOT release mode and `--split-debug-info`
 under `build/symbols/linux/<tag>` and `NAVIS_UPDATE_CHANNEL=stable` unless
 an explicit channel is supplied. `release.sh` passes its existing
-`set_symbol_args` and Dart defines (including the private Last.fm defines
-file) unchanged. Native ELF symbols are stripped before packaging. Symbols
+`set_symbol_args` and Dart defines unchanged (no Last.fm key is bundled). Native ELF symbols are stripped before packaging. Symbols
 stay local and are never put into release packages. Dart obfuscation is disabled.
 Diagnostics can explicitly select `--build-mode=profile` (the diagnostics API
 rejects release mode), with `--build-name` and `--build-number` forwarded to

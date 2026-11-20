@@ -219,12 +219,6 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Same Vibes and Instant Radio no longer show a Last.fm key error when '
-        'the key built into the app is rejected; they fall back to your '
-        'server quietly',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
         'Trending opens right away when you open it while the library syncs '
         'at launch, instead of showing a placeholder until the sync ends',
         type: ChangelogEntryType.fix,

@@ -9,8 +9,8 @@ enum IntegrationVerification {
   /// The service needs no credential.
   none,
 
-  /// A Last.fm API key: bundled at build, or a stored custom key that was
-  /// validated when it was saved.
+  /// A Last.fm API key: a stored custom key that was validated when it was
+  /// saved, or a local development define.
   lastFmApiKey,
 
   /// A ListenBrainz token that validated successfully. The existing 401/403
