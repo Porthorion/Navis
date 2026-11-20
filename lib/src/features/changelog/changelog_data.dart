@@ -230,6 +230,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Same Vibes no longer repeats songs in a session, spreads out artists '
+        'and plays one version of each song (no sped-up, slowed or nightcore '
+        'versions unless you start from one)',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Newly added albums now appear at the top of their year on artist pages',
         type: ChangelogEntryType.fix,
       ),

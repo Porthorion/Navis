@@ -48,13 +48,17 @@ DeezerTrack _radioTrack(String letter, {String? artist}) => DeezerTrack(
 const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
 class _Rig {
-  _Rig({PreferredMixMode mode = PreferredMixMode.sameVibesDeezer}) {
+  _Rig({
+    PreferredMixMode mode = PreferredMixMode.sameVibesDeezer,
+    this.seedTitle = 'Seed Song',
+    this.seedArtist = 'Seed Artist',
+  }) {
     when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
         .thenAnswer(
-          (_) async => const Song(
+          (_) async => Song(
             id: 'seed',
-            title: 'Seed Song',
-            artist: 'Seed Artist',
+            title: seedTitle,
+            artist: seedArtist,
             artistId: 'ar-1',
           ),
         );
@@ -119,6 +123,8 @@ class _Rig {
     this.mode = mode;
   }
 
+  final String seedTitle;
+  final String seedArtist;
   final api = _MockSubsonicApiClient();
   final lastFm = _MockLastFmApiClient();
   final deezer = _MockDeezerApiClient();
@@ -155,11 +161,11 @@ class _Rig {
       ),
       currentMediaItemProvider.overrideWith(
         (ref) => Stream<MediaItem?>.value(
-          const MediaItem(
+          MediaItem(
             id: 'seed',
-            title: 'Seed Song',
-            artist: 'Seed Artist',
-            extras: {'artistId': 'ar-1'},
+            title: seedTitle,
+            artist: seedArtist,
+            extras: const {'artistId': 'ar-1'},
           ),
         ),
       ),
@@ -526,6 +532,13 @@ void main() {
     rig.container
         .read(_modeProvider.notifier)
         .set(PreferredMixMode.sameVibesLastFm);
+    // Songs the first batch queued are not queued again.
+    rig.lastFmResult = const LastFmTrackFetchResult(
+      outcome: LastFmFetchOutcome.success,
+      tracks: [
+        LastFmTrackRecommendation(artist: 'ArtistK', title: 'SongK', match: 1),
+      ],
+    );
     await rig.refill();
 
     expect(rig.notifier.lastRefill?.mixSource, 'lastFm');
@@ -545,6 +558,147 @@ void main() {
     await rig.start();
 
     expect(_ids(rig.queue.queuedSongs), ['ArtistA-SongA']);
+  });
+  group('variety (#721)', () {
+    Song srv(String id, String artist, String title) =>
+        Song(id: id, title: title, artist: artist);
+
+    List<String> artistsOf(Iterable<Song> songs) => [
+      for (final s in songs) s.artist ?? '',
+    ];
+
+    test('asks Deezer for 40 radio songs', () async {
+      final rig = _Rig();
+      await rig.start();
+
+      verify(
+        () => rig.deezer.getArtistRadio(
+          any(),
+          limit: 40,
+          cancelToken: any(named: 'cancelToken'),
+          background: any(named: 'background'),
+          retryQuota: any(named: 'retryQuota'),
+        ),
+      ).called(1);
+    });
+
+    test('a refill after the batch played and left the queue queues none of '
+        'its songs again', () async {
+      final rig = _Rig();
+      await rig.start();
+      expect(_ids(rig.queue.queuedSongs), hasLength(10));
+
+      // The new queue holds none of the first batch: it was played and removed.
+      await rig.refill();
+
+      expect(rig.queue.appendedSongBatches, hasLength(1));
+      expect(rig.notifier.lastRefill?.parkedSeedId, isNotNull);
+    });
+
+    test('the server fill never repeats a played song or another version of '
+        'it', () async {
+      final rig = _Rig()..radio = (() async => <DeezerTrack>[]);
+      rig.serverSimilar = [srv('s1', 'Ann', 'Song'), srv('s2', 'Bob', 'Other')];
+      await rig.start();
+      expect(_ids(rig.queue.queuedSongs), ['s1', 's2']);
+
+      rig.serverSimilar = [
+        srv('s1', 'Ann', 'Song'),
+        srv('s3', 'Ann', 'Song (Live)'),
+        srv('s4', 'Bob', 'Other - Sped Up'),
+        srv('s5', 'Cyd', 'Fresh'),
+      ];
+      await rig.refill();
+
+      expect(_ids(rig.queue.queuedSongs), ['s1', 's2', 's5']);
+    });
+
+    test('Song, Song (Live) and Song - Sped Up give one entry', () async {
+      final rig = _Rig()..radio = (() async => <DeezerTrack>[]);
+      rig.serverSimilar = [
+        srv('s1', 'Ann', 'Song (Live)'),
+        srv('s2', 'Ann', 'Song'),
+        srv('s3', 'Ann', 'Song - Sped Up'),
+      ];
+      await rig.start();
+
+      expect(_ids(rig.queue.queuedSongs), ['s2']);
+    });
+
+    test('a sped-up seed keeps sped-up versions', () async {
+      final rig = _Rig(seedTitle: 'Seed Song (Sped Up)')
+        ..radio = (() async => <DeezerTrack>[]);
+      rig.serverSimilar = [
+        srv('s1', 'Ann', 'Song - Sped Up'),
+        srv('s2', 'Bob', 'Other (Nightcore)'),
+      ];
+      await rig.start();
+
+      expect(_ids(rig.queue.queuedSongs), ['s1', 's2']);
+    });
+
+    test('server fill: two per artist and no back-to-back when others '
+        'exist', () async {
+      final rig = _Rig()..radio = (() async => <DeezerTrack>[]);
+      rig.serverSimilar = [
+        for (var i = 0; i < 6; i++) srv('a$i', 'Ann', 'A$i'),
+        for (var i = 0; i < 3; i++) srv('b$i', 'Bob', 'B$i'),
+        for (var i = 0; i < 3; i++) srv('c$i', 'Cyd', 'C$i'),
+      ];
+      await rig.start();
+
+      final artists = artistsOf(rig.queue.queuedSongs);
+      expect(artists, hasLength(10));
+      for (var i = 1; i < artists.length; i++) {
+        expect(artists[i], isNot(artists[i - 1]));
+      }
+      // Bob and Cyd are used up; Ann takes the rest (cap relaxed to 4).
+      expect(artists.where((a) => a == 'Bob'), hasLength(3));
+      expect(artists.where((a) => a == 'Cyd'), hasLength(3));
+    });
+
+    test('a library of only the seed artist still fills the batch', () async {
+      final rig = _Rig(seedArtist: 'Various Artists')
+        ..radio = (() async => <DeezerTrack>[]);
+      rig.serverSimilar = [
+        for (var i = 0; i < 12; i++) srv('v$i', 'Various Artists', 'V$i'),
+      ];
+      await rig.start();
+
+      expect(_ids(rig.queue.queuedSongs), hasLength(10));
+    });
+
+    test('candidates are filtered before search3, so searches stay '
+        'bounded', () async {
+      final rig = _Rig();
+      rig.radio = () async => [
+        // Only three of the six Dup songs may be searched.
+        for (final l in ['A', 'B', 'C', 'D', 'E', 'F'])
+          _radioTrack(l, artist: 'Dup'),
+        // Junk versions are never searched.
+        _radioTrack('G').copyWithTitle('SongG (Sped Up)'),
+        _radioTrack('H').copyWithTitle('SongH - Nightcore'),
+        _radioTrack('I'),
+        _radioTrack('J'),
+      ];
+      await rig.start();
+
+      final queries = verify(
+        () => rig.api.search3(
+          query: captureAny(named: 'query'),
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).captured.cast<String>();
+      expect(queries.where((q) => q.startsWith('Dup ')), hasLength(3));
+      expect(queries.where((q) => q.contains('Sped')), isEmpty);
+      expect(queries.where((q) => q.contains('Nightcore')), isEmpty);
+      expect(_ids(rig.queue.queuedSongs), hasLength(5));
+    });
   });
 }
 

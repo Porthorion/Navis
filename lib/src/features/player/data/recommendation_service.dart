@@ -17,6 +17,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart'
     show kLocalTrackMatcherSnapshotYieldChunkSize;
+import 'package:navis/src/features/player/domain/artist_spacing.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -748,7 +749,7 @@ List<Song> composeRadioBatch({
         : RecommendationService._identity(song.artist ?? '', song.title);
   });
 
-  final artistCounts = <String, int>{};
+  final spacing = ArtistSpacing();
   final sources = <List<Song>>[related, familiar, shuffle];
   for (var index = 0; index < count; index++) {
     final preferred = index % 3 == 2 ? 1 : 0;
@@ -759,11 +760,10 @@ List<Song> composeRadioBatch({
         final artist = (song.artist ?? '').toLowerCase();
         if (used.contains(song.id) ||
             usedRecordings.contains(recording(song)) ||
-            (result.isNotEmpty &&
-                (result.last.artist ?? '').toLowerCase() == artist)) {
-          continue;
-        }
-        if ((artistCounts[artist] ?? 0) >= 2 && result.length < count - 2) {
+            !spacing.allows(
+              artist,
+              cap: result.length < count - 2 ? 2 : null,
+            )) {
           continue;
         }
         choice = song;
@@ -784,8 +784,7 @@ List<Song> composeRadioBatch({
     result.add(choice);
     used.add(choice.id);
     usedRecordings.add(recording(choice));
-    final artist = (choice.artist ?? '').toLowerCase();
-    artistCounts[artist] = (artistCounts[artist] ?? 0) + 1;
+    spacing.add((choice.artist ?? '').toLowerCase());
   }
   return result;
 }

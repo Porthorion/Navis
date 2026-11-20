@@ -13,7 +13,8 @@ final RegExp _bracketedFeaturing = RegExp(r'[(\[]\s*(?:feat|ft)\b[^)\]]*[)\]]');
 final RegExp _featuring = RegExp(r'\b(feat\.?|ft\.?)\b.*$');
 final RegExp _bracketed = RegExp(r'[(\[]([^)\]]*)[)\]]');
 final RegExp _closedBrackets = RegExp(r'\([^()]*\)|\[[^\[\]]*\]');
-final RegExp _dashSuffix = RegExp(r'\s[-–—]\s([^-–—]*)$');
+// The tail after the last " - ": hyphens inside a word ("Sped-Up") stay in it.
+final RegExp _dashSuffix = RegExp(r'\s[-–—]\s((?:(?!\s[-–—]\s).)*)$');
 final RegExp _versionTail = RegExp(
   r'(?:\s*(?:\([^()]*\)|\[[^\[\]]*\]|（[^（）]*）|【[^【】]*】)|\s[-–—]\s[^-–—]*)$',
 );
@@ -78,18 +79,82 @@ final RegExp _nonEditionQualifier = RegExp(
 /// `_nonEditionQualifier`). Use it to prefer the same edition among
 /// candidates that share a [normalizeMetadata] key, and to deduplicate
 /// releases without merging language versions.
-String normalizeMetadataKeepingEdition(String value) {
+String normalizeMetadataKeepingEdition(String value) =>
+    _keepingQualifiers(value, _isNonEdition);
+
+String _keepingQualifiers(String value, bool Function(String) dropped) {
   final folded =
       _stripFeaturing(_fold(value).replaceAll(_bracketedFeaturing, ' '))
           .replaceAllMapped(
             _bracketed,
-            (match) => _isNonEdition(match[1]!) ? ' ' : ' ${match[1]} ',
+            (match) => dropped(match[1]!) ? ' ' : ' ${match[1]} ',
           )
           .replaceFirstMapped(
             _dashSuffix,
-            (match) => _isNonEdition(match[1]!) ? '' : match[0]!,
+            (match) => dropped(match[1]!) ? '' : match[0]!,
           );
   return _words(folded);
+}
+
+// Re-uploads and fan edits: never worth queueing next to the real song.
+const String _junkWords =
+    'sped up|speed(?:ed)? up|slowed(?: down)?|nightcore|reverb|8 ?d|'
+    'karaoke|instrumental';
+const String _junkFiller =
+    'and|x|version|audio|mix|edit|remix|ver|official|super|reverbed|chopped|'
+    'tiktok|piano|remastered|\\d+x?';
+
+/// A whole qualifier (word form) made only of junk words and filler such as
+/// "version" or "audio": "Sped Up", "Slowed Reverb", "8D Audio". "Reverb
+/// Dreams" is not one.
+final RegExp _junkQualifier = RegExp(
+  '^(?=.*\\b(?:$_junkWords)\\b)'
+  '(?:(?:$_junkWords|$_junkFiller)(?: |\$))+\$',
+);
+
+/// Alternate cuts that play the same song again: live, remix, acoustic,
+/// radio or extended edit (junk versions are [_junkQualifier]). Matched against a whole
+/// qualifier in the usual forms ("Live at X", "X Remix", "Acoustic Version"),
+/// so "Live Forever" or "Remix Of Me" stay part of the title.
+final RegExp _recordingVariant = RegExp(
+  '^(?:'
+  r'live(?: (?:at|in|from|on|version|session|recording|\d{4})\b.*)?'
+  r'|(?:.+ )?remix(?:ed)?(?: (?:version|edit|mix))?'
+  r'|(?:.+ )?acoustic(?: (?:version|mix|session))?'
+  r'|(?:radio|extended) (?:edit|mix|version)'
+  r')$',
+);
+
+bool _isVariant(String qualifier) {
+  final words = _words(qualifier);
+  return _nonEditionQualifier.hasMatch(words) ||
+      _recordingVariant.hasMatch(words) ||
+      _junkQualifier.hasMatch(words);
+}
+
+/// The key of one song across its versions: [normalizeMetadataKeepingEdition]
+/// that also drops live, remix, acoustic, radio edit and junk qualifiers
+/// ([isJunkSongVersion]), so "Song", "Song (Live)" and "Song - Sped Up" share
+/// it. Language editions ("Wonder (Japanese Version)") stay distinct, and a
+/// title that is only a qualifier word ("Reverb") keeps it.
+String songVersionTitleKey(String value) =>
+    _keepingQualifiers(_squareBrackets(value), _isVariant);
+
+// 【】 hold qualifiers like () and [] do; the keys of [normalizeMetadata] stay
+// as they are, so only the version rules read them as brackets.
+String _squareBrackets(String value) =>
+    value.replaceAll('【', '[').replaceAll('】', ']');
+
+/// Whether [title] says it is a sped-up, slowed, nightcore, reverb, 8D,
+/// karaoke or instrumental version, by a bracketed qualifier or a " - "
+/// suffix. A title that is just the word ("Reverb") is a song, not a version.
+bool isJunkSongVersion(String title) {
+  final folded = _fold(_squareBrackets(title));
+  final tail = _dashSuffix.firstMatch(folded)?[1];
+  return [
+    for (final match in _bracketed.allMatches(folded)) match[1]!,
+    ?tail,
+  ].any((qualifier) => _junkQualifier.hasMatch(_words(qualifier)));
 }
 
 // A credit after a space: "Song feat. X", "Song ft X". A title that starts
