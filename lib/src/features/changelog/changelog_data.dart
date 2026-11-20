@@ -215,6 +215,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Newly added albums now appear at the top of their year on artist pages',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Instant Mix now has a source choice under Settings > Integrations: '
         'Same Vibes (Deezer), Same Vibes (Last.fm) once you add your own '
         'Last.fm key, or your server\'s mix. If Instant Mix used your '
