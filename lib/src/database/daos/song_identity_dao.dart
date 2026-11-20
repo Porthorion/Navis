@@ -688,7 +688,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         '''
         DELETE FROM albums
         WHERE is_provisional = 1
-          AND starred IS NULL AND user_rating IS NULL
+          AND starred IS NULL
           AND NOT EXISTS (
             SELECT 1 FROM songs s WHERE s.album_id = albums.id
           );

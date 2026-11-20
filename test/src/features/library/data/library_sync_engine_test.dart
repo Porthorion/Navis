@@ -3487,6 +3487,8 @@ void main() {
       Artist? newArtist,
       bool likedArtist = false,
       bool likedAlbum = true,
+      int? albumRating,
+      Future<void> Function()? seedExtra,
     }) async {
       await saveSession();
       await database.libraryDao.upsertArtists([
@@ -3517,11 +3519,13 @@ void main() {
           releaseMbid: Value(oldAlbumMbid),
           year: const Value(2001),
           songCount: const Value(1),
+          userRating: Value(albumRating),
           starred: likedAlbum
               ? Value(DateTime.utc(2026, 9, 5))
               : const Value.absent(),
         ),
       ]);
+      await seedExtra?.call();
       await database.libraryDao.upsertSongs([
         SongsTableCompanion.insert(
           id: 'song-old',
@@ -3691,6 +3695,54 @@ void main() {
       expect(all.map((a) => a.id), isNot(contains('album-old')));
     }, skip: !sqliteAvailable);
 
+    test(
+      'a rated-only stale album is deleted as before, with no review row',
+      () async {
+        await likedParentPromotion(
+          likedAlbum: false,
+          albumRating: 4,
+          newAlbum: const Album(
+            id: 'album-other',
+            name: 'Something Else',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            year: 1999,
+            songCount: 3,
+            songs: <Song>[
+              Song(
+                id: 'song-other',
+                title: 'Other',
+                albumId: 'album-other',
+                artistId: 'artist-1',
+              ),
+            ],
+          ),
+        );
+        expect(await database.libraryDao.getAlbumById('album-old'), isNull);
+        expect(await pendingRecoveryReviews(database, 1), isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a liked external album with no songs gets no review row and keeps its like', () async {
+      await likedParentPromotion(
+        likedAlbum: false,
+        seedExtra: () => database.libraryDao.upsertProvisionalAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-ext',
+            name: 'External',
+            starred: Value(DateTime.utc(2026, 9, 5)),
+            isExternal: const Value(true),
+          ),
+        ]),
+      );
+      expect(await pendingRecoveryReviews(database, 1), isEmpty);
+      expect(
+        (await database.libraryDao.getAlbumById('album-ext'))!.starred,
+        isNotNull,
+      );
+    }, skip: !sqliteAvailable);
+
     test('an unliked stale album is still deleted', () async {
       await likedParentPromotion(likedAlbum: false);
       expect(await database.libraryDao.getAlbumById('album-old'), isNull);
@@ -3733,6 +3785,110 @@ void main() {
       final review = await pendingRecoveryReviews(database, 1);
       expect(review.single.entityType, 'artist');
       expect(review.single.oldId, 'artist-old');
+    }, skip: !sqliteAvailable);
+
+    // Star reconciliation (#716): only rows held in Unavailable Items keep a
+    // like the server cannot list; other provisional rows follow the server.
+    Future<void> heldAlbum({String disposition = 'pending'}) async {
+      await saveSession(lastSynced: DateTime.now());
+      await database.libraryDao.upsertProvisionalAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'album-held',
+          name: 'Held',
+          starred: Value(DateTime(2026, 1, 1)),
+        ),
+      ]);
+      await database.librarySyncDao.recordRecoveryReview(
+        serverId: 1,
+        entityType: 'album',
+        oldId: 'album-held',
+        reason: 'missingFromCatalog',
+      );
+      if (disposition != 'pending') {
+        final row = (await pendingRecoveryReviews(database, 1)).single;
+        await database.librarySyncDao.setRecoveryReviewDisposition(
+          id: row.id,
+          disposition: disposition,
+        );
+      }
+    }
+
+    test(
+      'a liked album held for review keeps its like across two star syncs',
+      () async {
+        await heldAlbum();
+        api.starredContent = const StarredContent();
+        for (var i = 0; i < 3; i++) {
+          await engine.syncStarredContent();
+        }
+        expect(
+          (await database.libraryDao.getAlbumById('album-held'))!.starred,
+          isNotNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a kept-for-later album keeps its like across two star syncs',
+      () async {
+        await heldAlbum(disposition: 'keptForLater');
+        api.starredContent = const StarredContent();
+        for (var i = 0; i < 3; i++) {
+          await engine.syncStarredContent();
+        }
+        expect(
+          (await database.libraryDao.getAlbumById('album-held'))!.starred,
+          isNotNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('an external liked album unliked on the server is cleared after the second absence', () async {
+      await saveSession(lastSynced: DateTime.now());
+      await database.libraryDao.upsertProvisionalAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'album-ext',
+          name: 'External',
+          starred: Value(DateTime(2026, 1, 1)),
+          isExternal: const Value(true),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'album-placeholder',
+          name: 'Placeholder',
+          starred: Value(DateTime(2026, 1, 1)),
+        ),
+      ]);
+      api.starredContent = const StarredContent();
+      await engine.syncStarredContent();
+      expect(
+        (await database.libraryDao.getAlbumById('album-ext'))!.starred,
+        isNotNull,
+      );
+      await engine.syncStarredContent();
+      expect(
+        (await database.libraryDao.getAlbumById('album-ext'))?.starred,
+        isNull,
+      );
+      expect(
+        (await database.libraryDao.getAlbumById('album-placeholder'))?.starred,
+        isNull,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a held album whose like is gone is collected and its review row resolved', () async {
+      await heldAlbum();
+      await database.libraryDao.setEntityStarred('album', 'album-held', null);
+      await database.songIdentityDao
+          .garbageCollectUnreferencedProvisionalMetadata();
+      await database.librarySyncDao.autoResolveRecoveryReview(
+        serverId: 1,
+        generation: 1,
+        owner: 'alice',
+      );
+      expect(await database.libraryDao.getAlbumById('album-held'), isNull);
+      expect(await pendingRecoveryReviews(database, 1), isEmpty);
     }, skip: !sqliteAvailable);
 
     test('promotion clears absence evidence when the server re-lists a retained song', () async {

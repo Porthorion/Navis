@@ -1548,8 +1548,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
 
   /// Of [ids] (songs, albums or artists, by [entityType]), those carrying
   /// something the user chose: a favorite or rating, or a song they put in a
-  /// local or own playlist. With [ownStateOnly], an album or artist counts
-  /// only for its own favorite or rating, not for what its songs carry.
+  /// local or own playlist. With [ownStateOnly] (parents #716 keeps through a
+  /// promotion), an album or artist counts only for its own favorite, and an
+  /// external one never, not for a rating or for what its songs carry.
   /// Chunked, so cost follows rows, not statements.
   Future<Set<String>> userChosenIds(
     String entityType,
@@ -1561,7 +1562,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       'song' => ('songs', _userChosenSongSql('x')),
       'album' when ownStateOnly => (
         'albums',
-        '(x.starred IS NOT NULL OR x.user_rating IS NOT NULL)',
+        '(x.starred IS NOT NULL AND x.is_external = 0)',
       ),
       'album' => (
         'albums',
@@ -1569,7 +1570,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
             '(SELECT 1 FROM songs s WHERE s.album_id = x.id AND '
             '${_userChosenSongSql('s')}))',
       ),
-      _ when ownStateOnly => ('artists', '(x.starred IS NOT NULL)'),
+      _ when ownStateOnly => (
+        'artists',
+        '(x.starred IS NOT NULL AND x.is_external = 0)',
+      ),
       _ => (
         'artists',
         '(x.starred IS NOT NULL OR EXISTS (SELECT 1 FROM songs s WHERE '

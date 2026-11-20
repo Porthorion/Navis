@@ -542,6 +542,44 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    testWidgets(
+      'Keep for Later on an album row keeps the like and the row stays out of Liked',
+      (tester) async {
+        final (database, serverId) = await _seedServer();
+        await database.libraryDao.upsertProvisionalAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-gone',
+            name: 'Lost Album',
+            starred: Value(DateTime(2026)),
+          ),
+        ]);
+        await _review(
+          database,
+          serverId,
+          'album-gone',
+          'Lost Album',
+          type: 'album',
+        );
+
+        await _pumpScreen(tester, database, serverId);
+        await tester.tap(find.text('Keep for Later'));
+        await tester.pumpAndSettle();
+
+        final review = await database
+            .select(database.libraryRecoveryReviewTable)
+            .getSingle();
+        expect(review.disposition, 'keptForLater');
+        expect(
+          (await database.libraryDao.getAlbumById('album-gone'))!.starred,
+          isNotNull,
+        );
+        final liked = await database.libraryDao.watchLikedAlbums().first;
+        expect(liked, isEmpty);
+        await _tearDown(tester);
+      },
+      skip: !sqliteAvailable,
+    );
+
     testWidgets('an external row offers no Remove from Liked', (tester) async {
       final (database, serverId) = await _seedServer();
       await _song(database, 'ext-1', 'Remote', liked: true);

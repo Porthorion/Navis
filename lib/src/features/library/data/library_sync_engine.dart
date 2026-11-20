@@ -3916,7 +3916,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
                 ..where((t) => t.id.equals(serverId)))
               .map((row) => row.username)
               .getSingleOrNull();
-      // Stale albums and artists the user liked or rated themselves stay as
+      // Stale albums and artists the user liked themselves stay as
       // bare provisional rows (a subset of what the reconciler's review gate
       // accepts), so a re-tag can carry the like to the new id instead of
       // losing it with the row. A liked song alone does not keep its album:

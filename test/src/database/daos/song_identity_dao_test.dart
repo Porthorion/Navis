@@ -905,7 +905,7 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test('provisional collection keeps a songless album or artist the user liked or rated', () async {
+  test('provisional collection keeps a songless album or artist the user liked, not one only rated', () async {
     await database.libraryDao.upsertProvisionalArtists([
       ArtistsTableCompanion.insert(
         id: 'artist-liked',
@@ -932,10 +932,30 @@ void main() {
         .garbageCollectUnreferencedProvisionalMetadata();
 
     expect(await database.libraryDao.getAlbumById('album-liked'), isNotNull);
-    expect(await database.libraryDao.getAlbumById('album-rated'), isNotNull);
+    // Rated-only rows are not preserved by #716, so nothing holds them.
+    expect(await database.libraryDao.getAlbumById('album-rated'), isNull);
     expect(await database.libraryDao.getAlbumById('album-plain'), isNull);
     expect(await database.libraryDao.getArtistById('artist-liked'), isNotNull);
     expect(await database.libraryDao.getArtistById('artist-plain'), isNull);
+  }, skip: !sqliteAvailable);
+
+  test('provisional collection drops a liked and rated album once the like is removed', () async {
+    await database.libraryDao.upsertProvisionalAlbums([
+      AlbumsTableCompanion.insert(
+        id: 'album-both',
+        name: 'Both',
+        starred: Value(DateTime.utc(2026, 9, 5)),
+        userRating: const Value(5),
+      ),
+    ]);
+    await database.songIdentityDao
+        .garbageCollectUnreferencedProvisionalMetadata();
+    expect(await database.libraryDao.getAlbumById('album-both'), isNotNull);
+
+    await database.libraryDao.setEntityStarred('album', 'album-both', null);
+    await database.songIdentityDao
+        .garbageCollectUnreferencedProvisionalMetadata();
+    expect(await database.libraryDao.getAlbumById('album-both'), isNull);
   }, skip: !sqliteAvailable);
 
   test(

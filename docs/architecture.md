@@ -7898,17 +7898,21 @@ contract.
   drain and song identity pass remove copies the sync could not match (#707).
   A full-sync album upsert keeps such an album pending until the drain ran.
   Provisional songs with a like (`starred`) are never garbage collected.
-  Stale albums and artists the user liked or rated themselves (#716; a liked
-  song alone does not count, `LibrarySyncDao.userChosenIds(ownStateOnly:
-  true)`) are kept by `preserveCachedLegacyRowsAsProvisional` as bare
-  provisional rows (`chosenAlbumIds`/`chosenArtistIds`, preservation kinds
-  `chosen-*`, no songs retained), so the reconciler can move the like to a
-  re-tagged album or artist even without downloads. An unmatched one waits in
-  review: provisional collection spares a songless provisional album or artist
-  that is starred or rated, star reconciliation never treats a provisional
-  album or artist as an absence candidate (`getStarredIds(excludeUnavailable)`,
-  as for tombstoned songs), and a songless provisional album is left out of the
-  Liked albums list.
+  Stale albums and artists the user liked themselves (#716; their own like
+  only: not a rating, not a liked song, never an external row,
+  `LibrarySyncDao.userChosenIds(ownStateOnly: true)`) are kept by
+  `preserveCachedLegacyRowsAsProvisional` as bare provisional rows
+  (`chosenAlbumIds`/`chosenArtistIds`, no songs retained), so the reconciler
+  can move the like to a re-tagged album or artist even without downloads. An
+  unmatched one waits in review (the reconciler never reviews external rows).
+  Rows held for review (a pending or kept-for-later review row, one shared
+  predicate `_heldForReviewSql`) keep their like: star reconciliation does not
+  treat them as absence candidates (`getStarredIds(excludeUnavailable)`; other
+  provisional albums and artists, external or star-sync placeholders, follow
+  the server's unlike as before), and the liked lists leave a songless held
+  album or artist out. Provisional collection spares a songless provisional
+  album or artist that is starred, so an external liked album is no longer
+  collected while it is liked.
   Evidence-less or contested rows keep their user state as provisional rows
   and become review entries with typed reasons.
 - **Recovery review.** Pending entries (with evidence generation, reason, and

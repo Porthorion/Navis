@@ -261,7 +261,14 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final query = select(artistsTable)
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);
     if (likedOnly) {
-      query.where((table) => table.starred.isNotNull());
+      // A liked artist held in Unavailable Items would be an empty tile.
+      query.where(
+        (table) =>
+            table.starred.isNotNull() &
+            CustomExpression<bool>(
+              'NOT ${_heldForReviewSql('artist', 'artists')}',
+            ),
+      );
     } else {
       query.where((table) => table.isProvisional.equals(false));
     }
@@ -289,7 +296,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         GROUP BY al.artist_id
       ) album_likes ON album_likes.artist_id = a.id
       WHERE (
-          a.starred IS NOT NULL
+          (a.starred IS NOT NULL AND NOT ${_heldForReviewSql('artist', 'a')})
           OR song_likes.song_starred IS NOT NULL
           OR album_likes.album_starred IS NOT NULL
         )
@@ -300,7 +307,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ) DESC,
       LOWER(a.name) ASC
       ''',
-      readsFrom: {artistsTable, songsTable, albumsTable},
+      readsFrom: {
+        artistsTable,
+        songsTable,
+        albumsTable,
+        attachedDatabase.libraryRecoveryReviewTable,
+      },
     ).watch().map(
       (rows) => rows.map((row) => artistsTable.map(row.data)).toList(),
     );
@@ -1209,7 +1221,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ${limit == null ? '' : 'LIMIT ?'}
       ''',
       variables: [if (limit != null) Variable<int>(limit < 1 ? 1 : limit)],
-      readsFrom: {albumsTable},
+      readsFrom: {albumsTable, attachedDatabase.libraryRecoveryReviewTable},
     ).watch().map(
       (rows) =>
           rows.map((row) => albumsTable.map(row.data)).toList(growable: false),
@@ -1233,7 +1245,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       FROM albums
       WHERE ${_likedAlbumPredicate('albums')}
       ''',
-      readsFrom: {albumsTable},
+      readsFrom: {albumsTable, attachedDatabase.libraryRecoveryReviewTable},
     ).watchSingle().map((row) => row.read<int>('count'));
   }
 
@@ -2558,9 +2570,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   /// Ids with a local favorite. [excludeUnavailable] drops songs retained
   /// after leaving the server (`server_deleted_at`): the server can never list
-  /// them as starred, so their absence is not an unlike. Provisional albums
-  /// and artists (kept for review after a re-tag) are dropped the same way:
-  /// the server cannot list a stale id either.
+  /// them as starred, so their absence is not an unlike. Albums and artists
+  /// held in Unavailable Items after a re-tag (#716) are dropped the same way:
+  /// the server cannot list their stale id either.
   Future<Set<String>> getStarredIds(
     String type, {
     bool excludeUnavailable = false,
@@ -2570,7 +2582,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       'SELECT id FROM ${table.actualTableName} WHERE starred IS NOT NULL'
       '${excludeUnavailable ? switch (type) {
               'song' => ' AND server_deleted_at IS NULL',
-              _ => ' AND is_provisional = 0',
+              _ => ' AND NOT ${_heldForReviewSql(type, table.actualTableName)}',
             } : ''}',
       readsFrom: {table},
     ).get();
@@ -3387,8 +3399,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         'artist': artistIds,
         'album': albumIds,
         'song': protectedIds,
-        'chosen-album': chosenAlbumIds.toList(growable: false),
-        'chosen-artist': chosenArtistIds.toList(growable: false),
       });
       final rows = await customSelect(
         '''
@@ -3428,7 +3438,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           .whereType<String>()
           .where(staleArtists.contains)
           .toSet();
-      // Parents the user chose (liked, rated) are kept as bare provisional
+      // Parents the user liked (own favorite, not external) are kept as bare provisional
       // rows, without their songs: a retained song would make the album
       // refuse a folded-name match. Only rows still stale count.
       final keptAlbumIds = {
@@ -4639,19 +4649,29 @@ CASE WHEN navis_fold($column) = ?1 THEN $base
     return customSelect(
       sql.toString(),
       variables: variables,
-      readsFrom: {albumsTable},
+      readsFrom: {albumsTable, attachedDatabase.libraryRecoveryReviewTable},
     ).watch().map(
       (rows) =>
           rows.map((row) => albumsTable.map(row.data)).toList(growable: false),
     );
   }
 
+  /// SQL: the [type] row `[alias].id` waits in Unavailable Items (a pending or
+  /// kept-for-later review row, #716). Such a row keeps its like while the
+  /// server cannot list the old id, and is not shown as a liked tile.
+  String _heldForReviewSql(String type, String alias) =>
+      "EXISTS (SELECT 1 FROM library_recovery_review r "
+      "WHERE r.entity_type = '$type' AND r.old_id = $alias.id "
+      "AND r.disposition IN ('pending', 'keptForLater'))";
+
   String _likedAlbumPredicate(String albumAlias) {
     // Only explicitly starred albums — liked songs have their own section.
-    // A provisional album with no songs left (kept only for its like while
-    // it waits in Unavailable Items) would be an empty tile.
-    return '$albumAlias.starred IS NOT NULL AND ($albumAlias.is_provisional = 0 '
-        'OR EXISTS (SELECT 1 FROM songs s WHERE s.album_id = $albumAlias.id))';
+    // A provisional album with no songs left that waits in Unavailable Items
+    // would be an empty tile; other songless provisional albums (server-liked,
+    // not hydrated yet) stay listed.
+    return '$albumAlias.starred IS NOT NULL AND NOT ($albumAlias.is_provisional = 1 '
+        'AND NOT EXISTS (SELECT 1 FROM songs s WHERE s.album_id = $albumAlias.id) '
+        'AND ${_heldForReviewSql('album', albumAlias)})';
   }
 
   Expression<bool> _searchableSongPredicate() {
