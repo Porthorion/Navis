@@ -483,3 +483,22 @@ Navis then cancels such a download itself: handler dispose and the keep-window
 cancel stop registered downloads by song id. Timeout recovery and handler dispose
 clear the flag on every writer before the players are disposed, so no download
 outlives them.
+
+Terminal close of a lock-cache writer (#720). `LockCachingAudioSource.close()` sets
+`_closed`, runs `cancelDownload()` and then awaits `_finishing`, the completion
+work (flush, close, publish or delete of the partial file) that `onDone` and
+`onError` now run through `_trackFinishing`. `request()`, `prefetch()` and
+`_fetch()` throw the cancel `StateError` when closed, `_fetch()` after each await
+before it creates a client or a file, which is the starting window where
+`cancelDownload()` finds no `_abortDownload` to call. Ordinary `cancelDownload()` is
+unchanged: a cancelled source still downloads on a later request. A cancel after
+the headers or mid-body also deletes the `.mime` written for that download (when
+no cache file exists), not only the `.part`. Handler dispose closes every writer it
+can reach; a closed source that was finishing may publish its file, which no
+registry knows and the startup orphan sweep removes after two hours.
+The abort path tolerates `sink.close()` throwing "StreamSink is bound to a stream"
+(an abort landing while `dispatchRequests` awaits `sink.flush()`): waiting
+requests and responses still fail, the `.part` and `.mime` are deleted and the
+state resets in a `finally`. `close()` never throws (a failure is swallowed so
+disposal goes on); the handler also guards each writer's close and a late queue
+load closes the sources it resolved after disposal began.

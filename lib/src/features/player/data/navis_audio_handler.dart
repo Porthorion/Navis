@@ -3615,14 +3615,31 @@ class NavisAudioHandler extends BaseAudioHandler
     _cancelLockCacheWarm();
     _resumeLockCacheDownloads();
     _clearFollowerRetention();
+    // A 100% progress event during the awaits below must not feed the chain
+    // or register a track after disposal began.
+    final progressStops = [
+      for (final subscription in _cacheProgressSubscriptions.values)
+        subscription.cancel(),
+    ];
     // Whole-file fetches the player started (or a track change kept) outlive
     // their player otherwise; sign-out and shutdown must not leave one
-    // running into a folder that is about to go.
+    // running into a folder that is about to go. Closing is terminal: a fetch
+    // still starting, or one the player re-requests after the cancel error,
+    // never connects or writes (#720). Registered writers are not all there
+    // is: the player's held writers and the crossfade deck's too.
     final lockCacheStops = [
-      for (final entry in _lockCacheSources.values.toList())
-        () {
-          entry.source.onDownloadStart = null;
-          return entry.source.cancelDownload();
+      for (final source in _lockCacheWritersToClose())
+        () async {
+          source.onDownloadStart = null;
+          // Observed at once: a failing close must not surface as unhandled
+          // while the awaits below run, nor stop the others.
+          try {
+            await source.close();
+          } on Object catch (error, stackTrace) {
+            AppLogger.warning(
+              'Closing a lock-cache writer failed: $error\n$stackTrace',
+            );
+          }
         }(),
     ];
     _focusRetryTimer?.cancel();
@@ -3640,8 +3657,10 @@ class NavisAudioHandler extends BaseAudioHandler
     await _networkRecoverySubscription?.cancel();
     await _disposeInactiveCrossfadeDeck();
     await _flushQueueItemsPersistence();
+    // A close that runs long must not hold up the rest of disposal; a flush
+    // slower than the cap may still land after dispose returns.
     await Future.wait(lockCacheStops)
-        .timeout(const Duration(seconds: 2), onTimeout: () => const <void>[]);
+        .timeout(const Duration(seconds: 2), onTimeout: () => const []);
     await _sidecarDownloader.dispose();
     _sidecarSongsById.clear();
     _sidecarStreamUris.clear();
@@ -3649,9 +3668,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _becomingNoisySubscription?.cancel();
     await _queueEmissionCounter?.cancel();
     await _disposePlayerListeners();
-    for (final subscription in _cacheProgressSubscriptions.values) {
-      await subscription.cancel();
-    }
+    await Future.wait(progressStops);
     _cacheProgressSubscriptions.clear();
     _rollingCacheActivities.clear();
     _cacheReceivedBytes.clear();
