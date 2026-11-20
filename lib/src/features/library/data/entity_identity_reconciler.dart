@@ -368,16 +368,16 @@ class EntityIdentityReconciler {
             _namesCompatible(candidateName(candidate), oldName)) {
           return _EntityDecision(targetId: targetId, matchReason: 'stableMbid');
         }
-        return _EntityDecision(
-          reviewReason: 'ambiguousMatch',
-          candidateJson: _candidateJson(<String>[targetId], 'stableMbid'),
-        );
+        return _EntityDecision.review('ambiguousMatch', <String>[
+          targetId,
+        ], 'stableMbid');
       }
       if (matchedIds.length > 1) {
         // Duplicate identifiers cannot prove one replacement.
-        return _EntityDecision(
-          reviewReason: 'conflictingMbid',
-          candidateJson: _candidateJson(matchedIds.toList(), 'stableMbid'),
+        return _EntityDecision.review(
+          'conflictingMbid',
+          matchedIds.toList(),
+          'stableMbid',
         );
       }
     }
@@ -396,18 +396,15 @@ class EntityIdentityReconciler {
           matchReason: 'membershipFullCoverage',
         );
       }
-      return _EntityDecision(
-        reviewReason: 'ambiguousMatch',
-        candidateJson: _candidateJson(<String>[targetId], 'membership'),
-      );
+      return _EntityDecision.review('ambiguousMatch', <String>[
+        targetId,
+      ], 'membership');
     }
     if (relationshipTargets.length > 1) {
-      return _EntityDecision(
-        reviewReason: 'ambiguousMatch',
-        candidateJson: _candidateJson(
-          relationshipTargets.toList(),
-          'membership',
-        ),
+      return _EntityDecision.review(
+        'ambiguousMatch',
+        relationshipTargets.toList(),
+        'membership',
       );
     }
 
@@ -438,11 +435,26 @@ class EntityIdentityReconciler {
   }) async {
     int? known(int? value) => value == null || value == 0 ? null : value;
     String? mbid(String? value) => normalizeMusicBrainzId(value);
+    // Fold each new candidate once: (name, artist) -> ids.
+    final byFold = <(String, String), List<String>>{};
+    for (final id in newAlbumIds) {
+      final candidate = candidates[id];
+      if (candidate == null) continue;
+      (byFold[(_fold(candidate.name), _fold(candidate.artistName))] ??=
+              <String>[])
+          .add(id);
+    }
     final qualifying = <String, List<String>>{};
-    final claimants = <String, Set<String>>{
-      for (final entry in decisions.entries)
-        if (entry.value.targetId != null) entry.value.targetId!: {entry.key},
-    };
+    // Matches and review decisions both claim their candidates.
+    final claimants = <String, Set<String>>{};
+    for (final entry in decisions.entries) {
+      for (final id in [
+        if (entry.value.targetId != null) entry.value.targetId!,
+        ...entry.value.candidateIds,
+      ]) {
+        (claimants[id] ??= <String>{}).add(entry.key);
+      }
+    }
     for (final entry in decisions.entries) {
       final old = oldAlbums[entry.key];
       if (old == null || entry.value.reviewReason != 'missingFromCatalog') {
@@ -452,23 +464,18 @@ class EntityIdentityReconciler {
       final artist = _fold(old.artistName);
       if (name.isEmpty || artist.isEmpty) continue;
       final matches = <String>[
-        for (final id in newAlbumIds)
-          if (_foldedAlbumMatch(
-            old,
-            candidates[id],
-            name: name,
-            artist: artist,
-            known: known,
-            mbid: mbid,
-          ))
+        for (final id in byFold[(name, artist)] ?? const <String>[])
+          if (_foldedAlbumMatch(old, candidates[id]!, known: known, mbid: mbid))
             id,
       ];
-      // Songs left behind that did not relink are evidence against a match.
-      if (matches.isEmpty || await _hasRetainedSongs(old.id)) continue;
-      qualifying[entry.key] = matches..sort();
+      if (matches.isEmpty) continue;
+      // A row with retained songs stays in review (songs left behind that did
+      // not relink are evidence against a match) but still claims its matches.
       for (final id in matches) {
         (claimants[id] ??= <String>{}).add(entry.key);
       }
+      if (await _hasRetainedSongs(old.id)) continue;
+      qualifying[entry.key] = matches..sort();
     }
     return <String, _EntityDecision>{
       ...decisions,
@@ -480,26 +487,22 @@ class EntityIdentityReconciler {
                 targetId: entry.value.single,
                 matchReason: 'foldedName',
               )
-            : _EntityDecision(
-                reviewReason: 'ambiguousMatch',
-                candidateJson: _candidateJson(entry.value, 'foldedName'),
+            : _EntityDecision.review(
+                'ambiguousMatch',
+                entry.value,
+                'foldedName',
               ),
     };
   }
 
+  /// Name and artist already matched via the fold index; checks MBID veto
+  /// and year/song count.
   bool _foldedAlbumMatch(
     AlbumsTableData old,
-    LibrarySyncCandidateAlbumsTableData? candidate, {
-    required String name,
-    required String artist,
+    LibrarySyncCandidateAlbumsTableData candidate, {
     required int? Function(int?) known,
     required String? Function(String?) mbid,
   }) {
-    if (candidate == null ||
-        _fold(candidate.name) != name ||
-        _fold(candidate.artistName) != artist) {
-      return false;
-    }
     final oldMbid = mbid(old.releaseMbid);
     final newMbid = mbid(candidate.releaseMbid);
     if (oldMbid != null && newMbid != null && oldMbid != newMbid) return false;
@@ -530,13 +533,6 @@ class EntityIdentityReconciler {
   Future<bool> _artistNeedsReview(ArtistsTableData artist) => _database
       .librarySyncDao
       .hasUserChosenReference('artist', artist.id, owner: owner);
-
-  String _candidateJson(List<String> candidateIds, String matchReason) {
-    return jsonEncode(<String, Object?>{
-      'candidateIds': candidateIds,
-      'matchReason': matchReason,
-    });
-  }
 }
 
 class _EntityDecision {
@@ -545,10 +541,29 @@ class _EntityDecision {
     this.matchReason,
     this.reviewReason,
     this.candidateJson,
+    this.candidateIds = const <String>[],
   });
+
+  /// A review decision that names [ids]; those candidates stay claimed.
+  factory _EntityDecision.review(
+    String reason,
+    List<String> ids,
+    String matchReason,
+  ) => _EntityDecision(
+    reviewReason: reason,
+    candidateJson: jsonEncode(<String, Object?>{
+      'candidateIds': ids,
+      'matchReason': matchReason,
+    }),
+    candidateIds: ids,
+  );
 
   final String? targetId;
   final String? matchReason;
   final String? reviewReason;
   final String? candidateJson;
+
+  /// Candidate ids a review decision names (empty for matches and
+  /// missingFromCatalog).
+  final List<String> candidateIds;
 }

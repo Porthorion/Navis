@@ -1000,6 +1000,65 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test('a review decision naming a candidate claims it: the foldedName row '
+      'goes to review', () async {
+    final serverId = await saveServer();
+    await seedProvisionalAlbum(
+      'o1',
+      name: 'Old Name',
+      starred: DateTime.utc(2026, 9, 1),
+    );
+    await seedProvisionalAlbum(
+      'o2',
+      artistName: 'Artist',
+      year: 2001,
+      starred: DateTime.utc(2026, 9, 1),
+    );
+    await seedCandidateAlbum('new', artistName: 'Artist', year: 2001);
+    final (aliases, provisional) = await relinkSongs('o1', 'new', 1);
+
+    final summary = await reconcileAlbums(
+      serverId,
+      aliases: aliases,
+      provisionalSongs: provisional,
+    );
+
+    expect(summary.albumAliases, 0);
+    expect(await database.libraryDao.getAlbumById('o2'), isNotNull);
+    final reviews = {
+      for (final r in await pendingRecoveryReviews(database, serverId))
+        r.oldId: r.reason,
+    };
+    expect(reviews, {'o1': 'ambiguousMatch', 'o2': 'ambiguousMatch'});
+  }, skip: !sqliteAvailable);
+
+  test('an old album with retained songs still claims the candidate', () async {
+    final serverId = await saveServer();
+    await seedProvisionalAlbum(
+      'o1',
+      artistName: 'Artist',
+      year: 2001,
+      starred: DateTime.utc(2026, 9, 1),
+    );
+    await seedProvisionalSong('left-behind', title: 'Orphan', albumId: 'o1');
+    await seedProvisionalAlbum(
+      'o2',
+      artistName: 'Artist',
+      year: 2001,
+      starred: DateTime.utc(2026, 9, 1),
+    );
+    await seedCandidateAlbum('new', artistName: 'Artist', year: 2001);
+
+    final summary = await reconcileAlbums(serverId);
+
+    expect(summary.albumAliases, 0);
+    final reviews = {
+      for (final r in await pendingRecoveryReviews(database, serverId))
+        r.oldId: r.reason,
+    };
+    expect(reviews, {'o1': 'missingFromCatalog', 'o2': 'ambiguousMatch'});
+  }, skip: !sqliteAvailable);
+
   test('a stableMbid match and a foldedName claim on the same candidate: only '
       'the foldedName row goes to review', () async {
     final serverId = await saveServer();

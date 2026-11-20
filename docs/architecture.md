@@ -7882,8 +7882,13 @@ contract.
   missing and the song counts are equal and known (0 counts as missing). A
   differing year or two different release MBIDs vetoes the match. Uniqueness is
   two-sided: exactly one candidate must qualify and no other old row may claim
-  it, whether by `foldedName` or by an MBID/membership match; otherwise the row
-  is an `ambiguousMatch` review. Artists get no folded-name tier.
+  it, whether by `foldedName`, by an MBID/membership match or by a review
+  decision naming it, and a retained-songs row that would qualify still claims
+  it; otherwise the row is an `ambiguousMatch` review. Only candidates absent
+  from `albums` before the promotion count as new: an album inserted between
+  full syncs by the newest feed or incremental sync is deliberately not new,
+  because a NULL `catalog_generation` does not prove it was never confirmed
+  (unchanged albums are never re-stamped by a promotion). Artists get no folded-name tier.
   Song, album and artist MBIDs share whitespace trimming and case normalization.
   `remapAlbumIdentity`/`remapArtistIdentity` move song and album references,
   transfer star queue entries, absence evidence, and local mutations, merge
