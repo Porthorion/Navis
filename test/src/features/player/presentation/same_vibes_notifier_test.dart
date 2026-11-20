@@ -3495,6 +3495,85 @@ void main() {
         's3',
       ]);
     });
+
+    test(
+      'a capped artist\'s deferred songs hold one version of each song',
+      () async {
+        final lastFm = _MockLastFmApiClient();
+        when(
+          () => lastFm.getSimilarTracksResult(
+            artist: any(named: 'artist'),
+            track: any(named: 'track'),
+            limit: any(named: 'limit'),
+          ),
+        ).thenAnswer(
+          (_) async => const LastFmTrackFetchResult(
+            outcome: LastFmFetchOutcome.success,
+            tracks: <LastFmTrackRecommendation>[
+              LastFmTrackRecommendation(artist: 'X', title: 'One', match: 1),
+              LastFmTrackRecommendation(
+                artist: 'X & A',
+                title: 'Two',
+                match: 0.9,
+              ),
+              LastFmTrackRecommendation(
+                artist: 'X & B',
+                title: 'Three',
+                match: 0.8,
+              ),
+              LastFmTrackRecommendation(
+                artist: 'X & C',
+                title: 'Three (Japanese Version)',
+                match: 0.7,
+              ),
+            ],
+          ),
+        );
+        final api = _MockSubsonicApiClient();
+        // Two library songs share a key: "Three" and "Three (Live)".
+        const library = <Song>[
+          Song(id: 'x1', title: 'One', artist: 'X'),
+          Song(id: 'x2', title: 'Two', artist: 'X'),
+          Song(id: 'x3a', title: 'Three', artist: 'X'),
+          Song(id: 'x3b', title: 'Three (Live)', artist: 'X'),
+        ];
+        when(
+          () => api.search3(
+            query: any(named: 'query'),
+            artistCount: any(named: 'artistCount'),
+            albumCount: any(named: 'albumCount'),
+            songCount: any(named: 'songCount'),
+            artistOffset: any(named: 'artistOffset'),
+            albumOffset: any(named: 'albumOffset'),
+            songOffset: any(named: 'songOffset'),
+          ),
+        ).thenAnswer((invocation) async {
+          final query = invocation.namedArguments[#query] as String;
+          return SearchResult3(
+            songs: query.contains('Japanese')
+                ? [library[3]]
+                : library.where((song) => song.id != 'x3b').toList(),
+          );
+        });
+        when(
+          () => api.getSimilarSongs(
+            any(),
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async => const <Song>[]);
+
+        final queue = await activate(api: api, lastFm: lastFm);
+
+        final keys = queue.queuedSongs
+            .map(
+              (song) =>
+                  sameVibesCanonicalSongKey(song.artist ?? '', song.title),
+            )
+            .toList();
+        expect(keys.toSet().length, keys.length, reason: '$keys');
+      },
+    );
   });
 
   group('overlapping candidate lists (#377 recurrence)', () {
@@ -3525,8 +3604,16 @@ void main() {
 
     // Plays the mix through four song changes and returns the number of
     // `search3` calls made.
-    Future<int> playMix({bool resolveQueueKeys = false}) async {
+    // With [userQueued] the mix's own first batch is ten unrelated songs and
+    // the ranked ones are queued by the user, so the mix's session memory
+    // knows none of them and only the queue keys can drop them.
+    Future<int> playMix({
+      bool resolveQueueKeys = false,
+      bool userQueued = false,
+    }) async {
       var searchCalls = 0;
+      var lastFmCalls = 0;
+      const ownBatch = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       var fakeNow = DateTime(2026, 11, 10, 8);
@@ -3540,12 +3627,20 @@ void main() {
         (_) async => LastFmTrackFetchResult(
           outcome: LastFmFetchOutcome.success,
           tracks: [
-            for (final (name, match) in ranked)
-              LastFmTrackRecommendation(
-                artist: 'Artist$name',
-                title: 'Song$name',
-                match: match,
-              ),
+            if (userQueued && lastFmCalls++ == 0)
+              for (final name in ownBatch)
+                LastFmTrackRecommendation(
+                  artist: 'Artist$name',
+                  title: 'Song$name',
+                  match: 1,
+                )
+            else
+              for (final (name, match) in ranked)
+                LastFmTrackRecommendation(
+                  artist: 'Artist$name',
+                  title: 'Song$name',
+                  match: match,
+                ),
           ],
           source: LastFmSimilarSource.artistSimilar,
         ),
@@ -3615,16 +3710,20 @@ void main() {
       final queue = container.read(
         queueProvider.notifier,
       ) as RecordingRecommendationQueue;
+      final firstBatch = userQueued
+          ? ownBatch
+          : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
       expect(queue.queuedSongs.map((s) => s.id), [
-        for (final name in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'])
-          'id-$name',
+        for (final name in firstBatch) 'id-$name',
       ], reason: 'the first batch is the ten best matches');
 
       // Play through the mix: every song is a new seed.
       final mixQueue = [
         'seed-a',
-        for (final name in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'])
-          'id-$name',
+        for (final name in firstBatch) 'id-$name',
+        if (userQueued)
+          for (final name in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'])
+            'id-$name',
       ];
       // The refill mark is four songs left: index 6 of the 11-song queue.
       for (var index = 6; index < 10; index++) {
@@ -3658,11 +3757,11 @@ void main() {
     });
 
     test('known queued keys are dropped before searching', () async {
-      final withoutKeys = await playMix();
-      final withKeys = await playMix(resolveQueueKeys: true);
-      // The mix's own memory (#721) drops those songs too, so the queue keys
-      // no longer make the difference in this played-through mix.
-      expect(withKeys, lessThanOrEqualTo(withoutKeys));
+      // The ranked songs were queued by the user, not by the mix, so its
+      // session memory (#721) does not know them.
+      final withoutKeys = await playMix(userQueued: true);
+      final withKeys = await playMix(userQueued: true, resolveQueueKeys: true);
+      expect(withKeys, lessThan(withoutKeys));
     });
   });
 

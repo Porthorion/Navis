@@ -1003,6 +1003,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     // fill a short batch (three, then any number per artist).
     final spacing = ArtistSpacing();
     final deferred = <Song>[];
+    final deferredKeys = <String>{};
     var attempts = 0;
     var misses = 0;
     var mappedCount = 0;
@@ -1054,7 +1055,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           continue;
         }
         if (!spacing.allows(_artistKey(best), cap: 2, backToBack: true)) {
-          if (!deferred.any((song) => song.id.trim() == id)) deferred.add(best);
+          // One waiting version per song, by id or key.
+          if (key == null
+              ? !deferred.any((song) => song.id.trim() == id)
+              : deferredKeys.add(key)) {
+            deferred.add(best);
+          }
           continue;
         }
         spacing.add(_artistKey(best));
@@ -1077,8 +1083,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
 
     if (state.active && mappedCount < targetCount) {
+      // A waiting song whose key was queued since (a later candidate placed
+      // another version) stays out.
+      final waiting = deferred.where((song) {
+        final key = sameVibesCanonicalSongKey(song.artist ?? '', song.title);
+        return key == null || !blockedSongKeys.contains(key);
+      }).toList();
       for (final song in spaceByArtist<Song>(
-        deferred,
+        waiting,
         artistOf: _artistKey,
         count: targetCount - mappedCount,
         spacing: spacing,

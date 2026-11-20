@@ -365,4 +365,45 @@ void main() {
       expect(isJunkSongVersion(title), isFalse, reason: title);
     }
   });
+
+  test('version keys read hyphenated junk and CJK brackets', () {
+    expect(songVersionTitleKey('Mr. Sandman - Sped-Up'), 'mr sandman');
+    expect(songVersionTitleKey('Song (Slowed-Down)'), 'song');
+    expect(songVersionTitleKey('Song (8-D Audio)'), 'song');
+    expect(isJunkSongVersion('Mr. Sandman - Sped-Up'), isTrue);
+    expect(isJunkSongVersion('Song (8-D Audio)'), isTrue);
+    expect(isJunkSongVersion('Song - Live-In Session'), isFalse);
+    // Ordinary dash titles stay whole.
+    expect(songVersionTitleKey('Jean-Michel - Part 2'), 'jean michel part 2');
+    expect(songVersionTitleKey('Intro - Outro - Live'), 'intro outro');
+
+    expect(songVersionTitleKey('曲名【Live】'), songVersionTitleKey('曲名'));
+    expect(isJunkSongVersion('曲名【Instrumental】'), isTrue);
+    expect(isJunkSongVersion('曲名【Live】'), isFalse);
+  });
+
+  test('version keys drop a variant only when it is the whole qualifier', () {
+    final song = songVersionTitleKey('Song');
+    for (final title in [
+      'Song (Live)',
+      'Song (Live at Wembley)',
+      'Song (Live 2019)',
+      'Song (Remix)',
+      'Song (Skrillex Remix)',
+      'Song (Acoustic)',
+      'Song (Acoustic Version)',
+      'Song (Radio Edit)',
+    ]) {
+      expect(songVersionTitleKey(title), song, reason: title);
+    }
+    for (final title in [
+      'Song (Live Forever)',
+      'Song (Remix Of Me)',
+      'Song (Acoustic Dreams)',
+      'Song (Reverb Dreams)',
+    ]) {
+      expect(songVersionTitleKey(title), isNot(song), reason: title);
+    }
+    expect(isJunkSongVersion('Song (Reverb Dreams)'), isFalse);
+  });
 }
