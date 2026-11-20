@@ -93,13 +93,20 @@ class EntityIdentityReconciler {
       },
       relationshipTargets: albumTargets,
       needsReview: _albumNeedsReview,
-      remap: (oldId, canonicalId, reason) =>
-          _database.songIdentityDao.remapAlbumIdentity(
-            oldAlbumId: oldId,
-            canonicalAlbumId: canonicalId,
-            matchReason: reason,
-            matchedAt: DateTime.now(),
-          ),
+      remap: (oldId, canonicalId, reason) async {
+        final restoredLike = await _database.songIdentityDao.remapAlbumIdentity(
+          oldAlbumId: oldId,
+          canonicalAlbumId: canonicalId,
+          matchReason: reason,
+          matchedAt: DateTime.now(),
+        );
+        // Remote copies that moved onto the library album are cleaned up by
+        // the per-album identity pass of the pending hydration drain (#707).
+        await _database.songIdentityDao.markAlbumPendingIfRemoteCopies(
+          canonicalId,
+        );
+        return restoredLike;
+      },
     );
     summary.albumAliases = albumAliases.length;
     summary.albumRestoredLikes = albumRestoredLikes;

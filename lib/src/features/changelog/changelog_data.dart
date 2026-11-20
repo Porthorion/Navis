@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Albums you download from remote no longer keep showing remote '
+        'copies of their songs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Last.fm features now use your own Last.fm API key (Settings > '
         'Integrations); Same Vibes uses Deezer by default',
         type: ChangelogEntryType.improvement,

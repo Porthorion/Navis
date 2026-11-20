@@ -7872,6 +7872,10 @@ contract.
   `remapAlbumIdentity`/`remapArtistIdentity` move song and album references,
   transfer star queue entries, absence evidence, and local mutations, merge
   favorites and ratings with local precedence, and record typed aliases.
+  After an album remap, a library album that received remote copies (external
+  provisional songs) is marked pending hydration so the targeted hydration
+  drain and song identity pass remove copies the sync could not match (#707).
+  Provisional songs with a like (`starred`) are never garbage collected.
   Evidence-less or contested rows keep their user state as provisional rows
   and become review entries with typed reasons.
 - **Recovery review.** Pending entries (with evidence generation, reason, and
