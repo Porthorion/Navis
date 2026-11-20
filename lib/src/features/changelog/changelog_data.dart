@@ -206,6 +206,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A liked album or artist keeps its like when the server re-tags it, '
+        'even without downloads; Unavailable Items can remove such likes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Albums you download from remote no longer keep showing remote '
         'copies of their songs',
         type: ChangelogEntryType.fix,

@@ -389,7 +389,8 @@ Use the right tool for each failure mode:
   still own favorites, ratings or playlists appear in
   Settings → Sync → Unavailable Items, only while there is something to
   review. They are grouped by album; you can find a replacement match
-  manually, keep an item (or Keep All) for later, or remove a song from Liked
+  manually, keep an item (or Keep All) for later, or remove a song, album or
+  artist from Liked
   after a confirmation. Navis never deletes these silently.
 - **Cache reset.** Destructive and last-resort: it erases recoverable caches
   and rebuilds the library, and is only needed for the explicit
