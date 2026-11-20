@@ -25,6 +25,7 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   bool preventClose = false;
   int closeCalls = 0;
   int hideCalls = 0;
+  int hidesDone = 0;
   final events = <String>[];
   bool fullScreen = false;
   Rect? fullScreenBounds;
@@ -59,9 +60,13 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   Future<void> hide() async {
     events.add('hide');
     hideCalls++;
-    await onHide?.call();
-    final error = hideError;
-    if (error != null) throw error;
+    try {
+      await onHide?.call();
+      final error = hideError;
+      if (error != null) throw error;
+    } finally {
+      hidesDone++;
+    }
   }
 
   @override
@@ -362,6 +367,20 @@ void main() {
       Future<void> settle() =>
           Future<void>.delayed(const Duration(milliseconds: 150));
 
+      // Persisting comes before the hide, so on a slow runner wait for the
+      // hide to finish instead of a fixed delay.
+      Future<void> untilHidden(
+        _FakeWindowManagerAdapter adapter,
+        int calls,
+      ) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (adapter.hidesDone < calls && DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        // Let the controller finish its own close bookkeeping after the hide.
+        await Future<void>.delayed(Duration.zero);
+      }
+
       Future<(_FakeWindowManagerAdapter, DesktopWindowController)> start({
         required bool hideOnClose,
         Duration fullScreenExitTimeout = const Duration(seconds: 3),
@@ -388,9 +407,9 @@ void main() {
           adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
 
           controller.onWindowClose();
-          await settle();
+          await untilHidden(adapter, 1);
           controller.onWindowClose();
-          await settle();
+          await untilHidden(adapter, 2);
 
           expect(adapter.hideCalls, 2);
           expect(adapter.closeCalls, 0);
@@ -414,7 +433,7 @@ void main() {
         adapter.events.clear();
 
         controller.onWindowClose();
-        await settle();
+        await untilHidden(adapter, 1);
 
         expect(adapter.events.last, 'hide');
         expect(adapter.events, contains('getBounds'));
@@ -433,7 +452,8 @@ void main() {
 
           controller.onWindowClose();
           controller.onWindowClose(); // the same close, not a second exit
-          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await untilHidden(adapter, 1);
+          await settle(); // a duplicate close would hide again by now
 
           expect(
             adapter.events.where((e) => e == 'setFullScreen(false)'),
@@ -460,7 +480,7 @@ void main() {
           adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
 
           controller.onWindowClose();
-          await settle();
+          await untilHidden(adapter, 1);
 
           expect(adapter.hideCalls, 1);
           final persisted = jsonDecode(
@@ -481,7 +501,7 @@ void main() {
           ..events.clear();
 
         controller.onWindowClose();
-        await Future<void>.delayed(const Duration(milliseconds: 200));
+        await untilHidden(adapter, 1);
 
         expect(
           adapter.events,
@@ -491,7 +511,7 @@ void main() {
 
         adapter.fullScreen = false;
         controller.onWindowClose();
-        await settle();
+        await untilHidden(adapter, 2);
         expect(adapter.hideCalls, 2);
       });
 
@@ -500,7 +520,7 @@ void main() {
         adapter.hideError = Exception('no window');
 
         controller.onWindowClose();
-        await settle();
+        await untilHidden(adapter, 1);
 
         expect(adapter.hideCalls, 1);
       });
@@ -513,7 +533,7 @@ void main() {
           adapter.bounds = const Rect.fromLTWH(120, 150, 700, 400);
 
           controller.onWindowClose();
-          await settle();
+          await untilHidden(adapter, 1);
 
           expect(controller.isMiniPlayerMode, isTrue);
           expect(adapter.hideCalls, 1);

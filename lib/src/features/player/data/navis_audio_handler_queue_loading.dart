@@ -531,6 +531,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       // A retired source must not take the registry slot back by restarting a
       // download (onDownloadStart); the rebuilt queue builds fresh sources.
       entry.value.source.onDownloadStart = null;
+      // cancelDownload, not close (#720): after a phase-1 timeout
+      // _replaceQueuePhase1 keeps loading its prepared start source, which
+      // _prepareSingleItem may have taken from this registry
+      // (_runningLockCacheSource), and a closed source refuses to download.
       if (!identical(entry.value.source, retiredWriter)) {
         await entry.value.source.cancelDownload();
       }
@@ -1128,6 +1132,26 @@ extension _NavisQueueLoading on NavisAudioHandler {
     for (final entry in _lockCacheSources.values) {
       entry.source.retainDownloadForFollowers = false;
     }
+  }
+
+  /// Every lock-cache writer disposal must close, once each: the registered
+  /// ones, the player's held writers (a finished-then-evicted one is not
+  /// registered) and whatever either deck's sequence reaches.
+  // ignore: experimental_member_use, reason: as above.
+  Set<LockCachingAudioSource> _lockCacheWritersToClose() {
+    // ignore: experimental_member_use, reason: as above.
+    final writers = Set<LockCachingAudioSource>.identity();
+    for (final entry in _lockCacheSources.values) {
+      writers.add(entry.source);
+    }
+    writers.addAll(_heldLockCacheWriters().values);
+    for (final deck in [_player, _crossfadePlayer]) {
+      for (final source in deck?.sequence ?? const <IndexedAudioSource>[]) {
+        final writer = _lockCacheSourceOf(source);
+        if (writer != null) writers.add(writer);
+      }
+    }
+    return writers;
   }
 
   /// The source the inactive crossfade deck plays for [item]: a follower of
@@ -1848,6 +1872,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       initialPosition: initialPosition,
     );
     token?.checkCancelled();
+    _abortLoadIfDisposing(audioSources);
     _tracedNativeIndex = null;
     _tracedCurrentSong = null;
     _transportTrace.record(
@@ -1900,8 +1925,25 @@ extension _NavisQueueLoading on NavisAudioHandler {
       _sourceAppliesInFlight--;
     }
     token?.checkCancelled();
+    // Dispose began during the apply: its snapshot of writers predates these.
+    _abortLoadIfDisposing(audioSources);
     _loadedSourceApplied = true;
     await _restoreActivePlayerVolume();
+  }
+
+  /// Sources resolved or applied after disposal began are outside its writer
+  /// snapshot, and nobody else would stop their downloads: close them and end
+  /// the load as cancelled (#720).
+  void _abortLoadIfDisposing(List<AudioSource> audioSources) {
+    if (!_disposeHandlerStarted) return;
+    for (final source in audioSources) {
+      // ignore: experimental_member_use, reason: as above.
+      final writer = _lockCacheSourceOf(source);
+      if (writer == null) continue;
+      writer.onDownloadStart = null;
+      unawaited(writer.close());
+    }
+    throw OperationCancelledException();
   }
 
   /// Waits, up to [NavisPlaybackTimeouts.remoteLoad], for the server to answer

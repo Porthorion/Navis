@@ -1514,6 +1514,158 @@ void main() {
     await until(() => cacheFile.existsSync());
     expect(cacheFile.lengthSync(), body.length);
   });
+  group('terminal close (#720)', () {
+    // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+    LockCachingAudioSource build(HttpServer server, String name) =>
+        // ignore: experimental_member_use, reason: as above.
+        LockCachingAudioSource(
+          Uri.parse('http://127.0.0.1:${server.port}/$name'),
+          cacheFile: File('${directory.path}/$name.mp3'),
+        );
+
+    List<String> files() =>
+        directory.listSync().map((e) => p.basename(e.path)).toList()..sort();
+
+    test('a request or prefetch after close fails without reaching the '
+        'origin', () async {
+      final (server, downloads) = await _serve([1, 2, 3], ranges: false);
+      addTearDown(() => server.close(force: true));
+      final source = build(server, 'closed');
+      await source.close();
+      await expectLater(source.request(), throwsA(isA<StateError>()));
+      await expectLater(source.prefetch(), throwsA(isA<StateError>()));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(downloads, isEmpty);
+      expect(files(), isEmpty);
+    });
+
+    test('close right after prefetch starts stops the fetch before it '
+        'connects or writes', () async {
+      final (server, downloads) = await _serve(
+        List<int>.filled(256 * 1024, 1),
+        ranges: false,
+      );
+      addTearDown(() => server.close(force: true));
+      final source = build(server, 'starting');
+      final prefetch = source.prefetch();
+      final failed = expectLater(prefetch, throwsA(isA<StateError>()));
+      await source.close().timeout(const Duration(seconds: 2));
+      await failed;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(downloads, isEmpty);
+      expect(files(), isEmpty);
+    });
+
+    test('close waits for a finishing download to publish its file', () async {
+      final body = List<int>.generate(256 * 1024, (i) => i % 251);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        request.response
+          ..contentLength = body.length
+          ..headers.contentType = ContentType('audio', 'mpeg')
+          ..add(body);
+        await request.response.close();
+      });
+      final file = File('${directory.path}/finishing.mp3');
+      final source = build(server, 'finishing');
+      await source.prefetch();
+      for (var i = 0; i < 20000; i++) {
+        if (source.downloadedBytes == body.length && !file.existsSync()) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(
+        source.downloadedBytes == body.length && !file.existsSync(),
+        isTrue,
+        reason: 'the finishing window was missed',
+      );
+      await source.close().timeout(const Duration(seconds: 2));
+      expect(file.existsSync(), isTrue);
+      expect(File('${file.path}.part').existsSync(), isFalse);
+      expect(file.lengthSync(), body.length);
+    });
+
+    test('closing twice, also at once, completes', () async {
+      final (server, _) = await _serve(
+        List<int>.filled(256 * 1024, 1),
+        ranges: false,
+      );
+      addTearDown(() => server.close(force: true));
+      final source = build(server, 'twice');
+      await source.request();
+      await Future.wait([source.close(), source.close()])
+          .timeout(const Duration(seconds: 2));
+      await source.close().timeout(const Duration(seconds: 2));
+      expect(files(), isEmpty);
+    });
+
+    test('an ordinary cancel in the starting window leaves the source '
+        'usable: one request, the file lands', () async {
+      final body = List<int>.filled(8 * 1024, 4);
+      final (server, downloads) = await _serve(body, ranges: false);
+      addTearDown(() => server.close(force: true));
+      final source = build(server, 'usable');
+      final first = source.prefetch();
+      await source.cancelDownload();
+      await first;
+      await source.prefetch();
+      await until(() => File('${directory.path}/usable.mp3').existsSync());
+      expect(downloads, hasLength(1));
+    });
+
+    test(
+      'a cancelled download discards the mime file with its partial',
+      () async {
+        final (server, _) = await _serve(
+          List<int>.filled(256 * 1024, 3),
+          ranges: false,
+        );
+        addTearDown(() => server.close(force: true));
+        final source = build(server, 'mime');
+        final response = await source.request();
+        response.stream.listen((_) {}, onError: (Object _) {});
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await source.cancelDownload();
+        expect(files(), isEmpty);
+      },
+    );
+
+    test('an abort landing during a pending flush still cleans up and '
+        'fails the waiting request', () async {
+      final body = List<int>.filled(16 * 1024 * 1024, 5);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        request.response
+          ..bufferOutput = false
+          ..contentLength = body.length
+          ..headers.contentType = ContentType('audio', 'mpeg');
+        try {
+          request.response.add(body);
+          await request.response.close();
+        } on Object {
+          // The client went away.
+        }
+      });
+      final source = build(server, 'flush');
+      await source.prefetch();
+      while (source.downloadedBytes == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      // The request dispatches (and flushes the sink) synchronously; the
+      // abort lands while that flush is still pending.
+      final waiting = source.request();
+      final failed = expectLater(waiting, throwsA(isA<Object>()));
+      await Future<void>.delayed(Duration.zero);
+      await source.cancelDownload().timeout(const Duration(seconds: 5));
+      await failed.timeout(const Duration(seconds: 5));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(files(), isEmpty);
+      expect(source.downloadedBytes, 0);
+      await source.close().timeout(const Duration(seconds: 2));
+    });
+  });
+
   test(
     'the connection deadline cancels even an unresolved origin connection',
     () async {

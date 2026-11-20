@@ -41,6 +41,46 @@ class DirectOnlyResolver extends GatedSourceResolver {
   );
 }
 
+// ignore: experimental_member_use, reason: a writer whose close fails (#720).
+class ThrowingCloseSource extends RangeCacheSource {
+  new(super.id, super.file);
+  @override
+  Future<void> close() async => throw StateError('close failed');
+}
+
+// ignore: experimental_member_use, reason: a writer that records its close (#720).
+class ClosedProbeSource extends RangeCacheSource {
+  new(super.id, super.file);
+  bool closeCalled = false;
+  @override
+  Future<void> close() async => closeCalled = true;
+}
+
+/// A [RangeCacheResolver] that holds the [blockedSongId] resolve until released.
+class HeldRangeResolver extends RangeCacheResolver {
+  new(super.delegate, super.sources);
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) async {
+    if (song.id == blockedSongId) {
+      entered?.complete();
+      await release?.future;
+    }
+    return super.resolveForSong(
+      song,
+      preferLockCaching: preferLockCaching,
+      allowStreaming: allowStreaming,
+      transcodeOffset: transcodeOffset,
+      fastSeekBridge: fastSeekBridge,
+    );
+  }
+}
+
 /// Issue #653: a cold remote song (Octo-Fiesta) answers only once the server
 /// holds the whole file. While navigation waits for that first byte the old
 /// song must be silent and pinned, the target must show as loading, and the
@@ -1130,6 +1170,107 @@ void main() {
         () => closed.contains('song-3'),
         reason: 'origin connection of song-3 closed',
       );
+    });
+
+    test('Android: a prefetch still starting when dispose begins never '
+        'reaches the origin or the cache folder (#720)', () async {
+      await setUpAndroid(prefetch: false, gated: {});
+      final source = handler.debugRegisteredLockCacheSource('song-3')!;
+      final folder = (await source.cacheFile).parent;
+      List<String> listing() =>
+          folder.listSync().map((e) => e.path).toList()..sort();
+      final before = listing();
+      unawaited(source.prefetch().catchError((Object _) {}));
+      await handler.disposeHandler();
+      await quiet();
+      expect(fetched('song-3'), 0);
+      expect(listing(), before);
+      // The player retrying after our cancel error must not restart it.
+      await expectLater(source.request(), throwsA(isA<StateError>()));
+      await quiet();
+      expect(fetched('song-3'), 0);
+      expect(listing(), before);
+    });
+
+    test(
+      'Android: a writer whose close fails does not stop dispose (#720)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-r720-');
+        addTearDown(() => directory.delete(recursive: true));
+        final sources = {
+          for (final id in ids)
+            id: id == 'song-2'
+                ? ThrowingCloseSource(id, File('${directory.path}/$id.mp3'))
+                : RangeCacheSource(id, File('${directory.path}/$id.mp3')),
+        };
+        await setUpAndroid(
+          prefetch: false,
+          gated: {},
+          wrapResolver: (base) => RangeCacheResolver(base, sources),
+        );
+        addTearDown(() async {
+          for (final source in sources.values) {
+            await source.progress.close();
+          }
+        });
+        await handler.disposeHandler().timeout(const Duration(seconds: 10));
+        expect(player.disposed, isTrue);
+        // The cached future resolves for a later caller too.
+        await handler.disposeHandler();
+      },
+    );
+
+    test('Android: a queue load whose source resolves after dispose began '
+        'closes it instead of handing it to the player (#720)', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-r720-');
+      addTearDown(() => directory.delete(recursive: true));
+      final sources = {
+        for (final id in ids)
+          id: RangeCacheSource(id, File('${directory.path}/$id.mp3')),
+      };
+      late HeldRangeResolver resolver;
+      await setUpAndroid(
+        prefetch: false,
+        gated: {},
+        wrapResolver: (base) => resolver = HeldRangeResolver(base, sources),
+      );
+      addTearDown(() async {
+        for (final source in sources.values) {
+          await source.progress.close();
+        }
+      });
+      // The start song's new source resolves only after dispose began.
+      final late = ClosedProbeSource(
+        'song-1',
+        File('${directory.path}/song-1-late.mp3'),
+      );
+      sources['song-1'] = late;
+      resolver
+        ..blockedSongId = 'song-1'
+        ..entered = Completer<void>()
+        ..release = Completer<void>();
+      final load = handler
+          .replaceQueueWithData(queueRows, startIndex: 1)
+          .catchError((Object _) {});
+      await resolver.entered!.future;
+      final disposed = handler.disposeHandler();
+      resolver.release!.complete();
+      await disposed;
+      await load;
+      await late.progress.close();
+      expect(late.closeCalled, isTrue);
+    });
+
+    // Regression guard: it passed before the dispose guards too (the warm
+    // chain already stopped on a disposed handler).
+    test('Android: a download finishing as dispose begins starts no next-song '
+        'warm (#720)', () async {
+      await setUpAndroid();
+      await until(() => fetched('song-1') == 1, reason: 'lock-cache fetch');
+      gates['song-1']!.complete();
+      await handler.disposeHandler();
+      await quiet();
+      expect(fetched('song-2'), 0);
     });
 
     test('Android: re-publishing the old current song during a far '
