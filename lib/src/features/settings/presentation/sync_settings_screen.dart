@@ -929,7 +929,8 @@ class _OperationCounts {
   int get total => artists + albums + songs;
 }
 
-/// Entry point for the unavailable-items review list with a live count.
+/// Entry point for the unavailable-items review list, shown only while items
+/// await review.
 class UnavailableReviewEntry extends ConsumerWidget {
   const new({super.key, required this.serverId});
 
@@ -942,16 +943,13 @@ class UnavailableReviewEntry extends ConsumerWidget {
         .watch(pendingUnavailableCountProvider)
         .asData
         ?.value;
+    if (serverId == null || pendingCount == null || pendingCount == 0) {
+      return const SizedBox.shrink();
+    }
     return TextButton.icon(
-      onPressed: serverId == null
-          ? null
-          : () => NavService.openUnavailableItems(context, ref),
+      onPressed: () => NavService.openUnavailableItems(context, ref),
       icon: const Icon(Icons.playlist_remove),
-      label: Text(
-        pendingCount != null && pendingCount > 0
-            ? l10n.unavailableReviewEntryWithCount(pendingCount)
-            : l10n.unavailableReviewEntry,
-      ),
+      label: Text(l10n.unavailableReviewEntryWithCount(pendingCount)),
     );
   }
 }

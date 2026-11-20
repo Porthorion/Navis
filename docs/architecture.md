@@ -7868,6 +7868,27 @@ contract.
   promotion transaction after rows are preserved and before stale-row
   deletion, and maps albums/artists only from a unique stable MBID on both
   sides or an unambiguous song-membership mapping with compatible metadata.
+  Names compare case- and accent-folded (`foldSearchLetters`, the fold behind
+  SQL `navis_fold`); an empty name never matches. Two album-only tiers add
+  automatic matches (#709), each logging one debug line per match:
+  `membershipFullCoverage` applies a membership target whose name differs when
+  the old album's stored song count is at least 2, every one of those songs
+  relinked into the target, and the target's song count is within 2 of it;
+  `foldedName` (last tier, before `missingFromCatalog`) matches an old album
+  that has no provisional songs left (it survives only through album-level
+  user data) to a candidate that was not a live album before this promotion
+  (the engine passes `newAlbumIds`) when folded name and folded artist are
+  equal and non-empty, and either both years are known and equal or a year is
+  missing and the song counts are equal and known (0 counts as missing). A
+  differing year or two different release MBIDs vetoes the match. Uniqueness is
+  two-sided: exactly one candidate must qualify and no other old row may claim
+  it, whether by `foldedName`, by an MBID/membership match or by a review
+  decision naming it, and a retained-songs row that would qualify still claims
+  it; otherwise the row is an `ambiguousMatch` review. Only candidates absent
+  from `albums` before the promotion count as new: an album inserted between
+  full syncs by the newest feed or incremental sync is deliberately not new,
+  because a NULL `catalog_generation` does not prove it was never confirmed
+  (unchanged albums are never re-stamped by a promotion). Artists get no folded-name tier.
   Song, album and artist MBIDs share whitespace trimming and case normalization.
   `remapAlbumIdentity`/`remapArtistIdentity` move song and album references,
   transfer star queue entries, absence evidence, and local mutations, merge
@@ -7888,9 +7909,22 @@ contract.
   queue, pending annotations, following songs) before applying through the
   same transaction as automatic recovery, and apply-time revalidation rejects
   a selection whose replacement no longer exists. Entries with recorded
-  replacement candidates offer a possible-replacements action. Keep for later
-  and Remove from Liked are unchanged. Sync evidence never overwrites a user
-  disposition.
+  replacement candidates offer a possible-replacements action. The only entry
+  point is Sync Settings, shown while the live pending count
+  (`pendingUnavailableCountProvider`, a stream over
+  `watchPendingRecoveryReviewCount`) is above zero; the Liked tab no longer
+  carries a chip. The list shows Albums, then Artists, then songs grouped under
+  their album (`songs.albumName`, read in one `getSongsByIds` batch; songs
+  without an album name go under Other Songs). Keep All marks every still
+  pending row `keptForLater` in one statement
+  (`keepAllPendingRecoveryReview`). Remove from Liked (per song and Remove All
+  from Liked for liked song rows) always asks first and is never offered for
+  remote (`ext-`, `remote-`, external) rows; for a song the server no longer
+  has (`server_deleted_at`) it clears the like locally only
+  (`StarSyncDao.clearSongLikesLocally`: the local-mutation journal is read only
+  by the next sync's snapshot guard and sends nothing) and drops that song's
+  pending star deliveries, while a live song queues the unstar as before. Sync
+  evidence never overwrites a user disposition.
   Only items the user chose are listed: starred, rated, or in a local or own
   playlist (the same case-insensitive owner rule as `isOwnPlaylist`: a
   null owner counts, read-only and auto-imported playlists do not; the owner is

@@ -3380,6 +3380,103 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    // #709 foldedName: only a candidate that was not a live album before this
+    // promotion may be the re-id of an old row that survives on user data.
+    Future<void> foldedNamePromotion({required bool liveBefore}) async {
+      await saveSession();
+      await database.libraryDao.upsertProvisionalAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'album-old',
+          name: 'Retagged',
+          artistName: const Value('Artist'),
+          year: const Value(2001),
+          starred: Value(DateTime.utc(2026, 9, 5)),
+        ),
+      ]);
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+      ]);
+      if (liveBefore) {
+        // A confirmed live album that only changes (song count) this run.
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-new',
+            name: 'Retagged',
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist'),
+            year: const Value(2001),
+            songCount: const Value(5),
+            songsHydrated: const Value(true),
+            catalogGeneration: const Value(1),
+          ),
+        ]);
+      }
+      api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+      api.fastPathPages[0] = const <Album>[
+        Album(
+          id: 'album-new',
+          name: 'Retagged',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          year: 2001,
+          songCount: 1,
+        ),
+      ];
+      api.albumDetails['album-new'] = const Album(
+        id: 'album-new',
+        name: 'Retagged',
+        artistId: 'artist-1',
+        artist: 'Artist',
+        year: 2001,
+        songCount: 1,
+        songs: <Song>[
+          Song(
+            id: 'song-new',
+            title: 'Track',
+            albumId: 'album-new',
+            artistId: 'artist-1',
+          ),
+        ],
+      );
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      expect(result.status, LibrarySyncStatus.succeeded);
+    }
+
+    test(
+      'a changed album that was already live is not matched by foldedName',
+      () async {
+        await foldedNamePromotion(liveBefore: true);
+
+        expect(await database.libraryDao.getAlbumById('album-old'), isNotNull);
+        expect(await database.songIdentityDao.getAliases(), isEmpty);
+        final review = await pendingRecoveryReviews(database, 1);
+        expect(review.single.oldId, 'album-old');
+        expect(review.single.reason, 'missingFromCatalog');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'an album first seen in this promotion is matched by foldedName',
+      () async {
+        await foldedNamePromotion(liveBefore: false);
+
+        expect(await database.libraryDao.getAlbumById('album-old'), isNull);
+        final alias = await database
+            .customSelect(
+              'SELECT new_id, match_reason FROM entity_identity_aliases '
+              "WHERE entity_type = 'album' AND old_id = 'album-old';",
+            )
+            .getSingle();
+        expect(alias.read<String>('new_id'), 'album-new');
+        expect(alias.read<String>('match_reason'), 'foldedName');
+        expect(await pendingRecoveryReviews(database, 1), isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('promotion clears absence evidence when the server re-lists a retained song', () async {
       await saveSession();
       // A song the previous catalog validated as absent: retained with

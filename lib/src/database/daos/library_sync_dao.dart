@@ -1704,6 +1704,22 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return query.map((row) => row.read(countExpr) ?? 0).watchSingle();
   }
 
+  /// Keeps every still-pending review row of [serverId] for later in one
+  /// statement; rows the user already decided stay as they are.
+  Future<int> keepAllPendingRecoveryReview(int serverId) {
+    return (update(libraryRecoveryReviewTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.disposition.equals('pending'),
+        ))
+        .write(
+          LibraryRecoveryReviewTableCompanion(
+            disposition: const Value('keptForLater'),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+  }
+
   Future<void> setRecoveryReviewDisposition({
     required int id,
     required String disposition,
