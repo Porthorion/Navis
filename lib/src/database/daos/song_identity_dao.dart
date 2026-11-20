@@ -359,6 +359,24 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Queues a library album for the existing targeted hydration when remote
+  /// copies (external provisional songs) were moved onto it.
+  Future<void> markAlbumPendingIfRemoteCopies(String albumId) {
+    return customUpdate(
+      '''
+      UPDATE albums SET songs_hydrated = 0
+      WHERE id = ? AND is_external = 0 AND is_provisional = 0
+        AND EXISTS (
+          SELECT 1 FROM songs s
+          WHERE s.album_id = albums.id AND s.is_external = 1
+            AND s.is_provisional = 1
+        );
+      ''',
+      variables: [Variable<String>(albumId)],
+      updates: <TableInfo<Table, Object?>>{albumsTable},
+    );
+  }
+
   /// Moves an old artist identity onto its canonical replacement.
   ///
   /// Songs and albums still referencing the old artist follow it, artist-level
@@ -588,6 +606,13 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         ),
       );
       await afterAlias?.call();
+      // The item resolved: its pending review row has nothing left to decide.
+      await customUpdate(
+        "DELETE FROM library_recovery_review WHERE entity_type = ? "
+        "AND old_id = ? AND disposition = 'pending'",
+        variables: [Variable<String>(kind.name), Variable<String>(oldId)],
+        updates: {attachedDatabase.libraryRecoveryReviewTable},
+      );
       await customUpdate(
         'DELETE FROM ${table.actualTableName} WHERE id = ?',
         variables: [Variable<String>(oldId)],
@@ -604,6 +629,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         '''
         DELETE FROM songs
         WHERE is_provisional = 1
+          AND starred IS NULL
           AND NOT EXISTS (
             SELECT 1 FROM cached_tracks c WHERE c.song_id = songs.id
           )
