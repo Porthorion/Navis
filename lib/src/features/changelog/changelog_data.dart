@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'More albums and artists are matched automatically after the server '
+        'renames or re-tags them',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Albums you download from remote no longer keep showing remote '
         'copies of their songs',
         type: ChangelogEntryType.fix,
