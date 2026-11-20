@@ -317,4 +317,109 @@ void main() {
       }
     });
   });
+
+  test('one version per song: live, remix, acoustic and junk collapse', () {
+    final studio = songVersionTitleKey('Song');
+    for (final title in [
+      'Song (Live)',
+      'Song - Live at Ft. Worth',
+      'Song [Acoustic]',
+      'Song (Skrillex Remix)',
+      'Song - Sped Up',
+      'Song (Slowed + Reverb)',
+      'Song (Nightcore Version)',
+      'Song (8D Audio)',
+      'Song (Karaoke Version)',
+      'Song - Instrumental',
+      'Song (Remastered 2011)',
+      'Song (feat. Guest)',
+    ]) {
+      expect(songVersionTitleKey(title), studio, reason: title);
+    }
+  });
+
+  test('one version per song keeps different songs and language editions', () {
+    expect(
+      songVersionTitleKey('Wonder (Japanese Version)'),
+      isNot(songVersionTitleKey('Wonder (English Version)')),
+    );
+    expect(songVersionTitleKey('花'), isNot(songVersionTitleKey('嵐')));
+    expect(songVersionTitleKey('Intro - Outro'), 'intro outro');
+    expect(songVersionTitleKey('(Intro)'), isNotEmpty);
+    expect(songVersionTitleKey('Reverb'), 'reverb');
+  });
+
+  test('junk versions are flagged only by a qualifier', () {
+    for (final title in [
+      'Song - Sped Up',
+      'Song (Sped Up)',
+      'Song (Slowed + Reverb)',
+      'Song [Nightcore]',
+      'Song (8D Audio)',
+      'Song (Karaoke Version)',
+      'Song - Instrumental',
+    ]) {
+      expect(isJunkSongVersion(title), isTrue, reason: title);
+    }
+    for (final title in ['Song', 'Reverb', 'Song (Live)', 'Song (Remix)']) {
+      expect(isJunkSongVersion(title), isFalse, reason: title);
+    }
+  });
+
+  test('common fan-edit spellings count as junk versions', () {
+    for (final title in [
+      'Song (Super Slowed)',
+      'Song (Slowed + Reverbed)',
+      'Song (Slowed & Chopped)',
+      'Song (Sped Up 1.25x)',
+      'Song (Slowed TikTok Version)',
+      'Song (Piano Instrumental)',
+      'Song (Instrumental Remastered)',
+    ]) {
+      expect(isJunkSongVersion(title), isTrue, reason: title);
+    }
+    expect(isJunkSongVersion('Song (Piano Version)'), isFalse);
+    expect(isJunkSongVersion('Song (Remastered)'), isFalse);
+  });
+
+  test('version keys read hyphenated junk and CJK brackets', () {
+    expect(songVersionTitleKey('Mr. Sandman - Sped-Up'), 'mr sandman');
+    expect(songVersionTitleKey('Song (Slowed-Down)'), 'song');
+    expect(songVersionTitleKey('Song (8-D Audio)'), 'song');
+    expect(isJunkSongVersion('Mr. Sandman - Sped-Up'), isTrue);
+    expect(isJunkSongVersion('Song (8-D Audio)'), isTrue);
+    expect(isJunkSongVersion('Song - Live-In Session'), isFalse);
+    // Ordinary dash titles stay whole.
+    expect(songVersionTitleKey('Jean-Michel - Part 2'), 'jean michel part 2');
+    expect(songVersionTitleKey('Intro - Outro - Live'), 'intro outro');
+
+    expect(songVersionTitleKey('曲名【Live】'), songVersionTitleKey('曲名'));
+    expect(isJunkSongVersion('曲名【Instrumental】'), isTrue);
+    expect(isJunkSongVersion('曲名【Live】'), isFalse);
+  });
+
+  test('version keys drop a variant only when it is the whole qualifier', () {
+    final song = songVersionTitleKey('Song');
+    for (final title in [
+      'Song (Live)',
+      'Song (Live at Wembley)',
+      'Song (Live 2019)',
+      'Song (Remix)',
+      'Song (Skrillex Remix)',
+      'Song (Acoustic)',
+      'Song (Acoustic Version)',
+      'Song (Radio Edit)',
+    ]) {
+      expect(songVersionTitleKey(title), song, reason: title);
+    }
+    for (final title in [
+      'Song (Live Forever)',
+      'Song (Remix Of Me)',
+      'Song (Acoustic Dreams)',
+      'Song (Reverb Dreams)',
+    ]) {
+      expect(songVersionTitleKey(title), isNot(song), reason: title);
+    }
+    expect(isJunkSongVersion('Song (Reverb Dreams)'), isFalse);
+  });
 }
