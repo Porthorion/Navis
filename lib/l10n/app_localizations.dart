@@ -3136,6 +3136,18 @@ abstract class AppLocalizations {
   /// **'Lets Instant Mix find similar songs through Deezer.'**
   String get integrationsFeatureDeezerSameVibesSubtitle;
 
+  /// No description provided for @integrationsFeatureDeezerRadioTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Radio through Deezer'**
+  String get integrationsFeatureDeezerRadioTitle;
+
+  /// No description provided for @integrationsFeatureDeezerRadioSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lets Personal Radio add songs by artists related to the one playing, found through Deezer.'**
+  String get integrationsFeatureDeezerRadioSubtitle;
+
   /// No description provided for @integrationsFeatureLastFmSameVibesTitle.
   ///
   /// In en, this message translates to:

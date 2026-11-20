@@ -821,6 +821,8 @@
   "integrationsFeatureDeezerSearchRankingSubtitle": "Puts the most popular matches first and shows Top Results. Sends what you type in Search to Deezer.",
   "integrationsFeatureDeezerSameVibesTitle": "Same Vibes through Deezer",
   "integrationsFeatureDeezerSameVibesSubtitle": "Lets Instant Mix find similar songs through Deezer.",
+  "integrationsFeatureDeezerRadioTitle": "Personal Radio through Deezer",
+  "integrationsFeatureDeezerRadioSubtitle": "Lets Personal Radio add songs by artists related to the one playing, found through Deezer.",
   "integrationsFeatureLastFmSameVibesTitle": "Same Vibes through Last.fm",
   "integrationsFeatureLastFmSameVibesSubtitle": "Lets Instant Mix find similar songs through Last.fm when you choose it under Instant Mix.",
   "integrationsMixModeTitle": "Instant Mix",

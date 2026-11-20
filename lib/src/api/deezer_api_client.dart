@@ -193,10 +193,16 @@ class DeezerApiClient {
     int artistId, {
     int limit = 20,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
-    final data = await _getData('artist/$artistId/related', <String, Object>{
-      'limit': limit,
-    }, cancelToken: cancelToken);
+    final data = await _getData(
+      'artist/$artistId/related',
+      <String, Object>{'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    );
     return data.map(DeezerArtist.fromJson).where(_hasId).toList();
   }
 

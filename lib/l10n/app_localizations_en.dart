@@ -2025,6 +2025,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Lets Instant Mix find similar songs through Deezer.';
 
   @override
+  String get integrationsFeatureDeezerRadioTitle =>
+      'Personal Radio through Deezer';
+
+  @override
+  String get integrationsFeatureDeezerRadioSubtitle =>
+      'Lets Personal Radio add songs by artists related to the one playing, found through Deezer.';
+
+  @override
   String get integrationsFeatureLastFmSameVibesTitle =>
       'Same Vibes through Last.fm';
 

@@ -124,6 +124,10 @@ enum IntegrationFeature {
   /// mode, resolved by [resolvePreferredMixMode].
   deezerSameVibes('deezer.sameVibes', IntegrationService.deezer),
 
+  /// Personal Radio may ask Deezer for the seed artist's related artists and
+  /// plays their songs from the library.
+  deezerRadio('deezer.radio', IntegrationService.deezer),
+
   /// Same Vibes may call Last.fm, when the user chooses it.
   lastFmSameVibes('lastfm.sameVibes', IntegrationService.lastFm),
   lastFmRadio('lastfm.radio', IntegrationService.lastFm),

@@ -3475,7 +3475,7 @@ and Subsonic delivery continues independently.
   the service, so feature switches rely on these call-site rechecks.
 - **Enforcement, in two layers.** *Call-site gates* make a section hide itself
   instead of failing: Same Vibes (`lastfm.sameVibes`), the radio fill
-  (`lastfm.radio`), artist Top Songs (`deezer.topSongs` or `lastfm.topSongs`,
+  (`deezer.radio`, then `lastfm.radio`), artist Top Songs (`deezer.topSongs` or `lastfm.topSongs`,
   via `artistTopSongsAllowedProvider`; with neither, the section and the "This
   Is" card are hidden), scrobbling and feedback (their credential readers return
   no token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the
