@@ -5,7 +5,7 @@ Integrations lists each one with what it sends and to which host, a switch per
 service and per feature, and a master "Online services" switch; with it off,
 Navis only talks to your server. Everything is on by default.
 
-- **Deezer** — a Same Vibes source (artist radio), artist top songs (Last.fm as fallback), matched to your server in
+- **Deezer** — a Same Vibes source (artist radio), Personal Radio's related-artist songs, artist top songs (Last.fm as fallback), matched to your server in
   "This Is <Artist>" using the shared weekly-playlist resolver rules; with
   neither source enabled, Top Tracks and the "This Is" card are hidden. It also
   supplies artist photos and fan counts, "Fans also like", missing albums
@@ -77,6 +77,20 @@ allowed, so the mix continues. Server Mix mid-mix makes the next refill call
 nothing external. The mode is read on every refill, so a source switch applies
 at the next one. The diagnostics report the real source (`mixSource` in the
 last refill, `selectedSongMix` `deezer|lastfm|server`).
+
+**Personal Radio sources.** The fill order is server, then Deezer
+(`deezer.radio`, on by default), then Last.fm (only while still short; the
+Last.fm leg and its rejected-key rule are unchanged), then local taste. The
+Deezer leg resolves the seed's artist like Same Vibes (library album titles
+break a namesake tie), reads Deezer's related artists (cached 7 days), matches
+their names to library artists and takes up to two library songs per artist in
+relatedness order, starred first, never the seed or a song already excluded.
+Songs come from the library only. It runs only when the server did not already
+fill the related slots, never offline, and under a 6 second cap with a cancel
+token (also cancelled with the caller's); every request is `background`. Quota,
+a timeout, any Deezer error, no artist match or no related artists makes the
+leg add nothing, with no notice. The batch source is `deezer` when this leg
+added the first related songs.
 
 A feature whose service needs a credential stays locked until the key or token
 is verified. Subsonic/OpenSubsonic server scrobbling stays independent of

@@ -58,6 +58,7 @@ void main() {
         'deezer.trending',
         'deezer.searchRanking',
         'deezer.sameVibes',
+        'deezer.radio',
         'lastfm.sameVibes',
         'lastfm.radio',
         'lastfm.topSongs',
@@ -116,6 +117,19 @@ void main() {
         IntegrationFeature.deezerSameVibes.service,
         IntegrationService.deezer,
       );
+    });
+
+    test('Personal Radio through Deezer is JSON-stored and on by default', () {
+      const feature = IntegrationFeature.deezerRadio;
+      expect(feature.key, 'deezer.radio');
+      expect(feature.service, IntegrationService.deezer);
+      expect(feature.legacyColumn, isNull);
+      expect(_policy().allows(feature), isTrue);
+      expect(
+        _policy(disabledJson: '["deezer.radio"]').allows(feature),
+        isFalse,
+      );
+      expect(_policy(disabledJson: '["deezer"]').allows(feature), isFalse);
     });
 
     test('the Last.fm source entry is kept by the parser, never a switch', () {

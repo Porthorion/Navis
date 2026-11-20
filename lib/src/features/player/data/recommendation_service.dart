@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/api/deezer_api_client.dart' show DeezerApiException;
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -14,6 +15,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart'
     show kLocalTrackMatcherSnapshotYieldChunkSize;
 import 'package:navis/src/providers/app_providers.dart';
@@ -21,7 +23,14 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
-enum RecommendationSource { server, instantMix, lastFm, localTaste, shuffle }
+enum RecommendationSource {
+  server,
+  instantMix,
+  deezer,
+  lastFm,
+  localTaste,
+  shuffle,
+}
 
 enum RecommendationIssue {
   none,
@@ -63,6 +72,7 @@ class RecommendationService {
     this._ref, {
     Random? random,
     this._eligibleLibraryMaxAge = const Duration(minutes: 2),
+    this._deezerLegTimeout = const Duration(seconds: 6),
   }) : _random = random ?? Random() {
     _ref.onDispose(() {
       _disposed = true;
@@ -80,6 +90,10 @@ class RecommendationService {
   /// The result is reused until songs or cached tracks change, the network
   /// or filters differ, or it is older than [_eligibleLibraryMaxAge].
   final Duration _eligibleLibraryMaxAge;
+
+  /// The whole Deezer leg of Personal Radio (artist lookup, related artists,
+  /// library match) must answer within this, or radio goes on without it.
+  final Duration _deezerLegTimeout;
   Timer? _eligibleLibraryRelease;
   bool _disposed = false;
 
@@ -424,6 +438,23 @@ class RecommendationService {
       related.addAll(server.songs.where((song) => poolIds.contains(song.id)));
       if (related.isNotEmpty) source = server.source;
       if (related.length < wantedRelated) {
+        _addEligible(
+          related,
+          await deezerMatches(
+            _toSong(seed),
+            pool,
+            count: wantedRelated - related.length,
+            cancelToken: cancelToken,
+          ),
+          poolIds,
+          seed.id,
+          wantedRelated,
+        );
+        if (source == RecommendationSource.localTaste && related.isNotEmpty) {
+          source = RecommendationSource.deezer;
+        }
+      }
+      if (related.length < wantedRelated) {
         final lastFm = await _lastFmMatches(
           _toSong(seed),
           pool,
@@ -464,6 +495,101 @@ class RecommendationService {
           : RecommendationIssue.none,
       lastFmIssue: lastFmIssue,
     );
+  }
+
+  /// Library songs by the artists Deezer relates to the seed's artist, most
+  /// related first, at most two per artist, starred ones first. Empty, and
+  /// silently, when the switch is off, Deezer has no such artist, is over its
+  /// quota, fails or is slower than the cap: radio never waits on Deezer or
+  /// shows a notice for it.
+  @visibleForTesting
+  Future<List<Song>> deezerMatches(
+    Song seed,
+    List<SongsTableData> pool, {
+    required int count,
+    CancelToken? cancelToken,
+  }) async {
+    if (!_ref
+        .read(integrationPolicyProvider)
+        .allows(IntegrationFeature.deezerRadio)) {
+      return const <Song>[];
+    }
+    final legToken = CancelToken();
+    unawaited(cancelToken?.whenCancel.then((_) => legToken.cancel()));
+    try {
+      return await _relatedArtistSongs(
+        seed,
+        pool,
+        count: count,
+        cancelToken: legToken,
+      ).timeout(
+        _deezerLegTimeout,
+        onTimeout: () {
+          legToken.cancel();
+          return const <Song>[];
+        },
+      );
+    } on DeezerApiException {
+      return const <Song>[];
+    } on DioException {
+      return const <Song>[];
+    }
+  }
+
+  Future<List<Song>> _relatedArtistSongs(
+    Song seed,
+    List<SongsTableData> pool, {
+    required int count,
+    required CancelToken cancelToken,
+  }) async {
+    // Read the providers directly: an unlistened provider is paused.
+    final seedArtistId = seed.artistId ?? '';
+    final deezerId = await _ref
+        .read(deezerArtistResolverProvider)
+        .resolve(
+          artistId: seedArtistId,
+          name: seed.artist ?? '',
+          readLibraryAlbumTitles: libraryAlbumTitlesReader(
+            _ref.read(navisDatabaseProvider).libraryDao,
+            seedArtistId,
+          ),
+          cancelToken: cancelToken,
+          background: true,
+          retryQuota: false,
+        );
+    if (deezerId == null) return const <Song>[];
+    final related = await _ref
+        .read(deezerCatalogProvider)
+        .relatedArtists(deezerId, cancelToken: cancelToken, background: true);
+    if (related.isEmpty) return const <Song>[];
+    final libraryByName =
+        (await _ref.read(libraryArtistNameIndexProvider).current()).lookupAll(
+          related.map((artist) => artist.name),
+        );
+    final byArtist = <String, List<SongsTableData>>{};
+    for (final song in pool) {
+      final artistId = song.artistId;
+      if (artistId != null && artistId != seedArtistId) {
+        (byArtist[artistId] ??= <SongsTableData>[]).add(song);
+      }
+    }
+    final songs = <Song>[];
+    for (final artist in related) {
+      final libraryArtist = libraryByName[normalizeMetadata(artist.name)];
+      final candidates = libraryArtist == null
+          ? null
+          : byArtist.remove(libraryArtist.id);
+      if (candidates == null) continue;
+      final ordered = [
+        ...candidates.where((song) => song.starred != null),
+        ...candidates.where((song) => song.starred == null),
+      ];
+      for (final song in ordered.where((song) => song.id != seed.id).take(2)) {
+        if (songs.length >= count) return songs;
+        songs.add(_toSong(song));
+      }
+    }
+    return songs;
   }
 
   Future<RecommendationBatch> _lastFmMatches(
