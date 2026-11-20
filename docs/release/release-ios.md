@@ -24,8 +24,7 @@ user installs the new IPA through AltStore/SideStore.
   `Payload/Runner.app` (symlinks kept) before the App Store build runs, after
   `build/ios/iphoneos` is cleared, so neither build can pick up the other's
   output. Its `Info.plist` must carry the release version and the pubspec build
-  number or the release fails. It is scanned for the plaintext Last.fm key like
-  every artifact.
+  number or the release fails.
 - Stable runs only. A dev tag builds the App Store flavour alone: its update
   notice links to a GitHub release, and GitHub publication is stable-only.
 - An iOS-only `--ios-upload` run is a TestFlight iteration, not a release: it
@@ -96,8 +95,7 @@ a phone directly, so use Profile or Debug on a device. The bundle ID is
   manual signing with the `Navis App Store` profile, symbols uploaded. It
   runs with `/usr/bin` first on `PATH` because the export fails ("Copy
   failed") with a MacPorts or Homebrew `rsync` 3.x. `build/ios/ipa` is deleted first so a
-  stale IPA is never uploaded. The IPA is scanned for the plaintext Last.fm key
-  like every other artifact.
+  stale IPA is never uploaded.
 - The upload is `xcrun altool --upload-app -t ios -f <ipa> --api-key ...
   --api-issuer ... --p8-file-path <key file>`; the Xcode 27 `altool` accepts a
   direct key path, so `ASC_KEY_PATH` works.

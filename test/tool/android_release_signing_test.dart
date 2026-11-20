@@ -53,8 +53,6 @@ void main() {
     for (final optIn in [null, '0']) {
       test('local dev APK passes opt-in ${optIn ?? '1 by default'} to Flutter', () async {
         final script = await copyScript('dev_app.sh');
-        await File(p.join(fixture.path, 'tool', 'lib', 'lastfm_key_defines.sh'))
-            .writeAsString('');
         final bin = Directory(p.join(fixture.path, 'bin'));
         await bin.create();
         // A fake Flutter captures the environment; no app or build is started.

@@ -226,12 +226,11 @@ From a clean, committed checkout with `pubspec.yaml` at `1.5.0+10500`:
 This runs the existing universal and split Android builds, Ubuntu 22.04 Linux
 container build (tar.gz, deb and rpm from one bundle), and remote Windows Inno
 installer build. It retains split debug info locally without Dart obfuscation,
-masked Last.fm defines, channel and Android self-update flags. Every APK passes the normal
+channel and Android self-update flags. Every APK passes the normal
 metadata, signer and string checks; Linux packaging retains its bundle,
-glibc and desktop-entry checks, and every artifact passes the secret scan.
-Android signing and Last.fm configuration are required now; R2 credentials,
+glibc and desktop-entry checks.
+Android signing configuration is required now; R2 credentials,
 the update signing key and Forgejo token are needed only on release day.
-RPM scanning requires `bsdtar` on this host.
 
 `--build-only` checks local Git state/tags without querying origin or R2.
 It copies all eight artifacts to the git-ignored `dist/v1.5.0/` and stops

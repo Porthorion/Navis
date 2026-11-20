@@ -204,9 +204,6 @@ Checks performed:
   `ANDROID_STUDIO_JDK` selects an alternate JDK, and the existing
   `NAVIS_FLUTTER_SDK` override can select the Flutter SDK. The same command runs
   in CI's separate Android `native` job; it does not prove native audio timing
-- Last.fm key masking (`tool/lastfm_key_defines_test.sh`) and the release
-  artifact secret scan (`tool/scan_artifact_secret_test.sh`), with a fake key
-  and synthetic artifacts
 - Flutter test-log guard fixtures (`tool/check_test_log_test.sh`): reject
   reported failures and runner shutdown crashes even when Flutter exits 0
 - Windows SQLite asset verification (`tool/sqlite3_windows_asset_test.py`)
@@ -2399,7 +2396,7 @@ field's production `FocusNode` on the Integrations step, which opens the
 platform soft keyboard on Android, or removes focus (`none`) to close it. The
 field is scrolled into the lazily built step list first. The response is
 `{"field", "focused"}`. A field that is not shown (the Last.fm key field exists
-only in builds without a bundled key, and both fields only on step 3) or an
+unless a local `NAVIS_LASTFM_API_KEY` define supplies a key, and both fields only on step 3) or an
 onboarding screen that is not mounted returns 409. Capture the screenshot after
 the keyboard has animated in. The step is checked before any scrolling, so
 requesting a field from another step returns 409 without moving that step.

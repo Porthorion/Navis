@@ -86,7 +86,6 @@ SCRIPT_DIR="$FIXTURE/tool"
 VERSION=v1.5.0 SEMVER=1.5.0 BUILD_NUMBER=10500 ASSET_PREFIX=navis
 BUILD_ANDROID=true BUILD_IOS=false BUILD_MACOS=false BUILD_LINUX=false BUILD_WINDOWS=false IOS_UPLOAD=false UPDATE_CHANNEL=stable
 DART_DEFINE_ARGS=(--dart-define=NAVIS_UPDATE_CHANNEL=stable '--dart-define-from-file=fixture with spaces.json')
-scan_release_artifact() { echo "scan:$(basename "$1")" >> "$FIXTURE/log"; }
 validate_apk_strings() { echo "strings:$(basename "$1")" >> "$FIXTURE/log"; }
 keytool() { echo 'SHA256: AB:CD:EF'; }
 flutter() {
@@ -145,12 +144,7 @@ printf "%s\n" "${ASSET_NAMES[@]}" > "$FIXTURE/assets"
       for (final asset in _assetNames) {
         expect(
           log,
-          containsAll([
-            'scan:$asset',
-            'metadata:$asset',
-            'signing:$asset',
-            'strings:$asset',
-          ]),
+          containsAll(['metadata:$asset', 'signing:$asset', 'strings:$asset']),
         );
         expect(File(p.join(fixture.path, asset)).existsSync(), isTrue);
       }

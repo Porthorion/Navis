@@ -201,8 +201,17 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Last.fm features now use your own Last.fm API key (Settings > '
+        'Integrations); Same Vibes uses Deezer by default',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Same Vibes now finds similar songs through Deezer; add your own '
         'Last.fm key in Settings to choose Last.fm instead',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Personal Radio now finds songs by related artists through Deezer',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -212,12 +221,6 @@ const List<ChangelogVersion> changelogs = [
         'server\'s mix only because Last.fm was unavailable, it now uses Same '
         'Vibes; switch back there',
         type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Same Vibes and Instant Radio no longer show a Last.fm key error when '
-        'the key built into the app is rejected; they fall back to your '
-        'server quietly',
-        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Trending opens right away when you open it while the library syncs '

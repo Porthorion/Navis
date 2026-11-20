@@ -9,8 +9,8 @@ enum IntegrationVerification {
   /// The service needs no credential.
   none,
 
-  /// A Last.fm API key: bundled at build, or a stored custom key that was
-  /// validated when it was saved.
+  /// A Last.fm API key: a stored custom key that was validated when it was
+  /// saved, or a local development define.
   lastFmApiKey,
 
   /// A ListenBrainz token that validated successfully. The existing 401/403
@@ -123,6 +123,10 @@ enum IntegrationFeature {
   /// Same Vibes may call Deezer. Which source Instant Mix uses is the mix
   /// mode, resolved by [resolvePreferredMixMode].
   deezerSameVibes('deezer.sameVibes', IntegrationService.deezer),
+
+  /// Personal Radio may ask Deezer for the seed artist's related artists and
+  /// plays their songs from the library.
+  deezerRadio('deezer.radio', IntegrationService.deezer),
 
   /// Same Vibes may call Last.fm, when the user chooses it.
   lastFmSameVibes('lastfm.sameVibes', IntegrationService.lastFm),

@@ -3333,6 +3333,44 @@ void main() {
     });
   });
 
+  group('a user Last.fm key with no bundled key (#697)', () {
+    // Tests carry no dart-defines, so AppConstants.lastFmApiKey is empty here,
+    // exactly like a shipped build.
+    test('settings key feeds the effective key, the client and the policy', () {
+      final container = ProviderContainer(
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(lastFmApiKey: ' own-key '),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(lastFmBundledKeyProvider), isFalse);
+      expect(container.read(lastFmApiKeyProvider), 'own-key');
+      expect(container.read(hasLastFmApiKeyProvider), isTrue);
+      expect(container.read(lastFmApiClientProvider), isNotNull);
+      expect(container.read(integrationPolicyProvider).lastFmVerified, isTrue);
+    });
+
+    test('no settings key leaves Last.fm off', () {
+      final container = ProviderContainer(
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            AsyncData(AppSettingsModel.defaults()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(lastFmApiKeyProvider), isEmpty);
+      expect(container.read(lastFmApiClientProvider), isNull);
+      expect(container.read(integrationPolicyProvider).lastFmVerified, isFalse);
+    });
+  });
+
   group('integrationPolicyProvider', () {
     ProviderContainer containerFor(
       AsyncValue<AppSettingsModel> settings, {
