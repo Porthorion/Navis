@@ -531,10 +531,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       // A retired source must not take the registry slot back by restarting a
       // download (onDownloadStart); the rebuilt queue builds fresh sources.
       entry.value.source.onDownloadStart = null;
-      // cancelDownload, not close (#720): a retried load can reuse these very
-      // objects (_replaceQueuePhase1 continues with its already prepared
-      // start source after a phase-1 timeout), and a closed source refuses to
-      // download.
+      // cancelDownload, not close (#720): after a phase-1 timeout
+      // _replaceQueuePhase1 keeps loading its prepared start source, which
+      // _prepareSingleItem may have taken from this registry
+      // (_runningLockCacheSource), and a closed source refuses to download.
       if (!identical(entry.value.source, retiredWriter)) {
         await entry.value.source.cancelDownload();
       }
