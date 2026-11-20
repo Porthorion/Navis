@@ -25,6 +25,7 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   bool preventClose = false;
   int closeCalls = 0;
   int hideCalls = 0;
+  int hidesDone = 0;
   final events = <String>[];
   bool fullScreen = false;
   Rect? fullScreenBounds;
@@ -59,9 +60,13 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   Future<void> hide() async {
     events.add('hide');
     hideCalls++;
-    await onHide?.call();
-    final error = hideError;
-    if (error != null) throw error;
+    try {
+      await onHide?.call();
+      final error = hideError;
+      if (error != null) throw error;
+    } finally {
+      hidesDone++;
+    }
   }
 
   @override
@@ -363,15 +368,17 @@ void main() {
           Future<void>.delayed(const Duration(milliseconds: 150));
 
       // Persisting comes before the hide, so on a slow runner wait for the
-      // hide itself instead of a fixed delay.
+      // hide to finish instead of a fixed delay.
       Future<void> untilHidden(
         _FakeWindowManagerAdapter adapter,
         int calls,
       ) async {
         final deadline = DateTime.now().add(const Duration(seconds: 5));
-        while (adapter.hideCalls < calls && DateTime.now().isBefore(deadline)) {
+        while (adapter.hidesDone < calls && DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 10));
         }
+        // Let the controller finish its own close bookkeeping after the hide.
+        await Future<void>.delayed(Duration.zero);
       }
 
       Future<(_FakeWindowManagerAdapter, DesktopWindowController)> start({
