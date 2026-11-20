@@ -366,6 +366,22 @@ void main() {
     }
   });
 
+  test('common fan-edit spellings count as junk versions', () {
+    for (final title in [
+      'Song (Super Slowed)',
+      'Song (Slowed + Reverbed)',
+      'Song (Slowed & Chopped)',
+      'Song (Sped Up 1.25x)',
+      'Song (Slowed TikTok Version)',
+      'Song (Piano Instrumental)',
+      'Song (Instrumental Remastered)',
+    ]) {
+      expect(isJunkSongVersion(title), isTrue, reason: title);
+    }
+    expect(isJunkSongVersion('Song (Piano Version)'), isFalse);
+    expect(isJunkSongVersion('Song (Remastered)'), isFalse);
+  });
+
   test('version keys read hyphenated junk and CJK brackets', () {
     expect(songVersionTitleKey('Mr. Sandman - Sped-Up'), 'mr sandman');
     expect(songVersionTitleKey('Song (Slowed-Down)'), 'song');

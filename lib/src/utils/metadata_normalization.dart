@@ -100,7 +100,9 @@ String _keepingQualifiers(String value, bool Function(String) dropped) {
 const String _junkWords =
     'sped up|speed(?:ed)? up|slowed(?: down)?|nightcore|reverb|8 ?d|'
     'karaoke|instrumental';
-const String _junkFiller = 'and|x|version|audio|mix|edit|remix|ver|official';
+const String _junkFiller =
+    'and|x|version|audio|mix|edit|remix|ver|official|super|reverbed|chopped|'
+    'tiktok|piano|remastered|\\d+x?';
 
 /// A whole qualifier (word form) made only of junk words and filler such as
 /// "version" or "audio": "Sped Up", "Slowed Reverb", "8D Audio". "Reverb
