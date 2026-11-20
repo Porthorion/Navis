@@ -70,7 +70,8 @@ void main() {
     expect(find.text('An Artist'), findsOneWidget);
     expect(find.text('Find Match'), findsOneWidget);
     expect(find.text('Keep for Later'), findsOneWidget);
-    expect(find.text('Remove from Liked'), findsOneWidget);
+    // No liked song row behind this entry, so there is nothing to un-like.
+    expect(find.text('Remove from Liked'), findsNothing);
 
     await tester.tap(find.text('Keep for Later'));
     await tester.pumpAndSettle();

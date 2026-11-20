@@ -164,7 +164,7 @@ class UnavailableReviewScreen extends ConsumerStatefulWidget {
 bool _isRemoteRow(LibraryRecoveryReviewTableData row, SongsTableData? song) =>
     isRemoteSong(id: row.oldId, isExternal: song?.isExternal);
 
-/// Song rows the bulk Remove All from Liked covers: liked, not remote.
+/// Song rows Remove from Liked (single and bulk) covers: liked, not remote.
 bool _isRemovableLike(
   LibraryRecoveryReviewTableData row,
   SongsTableData? song,
@@ -211,9 +211,7 @@ class _UnavailableReviewScreenState
               final LibraryRecoveryReviewTableData row => _ReviewCard(
                 entry: row,
                 onKeep: () => _setDisposition(row, 'keptForLater'),
-                onRemoveFromLiked:
-                    row.entityType == 'song' &&
-                        !_isRemoteRow(row, data.songs[row.oldId])
+                onRemoveFromLiked: _isRemovableLike(row, data.songs[row.oldId])
                     ? () => _removeFromLiked([row])
                     : null,
               ),
@@ -255,7 +253,12 @@ class _UnavailableReviewScreenState
           .add(row);
     }
     final sortedGroups = groups.values.toList()
-      ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      ..sort((a, b) {
+        final byTitle = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        return byTitle != 0
+            ? byTitle
+            : a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
+      });
     return <Object>[
       _Header.actions(
         intro: l10n.unavailableReviewIntro,

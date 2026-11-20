@@ -128,9 +128,13 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
         await attachedDatabase.libraryDao.setEntityStarred('song', id, null);
       }
       for (final chunk in chunked(ids, 500)) {
-        await (delete(
-          starSyncQueueTable,
-        )..where((t) => t.itemType.equals('song') & t.itemId.isIn(chunk))).go();
+        await (delete(starSyncQueueTable)..where(
+              (t) =>
+                  t.itemType.equals('song') &
+                  t.operation.equals('star') &
+                  t.itemId.isIn(chunk),
+            ))
+            .go();
       }
     });
   }
