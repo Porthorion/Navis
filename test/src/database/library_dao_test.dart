@@ -96,6 +96,138 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'chosen stale parents become provisional rows without their songs',
+      () async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(
+            id: 'artist-liked',
+            name: 'Liked',
+            starred: Value(DateTime.utc(2026, 9, 5)),
+          ),
+          ArtistsTableCompanion.insert(id: 'artist-plain', name: 'Plain'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-liked',
+            name: 'Liked',
+            artistId: const Value('artist-liked'),
+            starred: Value(DateTime.utc(2026, 9, 5)),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-plain',
+            name: 'Plain',
+            artistId: const Value('artist-plain'),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song-liked',
+            title: 'Song',
+            albumId: const Value('album-liked'),
+            artistId: const Value('artist-liked'),
+          ),
+          SongsTableCompanion.insert(
+            id: 'song-plain',
+            title: 'Song',
+            albumId: const Value('album-plain'),
+            artistId: const Value('artist-plain'),
+          ),
+        ]);
+
+        // No download and no protected song: today everything is dropped.
+        final preserved = await database.libraryDao
+            .preserveCachedLegacyRowsAsProvisional(
+              staleArtistIds: ['artist-liked', 'artist-plain'],
+              staleAlbumIds: ['album-liked', 'album-plain'],
+              chosenAlbumIds: ['album-liked'],
+              chosenArtistIds: ['artist-liked'],
+            );
+
+        expect(preserved.albumIds, {'album-liked'});
+        expect(preserved.artistIds, {'artist-liked'});
+        expect(preserved.songIds, isEmpty);
+        expect(
+          (await database.libraryDao.getAlbumById('album-liked'))!
+              .isProvisional,
+          isTrue,
+        );
+        expect(
+          (await database.libraryDao.getArtistById('artist-liked'))!
+              .isProvisional,
+          isTrue,
+        );
+        // The stale unchosen rows are left for the caller to delete, and the
+        // chosen parents' songs are not retained (a retained song would make
+        // the folded-name match refuse the album).
+        expect(
+          (await database.libraryDao.getAlbumById('album-plain'))!
+              .isProvisional,
+          isFalse,
+        );
+        expect(
+          (await database.libraryDao.getSongById('song-liked'))!.isProvisional,
+          isFalse,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'provisional albums and artists are no star-absence candidates',
+      () async {
+        final at = Value(DateTime.utc(2026, 9, 5));
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-live',
+            name: 'Live',
+            starred: at,
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-waiting',
+            name: 'Waiting',
+            starred: at,
+          ),
+        ]);
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(
+            id: 'artist-live',
+            name: 'Live',
+            starred: at,
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalArtists([
+          ArtistsTableCompanion.insert(
+            id: 'artist-waiting',
+            name: 'Waiting',
+            starred: at,
+          ),
+        ]);
+
+        expect(
+          await database.libraryDao.getStarredIds(
+            'album',
+            excludeUnavailable: true,
+          ),
+          {'album-live'},
+        );
+        expect(
+          await database.libraryDao.getStarredIds(
+            'artist',
+            excludeUnavailable: true,
+          ),
+          {'artist-live'},
+        );
+        expect(await database.libraryDao.getStarredIds('album'), {
+          'album-live',
+          'album-waiting',
+        });
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('metadata upserts never execute primary-key updates', () async {
       // UPDATE OF observes column assignment even when the value is unchanged.
       // Rejecting it guards against expensive foreign-key rechecks while the

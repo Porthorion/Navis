@@ -3477,6 +3477,264 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    // #716: a liked album or artist with no downloads is a normal row, not a
+    // provisional one. A server re-tag must still move its like.
+    Future<void> likedParentPromotion({
+      String? oldAlbumMbid,
+      String oldAlbumName = 'Retagged',
+      Album? newAlbum,
+      String? oldArtistMbid,
+      Artist? newArtist,
+      bool likedArtist = false,
+      bool likedAlbum = true,
+    }) async {
+      await saveSession();
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+        for (var i = 1; i <= 8; i++)
+          ArtistsTableCompanion.insert(id: 'artist-fill-$i', name: 'A$i'),
+        ArtistsTableCompanion.insert(
+          id: 'artist-old',
+          name: 'Old Artist',
+          artistMbid: Value(oldArtistMbid),
+          starred: likedArtist
+              ? Value(DateTime.utc(2026, 9, 5))
+              : const Value.absent(),
+        ),
+      ]);
+      await database.libraryDao.upsertAlbums([
+        for (var i = 1; i <= 9; i++)
+          AlbumsTableCompanion.insert(
+            id: 'album-fill-$i',
+            name: 'Filler $i',
+            artistId: const Value('artist-1'),
+          ),
+        AlbumsTableCompanion.insert(
+          id: 'album-old',
+          name: oldAlbumName,
+          artistId: const Value('artist-1'),
+          artistName: const Value('Artist'),
+          releaseMbid: Value(oldAlbumMbid),
+          year: const Value(2001),
+          songCount: const Value(1),
+          starred: likedAlbum
+              ? Value(DateTime.utc(2026, 9, 5))
+              : const Value.absent(),
+        ),
+      ]);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-old',
+          title: 'Track',
+          albumId: const Value('album-old'),
+          artistId: const Value('artist-1'),
+        ),
+      ]);
+      // Ten local albums and artists, so one stale row of each stays under
+      // the mass-deletion guard.
+      final fillers = [
+        for (var i = 1; i <= 9; i++)
+          Album(
+            id: 'album-fill-$i',
+            name: 'Filler $i',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            songCount: 1,
+            songs: <Song>[
+              Song(
+                id: 'song-fill-$i',
+                title: 'Filler $i',
+                albumId: 'album-fill-$i',
+                artistId: 'artist-1',
+              ),
+            ],
+          ),
+      ];
+      api.artists.addAll([
+        const Artist(id: 'artist-1', name: 'Artist'),
+        for (var i = 1; i <= 8; i++) Artist(id: 'artist-fill-$i', name: 'A$i'),
+        if (newArtist != null) newArtist,
+      ]);
+      final album =
+          newAlbum ??
+          const Album(
+            id: 'album-new',
+            name: 'Retagged',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            year: 2001,
+            songCount: 1,
+            songs: <Song>[
+              Song(
+                id: 'song-new',
+                title: 'Track',
+                albumId: 'album-new',
+                artistId: 'artist-1',
+              ),
+            ],
+          );
+      api.fastPathPages[0] = [
+        album.copyWith(songs: const <Song>[]),
+        for (final filler in fillers) filler.copyWith(songs: const <Song>[]),
+      ];
+      for (final entry in [album, ...fillers]) {
+        api.albumDetails[entry.id] = entry;
+      }
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      expect(result.status, LibrarySyncStatus.succeeded);
+    }
+
+    Future<void> expectLikeMovedToNewAlbum() async {
+      expect(await database.libraryDao.getAlbumById('album-old'), isNull);
+      expect(
+        (await database.libraryDao.getAlbumById('album-new'))!.starred,
+        isNotNull,
+      );
+      final pending = await database.starSyncDao.getPendingActions();
+      expect(
+        pending.where(
+          (a) =>
+              a.itemType == 'album' &&
+              a.itemId == 'album-new' &&
+              a.operation == 'star',
+        ),
+        isNotEmpty,
+      );
+      expect(await pendingRecoveryReviews(database, 1), isEmpty);
+    }
+
+    test('a liked album without downloads keeps its like when re-tagged with the same MBID', () async {
+      await likedParentPromotion(
+        oldAlbumMbid: '11111111-1111-4111-8111-111111111111',
+        newAlbum: const Album(
+          id: 'album-new',
+          name: 'Retagged',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          year: 2001,
+          songCount: 1,
+          musicBrainzId: '11111111-1111-4111-8111-111111111111',
+          songs: <Song>[
+            Song(
+              id: 'song-new',
+              title: 'Track',
+              albumId: 'album-new',
+              artistId: 'artist-1',
+            ),
+          ],
+        ),
+      );
+      await expectLikeMovedToNewAlbum();
+    }, skip: !sqliteAvailable);
+
+    test('a liked album without downloads or MBID keeps its like when only its id changes', () async {
+      await likedParentPromotion();
+      await expectLikeMovedToNewAlbum();
+    }, skip: !sqliteAvailable);
+
+    test('a liked album without downloads keeps its like when the name changes only by folding', () async {
+      await likedParentPromotion(
+        oldAlbumName: 'Café Noir',
+        newAlbum: const Album(
+          id: 'album-new',
+          name: 'cafe noir',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          year: 2001,
+          songCount: 1,
+          songs: <Song>[
+            Song(
+              id: 'song-new',
+              title: 'Track',
+              albumId: 'album-new',
+              artistId: 'artist-1',
+            ),
+          ],
+        ),
+      );
+      await expectLikeMovedToNewAlbum();
+    }, skip: !sqliteAvailable);
+
+    test('a liked album the server dropped waits in review, hidden from the library', () async {
+      await likedParentPromotion(
+        newAlbum: const Album(
+          id: 'album-other',
+          name: 'Something Else',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          year: 1999,
+          songCount: 3,
+          songs: <Song>[
+            Song(
+              id: 'song-other',
+              title: 'Other',
+              albumId: 'album-other',
+              artistId: 'artist-1',
+            ),
+          ],
+        ),
+      );
+      final old = await database.libraryDao.getAlbumById('album-old');
+      expect(old, isNotNull);
+      expect(old!.isProvisional, isTrue);
+      expect(old.starred, isNotNull);
+      final review = await pendingRecoveryReviews(database, 1);
+      expect(review.single.entityType, 'album');
+      expect(review.single.oldId, 'album-old');
+      // Provisional-only albums stay out of library lists, like today's
+      // download-retained ones.
+      final liked = await database.libraryDao.watchLikedAlbums().first;
+      expect(liked.map((a) => a.id), isNot(contains('album-old')));
+      final all = await database.libraryDao.watchAllAlbums().first;
+      expect(all.map((a) => a.id), isNot(contains('album-old')));
+    }, skip: !sqliteAvailable);
+
+    test('an unliked stale album is still deleted', () async {
+      await likedParentPromotion(likedAlbum: false);
+      expect(await database.libraryDao.getAlbumById('album-old'), isNull);
+      expect(await pendingRecoveryReviews(database, 1), isEmpty);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'a liked artist re-tagged with the same MBID keeps its like',
+      () async {
+        const mbid = '22222222-2222-4222-8222-222222222222';
+        await likedParentPromotion(
+          likedArtist: true,
+          likedAlbum: false,
+          oldArtistMbid: mbid,
+          newArtist: const Artist(
+            id: 'artist-new',
+            name: 'Old Artist',
+            musicBrainzId: mbid,
+          ),
+        );
+        expect(await database.libraryDao.getArtistById('artist-old'), isNull);
+        expect(
+          (await database.libraryDao.getArtistById('artist-new'))!.starred,
+          isNotNull,
+        );
+        expect(await pendingRecoveryReviews(database, 1), isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a liked artist re-tagged by name only waits in review', () async {
+      await likedParentPromotion(
+        likedArtist: true,
+        likedAlbum: false,
+        newArtist: const Artist(id: 'artist-new', name: 'Old Artist'),
+      );
+      final old = await database.libraryDao.getArtistById('artist-old');
+      expect(old!.isProvisional, isTrue);
+      expect(old.starred, isNotNull);
+      final review = await pendingRecoveryReviews(database, 1);
+      expect(review.single.entityType, 'artist');
+      expect(review.single.oldId, 'artist-old');
+    }, skip: !sqliteAvailable);
+
     test('promotion clears absence evidence when the server re-lists a retained song', () async {
       await saveSession();
       // A song the previous catalog validated as absent: retained with

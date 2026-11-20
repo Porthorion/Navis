@@ -1548,20 +1548,28 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
 
   /// Of [ids] (songs, albums or artists, by [entityType]), those carrying
   /// something the user chose: a favorite or rating, or a song they put in a
-  /// local or own playlist. Chunked, so cost follows rows, not statements.
+  /// local or own playlist. With [ownStateOnly], an album or artist counts
+  /// only for its own favorite or rating, not for what its songs carry.
+  /// Chunked, so cost follows rows, not statements.
   Future<Set<String>> userChosenIds(
     String entityType,
     Iterable<String> ids, {
     required String? owner,
+    bool ownStateOnly = false,
   }) async {
     final (table, own) = switch (entityType) {
       'song' => ('songs', _userChosenSongSql('x')),
+      'album' when ownStateOnly => (
+        'albums',
+        '(x.starred IS NOT NULL OR x.user_rating IS NOT NULL)',
+      ),
       'album' => (
         'albums',
         '(x.starred IS NOT NULL OR x.user_rating IS NOT NULL OR EXISTS '
             '(SELECT 1 FROM songs s WHERE s.album_id = x.id AND '
             '${_userChosenSongSql('s')}))',
       ),
+      _ when ownStateOnly => ('artists', '(x.starred IS NOT NULL)'),
       _ => (
         'artists',
         '(x.starred IS NOT NULL OR EXISTS (SELECT 1 FROM songs s WHERE '
@@ -1575,7 +1583,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         '(${List.filled(chunk.length, '?').join(',')}) AND $own',
         variables: [
           for (final id in chunk) Variable<String>(id),
-          Variable<String>(owner ?? ''),
+          if (own.contains('?')) Variable<String>(owner ?? ''),
         ],
       ).get();
       chosen.addAll(rows.map((row) => row.read<String>('id')));

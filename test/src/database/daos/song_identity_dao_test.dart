@@ -905,6 +905,39 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test('provisional collection keeps a songless album or artist the user liked or rated', () async {
+    await database.libraryDao.upsertProvisionalArtists([
+      ArtistsTableCompanion.insert(
+        id: 'artist-liked',
+        name: 'Liked',
+        starred: Value(DateTime.utc(2026, 9, 5)),
+      ),
+      ArtistsTableCompanion.insert(id: 'artist-plain', name: 'Plain'),
+    ]);
+    await database.libraryDao.upsertProvisionalAlbums([
+      AlbumsTableCompanion.insert(
+        id: 'album-liked',
+        name: 'Liked',
+        starred: Value(DateTime.utc(2026, 9, 5)),
+      ),
+      AlbumsTableCompanion.insert(
+        id: 'album-rated',
+        name: 'Rated',
+        userRating: const Value(4),
+      ),
+      AlbumsTableCompanion.insert(id: 'album-plain', name: 'Plain'),
+    ]);
+
+    await database.songIdentityDao
+        .garbageCollectUnreferencedProvisionalMetadata();
+
+    expect(await database.libraryDao.getAlbumById('album-liked'), isNotNull);
+    expect(await database.libraryDao.getAlbumById('album-rated'), isNotNull);
+    expect(await database.libraryDao.getAlbumById('album-plain'), isNull);
+    expect(await database.libraryDao.getArtistById('artist-liked'), isNotNull);
+    expect(await database.libraryDao.getArtistById('artist-plain'), isNull);
+  }, skip: !sqliteAvailable);
+
   test(
     'getAliasesFor maps only the asked song ids to their library ids',
     () async {

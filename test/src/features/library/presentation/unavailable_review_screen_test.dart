@@ -471,6 +471,77 @@ void main() {
       await _tearDown(tester);
     }, skip: !sqliteAvailable);
 
+    testWidgets(
+      'Remove from Liked on an album row unlikes it locally and resolves the row',
+      (tester) async {
+        final (database, serverId) = await _seedServer();
+        await database.libraryDao.upsertProvisionalAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-gone',
+            name: 'Lost Album',
+            starred: Value(DateTime(2026)),
+          ),
+          AlbumsTableCompanion.insert(id: 'album-plain', name: 'Plain Album'),
+        ]);
+        await database.libraryDao.upsertProvisionalArtists([
+          ArtistsTableCompanion.insert(
+            id: 'artist-gone',
+            name: 'Lost Artist',
+            starred: Value(DateTime(2026)),
+          ),
+        ]);
+        // A star that never reached the server for an id it no longer has.
+        await database.starSyncDao.queueStarAction(
+          itemId: 'album-gone',
+          itemType: 'album',
+          action: 'star',
+        );
+        await _review(
+          database,
+          serverId,
+          'album-gone',
+          'Lost Album',
+          type: 'album',
+        );
+        await _review(
+          database,
+          serverId,
+          'artist-gone',
+          'Lost Artist',
+          type: 'artist',
+        );
+
+        await _pumpScreen(tester, database, serverId);
+        // Only liked rows offer it: one button per liked row.
+        expect(find.text('Remove from Liked'), findsNWidgets(2));
+        await tester.tap(find.text('Remove from Liked').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
+        await tester.pumpAndSettle();
+
+        expect(
+          (await database.libraryDao.getAlbumById('album-gone'))!.starred,
+          isNull,
+        );
+        expect(await database.starSyncDao.getPendingActions(), isEmpty);
+        final dispositions = {
+          for (final r
+              in await database
+                  .select(database.libraryRecoveryReviewTable)
+                  .get())
+            r.oldId: r.disposition,
+        };
+        expect(dispositions['album-gone'], 'removedFromLiked');
+        expect(dispositions['artist-gone'], 'pending');
+        expect(
+          (await database.libraryDao.getArtistById('artist-gone'))!.starred,
+          isNotNull,
+        );
+        await _tearDown(tester);
+      },
+      skip: !sqliteAvailable,
+    );
+
     testWidgets('an external row offers no Remove from Liked', (tester) async {
       final (database, serverId) = await _seedServer();
       await _song(database, 'ext-1', 'Remote', liked: true);

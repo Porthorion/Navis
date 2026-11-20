@@ -2558,8 +2558,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   /// Ids with a local favorite. [excludeUnavailable] drops songs retained
   /// after leaving the server (`server_deleted_at`): the server can never list
-  /// them as starred, so their absence is not an unlike. Albums and artists
-  /// carry no such marker.
+  /// them as starred, so their absence is not an unlike. Provisional albums
+  /// and artists (kept for review after a re-tag) are dropped the same way:
+  /// the server cannot list a stale id either.
   Future<Set<String>> getStarredIds(
     String type, {
     bool excludeUnavailable = false,
@@ -2567,7 +2568,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final table = _entityTable(type);
     final rows = await customSelect(
       'SELECT id FROM ${table.actualTableName} WHERE starred IS NOT NULL'
-      '${excludeUnavailable && type == 'song' ? ' AND server_deleted_at IS NULL' : ''}',
+      '${excludeUnavailable ? switch (type) {
+              'song' => ' AND server_deleted_at IS NULL',
+              _ => ' AND is_provisional = 0',
+            } : ''}',
       readsFrom: {table},
     ).get();
     return rows.map((row) => row.read<String>('id')).toSet();
@@ -3354,6 +3358,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     required Iterable<String> staleArtistIds,
     required Iterable<String> staleAlbumIds,
     Iterable<String> protectedSongIds = const <String>[],
+    Iterable<String> chosenAlbumIds = const <String>[],
+    Iterable<String> chosenArtistIds = const <String>[],
   }) async {
     final artistIds = staleArtistIds
         .map((id) => id.trim())
@@ -3381,6 +3387,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         'artist': artistIds,
         'album': albumIds,
         'song': protectedIds,
+        'chosen-album': chosenAlbumIds.toList(growable: false),
+        'chosen-artist': chosenArtistIds.toList(growable: false),
       });
       final rows = await customSelect(
         '''
@@ -3420,7 +3428,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           .whereType<String>()
           .where(staleArtists.contains)
           .toSet();
-      if (cachedProtectedSongIds.isEmpty) {
+      // Parents the user chose (liked, rated) are kept as bare provisional
+      // rows, without their songs: a retained song would make the album
+      // refuse a folded-name match. Only rows still stale count.
+      final keptAlbumIds = {
+        ...protectedAlbumIds,
+        ...chosenAlbumIds.where(staleAlbums.contains),
+      };
+      final keptArtistIds = {
+        ...protectedArtistIds,
+        ...chosenArtistIds.where(staleArtists.contains),
+      };
+      if (cachedProtectedSongIds.isEmpty &&
+          keptAlbumIds.isEmpty &&
+          keptArtistIds.isEmpty) {
         await _clearPreservationIds();
         return const PreservedProvisionalTree();
       }
@@ -3429,6 +3450,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         'protected-song': cachedProtectedSongIds.toList(growable: false),
         'protected-album': protectedAlbumIds.toList(growable: false),
         'protected-artist': protectedArtistIds.toList(growable: false),
+      });
+      await _fillPreservationIds(<String, List<String>>{
+        'kept-album': keptAlbumIds.toList(growable: false),
+        'kept-artist': keptArtistIds.toList(growable: false),
       });
       final retainedRows = await customSelect(
         '''
@@ -3465,7 +3490,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         '''
         UPDATE albums SET is_provisional = 1
         WHERE id IN (
-          SELECT id FROM $_preservationIdsTable WHERE kind = 'protected-album'
+          SELECT id FROM $_preservationIdsTable WHERE kind = 'kept-album'
         );
         ''',
         updates: {albumsTable},
@@ -3475,7 +3500,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         '''
         UPDATE artists SET is_provisional = 1
         WHERE id IN (
-          SELECT id FROM $_preservationIdsTable WHERE kind = 'protected-artist'
+          SELECT id FROM $_preservationIdsTable WHERE kind = 'kept-artist'
         );
         ''',
         updates: {artistsTable},
@@ -3483,8 +3508,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       );
       await _clearPreservationIds();
       return PreservedProvisionalTree(
-        artistIds: protectedArtistIds,
-        albumIds: protectedAlbumIds,
+        artistIds: keptArtistIds,
+        albumIds: keptAlbumIds,
         songIds: retainedSongIds,
       );
     });
@@ -4623,7 +4648,10 @@ CASE WHEN navis_fold($column) = ?1 THEN $base
 
   String _likedAlbumPredicate(String albumAlias) {
     // Only explicitly starred albums — liked songs have their own section.
-    return '$albumAlias.starred IS NOT NULL';
+    // A provisional album with no songs left (kept only for its like while
+    // it waits in Unavailable Items) would be an empty tile.
+    return '$albumAlias.starred IS NOT NULL AND ($albumAlias.is_provisional = 0 '
+        'OR EXISTS (SELECT 1 FROM songs s WHERE s.album_id = $albumAlias.id))';
   }
 
   Expression<bool> _searchableSongPredicate() {
