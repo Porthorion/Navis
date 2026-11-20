@@ -1531,6 +1531,128 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  /// SQL for "the user chose this song": starred, rated, or in a local
+  /// playlist or one owned by [owner] (bound to `?` after [songAlias] uses).
+  /// Remote rows (`is_external`, `ext-`) never qualify.
+  static String _userChosenSongSql(String a) =>
+      "($a.is_external = 0 AND $a.id NOT LIKE 'ext-%' AND "
+      '($a.starred IS NOT NULL OR $a.user_rating IS NOT NULL OR EXISTS ('
+      'SELECT 1 FROM playlist_songs ps JOIN playlists p '
+      'ON p.id = ps.playlist_id WHERE ps.song_id = $a.id '
+      'AND (p.is_local = 1 OR p.owner = ?))))';
+
+  /// Of [songIds], those the user chose (see [_userChosenSongSql]); the rest
+  /// are retained silently without a review row.
+  Future<Set<String>> userChosenSongIds(
+    Iterable<String> songIds, {
+    required String? owner,
+  }) async {
+    final chosen = <String>{};
+    for (final id in songIds) {
+      final row = await customSelect(
+        'SELECT 1 FROM songs s WHERE s.id = ? AND ${_userChosenSongSql('s')}',
+        variables: [Variable<String>(id), Variable<String>(owner ?? '')],
+        readsFrom: {attachedDatabase.songsTable},
+      ).getSingleOrNull();
+      if (row != null) chosen.add(id);
+    }
+    return chosen;
+  }
+
+  /// Whether a song, album or artist still has something the user chose.
+  Future<bool> hasUserChosenReference(
+    String entityType,
+    String id, {
+    required String? owner,
+  }) async {
+    final o = Variable<String>(owner ?? '');
+    final row = await switch (entityType) {
+      'song' => customSelect(
+        'SELECT 1 FROM songs s WHERE s.id = ? AND ${_userChosenSongSql('s')}',
+        variables: [Variable<String>(id), o],
+      ),
+      'album' => customSelect(
+        'SELECT 1 WHERE EXISTS (SELECT 1 FROM albums WHERE id = ?1 AND '
+        '(starred IS NOT NULL OR user_rating IS NOT NULL)) OR EXISTS ('
+        'SELECT 1 FROM songs s WHERE s.album_id = ?1 AND '
+        '${_userChosenSongSql('s')})',
+        variables: [Variable<String>(id), o],
+      ),
+      _ => customSelect(
+        'SELECT 1 WHERE EXISTS (SELECT 1 FROM artists WHERE id = ?1 AND '
+        'starred IS NOT NULL) OR EXISTS (SELECT 1 FROM songs s WHERE '
+        's.artist_id = ?1 AND ${_userChosenSongSql('s')})',
+        variables: [Variable<String>(id), o],
+      ),
+    }.getSingleOrNull();
+    return row != null;
+  }
+
+  /// Deletes pending review rows that no longer need a decision: the old id
+  /// is live again in [generation] (`missingFromCatalog` only), an identity
+  /// alias exists, the row is gone, or nothing the user chose references it.
+  /// Rows are deleted, never given a disposition, so an item that disappears
+  /// again is listed again. Other dispositions are never touched. Cheap and
+  /// idempotent: run it on every promotion.
+  Future<int> autoResolveRecoveryReview({
+    required int serverId,
+    required int generation,
+    required String? owner,
+  }) async {
+    final pending =
+        await (select(libraryRecoveryReviewTable)..where(
+              (t) =>
+                  t.serverId.equals(serverId) & t.disposition.equals('pending'),
+            ))
+            .get();
+    final doomed = <int>[];
+    for (final row in pending) {
+      final table = switch (row.entityType) {
+        'song' => 'songs',
+        'album' => 'albums',
+        _ => 'artists',
+      };
+      final live = row.entityType == 'song'
+          ? ' AND server_deleted_at IS NULL'
+          : '';
+      final current = await customSelect(
+        'SELECT 1 FROM $table WHERE id = ? AND is_provisional = 0 '
+        'AND catalog_generation = ?$live',
+        variables: [Variable<String>(row.oldId), Variable<int>(generation)],
+      ).getSingleOrNull();
+      final gone = await customSelect(
+        'SELECT 1 FROM $table WHERE id = ?',
+        variables: [Variable<String>(row.oldId)],
+      ).getSingleOrNull();
+      final aliased = await customSelect(
+        'SELECT 1 FROM entity_identity_aliases WHERE entity_type = ? '
+        'AND old_id = ? AND (server_id = ? OR server_id IS NULL)',
+        variables: [
+          Variable<String>(row.entityType),
+          Variable<String>(row.oldId),
+          Variable<int>(serverId),
+        ],
+      ).getSingleOrNull();
+      if ((row.reason == 'missingFromCatalog' && current != null) ||
+          aliased != null ||
+          gone == null ||
+          (row.reason == 'missingFromCatalog' &&
+              !await hasUserChosenReference(
+                row.entityType,
+                row.oldId,
+                owner: owner,
+              ))) {
+        doomed.add(row.id);
+      }
+    }
+    for (final id in doomed) {
+      await (delete(
+        libraryRecoveryReviewTable,
+      )..where((t) => t.id.equals(id) & t.disposition.equals('pending'))).go();
+    }
+    return doomed.length;
+  }
+
   /// Review entries awaiting a decision, oldest first.
   Stream<List<LibraryRecoveryReviewTableData>> watchPendingRecoveryReview(
     int serverId,

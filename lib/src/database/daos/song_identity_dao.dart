@@ -588,6 +588,13 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         ),
       );
       await afterAlias?.call();
+      // The item resolved: its pending review row has nothing left to decide.
+      await customUpdate(
+        "DELETE FROM library_recovery_review WHERE entity_type = ? "
+        "AND old_id = ? AND disposition = 'pending'",
+        variables: [Variable<String>(kind.name), Variable<String>(oldId)],
+        updates: {attachedDatabase.libraryRecoveryReviewTable},
+      );
       await customUpdate(
         'DELETE FROM ${table.actualTableName} WHERE id = ?',
         variables: [Variable<String>(oldId)],

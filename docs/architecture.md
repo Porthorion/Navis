@@ -7886,6 +7886,17 @@ contract.
   replacement candidates offer a possible-replacements action. Keep for later
   and Remove from Liked are unchanged. Sync evidence never overwrites a user
   disposition.
+  Only items the user chose are listed: starred, rated, or in a local or own
+  playlist, never external (`ext-`) rows and never songs kept only by history,
+  queue, scrobbles, downloads or match flows (they are still retained,
+  silently). Song rows are recorded after the late identity pass so relinked
+  songs are never listed, and every remap deletes its own pending row.
+  `autoResolveRecoveryReview` runs on every promotion and deletes pending rows
+  (never a disposition, so an item that disappears again is listed again)
+  whose `missingFromCatalog` id is live again, that have an identity alias,
+  whose row is gone, or (missing-from-catalog rows) that no longer have a
+  user-chosen reference. Star-absence reconciliation skips songs retained with
+  `server_deleted_at`, so a liked unavailable song keeps its like.
 - **Repair sessions.** Ordinary Repair Library runs non-blocking from Sync
   Settings. The settings action and authenticated diagnostics `/v1/sync/repair`
   route both enter through `LibrarySyncController.repairLibrary`. The coordinator

@@ -3887,6 +3887,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             protectedSongIds: readProtectedSongIds?.call() ?? const <String>{},
           );
 
+      final retainedForReview = <SongsTableData>[];
       await for (final staleSongs in _keysetPages(
         fetch: (afterId) => _database.librarySyncCandidateDao.getStaleSongsPage(
           serverId: serverId,
@@ -3906,15 +3907,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         final retainedById = <String, SongsTableData>{
           for (final song in staleSongs) song.id: song,
         };
-        final retainedSongs = <SongsTableData>[
+        retainedForReview.addAll([
           for (final retainedId in removal.retainedUnavailableIds)
             ?retainedById[retainedId],
-        ];
-        await _database.librarySyncDao.recordRecoveryReviewBatch(
-          serverId: serverId,
-          retainedSongs: retainedSongs,
-          evidenceGeneration: generation,
-        );
+        ]);
       }
 
       // Rows this promotion just kept as provisional (downloads of rebuilt
@@ -3947,12 +3943,37 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         }
       }
 
+      // Recorded only now so songs the late pass relinked are never listed, and
+      // only for what the user chose; the rest stay retained, silently.
+      final reviewOwner =
+          (await _serverConfigRepository.getActiveServer())?.username;
+      final stillThere = <SongsTableData>[];
+      for (final song in retainedForReview) {
+        if (await _database.libraryDao.getSongById(song.id) != null) {
+          stillThere.add(song);
+        }
+      }
+      final chosen = await _database.librarySyncDao.userChosenSongIds([
+        for (final song in stillThere) song.id,
+      ], owner: reviewOwner);
+      await _database.librarySyncDao.recordRecoveryReviewBatch(
+        serverId: serverId,
+        retainedSongs: [
+          for (final song in stillThere)
+            if (chosen.contains(song.id)) song,
+        ],
+        evidenceGeneration: generation,
+      );
+
       // Album/artist relinking runs after rows are preserved as provisional
       // and the retained song set is final, but before removable stale rows
       // are deleted: unresolved entities must still be reviewable from their
       // recorded metadata, and remapped entities delete their own rows.
-      final entityIdentitySummary = await EntityIdentityReconciler(_database)
-          .reconcile(
+      final entityIdentitySummary =
+          await EntityIdentityReconciler(
+            _database,
+            owner: reviewOwner,
+          ).reconcile(
             serverId: serverId,
             generation: generation,
             songAliases: <SongIdentityAlias>[
@@ -3986,6 +4007,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         );
       }
       await _database.libraryDao.deleteArtistsByIds(removableArtistIds);
+      await _database.librarySyncDao.autoResolveRecoveryReview(
+        serverId: serverId,
+        generation: generation,
+        owner: reviewOwner,
+      );
 
       final afterCatalog = await _database.libraryDao.getCatalogCounts();
       await _database.librarySyncDao.writeState(
