@@ -75,15 +75,15 @@ dependencies:
   cryptography: ^2.9.0
 
 dev_dependencies:
-  build_runner: ^2.16.1
+  build_runner: ^2.16.2
   drift_dev: ^2.35.0
-  freezed: ^4.0.2
+  freezed: ^4.0.3
   flutter_test:
     sdk: flutter
   # Not used by Navis's own analysis_options, but the root `flutter analyze`
   # resolves the vendored third_party/ packages' `include:` of it.
   flutter_lints: ^3.0.1
-  json_serializable: ^6.14.1
+  json_serializable: ^6.15.2
   mocktail: ^1.0.5
   very_good_analysis: ^11.0.0
   flutter_launcher_icons: ^0.14.4
