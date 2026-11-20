@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/src/api/models/deezer_models.dart';
+import 'package:navis/src/database/daos/library_dao.dart' show LibraryDao;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/library_artist_name_index.dart';
@@ -13,6 +14,16 @@ import 'package:navis/src/providers/app_providers.dart';
 /// `ext-deezer-artist-<id>` shortcut) and the name. The same record type as
 /// the top-songs key.
 typedef ArtistPageKey = ({String artistId, String name});
+
+/// Reads the titles of a library artist's primary albums; the resolver asks
+/// only when several Deezer artists share the name.
+Future<Iterable<String>> Function() libraryAlbumTitlesReader(
+  LibraryDao libraryDao,
+  String artistId,
+) => () async {
+  final buckets = await libraryDao.watchArtistAlbumBuckets(artistId).first;
+  return buckets.primaryAlbums.map((album) => album.name);
+};
 
 /// The Deezer artist of an artist page, shared by the page's Deezer
 /// sections. Only watched behind a feature switch, so it never runs while
@@ -27,12 +38,10 @@ final artistDeezerIdProvider = FutureProvider.autoDispose
       return await resolver.resolve(
         artistId: key.artistId,
         name: key.name,
-        readLibraryAlbumTitles: () async {
-          final buckets = await libraryDao
-              .watchArtistAlbumBuckets(key.artistId)
-              .first;
-          return buckets.primaryAlbums.map((album) => album.name);
-        },
+        readLibraryAlbumTitles: libraryAlbumTitlesReader(
+          libraryDao,
+          key.artistId,
+        ),
         cancelToken: cancelToken,
       );
     });

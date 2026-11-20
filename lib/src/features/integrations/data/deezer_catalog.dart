@@ -57,6 +57,8 @@ class DeezerCatalog {
   Future<List<DeezerArtist>> relatedArtists(
     int artistId, {
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) => _cached(
     namespace: DeezerCache.relatedArtistsNamespace,
     key: '$artistId',
@@ -65,6 +67,8 @@ class DeezerCatalog {
       artistId,
       limit: relatedArtistLimit,
       cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
     ),
     encode: (artists) => [for (final artist in artists) artist.toJson()],
     decode: (json) => [
