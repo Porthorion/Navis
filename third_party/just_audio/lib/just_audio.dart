@@ -3967,6 +3967,44 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// Navis: completes when the fetch cancelled by [cancelDownload] has unwound.
   Future<void>? _unwinding;
 
+  /// Navis: set by [close]; this source never starts a fetch again.
+  bool _closed = false;
+
+  /// Navis: the running download's completion work (flush, close, publish or
+  /// delete of the partial file), or null while none runs.
+  Future<void>? _finishing;
+
+  /// Navis: terminal [cancelDownload] for owner disposal. Unlike a cancel, the
+  /// source stays dead: [request], [prefetch] and a fetch still starting (a
+  /// cancel finds nothing to abort there) fail with the cancel error before
+  /// they connect or create a file. Returns once a download that was already
+  /// finishing has published or deleted its file, so nothing writes into the
+  /// cache folder afterwards. A published file of a closed source is
+  /// unregistered; the startup orphan sweep removes it. Safe to call twice.
+  Future<void> close() async {
+    _closed = true;
+    try {
+      await cancelDownload();
+      await _finishing;
+    } on Object {
+      // Disposal must go on. A failed abort already failed the waiting
+      // requests; a failed finish leaves a partial file for the orphan sweep.
+      // Catching here only keeps the error from escaping unhandled.
+    }
+  }
+
+  void _throwIfClosed() {
+    if (_closed) throw StateError('Download cancelled');
+  }
+
+  Future<void> _trackFinishing(Future<void> Function() body) {
+    late final Future<void> done;
+    done = body().whenComplete(() {
+      if (identical(_finishing, done)) _finishing = null;
+    });
+    return _finishing = done;
+  }
+
   Future<void> Function()? _abortDownload;
 
   /// Removes the underlying cache files. It is an error to clear the cache
@@ -4028,8 +4066,11 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// entire file continues in parallel.
   Future<HttpClientResponse> _fetch() async {
     _downloading = true;
+    _throwIfClosed();
     final cacheFile = await this.cacheFile;
     final partialCacheFile = await _partialCacheFile;
+    // Navis: a close during the awaits above finds no abort to call yet.
+    _throwIfClosed();
 
     File getEffectiveCacheFile() =>
         partialCacheFile.existsSync() ? partialCacheFile : cacheFile;
@@ -4083,6 +4124,10 @@ class LockCachingAudioSource extends StreamAudioSource {
       httpClient.close(force: true);
       await sink.close();
       if (partialCacheFile.existsSync()) partialCacheFile.deleteSync();
+      // Navis: the mime written for this cancelled download goes with it.
+      if (!cacheFile.existsSync() && mimeFile.existsSync()) {
+        mimeFile.deleteSync();
+      }
       _abortDownload = null;
       _downloading = false;
       throw StateError('Download cancelled');
@@ -4240,94 +4285,100 @@ class LockCachingAudioSource extends StreamAudioSource {
       }
       inProgressResponses.removeWhere((element) => element.controller.isClosed);
       await dispatchRequests();
-    }, onDone: () async {
-      active = false;
-      _abortDownload = null;
-      _dispatchRequests = null;
-      _downloadSubscription = null;
-      await sink.flush();
-      await sink.close();
-      final partial = await _partialCacheFile;
-      Object? publishError;
-      if (partial.existsSync()) {
-        try {
-          partial.renameSync(cacheFile.path);
-        } on FileSystemException catch (error) {
-          publishError = error;
-        }
-      } else if (!cacheFile.existsSync()) {
-        publishError = StateError('Partial cache file removed');
-      }
-      if (publishError != null) {
-        // Navis: the partial file was removed under the finishing download
-        // (cleanup, or another writer's rename). Fail it like a cut: queued
-        // requests get the error, a later request downloads again.
-        for (final res in inProgressResponses) {
-          res.controller.addError(publishError);
-          res.controller.close();
-        }
-        await subscription.cancel();
-        httpClient.close(force: true);
-        // Reset together, after the last await: no request can slip between
-        // the fetch being forgotten and the flag clearing. Requests queued
-        // during the await fail too, so none is left waiting.
-        _response = null;
-        _downloading = false;
-        _progress = 0;
-        _downloadProgressSubject.add(0.0);
-        for (final req in _requests) {
-          req.fail(publishError);
-        }
-        _requests.clear();
-        return;
-      }
-      updateProgress(100);
-      // Navis: requests queued after the dispatcher stopped (while the file was
-      // being flushed and published) are served from the completed file.
-      final length = cacheFile.lengthSync();
-      for (final req in _requests.toList()) {
-        _requests.remove(req);
-        req.complete(StreamAudioResponse(
-          rangeRequestsSupported: true,
-          sourceLength: req.start != null ? length : null,
-          contentLength: (req.end ?? length) - (req.start ?? 0),
-          offset: req.start,
-          contentType: mimeType,
-          stream: cacheFile.openRead(req.start, req.end).asBroadcastStream(),
-        ));
-      }
-      for (var cacheResponse in inProgressResponses) {
-        if (!cacheResponse.controller.isClosed) {
-          cacheResponse.controller.close();
-        }
-      }
+    },
+            onDone: () => _trackFinishing(() async {
+                  active = false;
+                  _abortDownload = null;
+                  _dispatchRequests = null;
+                  _downloadSubscription = null;
+                  await sink.flush();
+                  await sink.close();
+                  final partial = await _partialCacheFile;
+                  Object? publishError;
+                  if (partial.existsSync()) {
+                    try {
+                      partial.renameSync(cacheFile.path);
+                    } on FileSystemException catch (error) {
+                      publishError = error;
+                    }
+                  } else if (!cacheFile.existsSync()) {
+                    publishError = StateError('Partial cache file removed');
+                  }
+                  if (publishError != null) {
+                    // Navis: the partial file was removed under the finishing download
+                    // (cleanup, or another writer's rename). Fail it like a cut: queued
+                    // requests get the error, a later request downloads again.
+                    for (final res in inProgressResponses) {
+                      res.controller.addError(publishError);
+                      res.controller.close();
+                    }
+                    await subscription.cancel();
+                    httpClient.close(force: true);
+                    // Reset together, after the last await: no request can slip between
+                    // the fetch being forgotten and the flag clearing. Requests queued
+                    // during the await fail too, so none is left waiting.
+                    _response = null;
+                    _downloading = false;
+                    _progress = 0;
+                    _downloadProgressSubject.add(0.0);
+                    for (final req in _requests) {
+                      req.fail(publishError);
+                    }
+                    _requests.clear();
+                    return;
+                  }
+                  updateProgress(100);
+                  // Navis: requests queued after the dispatcher stopped (while the file was
+                  // being flushed and published) are served from the completed file.
+                  final length = cacheFile.lengthSync();
+                  for (final req in _requests.toList()) {
+                    _requests.remove(req);
+                    req.complete(StreamAudioResponse(
+                      rangeRequestsSupported: true,
+                      sourceLength: req.start != null ? length : null,
+                      contentLength: (req.end ?? length) - (req.start ?? 0),
+                      offset: req.start,
+                      contentType: mimeType,
+                      stream: cacheFile
+                          .openRead(req.start, req.end)
+                          .asBroadcastStream(),
+                    ));
+                  }
+                  for (var cacheResponse in inProgressResponses) {
+                    if (!cacheResponse.controller.isClosed) {
+                      cacheResponse.controller.close();
+                    }
+                  }
 
-      await subscription.cancel();
-      httpClient.close();
-      _downloading = false;
-    }, onError: (Object e, StackTrace stackTrace) async {
-      active = false;
-      _abortDownload = null;
-      _dispatchRequests = null;
-      _downloadSubscription = null;
-      httpClient.close(force: true);
-      // ponytail: a cut discards the prefix; ranged main resume is the upgrade.
-      await sink.close();
-      final partial = await _partialCacheFile;
-      if (partial.existsSync()) partial.deleteSync();
-      _response = null;
-      // Fail all pending requests
-      for (final req in _requests) {
-        req.fail(e, stackTrace);
-      }
-      _requests.clear();
-      // Close all in progress requests
-      for (final res in inProgressResponses) {
-        res.controller.addError(e, stackTrace);
-        res.controller.close();
-      }
-      _downloading = false;
-    }, cancelOnError: true);
+                  await subscription.cancel();
+                  httpClient.close();
+                  _downloading = false;
+                }),
+            onError: (Object e, StackTrace stackTrace) =>
+                _trackFinishing(() async {
+                  active = false;
+                  _abortDownload = null;
+                  _dispatchRequests = null;
+                  _downloadSubscription = null;
+                  httpClient.close(force: true);
+                  // ponytail: a cut discards the prefix; ranged main resume is the upgrade.
+                  await sink.close();
+                  final partial = await _partialCacheFile;
+                  if (partial.existsSync()) partial.deleteSync();
+                  _response = null;
+                  // Fail all pending requests
+                  for (final req in _requests) {
+                    req.fail(e, stackTrace);
+                  }
+                  _requests.clear();
+                  // Close all in progress requests
+                  for (final res in inProgressResponses) {
+                    res.controller.addError(e, stackTrace);
+                    res.controller.close();
+                  }
+                  _downloading = false;
+                }),
+            cancelOnError: true);
     _downloadSubscription = subscription;
     _dispatchRequests = dispatchRequests;
     if (_downloadPaused) subscription.pause();
@@ -4346,7 +4397,14 @@ class LockCachingAudioSource extends StreamAudioSource {
       final cancelling = subscription.cancel();
       httpClient.close(force: true);
       await cancelling;
-      await sink.close();
+      // Navis: an abort landing while dispatchRequests awaits sink.flush()
+      // makes close() throw "StreamSink is bound to a stream". Waiting
+      // requests, the files and the flags are cleaned up regardless.
+      try {
+        await sink.close();
+      } on Object {
+        // The pending flush drains the sink on its own.
+      }
       final error = Exception('Download cancelled');
       for (final req in _requests) {
         req.fail(error);
@@ -4358,11 +4416,20 @@ class LockCachingAudioSource extends StreamAudioSource {
           res.controller.close();
         }
       }
-      final partial = await _partialCacheFile;
-      if (partial.existsSync()) partial.deleteSync();
-      _response = null;
-      _progress = 0;
-      _downloading = false;
+      try {
+        final partial = await _partialCacheFile;
+        if (partial.existsSync()) partial.deleteSync();
+        // Navis: the mime written for this cancelled download goes with it.
+        if (!cacheFile.existsSync() && mimeFile.existsSync()) {
+          mimeFile.deleteSync();
+        }
+      } on FileSystemException {
+        // A handle still open on the partial file; the orphan sweep removes it.
+      } finally {
+        _response = null;
+        _progress = 0;
+        _downloading = false;
+      }
     };
     return response;
   }
@@ -4467,6 +4534,7 @@ class LockCachingAudioSource extends StreamAudioSource {
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
+    _throwIfClosed();
     final cancelled = StreamAudioSource.requestCancellation;
     var gone = false;
     cancelled?.then((_) => gone = true);
@@ -4488,6 +4556,7 @@ class LockCachingAudioSource extends StreamAudioSource {
     }
     // Navis: the caller left while we waited; do not start a download for it.
     if (gone) throw StateError('Range request cancelled');
+    _throwIfClosed();
     _discardFinishedFetch();
     final byteRangeRequest = _StreamingByteRangeRequest(start, end);
     cancelled?.then((_) async {
@@ -4508,10 +4577,12 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// no replay buffer holds the body. A later [request] shares the download.
   /// Throws if the download fails; a finished file is a no-op.
   Future<void> prefetch() async {
+    _throwIfClosed();
     while (_unwinding != null) {
       await _unwinding;
     }
     if ((await cacheFile).existsSync()) return;
+    _throwIfClosed();
     _discardFinishedFetch();
     await _startFetch();
   }
