@@ -38,6 +38,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
@@ -732,6 +733,42 @@ void main() {
         );
         expect(shelf.itemCount, 1);
         expect(find.text('See All'), findsOneWidget);
+      },
+    );
+    _testWidgetsWithCleanup(
+      'Liked tab shows no Unavailable Items entry even with pending reviews',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            pendingUnavailableCountProvider.overrideWithValue(
+              const AsyncData(3),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+            likedArtistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              AsyncData([
+                _likedSong(id: 'liked-1', title: 'Liked one', albumId: 'al-1'),
+              ]),
+            ),
+            likedAlbumSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+          ],
+        );
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+        expect(find.text('Liked one'), findsOneWidget);
+        expect(find.textContaining('Unavailable Items'), findsNothing);
       },
     );
     _testWidgetsWithCleanup(

@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'More albums and artists are matched automatically after the server '
+        'renames or re-tags them',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Albums you download from remote no longer keep showing remote '
         'copies of their songs',
         type: ChangelogEntryType.fix,
@@ -241,6 +246,12 @@ const List<ChangelogVersion> changelogs = [
         'is matched, and only list music you liked, rated or put in a '
         'playlist',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Unavailable Items moved from the Liked tab to Settings > Sync, '
+        'grouped by album, with Keep All and a confirmation before removing '
+        'a song from Liked',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Trending opens right away when you open it while the library syncs '

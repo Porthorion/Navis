@@ -386,10 +386,11 @@ Use the right tool for each failure mode:
   that approval covers its own retries and survives brief disconnects, and is
   always cleared on completion, cancellation, sign-out, or restart.
 - **Unavailable items review.** Items the server no longer reports but that
-  still own favorites, history, or downloads appear in
-  Settings → Sync → Unavailable items. There you can find a replacement match
-  manually, keep an item for later, or remove it from Liked. Navis never
-  deletes these silently.
+  still own favorites, ratings or playlists appear in
+  Settings → Sync → Unavailable Items, only while there is something to
+  review. They are grouped by album; you can find a replacement match
+  manually, keep an item (or Keep All) for later, or remove a song from Liked
+  after a confirmation. Navis never deletes these silently.
 - **Cache reset.** Destructive and last-resort: it erases recoverable caches
   and rebuilds the library, and is only needed for the explicit
   cache-upgrade/reset prompts. Ordinary repair does not clear artwork or
