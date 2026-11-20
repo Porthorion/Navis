@@ -1103,4 +1103,78 @@ void main() {
       expect(find.byKey(key), findsNothing);
     });
   });
+
+  group('Unavailable Items entry', () {
+    Future<(NavisDatabase, int)> seed(WidgetTester tester, int pending) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 2400);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final serverId = await database
+          .into(database.serverConfigTable)
+          .insert(
+            ServerConfigTableCompanion.insert(
+              url: 'https://example.com',
+              username: 'alice',
+              apiVersion: '1.16.1',
+            ),
+          );
+      for (var i = 0; i < pending; i++) {
+        await database.librarySyncDao.recordRecoveryReview(
+          serverId: serverId,
+          entityType: 'song',
+          oldId: 'gone-$i',
+          savedTitle: 'Gone $i',
+          reason: 'missingFromCatalog',
+        );
+      }
+      await _pumpSyncSettings(
+        tester,
+        database,
+        server: ServerConfigModel(
+          id: serverId,
+          url: 'https://example.com',
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+        state: const LibrarySyncState.idle(),
+      );
+      return (database, serverId);
+    }
+
+    testWidgets('is hidden when nothing is pending', (tester) async {
+      await seed(tester, 0);
+      expect(find.textContaining('Unavailable Items'), findsNothing);
+    });
+
+    testWidgets('shows the count and disappears live when resolved', (
+      tester,
+    ) async {
+      final (database, serverId) = await seed(tester, 2);
+      expect(find.text('Unavailable Items (2)'), findsOneWidget);
+
+      final rows = await pendingRecoveryReviews(database, serverId);
+      await database.librarySyncDao.setRecoveryReviewDisposition(
+        id: rows.first.id,
+        disposition: 'keptForLater',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Unavailable Items (1)'), findsOneWidget);
+
+      await database.librarySyncDao.setRecoveryReviewDisposition(
+        id: rows.last.id,
+        disposition: 'keptForLater',
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Unavailable Items'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    });
+  }, skip: !sqliteAvailable);
 }

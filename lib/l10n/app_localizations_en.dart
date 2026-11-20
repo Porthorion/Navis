@@ -5365,6 +5365,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'No unavailable items are waiting for review.';
 
   @override
+  String get unavailableReviewIntro =>
+      'These items are no longer on your server. Your likes, ratings and playlists still keep them, and nothing is deleted unless you choose.';
+
+  @override
   String get unavailableReviewLoadError => 'Could not load the review list.';
 
   @override
@@ -5372,24 +5376,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unavailableReviewReasonMissing =>
-      'No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.';
+      'No longer on your server. It stays in your likes, ratings and playlists until you decide.';
 
   @override
   String get unavailableReviewReasonAmbiguous =>
-      'Several possible replacements were found. Decide which one is correct before anything is relinked.';
+      'More than one replacement could fit. Pick the right one before anything is relinked.';
 
   @override
   String get unavailableReviewReasonConflicting =>
-      'Conflicting identifiers were found in the catalog. Review before anything is relinked.';
+      'The library shows conflicting details for this item. Check before anything is relinked.';
 
   @override
-  String get unavailableReviewTypeSong => 'Song';
+  String get unavailableReviewSectionAlbums => 'Albums';
 
   @override
-  String get unavailableReviewTypeAlbum => 'Album';
+  String get unavailableReviewSectionArtists => 'Artists';
 
   @override
-  String get unavailableReviewTypeArtist => 'Artist';
+  String get unavailableReviewSectionOtherSongs => 'Other Songs';
+
+  @override
+  String get unavailableReviewKeepAll => 'Keep All';
+
+  @override
+  String get unavailableReviewRemoveAllFromLiked => 'Remove All from Liked';
+
+  @override
+  String get unavailableReviewRemoveConfirmTitle => 'Remove from Liked?';
+
+  @override
+  String unavailableReviewRemoveConfirmMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'These $count songs leave your Liked list. Downloads and playlists keep them.',
+      one: 'This song leaves your Liked list. Downloads and playlists keep it.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get unavailableReviewRemoveConfirmAction => 'Remove';
 
   @override
   String get unavailableReviewFindMatch => 'Find Match';
@@ -5469,9 +5497,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unavailableReviewRefNone => 'No local references to carry over.';
-
-  @override
-  String get unavailableReviewEntry => 'Unavailable Items';
 
   @override
   String unavailableReviewEntryWithCount(Object count) {
