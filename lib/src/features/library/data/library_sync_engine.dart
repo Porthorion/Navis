@@ -3910,11 +3910,34 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         );
       }
 
+      // The owner is the promoted server's user, not whichever is active now.
+      final reviewOwner =
+          await (_database.select(_database.serverConfigTable)
+                ..where((t) => t.id.equals(serverId)))
+              .map((row) => row.username)
+              .getSingleOrNull();
+      // Stale albums and artists the user liked themselves stay as
+      // bare provisional rows (a subset of what the reconciler's review gate
+      // accepts), so a re-tag can carry the like to the new id instead of
+      // losing it with the row. A liked song alone does not keep its album:
+      // the song is retained and reviewed on its own.
       final preserved = await _database.libraryDao
           .preserveCachedLegacyRowsAsProvisional(
             staleArtistIds: staleArtistIds,
             staleAlbumIds: staleAlbumIds,
             protectedSongIds: readProtectedSongIds?.call() ?? const <String>{},
+            chosenAlbumIds: await _database.librarySyncDao.userChosenIds(
+              'album',
+              staleAlbumIds,
+              owner: reviewOwner,
+              ownStateOnly: true,
+            ),
+            chosenArtistIds: await _database.librarySyncDao.userChosenIds(
+              'artist',
+              staleArtistIds,
+              owner: reviewOwner,
+              ownStateOnly: true,
+            ),
           );
 
       // Ids only: rows are re-read in chunks after the late identity pass.
@@ -3970,12 +3993,6 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
 
       // Recorded only now so songs the late pass relinked are never listed, and
       // only for what the user chose; the rest stay retained, silently.
-      // The owner is the promoted server's user, not whichever is active now.
-      final reviewOwner =
-          await (_database.select(_database.serverConfigTable)
-                ..where((t) => t.id.equals(serverId)))
-              .map((row) => row.username)
-              .getSingleOrNull();
       for (final ids in chunked(retainedForReview, 500)) {
         final chosen = await _database.librarySyncDao.userChosenSongIds(
           ids,

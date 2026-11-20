@@ -905,6 +905,59 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test('provisional collection keeps a songless album or artist the user liked, not one only rated', () async {
+    await database.libraryDao.upsertProvisionalArtists([
+      ArtistsTableCompanion.insert(
+        id: 'artist-liked',
+        name: 'Liked',
+        starred: Value(DateTime.utc(2026, 9, 5)),
+      ),
+      ArtistsTableCompanion.insert(id: 'artist-plain', name: 'Plain'),
+    ]);
+    await database.libraryDao.upsertProvisionalAlbums([
+      AlbumsTableCompanion.insert(
+        id: 'album-liked',
+        name: 'Liked',
+        starred: Value(DateTime.utc(2026, 9, 5)),
+      ),
+      AlbumsTableCompanion.insert(
+        id: 'album-rated',
+        name: 'Rated',
+        userRating: const Value(4),
+      ),
+      AlbumsTableCompanion.insert(id: 'album-plain', name: 'Plain'),
+    ]);
+
+    await database.songIdentityDao
+        .garbageCollectUnreferencedProvisionalMetadata();
+
+    expect(await database.libraryDao.getAlbumById('album-liked'), isNotNull);
+    // Rated-only rows are not preserved by #716, so nothing holds them.
+    expect(await database.libraryDao.getAlbumById('album-rated'), isNull);
+    expect(await database.libraryDao.getAlbumById('album-plain'), isNull);
+    expect(await database.libraryDao.getArtistById('artist-liked'), isNotNull);
+    expect(await database.libraryDao.getArtistById('artist-plain'), isNull);
+  }, skip: !sqliteAvailable);
+
+  test('provisional collection drops a liked and rated album once the like is removed', () async {
+    await database.libraryDao.upsertProvisionalAlbums([
+      AlbumsTableCompanion.insert(
+        id: 'album-both',
+        name: 'Both',
+        starred: Value(DateTime.utc(2026, 9, 5)),
+        userRating: const Value(5),
+      ),
+    ]);
+    await database.songIdentityDao
+        .garbageCollectUnreferencedProvisionalMetadata();
+    expect(await database.libraryDao.getAlbumById('album-both'), isNotNull);
+
+    await database.libraryDao.setEntityStarred('album', 'album-both', null);
+    await database.songIdentityDao
+        .garbageCollectUnreferencedProvisionalMetadata();
+    expect(await database.libraryDao.getAlbumById('album-both'), isNull);
+  }, skip: !sqliteAvailable);
+
   test(
     'getAliasesFor maps only the asked song ids to their library ids',
     () async {

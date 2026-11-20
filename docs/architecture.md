@@ -7898,6 +7898,21 @@ contract.
   drain and song identity pass remove copies the sync could not match (#707).
   A full-sync album upsert keeps such an album pending until the drain ran.
   Provisional songs with a like (`starred`) are never garbage collected.
+  Stale albums and artists the user liked themselves (#716; their own like
+  only: not a rating, not a liked song, never an external row,
+  `LibrarySyncDao.userChosenIds(ownStateOnly: true)`) are kept by
+  `preserveCachedLegacyRowsAsProvisional` as bare provisional rows
+  (`chosenAlbumIds`/`chosenArtistIds`, no songs retained), so the reconciler
+  can move the like to a re-tagged album or artist even without downloads. An
+  unmatched one waits in review (the reconciler never reviews external rows).
+  Rows held for review (a pending or kept-for-later review row, one shared
+  predicate `_heldForReviewSql`) keep their like: star reconciliation does not
+  treat them as absence candidates (`getStarredIds(excludeUnavailable)`; other
+  provisional albums and artists, external or star-sync placeholders, follow
+  the server's unlike as before), and the liked lists leave a songless held
+  album or artist out. Provisional collection spares a songless provisional
+  album or artist that is starred, so an external liked album is no longer
+  collected while it is liked.
   Evidence-less or contested rows keep their user state as provisional rows
   and become review entries with typed reasons.
 - **Recovery review.** Pending entries (with evidence generation, reason, and
@@ -7918,12 +7933,13 @@ contract.
   without an album name go under Other Songs). Keep All marks every still
   pending row `keptForLater` in one statement
   (`keepAllPendingRecoveryReview`). Remove from Liked (per song and Remove All
-  from Liked for liked song rows) always asks first and is never offered for
-  remote (`ext-`, `remote-`, external) rows; for a song the server no longer
-  has (`server_deleted_at`) it clears the like locally only
-  (`StarSyncDao.clearSongLikesLocally`: the local-mutation journal is read only
-  by the next sync's snapshot guard and sends nothing) and drops that song's
-  pending star deliveries, while a live song queues the unstar as before. Sync
+  from Liked for liked song, album and artist rows) always asks first and is
+  never offered for remote (`ext-`, `remote-`, external) rows; album and artist
+  rows (their old id is not in the catalog) and a song the server no longer
+  has (`server_deleted_at`) clear the like locally only
+  (`StarSyncDao.clearSongLikesLocally`, with `itemType` for parents: the
+  local-mutation journal is read only by the next sync's snapshot guard and
+  sends nothing) and drop the pending star deliveries of the row, while a live song queues the unstar as before. Sync
   evidence never overwrites a user disposition.
   Only items the user chose are listed: starred, rated, or in a local or own
   playlist (the same case-insensitive owner rule as `isOwnPlaylist`: a

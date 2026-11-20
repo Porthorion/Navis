@@ -16,10 +16,13 @@ import 'package:navis/src/utils/song_id_utils.dart';
 /// Pending review rows plus the saved song rows behind them (album names live
 /// on `songs`, which keeps tombstoned rows), read in one batched query.
 class UnavailableReviewData {
-  const new(this.rows, this.songs);
+  const new(this.rows, this.songs, [this.likedParents = const <String>{}]);
 
   final List<LibraryRecoveryReviewTableData> rows;
   final Map<String, SongsTableData> songs;
+
+  /// `type:id` of the album and artist rows that carry a like.
+  final Set<String> likedParents;
 }
 
 /// Review entries for items that identity recovery could not relink.
@@ -33,9 +36,24 @@ final unavailableReviewProvider = StreamProvider.autoDispose
               for (final row in rows)
                 if (row.entityType == 'song') row.oldId,
             ]);
-            return UnavailableReviewData(rows, {
-              for (final song in songs) song.id: song,
-            });
+            List<String> idsOf(String type) => [
+              for (final row in rows)
+                if (row.entityType == type) row.oldId,
+            ];
+            return UnavailableReviewData(
+              rows,
+              {for (final song in songs) song.id: song},
+              {
+                for (final album in await database.libraryDao.getAlbumsByIds(
+                  idsOf('album'),
+                ))
+                  if (album.starred != null) 'album:${album.id}',
+                for (final artist in await database.libraryDao.getArtistsByIds(
+                  idsOf('artist'),
+                ))
+                  if (artist.starred != null) 'artist:${artist.id}',
+              },
+            );
           });
     });
 
@@ -164,14 +182,18 @@ class UnavailableReviewScreen extends ConsumerStatefulWidget {
 bool _isRemoteRow(LibraryRecoveryReviewTableData row, SongsTableData? song) =>
     isRemoteSong(id: row.oldId, isExternal: song?.isExternal);
 
-/// Song rows Remove from Liked (single and bulk) covers: liked, not remote.
+/// Rows Remove from Liked (single and bulk) covers: liked songs that are not
+/// remote copies, and liked albums and artists.
 bool _isRemovableLike(
+  UnavailableReviewData data,
   LibraryRecoveryReviewTableData row,
-  SongsTableData? song,
-) =>
-    row.entityType == 'song' &&
-    song?.starred != null &&
-    !_isRemoteRow(row, song);
+) {
+  if (row.entityType != 'song') {
+    return data.likedParents.contains('${row.entityType}:${row.oldId}');
+  }
+  final song = data.songs[row.oldId];
+  return song?.starred != null && !_isRemoteRow(row, song);
+}
 
 class _AlbumGroup {
   _AlbumGroup(this.title, this.artist);
@@ -211,7 +233,7 @@ class _UnavailableReviewScreenState
               final LibraryRecoveryReviewTableData row => _ReviewCard(
                 entry: row,
                 onKeep: () => _setDisposition(row, 'keptForLater'),
-                onRemoveFromLiked: _isRemovableLike(row, data.songs[row.oldId])
+                onRemoveFromLiked: _isRemovableLike(data, row)
                     ? () => _removeFromLiked([row])
                     : null,
               ),
@@ -263,11 +285,10 @@ class _UnavailableReviewScreenState
       _Header.actions(
         intro: l10n.unavailableReviewIntro,
         onKeepAll: _keepAll,
-        onRemoveAll:
-            data.rows.any((r) => _isRemovableLike(r, data.songs[r.oldId]))
+        onRemoveAll: data.rows.any((r) => _isRemovableLike(data, r))
             ? () => _removeFromLiked([
                 for (final r in data.rows)
-                  if (_isRemovableLike(r, data.songs[r.oldId])) r,
+                  if (_isRemovableLike(data, r)) r,
               ])
             : null,
       ),
@@ -311,10 +332,11 @@ class _UnavailableReviewScreenState
         .keepAllPendingRecoveryReview(serverId);
   }
 
-  /// Asks first, then un-likes the song rows in one transaction. A song the
-  /// server no longer has is cleared locally only (an unstar for its id could
-  /// never be delivered and would retry forever); a live song queues the
-  /// unstar as before. Downloaded files are never deleted.
+  /// Asks first, then un-likes the rows in one transaction. A song the
+  /// server no longer has, and every album or artist row (its old id is not
+  /// in the catalog by construction), is cleared locally only (an unstar for
+  /// such an id could never be delivered and would retry forever); a live
+  /// song queues the unstar as before. Downloaded files are never deleted.
   Future<void> _removeFromLiked(
     List<LibraryRecoveryReviewTableData> entries,
   ) async {
@@ -339,12 +361,14 @@ class _UnavailableReviewScreenState
           song.id: song,
       };
       final goneIds = <String>[];
+      final goneParents = <String, List<String>>{};
       for (final entry in entries) {
         final song = songs[entry.oldId];
-        if (entry.entityType != 'song' || _isRemoteRow(entry, song)) {
+        if (entry.entityType != 'song') {
+          (goneParents[entry.entityType] ??= <String>[]).add(entry.oldId);
+        } else if (_isRemoteRow(entry, song)) {
           continue;
-        }
-        if (song != null && song.serverDeletedAt != null) {
+        } else if (song != null && song.serverDeletedAt != null) {
           goneIds.add(entry.oldId);
         } else if (song != null) {
           await database.starSyncDao.setStarred(
@@ -359,6 +383,9 @@ class _UnavailableReviewScreenState
         );
       }
       await database.starSyncDao.clearSongLikesLocally(goneIds);
+      for (final MapEntry(key: type, value: ids) in goneParents.entries) {
+        await database.starSyncDao.clearSongLikesLocally(ids, itemType: type);
+      }
     });
   }
 }

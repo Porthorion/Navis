@@ -525,14 +525,23 @@ class EntityIdentityReconciler {
   /// A review entry is only worth showing when the user chose something on
   /// the row (starred, rated, or a song in a local or own playlist);
   /// ephemeral provisional parents are garbage collected instead, and
-  /// retention itself is unchanged.
-  Future<bool> _albumNeedsReview(AlbumsTableData album) => _database
-      .librarySyncDao
-      .hasUserChosenReference('album', album.id, owner: owner);
+  /// retention itself is unchanged. External (remote) rows are never listed:
+  /// the library has no server copy of them to recover.
+  Future<bool> _albumNeedsReview(AlbumsTableData album) async =>
+      !album.isExternal &&
+      await _database.librarySyncDao.hasUserChosenReference(
+        'album',
+        album.id,
+        owner: owner,
+      );
 
-  Future<bool> _artistNeedsReview(ArtistsTableData artist) => _database
-      .librarySyncDao
-      .hasUserChosenReference('artist', artist.id, owner: owner);
+  Future<bool> _artistNeedsReview(ArtistsTableData artist) async =>
+      !artist.isExternal &&
+      await _database.librarySyncDao.hasUserChosenReference(
+        'artist',
+        artist.id,
+        owner: owner,
+      );
 }
 
 class _EntityDecision {
