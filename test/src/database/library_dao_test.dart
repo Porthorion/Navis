@@ -218,6 +218,13 @@ void main() {
             name: 'Live',
             starred: at,
           ),
+          // Kept for later, then listed by the server again: canonical, so its
+          // stale review row no longer holds it.
+          AlbumsTableCompanion.insert(
+            id: 'album-relisted',
+            name: 'Relisted',
+            starred: at,
+          ),
         ]);
         // Provisional without a review row: an external album or a star-sync
         // placeholder. The server can list it, so its absence is an unlike.
@@ -271,6 +278,7 @@ void main() {
         await hold('album', 'album-waiting');
         await hold('album', 'album-kept', disposition: 'keptForLater');
         await hold('album', 'album-removed', disposition: 'removedFromLiked');
+        await hold('album', 'album-relisted', disposition: 'keptForLater');
         await hold('artist', 'artist-waiting');
 
         expect(
@@ -280,6 +288,7 @@ void main() {
           ),
           {
             'album-live',
+            'album-relisted',
             'album-placeholder',
             'album-external',
             'album-removed',
@@ -292,7 +301,7 @@ void main() {
           ),
           {'artist-live', 'artist-placeholder'},
         );
-        expect(await database.libraryDao.getStarredIds('album'), hasLength(6));
+        expect(await database.libraryDao.getStarredIds('album'), hasLength(7));
       },
       skip: !sqliteAvailable,
     );

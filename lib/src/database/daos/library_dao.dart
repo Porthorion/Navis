@@ -4656,13 +4656,14 @@ CASE WHEN navis_fold($column) = ?1 THEN $base
     );
   }
 
-  /// SQL: the [type] row `[alias].id` waits in Unavailable Items (a pending or
-  /// kept-for-later review row, #716). Such a row keeps its like while the
+  /// SQL: the provisional [type] row `[alias].id` waits in Unavailable Items
+  /// (a pending or kept-for-later review row, #716); a canonical row the
+  /// server lists again is never held by a stale review row. Such a row keeps its like while the
   /// server cannot list the old id, and is not shown as a liked tile.
   String _heldForReviewSql(String type, String alias) =>
-      "EXISTS (SELECT 1 FROM library_recovery_review r "
+      "($alias.is_provisional = 1 AND EXISTS (SELECT 1 FROM library_recovery_review r "
       "WHERE r.entity_type = '$type' AND r.old_id = $alias.id "
-      "AND r.disposition IN ('pending', 'keptForLater'))";
+      "AND r.disposition IN ('pending', 'keptForLater')))";
 
   String _likedAlbumPredicate(String albumAlias) {
     // Only explicitly starred albums — liked songs have their own section.
