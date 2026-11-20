@@ -255,11 +255,6 @@ if [[ -f "${SCRIPT_DIR}/release.env" ]]; then
   source "${SCRIPT_DIR}/release.env"
 fi
 
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/lib/lastfm_key_defines.sh"
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/lib/scan_artifact_secret.sh"
-
 LINUX_SSH_TARGET="${LINUX_SSH_TARGET:-${NAVIS_LINUX_SSH:-}}"
 WINDOWS_SSH_TARGET="${WINDOWS_SSH_TARGET:-${NAVIS_WINDOWS_SSH:-}}"
 LINUX_REMOTE_DIR="${LINUX_REMOTE_DIR:-${NAVIS_LINUX_REMOTE_DIR:-.navis/remote-linux-build}}"
@@ -271,13 +266,6 @@ if [[ "${PUBLISH_FORGEJO}" == "true" && "${BUILD_ONLY}" == false ]]; then
   : "${FORGEJO_URL:?Set FORGEJO_URL in tool/release.env}"
   : "${FORGEJO_REPO:?Set FORGEJO_REPO in tool/release.env}"
   : "${FORGEJO_TOKEN:?Set FORGEJO_TOKEN in tool/release.env}"
-fi
-
-if [[ "${BUILD_ANDROID}" == "true" && -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
-  echo "Error: NAVIS_LASTFM_API_KEY is required for Android release builds."
-  echo "Set it in tool/release.env, for example:"
-  echo "  NAVIS_LASTFM_API_KEY=your_lastfm_api_key"
-  exit 1
 fi
 
 # App Store Connect API key for --ios-upload: validated before any build, and
@@ -478,11 +466,9 @@ fi
 
 DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
 
-# The Last.fm key is bundled masked (key XOR a per-build random pad) through a
-# private defines file, not on the script's own command lines. This deters casual extraction;
-# it is not secrecy. See docs/release/release-secrets.md.
+# Release builds never bundle a Last.fm key (users add their own in Settings >
+# Integrations). SECRET_TMP_DIR holds the release-publish temp files below.
 SECRET_TMP_DIR=""
-LASTFM_DEFINES_FILE=""
 DIST_TMP_DIR=""
 R2_PUBLISHED=false
 GITHUB_VERIFIED=false
@@ -504,34 +490,6 @@ cleanup_release_secrets() {
 trap cleanup_release_secrets EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-if [[ "${PUBLISH_FROM_SET}" == false && -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
-  mkdir -p "${SCRIPT_DIR}/../build"
-  SECRET_TMP_DIR="$(mktemp -d "$(cd "${SCRIPT_DIR}/../build" && pwd)/navis-secrets.XXXXXX")"
-  LASTFM_DEFINES_FILE="${SECRET_TMP_DIR}/lastfm-defines.json"
-  navis_write_lastfm_defines_file "${LASTFM_DEFINES_FILE}" "${NAVIS_LASTFM_API_KEY}"
-  DART_DEFINE_ARGS+=("--dart-define-from-file=$(to_windows_host_path "${LASTFM_DEFINES_FILE}")")
-fi
-
-# Fail the release when an artifact still carries the plaintext Last.fm key.
-scan_release_artifact() {
-  local artifact="$1" status=0
-  if [[ -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
-    return 0
-  fi
-  echo "==> Scanning $(basename "${artifact}") for the plaintext Last.fm key..."
-  scan_artifact_for_secret "${artifact}" "${NAVIS_LASTFM_API_KEY}" || status=$?
-  case "${status}" in
-    0) ;;
-    1)
-      echo "Error: $(basename "${artifact}") contains the plaintext Last.fm API key."
-      exit 1
-      ;;
-    *)
-      echo "Error: could not scan $(basename "${artifact}") for the Last.fm API key."
-      exit 1
-      ;;
-  esac
-}
 
 # ─── Clean tree ─────────────────────────────────────────────────────────────
 if [[ -n "$(git status --porcelain)" ]]; then
@@ -651,7 +609,6 @@ stage_android_apk() {
     exit 1
   fi
   cp "${APK_PATH}" "${APK_ASSET}"
-  scan_release_artifact "${APK_ASSET}"
   ASSET_FILES+=("${APK_ASSET}")
   ASSET_NAMES+=("${APK_ASSET_NAME}")
   echo "    APK -> ${APK_ASSET_NAME}"
@@ -791,7 +748,6 @@ sys.exit(0 if info.get("CFBundleShortVersionString") == sys.argv[2] and str(info
     exit 1
   fi
   rm -rf "${SIDELOAD_STAGE}"
-  scan_release_artifact "${SIDELOAD_ASSET}"
   ASSET_FILES+=("${SIDELOAD_ASSET}")
   ASSET_NAMES+=("${SIDELOAD_ASSET_NAME}")
   echo "    iOS sideload -> ${SIDELOAD_ASSET_NAME}"
@@ -821,7 +777,6 @@ if [[ "${BUILD_IOS}" == "true" ]]; then
     echo "Error: IPA not found under ${IPA_DIR}"
     exit 1
   fi
-  scan_release_artifact "${FOUND_IPA}"
   echo "    IPA -> ${FOUND_IPA} (build number ${IOS_BUILD_NUMBER})"
 fi
 
@@ -848,7 +803,6 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
   else
     ditto -c -k --keepParent "${MACOS_APP_PATH}" "${MACOS_ASSET}"
   fi
-  scan_release_artifact "${MACOS_ASSET}"
   ASSET_FILES+=("${MACOS_ASSET}")
   ASSET_NAMES+=("${MACOS_ASSET_NAME}")
   echo "    macOS -> ${MACOS_ASSET_NAME}"
@@ -876,7 +830,7 @@ if [[ "${BUILD_LINUX}" == "true" ]]; then
     "${SCRIPT_DIR}/remote_build_linux.sh" \
       --ssh="${LINUX_SSH_TARGET}" --version="${VERSION}" \
       --asset-prefix="${ASSET_PREFIX}" --package="${LINUX_PACKAGE_MODE}" \
-      --channel="${UPDATE_CHANNEL}" --lastfm-defines-file="${LASTFM_DEFINES_FILE}" \
+      --channel="${UPDATE_CHANNEL}" \
       --remote-dir="${LINUX_REMOTE_DIR}" --repo-root="${SCRIPT_DIR}/.."
   fi
   linux_names=()
@@ -892,7 +846,6 @@ if [[ "${BUILD_LINUX}" == "true" ]]; then
   for name in "${linux_names[@]}"; do
     asset="${SCRIPT_DIR}/../${name}"
     [[ -f "${asset}" ]] || { echo "Error: Missing Linux artifact: ${name}"; exit 1; }
-    scan_release_artifact "${asset}"
     ASSET_FILES+=("${asset}")
     ASSET_NAMES+=("${name}")
     echo "    Linux -> ${name}"
@@ -910,8 +863,6 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       echo "Error: Windows release dir not found at ${WINDOWS_RELEASE_DIR}"
       exit 1
     fi
-
-    scan_release_artifact "${WINDOWS_RELEASE_DIR}"
 
     if [[ "${WINDOWS_PACKAGE_MODE}" == "exe" ]]; then
       WINDOWS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-windows-installer.exe"
@@ -971,7 +922,6 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       --asset-prefix="${ASSET_PREFIX}" \
       --package="${WINDOWS_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
-      --lastfm-defines-file="${LASTFM_DEFINES_FILE}" \
       --remote-dir="${WINDOWS_REMOTE_DIR}" \
       --flutter-dir="${WINDOWS_FLUTTER_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
@@ -980,8 +930,6 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       exit 1
     fi
   fi
-
-  scan_release_artifact "${WINDOWS_ASSET}"
 
   ASSET_FILES+=("${WINDOWS_ASSET}")
   ASSET_NAMES+=("${WINDOWS_ASSET_NAME}")

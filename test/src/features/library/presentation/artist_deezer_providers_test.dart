@@ -53,6 +53,8 @@ class _FakeDeezer extends DeezerApiClient {
     int artistId, {
     int limit = 20,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
     calls.add('related');
     return related;

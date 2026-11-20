@@ -400,7 +400,7 @@ class AppSettingsModel {
   final bool likedQueueEnabled;
 
   /// User-provided Last.fm API key. Null when not configured.
-  /// Ignored at runtime if a build-time key (NAVIS_LASTFM_API_KEY) is bundled.
+  /// Ignored at runtime if a local development define (NAVIS_LASTFM_API_KEY) is set.
   final String? lastFmApiKey;
 
   /// Deprecated compatibility flag. Last.fm scrobble dispatch was removed.

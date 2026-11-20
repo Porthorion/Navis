@@ -24,20 +24,15 @@ the repository root, and publishes them to R2 with the signed manifest.
 
 - Flutter and Dart versions matching `pubspec.yaml`.
 - `git`, `curl`, `jq`, `ssh`, and `scp` on `PATH`.
-- `tool/release.env` with the R2 settings, `NAVIS_UPDATE_SIGNING_KEY` (see
-  [release-r2.md](release-r2.md)) and any bundled release defines:
+- `tool/release.env` with the R2 settings and `NAVIS_UPDATE_SIGNING_KEY` (see
+  [release-r2.md](release-r2.md)):
   - `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
   - `FORGEJO_URL`, `FORGEJO_REPO`, `FORGEJO_TOKEN` (only with `--forgejo`)
-  - optional `NAVIS_LASTFM_API_KEY` (bundled masked; see
-    [ci-cd.md](../development/ci-cd.md#lastfm-key))
 - SSH key access to each builder without interactive prompts.
 
 Do not store secrets on the remote builders unless the platform build itself
 requires them. The host passes the release channel to the remote scripts as
-arguments. The masked Last.fm key defines travel as a private file (ssh stdin to
-the Linux builder, scp to the Windows builder), not on the scripts' own command lines, and the
-builder deletes the file when the build ends; `tool/release.env` is excluded
-from the source archive.
+arguments. `tool/release.env` is excluded from the source archive.
 
 ## Linux builder requirements
 

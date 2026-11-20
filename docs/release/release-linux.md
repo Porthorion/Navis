@@ -21,9 +21,7 @@ and all existing hicolor icon sizes under `/usr/share/icons/hicolor`.
 
 Install Docker on a Linux x86_64 host and give the build account Docker access.
 The host needs Flutter on PATH (the version required by `pubspec.yaml`), a
-bootstrapped pub cache, Git and `flock`. The release coordinator also needs
-`bsdtar` to scan RPM payloads for the bundled plaintext Last.fm key
-(`libarchive-tools` on Debian/Ubuntu, `libarchive` on Arch).
+bootstrapped pub cache, Git and `flock`.
 No host GTK/compiler/dpkg/rpm toolchain is needed. SSH Linux builders need the
 same Docker/Flutter/cache setup.
 
@@ -54,8 +52,7 @@ that builder.
 The entry point defaults to AOT release mode and `--split-debug-info`
 under `build/symbols/linux/<tag>` and `NAVIS_UPDATE_CHANNEL=stable` unless
 an explicit channel is supplied. `release.sh` passes its existing
-`set_symbol_args` and Dart defines (including the private Last.fm defines
-file) unchanged. Native ELF symbols are stripped before packaging. Symbols
+`set_symbol_args` and Dart defines unchanged (no Last.fm key is bundled). Native ELF symbols are stripped before packaging. Symbols
 stay local and are never put into release packages. Dart obfuscation is disabled.
 Diagnostics can explicitly select `--build-mode=profile` (the diagnostics API
 rejects release mode), with `--build-name` and `--build-number` forwarded to

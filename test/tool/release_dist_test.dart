@@ -99,7 +99,6 @@ void main() {
       'tool/release.sh',
       'tool/release_tag_guard.sh',
       'tool/lib/release_dist.sh',
-      'tool/lib/lastfm_key_defines.sh',
       'tool/lib/r2_tags.sh',
       'tool/lib/github_release.sh',
       'tool/lib/release_notes.sh',
@@ -119,12 +118,6 @@ void main() {
       'android/key.properties',
       'storeFile=fixture.jks\nstorePassword=fixture\nkeyAlias=fixture\n',
     );
-    await write('tool/lib/scan_artifact_secret.sh', r'''
-scan_artifact_for_secret() {
-  echo "scan:$(basename "$1")" >> "$FIXTURE/log"
-  [[ "$(basename "$1")" != "${BAD_SCAN:-}" ]]
-}
-''');
     await executable('bin/git', r'''
 echo "git:$*" >> "$FIXTURE/log"
 case "$1" in
@@ -144,11 +137,8 @@ esac
     await executable('bin/flutter', r'''
 echo "flutter:$*" >> "$FIXTURE/log"
 [[ "$*" != *'--obfuscate'* && "$*" == *'--split-debug-info='* && "$*" == *'--dart-define=NAVIS_SELF_UPDATE=true'* ]]
-for arg in "$@"; do
-  if [[ "$arg" == --dart-define-from-file=* ]]; then
-    jq -e 'has("NAVIS_LASTFM_API_KEY_MASKED") and has("NAVIS_LASTFM_API_KEY_PAD")' "${arg#*=}" >/dev/null
-  fi
-done
+# A Last.fm key in the environment is never bundled.
+[[ "$*" != *LASTFM* && "$*" != *dart-define-from-file* && "$*" != *fixture-key* ]]
 python3 - "$@" <<'PY'
 import os, pathlib, sys, zipfile
 root = pathlib.Path(os.environ['FIXTURE']) / 'build/app/outputs/flutter-apk'
@@ -453,7 +443,6 @@ fi
       final calls = await log();
       expectNoReleaseActions(calls);
       for (final name in assets) {
-        expect(calls, contains('scan:$name'));
         if (name.endsWith('.apk')) {
           expect(calls, containsAll(['metadata:$name', 'signing:$name']));
         }
@@ -464,12 +453,9 @@ fi
         builds.where((line) => line.contains('--split-per-abi')),
         hasLength(1),
       );
-      expect(
-        Directory(p.join(fixture.path, 'build')).listSync().where(
-          (entry) => p.basename(entry.path).startsWith('navis-secrets.'),
-        ),
-        isEmpty,
-      );
+      // NAVIS_LASTFM_API_KEY is set in the fixture environment; the flutter
+      // stub fails the build if any define carries it.
+      expect(builds.any((line) => line.contains('LASTFM')), isFalse);
     },
   );
 
@@ -487,7 +473,6 @@ fi
         ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--forgejo'],
         environment: {
           'ALLOW_PUBLISH_FLOW': 'true',
-          'NAVIS_LASTFM_API_KEY': '',
           'FORGEJO_URL': 'https://fixture.invalid',
           'FORGEJO_REPO': 'fixture/Navis',
           'FORGEJO_TOKEN': 'fixture-token',
@@ -497,7 +482,7 @@ fi
       final calls = await log();
       expect(
         calls.where(
-          (line) => RegExp('^(flutter|linux|windows|scan):').hasMatch(line),
+          (line) => RegExp('^(flutter|linux|windows):').hasMatch(line),
         ),
         isEmpty,
       );
@@ -721,20 +706,6 @@ fi
     expectNoReleaseActions(await log());
   });
 
-  test('failed secret scan never stages or publishes', () async {
-    final result = await run(
-      buildArgs,
-      environment: {'BAD_SCAN': assets.first},
-    );
-    expect(result.exitCode, 1);
-    expect(result.stdout, contains('contains the plaintext Last.fm API key'));
-    expect(
-      Directory(p.join(fixture.path, 'dist', 'v1.5.0')).existsSync(),
-      isFalse,
-    );
-    expectNoReleaseActions(await log());
-  });
-
   test(
     'local-only tag guard refuses existing tags without contacting origin',
     () async {
@@ -846,7 +817,7 @@ fi
           '--skip-checks',
           '--no-github',
         ],
-        environment: {'ALLOW_PUBLISH_FLOW': 'true', 'NAVIS_LASTFM_API_KEY': ''},
+        environment: {'ALLOW_PUBLISH_FLOW': 'true'},
       );
       expect(
         accepted.exitCode,

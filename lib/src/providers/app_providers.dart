@@ -926,8 +926,8 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
   return client;
 });
 
-/// Whether a Last.fm API key is bundled at build time (masked define pair, or
-/// the plain NAVIS_LASTFM_API_KEY dev define).
+/// Whether a Last.fm API key was baked in at build time. Only the local
+/// `NAVIS_LASTFM_API_KEY` dev define does that; releases ship without one.
 final lastFmBundledKeyProvider = Provider<bool>((_) {
   return AppConstants.lastFmApiKey.trim().isNotEmpty;
 });
