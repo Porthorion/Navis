@@ -2077,10 +2077,14 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       ]) {
         final localIds = await _database.libraryDao.getStarredIds(type);
         before['${type}s'] = localIds.length;
+        final absenceCandidateIds = await _database.libraryDao.getStarredIds(
+          type,
+          excludeUnavailable: true,
+        );
         final confirmedAbsentIds = await _confirmedStarredAbsences(
           serverId: serverId,
           entityType: type,
-          localIds: localIds,
+          localIds: absenceCandidateIds,
           serverIds: starredAt.keys.toSet(),
           protectedIds: pendingByType[type]!,
         );

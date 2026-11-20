@@ -1600,6 +1600,59 @@ void main() {
       });
     }, skip: !sqliteAvailable);
 
+    test(
+      'a liked song retained as unavailable keeps starred across 3 full syncs',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'gone-liked',
+            title: 'Gone liked',
+            starred: Value(DateTime(2026, 1, 1)),
+          ),
+        ]);
+        await database.customStatement(
+          "UPDATE songs SET server_deleted_at = 1769904000 WHERE id = 'gone-liked'",
+        );
+        api.starredContent = const StarredContent();
+        for (var i = 0; i < 3; i++) {
+          await engine.syncStarredContent();
+        }
+        expect(
+          await database.libraryDao.getSongStarred('gone-liked'),
+          DateTime(2026, 1, 1),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a liked unavailable song with a pending star_sync_queue row keeps starred across 3 syncs', () async {
+      await saveSession(lastSynced: DateTime.now());
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'gone-liked',
+          title: 'Gone liked',
+          starred: Value(DateTime(2026, 1, 1)),
+        ),
+      ]);
+      await database.customStatement(
+        "UPDATE songs SET server_deleted_at = 1769904000 WHERE id = 'gone-liked'",
+      );
+      await database.starSyncDao.queueStarAction(
+        itemId: 'gone-liked',
+        itemType: 'song',
+        action: 'star',
+      );
+      api.starredContent = const StarredContent();
+      for (var i = 0; i < 3; i++) {
+        await engine.syncStarredContent();
+      }
+      expect(
+        await database.libraryDao.getSongStarred('gone-liked'),
+        DateTime(2026, 1, 1),
+      );
+    }, skip: !sqliteAvailable);
+
     test('playlist headers store readonly and preserve local rows without fetching them', () async {
       await saveSession(lastSynced: DateTime.now());
       final serverId = (await serverConfigRepository.getActiveServer())!.id!;

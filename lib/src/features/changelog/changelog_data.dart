@@ -223,6 +223,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Liked songs that are removed from the server no longer lose their '
+        'like',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Trending opens right away when you open it while the library syncs '
         'at launch, instead of showing a placeholder until the sync ends',
         type: ChangelogEntryType.fix,

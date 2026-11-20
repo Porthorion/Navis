@@ -2526,10 +2526,18 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull().map((row) => row?.starred != null);
   }
 
-  Future<Set<String>> getStarredIds(String type) async {
+  /// Ids with a local favorite. [excludeUnavailable] drops songs retained
+  /// after leaving the server (`server_deleted_at`): the server can never list
+  /// them as starred, so their absence is not an unlike. Albums and artists
+  /// carry no such marker.
+  Future<Set<String>> getStarredIds(
+    String type, {
+    bool excludeUnavailable = false,
+  }) async {
     final table = _entityTable(type);
     final rows = await customSelect(
-      'SELECT id FROM ${table.actualTableName} WHERE starred IS NOT NULL',
+      'SELECT id FROM ${table.actualTableName} WHERE starred IS NOT NULL'
+      '${excludeUnavailable && type == 'song' ? ' AND server_deleted_at IS NULL' : ''}',
       readsFrom: {table},
     ).get();
     return rows.map((row) => row.read<String>('id')).toSet();
