@@ -7909,9 +7909,22 @@ contract.
   queue, pending annotations, following songs) before applying through the
   same transaction as automatic recovery, and apply-time revalidation rejects
   a selection whose replacement no longer exists. Entries with recorded
-  replacement candidates offer a possible-replacements action. Keep for later
-  and Remove from Liked are unchanged. Sync evidence never overwrites a user
-  disposition.
+  replacement candidates offer a possible-replacements action. The only entry
+  point is Sync Settings, shown while the live pending count
+  (`pendingUnavailableCountProvider`, a stream over
+  `watchPendingRecoveryReviewCount`) is above zero; the Liked tab no longer
+  carries a chip. The list shows Albums, then Artists, then songs grouped under
+  their album (`songs.albumName`, read in one `getSongsByIds` batch; songs
+  without an album name go under Other Songs). Keep All marks every still
+  pending row `keptForLater` in one statement
+  (`keepAllPendingRecoveryReview`). Remove from Liked (per song and Remove All
+  from Liked for liked song rows) always asks first and is never offered for
+  remote (`ext-`, `remote-`, external) rows; for a song the server no longer
+  has (`server_deleted_at`) it clears the like locally only
+  (`StarSyncDao.clearSongLikesLocally`: the local-mutation journal is read only
+  by the next sync's snapshot guard and sends nothing) and drops that song's
+  pending star deliveries, while a live song queues the unstar as before. Sync
+  evidence never overwrites a user disposition.
   Only items the user chose are listed: starred, rated, or in a local or own
   playlist (the same case-insensitive owner rule as `isOwnPlaylist`: a
   null owner counts, read-only and auto-imported playlists do not; the owner is

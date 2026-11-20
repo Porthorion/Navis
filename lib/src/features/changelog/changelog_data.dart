@@ -248,6 +248,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Unavailable Items moved from the Liked tab to Settings > Sync, '
+        'grouped by album, with Keep All and a confirmation before removing '
+        'a song from Liked',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Trending opens right away when you open it while the library syncs '
         'at launch, instead of showing a placeholder until the sync ends',
         type: ChangelogEntryType.fix,

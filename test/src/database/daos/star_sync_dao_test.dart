@@ -381,5 +381,37 @@ void main() {
         expect(pending.map((p) => (p.itemId, p.action)), [('lib-1', 'unstar')]);
       }, skip: !sqliteAvailable);
     });
+
+    test('clearSongLikesLocally unlikes without queueing and drops pending star rows', () async {
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'gone', title: 'Gone'),
+        SongsTableCompanion.insert(id: 'other', title: 'Other'),
+      ]);
+      await database.starSyncDao.setStarred(
+        itemId: 'gone',
+        itemType: 'song',
+        liked: true,
+      );
+      await database.starSyncDao.setStarred(
+        itemId: 'other',
+        itemType: 'song',
+        liked: true,
+      );
+      await database.starSyncDao.setRating(
+        itemId: 'gone',
+        itemType: 'song',
+        rating: 4,
+      );
+
+      await database.starSyncDao.clearSongLikesLocally(['gone']);
+
+      expect(await database.libraryDao.getSongStarred('gone'), isNull);
+      expect(await database.libraryDao.getSongStarred('other'), isNotNull);
+      final pending = await database.starSyncDao.getPendingActions();
+      expect(pending.map((p) => '${p.itemId}:${p.operation}'), [
+        'other:star',
+        'gone:rating',
+      ]);
+    }, skip: !sqliteAvailable);
   });
 }

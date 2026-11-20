@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Variable;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -10,29 +11,44 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
+
+/// Pending review rows plus the saved song rows behind them (album names live
+/// on `songs`, which keeps tombstoned rows), read in one batched query.
+class UnavailableReviewData {
+  const new(this.rows, this.songs);
+
+  final List<LibraryRecoveryReviewTableData> rows;
+  final Map<String, SongsTableData> songs;
+}
 
 /// Review entries for items that identity recovery could not relink.
 final unavailableReviewProvider = StreamProvider.autoDispose
-    .family<List<LibraryRecoveryReviewTableData>, int>((ref, serverId) {
-      return ref
-          .watch(navisDatabaseProvider)
-          .librarySyncDao
-          .watchPendingRecoveryReview(serverId);
+    .family<UnavailableReviewData, int>((ref, serverId) {
+      final database = ref.watch(navisDatabaseProvider);
+      return database.librarySyncDao
+          .watchPendingRecoveryReview(serverId)
+          .asyncMap((rows) async {
+            final songs = await database.libraryDao.getSongsByIds([
+              for (final row in rows)
+                if (row.entityType == 'song') row.oldId,
+            ]);
+            return UnavailableReviewData(rows, {
+              for (final song in songs) song.id: song,
+            });
+          });
     });
 
-final pendingUnavailableCountProvider = FutureProvider.autoDispose<int>((
-  ref,
-) async {
+/// Live count of rows awaiting review for the signed-in server.
+final pendingUnavailableCountProvider = StreamProvider.autoDispose<int>((ref) {
   final serverId = ref.watch(serverConfigStateProvider).asData?.value?.id;
   if (serverId == null) {
-    return 0;
+    return Stream.value(0);
   }
-  final count = await ref
+  return ref
       .watch(navisDatabaseProvider)
       .librarySyncDao
-      .watchPendingRecoveryReviewCount(serverId)
-      .first;
-  return count;
+      .watchPendingRecoveryReviewCount(serverId);
 });
 
 /// References an identity remap carries over, assembled from the same tables
@@ -144,43 +160,147 @@ class UnavailableReviewScreen extends ConsumerStatefulWidget {
       _UnavailableReviewScreenState();
 }
 
+/// A song that cannot be un-liked from here: a remote catalog copy.
+bool _isRemoteRow(LibraryRecoveryReviewTableData row, SongsTableData? song) =>
+    isRemoteSong(id: row.oldId, isExternal: song?.isExternal);
+
+/// Song rows Remove from Liked (single and bulk) covers: liked, not remote.
+bool _isRemovableLike(
+  LibraryRecoveryReviewTableData row,
+  SongsTableData? song,
+) =>
+    row.entityType == 'song' &&
+    song?.starred != null &&
+    !_isRemoteRow(row, song);
+
+class _AlbumGroup {
+  _AlbumGroup(this.title, this.artist);
+
+  final String title;
+  final String artist;
+  final List<LibraryRecoveryReviewTableData> rows = [];
+}
+
 class _UnavailableReviewScreenState
     extends ConsumerState<UnavailableReviewScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final serverId = ref.watch(serverConfigStateProvider).asData?.value?.id;
-    final entries = serverId == null
-        ? const AsyncValue<List<LibraryRecoveryReviewTableData>>.data([])
+    final data = serverId == null
+        ? const AsyncValue<UnavailableReviewData>.data(
+            UnavailableReviewData([], {}),
+          )
         : ref.watch(unavailableReviewProvider(serverId));
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.unavailableReviewTitle)),
-      body: entries.when(
+      body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) =>
             Center(child: Text(l10n.unavailableReviewLoadError)),
-        data: (rows) {
-          if (rows.isEmpty) {
+        data: (data) {
+          if (data.rows.isEmpty) {
             return Center(child: Text(l10n.unavailableReviewEmpty));
           }
+          final items = _items(l10n, data);
           return ListView.builder(
-            itemCount: rows.length,
-            itemBuilder: (context, index) => _ReviewCard(
-              entry: rows[index],
-              onKeep: () => _setDisposition(rows[index], 'keptForLater'),
-              onRemoveFromLiked: () => _removeFromLiked(rows[index]),
-            ),
+            itemCount: items.length,
+            itemBuilder: (context, index) => switch (items[index]) {
+              final _Header header => header.build(context),
+              final LibraryRecoveryReviewTableData row => _ReviewCard(
+                entry: row,
+                onKeep: () => _setDisposition(row, 'keptForLater'),
+                onRemoveFromLiked: _isRemovableLike(row, data.songs[row.oldId])
+                    ? () => _removeFromLiked([row])
+                    : null,
+              ),
+              _ => const SizedBox.shrink(),
+            },
           );
         },
       ),
     );
   }
 
+  /// Intro and bulk actions, then Albums, Artists, and songs under their
+  /// album (songs without an album name go last, under Other Songs).
+  List<Object> _items(AppLocalizations l10n, UnavailableReviewData data) {
+    int byTitle(
+      LibraryRecoveryReviewTableData a,
+      LibraryRecoveryReviewTableData b,
+    ) => (a.savedTitle ?? '').toLowerCase().compareTo(
+      (b.savedTitle ?? '').toLowerCase(),
+    );
+    List<LibraryRecoveryReviewTableData> ofType(String type) =>
+        data.rows.where((row) => row.entityType == type).toList()
+          ..sort(byTitle);
+    final albums = ofType('album');
+    final artists = ofType('artist');
+    final groups = <String, _AlbumGroup>{};
+    final other = <LibraryRecoveryReviewTableData>[];
+    for (final row in ofType('song')) {
+      final song = data.songs[row.oldId];
+      final album = song?.albumName?.trim() ?? '';
+      if (album.isEmpty) {
+        other.add(row);
+        continue;
+      }
+      final artist = song?.artistName?.trim() ?? '';
+      groups
+          .putIfAbsent('$album\u0000$artist', () => _AlbumGroup(album, artist))
+          .rows
+          .add(row);
+    }
+    final sortedGroups = groups.values.toList()
+      ..sort((a, b) {
+        final byTitle = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        return byTitle != 0
+            ? byTitle
+            : a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
+      });
+    return <Object>[
+      _Header.actions(
+        intro: l10n.unavailableReviewIntro,
+        onKeepAll: _keepAll,
+        onRemoveAll:
+            data.rows.any((r) => _isRemovableLike(r, data.songs[r.oldId]))
+            ? () => _removeFromLiked([
+                for (final r in data.rows)
+                  if (_isRemovableLike(r, data.songs[r.oldId])) r,
+              ])
+            : null,
+      ),
+      if (albums.isNotEmpty) ...[
+        _Header.section(l10n.unavailableReviewSectionAlbums),
+        ...albums,
+      ],
+      if (artists.isNotEmpty) ...[
+        _Header.section(l10n.unavailableReviewSectionArtists),
+        ...artists,
+      ],
+      for (final group in sortedGroups) ...[
+        _Header.section(group.title, subtitle: group.artist),
+        ...group.rows,
+      ],
+      if (other.isNotEmpty) ...[
+        _Header.section(l10n.unavailableReviewSectionOtherSongs),
+        ...other,
+      ],
+    ];
+  }
+
   Future<void> _setDisposition(
     LibraryRecoveryReviewTableData entry,
     String disposition,
   ) async {
+    await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .setRecoveryReviewDisposition(id: entry.id, disposition: disposition);
+  }
+
+  Future<void> _keepAll() async {
     final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
     if (serverId == null) {
       return;
@@ -188,28 +308,126 @@ class _UnavailableReviewScreenState
     await ref
         .read(navisDatabaseProvider)
         .librarySyncDao
-        .setRecoveryReviewDisposition(id: entry.id, disposition: disposition);
+        .keepAllPendingRecoveryReview(serverId);
   }
 
-  Future<void> _removeFromLiked(LibraryRecoveryReviewTableData entry) async {
-    final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
-    if (serverId == null || entry.entityType != 'song') {
+  /// Asks first, then un-likes the song rows in one transaction. A song the
+  /// server no longer has is cleared locally only (an unstar for its id could
+  /// never be delivered and would retry forever); a live song queues the
+  /// unstar as before. Downloaded files are never deleted.
+  Future<void> _removeFromLiked(
+    List<LibraryRecoveryReviewTableData> entries,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.unavailableReviewRemoveConfirmTitle,
+      message: l10n.unavailableReviewRemoveConfirmMessage(entries.length),
+      confirmLabel: l10n.unavailableReviewRemoveConfirmAction,
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
       return;
     }
     final database = ref.read(navisDatabaseProvider);
-    final song = await database.libraryDao.getSongById(entry.oldId);
-    if (song != null) {
-      // Explicit user decision: unlike locally and on the server, without
-      // deleting any downloaded file.
-      await database.starSyncDao.setStarred(
-        itemId: entry.oldId,
-        itemType: 'song',
-        liked: false,
+    await database.transaction(() async {
+      // Re-read at apply time: a sync may have changed the songs meanwhile.
+      final songs = {
+        for (final song in await database.libraryDao.getSongsByIds([
+          for (final entry in entries) entry.oldId,
+        ]))
+          song.id: song,
+      };
+      final goneIds = <String>[];
+      for (final entry in entries) {
+        final song = songs[entry.oldId];
+        if (entry.entityType != 'song' || _isRemoteRow(entry, song)) {
+          continue;
+        }
+        if (song != null && song.serverDeletedAt != null) {
+          goneIds.add(entry.oldId);
+        } else if (song != null) {
+          await database.starSyncDao.setStarred(
+            itemId: entry.oldId,
+            itemType: 'song',
+            liked: false,
+          );
+        }
+        await database.librarySyncDao.setRecoveryReviewDisposition(
+          id: entry.id,
+          disposition: 'removedFromLiked',
+        );
+      }
+      await database.starSyncDao.clearSongLikesLocally(goneIds);
+    });
+  }
+}
+
+/// A non-row entry of the list: the intro with bulk actions, or a section or
+/// album header.
+class _Header {
+  const _Header.actions({
+    required String this.intro,
+    required this.onKeepAll,
+    required this.onRemoveAll,
+  }) : title = null,
+       subtitle = null;
+
+  const _Header.section(String this.title, {this.subtitle})
+    : intro = null,
+      onKeepAll = null,
+      onRemoveAll = null;
+
+  final String? intro;
+  final Future<void> Function()? onKeepAll;
+  final Future<void> Function()? onRemoveAll;
+  final String? title;
+  final String? subtitle;
+
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    if (intro != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(intro!, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: <Widget>[
+                OutlinedButton(
+                  onPressed: onKeepAll,
+                  child: Text(l10n.unavailableReviewKeepAll),
+                ),
+                if (onRemoveAll != null)
+                  TextButton(
+                    onPressed: onRemoveAll,
+                    child: Text(l10n.unavailableReviewRemoveAllFromLiked),
+                  ),
+              ],
+            ),
+          ],
+        ),
       );
     }
-    await database.librarySyncDao.setRecoveryReviewDisposition(
-      id: entry.id,
-      disposition: 'removedFromLiked',
+    final sub = subtitle;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 2),
+      child: Semantics(
+        header: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(title!, style: theme.textTheme.titleSmall),
+            if (sub != null && sub.isNotEmpty)
+              Text(sub, style: theme.textTheme.bodySmall),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -223,7 +441,9 @@ class _ReviewCard extends ConsumerWidget {
 
   final LibraryRecoveryReviewTableData entry;
   final Future<void> Function() onKeep;
-  final Future<void> Function() onRemoveFromLiked;
+
+  /// Null when the row is not a song or is a remote catalog copy.
+  final Future<void> Function()? onRemoveFromLiked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -237,19 +457,9 @@ class _ReviewCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    entry.savedTitle ?? l10n.unavailableReviewUnknownTitle,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                Text(
-                  _typeLabel(l10n),
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ],
+            Text(
+              entry.savedTitle ?? l10n.unavailableReviewUnknownTitle,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             if (subtitle != null && subtitle.isNotEmpty)
               Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
@@ -277,7 +487,7 @@ class _ReviewCard extends ConsumerWidget {
                   onPressed: onKeep,
                   child: Text(l10n.unavailableReviewKeepForLater),
                 ),
-                if (entry.entityType == 'song')
+                if (onRemoveFromLiked != null)
                   TextButton(
                     onPressed: onRemoveFromLiked,
                     child: Text(l10n.unavailableReviewRemoveFromLiked),
@@ -288,14 +498,6 @@ class _ReviewCard extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  String _typeLabel(AppLocalizations l10n) {
-    return switch (entry.entityType) {
-      'album' => l10n.unavailableReviewTypeAlbum,
-      'artist' => l10n.unavailableReviewTypeArtist,
-      _ => l10n.unavailableReviewTypeSong,
-    };
   }
 
   String _reasonLabel(AppLocalizations l10n) {

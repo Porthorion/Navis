@@ -107,6 +107,29 @@ void main() {
     expect(r['1:relinked'], 'relinked');
   });
 
+  test('keepAll marks only pending rows of that server', () async {
+    await review('a');
+    await review('b', type: 'album');
+    await review('c');
+    await review('x', server: 2);
+    final c = (await db.select(db.libraryRecoveryReviewTable).get()).firstWhere(
+      (r) => r.oldId == 'c',
+    );
+    await db.librarySyncDao.setRecoveryReviewDisposition(
+      id: c.id,
+      disposition: 'removedFromLiked',
+    );
+
+    await db.librarySyncDao.keepAllPendingRecoveryReview(1);
+
+    expect(await rows(), {
+      '1:a': 'keptForLater',
+      '1:b': 'keptForLater',
+      '1:c': 'removedFromLiked',
+      '2:x': 'pending',
+    });
+  });
+
   test('same oldId on two servers: only that server resolves', () async {
     await song('s', liked: true, generation: 5);
     await review('s');

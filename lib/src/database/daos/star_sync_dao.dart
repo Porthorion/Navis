@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -116,6 +117,27 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
       return dropped;
     },
   );
+
+  /// Clears the local like of songs the server no longer has and drops their
+  /// pending deliveries, without queueing an unstar: the server would only
+  /// retry it forever for an id it no longer knows.
+  Future<void> clearSongLikesLocally(Iterable<String> songIds) {
+    final ids = songIds.toList(growable: false);
+    return transaction(() async {
+      for (final id in ids) {
+        await attachedDatabase.libraryDao.setEntityStarred('song', id, null);
+      }
+      for (final chunk in chunked(ids, 500)) {
+        await (delete(starSyncQueueTable)..where(
+              (t) =>
+                  t.itemType.equals('song') &
+                  t.operation.equals('star') &
+                  t.itemId.isIn(chunk),
+            ))
+            .go();
+      }
+    });
+  }
 
   /// Persist a local star and its delivery version in the same transaction.
   Future<void> setStarred({

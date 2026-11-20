@@ -8505,6 +8505,12 @@ abstract class AppLocalizations {
   /// **'No unavailable items are waiting for review.'**
   String get unavailableReviewEmpty;
 
+  /// No description provided for @unavailableReviewIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'These items are no longer on your server. Your likes, ratings and playlists still keep them, and nothing is deleted unless you choose.'**
+  String get unavailableReviewIntro;
+
   /// No description provided for @unavailableReviewLoadError.
   ///
   /// In en, this message translates to:
@@ -8520,38 +8526,68 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewReasonMissing.
   ///
   /// In en, this message translates to:
-  /// **'No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.'**
+  /// **'No longer on your server. It stays in your likes, ratings and playlists until you decide.'**
   String get unavailableReviewReasonMissing;
 
   /// No description provided for @unavailableReviewReasonAmbiguous.
   ///
   /// In en, this message translates to:
-  /// **'Several possible replacements were found. Decide which one is correct before anything is relinked.'**
+  /// **'More than one replacement could fit. Pick the right one before anything is relinked.'**
   String get unavailableReviewReasonAmbiguous;
 
   /// No description provided for @unavailableReviewReasonConflicting.
   ///
   /// In en, this message translates to:
-  /// **'Conflicting identifiers were found in the catalog. Review before anything is relinked.'**
+  /// **'The library shows conflicting details for this item. Check before anything is relinked.'**
   String get unavailableReviewReasonConflicting;
 
-  /// No description provided for @unavailableReviewTypeSong.
+  /// No description provided for @unavailableReviewSectionAlbums.
   ///
   /// In en, this message translates to:
-  /// **'Song'**
-  String get unavailableReviewTypeSong;
+  /// **'Albums'**
+  String get unavailableReviewSectionAlbums;
 
-  /// No description provided for @unavailableReviewTypeAlbum.
+  /// No description provided for @unavailableReviewSectionArtists.
   ///
   /// In en, this message translates to:
-  /// **'Album'**
-  String get unavailableReviewTypeAlbum;
+  /// **'Artists'**
+  String get unavailableReviewSectionArtists;
 
-  /// No description provided for @unavailableReviewTypeArtist.
+  /// No description provided for @unavailableReviewSectionOtherSongs.
   ///
   /// In en, this message translates to:
-  /// **'Artist'**
-  String get unavailableReviewTypeArtist;
+  /// **'Other Songs'**
+  String get unavailableReviewSectionOtherSongs;
+
+  /// No description provided for @unavailableReviewKeepAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep All'**
+  String get unavailableReviewKeepAll;
+
+  /// No description provided for @unavailableReviewRemoveAllFromLiked.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove All from Liked'**
+  String get unavailableReviewRemoveAllFromLiked;
+
+  /// No description provided for @unavailableReviewRemoveConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Liked?'**
+  String get unavailableReviewRemoveConfirmTitle;
+
+  /// No description provided for @unavailableReviewRemoveConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{This song leaves your Liked list. Downloads and playlists keep it.} other{These {count} songs leave your Liked list. Downloads and playlists keep them.}}'**
+  String unavailableReviewRemoveConfirmMessage(int count);
+
+  /// No description provided for @unavailableReviewRemoveConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get unavailableReviewRemoveConfirmAction;
 
   /// No description provided for @unavailableReviewFindMatch.
   ///
@@ -8678,12 +8714,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No local references to carry over.'**
   String get unavailableReviewRefNone;
-
-  /// No description provided for @unavailableReviewEntry.
-  ///
-  /// In en, this message translates to:
-  /// **'Unavailable Items'**
-  String get unavailableReviewEntry;
 
   /// No description provided for @unavailableReviewEntryWithCount.
   ///
