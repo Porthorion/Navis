@@ -87,9 +87,10 @@ their names to library artists and takes up to two library songs per artist in
 relatedness order, starred first, never the seed or a song already excluded.
 Songs come from the library only. It runs only when the server did not already
 fill the related slots, never offline, and under a 6 second cap with a cancel
-token (also cancelled with the caller's); every request is `background`. Quota,
-a timeout, any Deezer error, no artist match or no related artists makes the
-leg add nothing, with no notice. The batch source is `deezer` when this leg
+token (also cancelled with the caller's); every request is `background`. Quota
+(never retried by this leg), a timeout, any failure at all, no artist match or no
+related artists makes the leg add nothing, with no notice; related entries
+named like the seed's artist are skipped. The batch source is `deezer` when this leg
 added the first related songs.
 
 A feature whose service needs a credential stays locked until the key or token

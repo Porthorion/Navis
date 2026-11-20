@@ -6,7 +6,6 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/api/deezer_api_client.dart' show DeezerApiException;
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -19,6 +18,7 @@ import 'package:navis/src/features/library/presentation/artist_deezer_providers.
 import 'package:navis/src/features/library/data/local_track_matcher.dart'
     show kLocalTrackMatcherSnapshotYieldChunkSize;
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
@@ -529,9 +529,10 @@ class RecommendationService {
           return const <Song>[];
         },
       );
-    } on DeezerApiException {
-      return const <Song>[];
-    } on DioException {
+    } catch (error) {
+      // Radio never shows or fails on Deezer: any error (Deezer, transport,
+      // cache decode, database, disposed ref) just means no Deezer songs.
+      AppLogger.debug('Personal Radio Deezer leg skipped: $error');
       return const <Song>[];
     }
   }
@@ -560,7 +561,12 @@ class RecommendationService {
     if (deezerId == null) return const <Song>[];
     final related = await _ref
         .read(deezerCatalogProvider)
-        .relatedArtists(deezerId, cancelToken: cancelToken, background: true);
+        .relatedArtists(
+          deezerId,
+          cancelToken: cancelToken,
+          background: true,
+          retryQuota: false,
+        );
     if (related.isEmpty) return const <Song>[];
     final libraryByName =
         (await _ref.read(libraryArtistNameIndexProvider).current()).lookupAll(
@@ -573,8 +579,10 @@ class RecommendationService {
         (byArtist[artistId] ??= <SongsTableData>[]).add(song);
       }
     }
+    final seedName = normalizeMetadata(seed.artist ?? '');
     final songs = <Song>[];
     for (final artist in related) {
+      if (normalizeMetadata(artist.name) == seedName) continue;
       final libraryArtist = libraryByName[normalizeMetadata(artist.name)];
       final candidates = libraryArtist == null
           ? null

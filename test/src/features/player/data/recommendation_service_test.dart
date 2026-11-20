@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
@@ -15,6 +16,8 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
+import 'package:navis/src/features/library/data/library_artist_name_index.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart'
     show kLocalTrackMatcherSnapshotYieldChunkSize;
@@ -96,10 +99,12 @@ class _FakeDeezer extends DeezerApiClient {
 
   final List<String> searched = <String>[];
   final List<bool> relatedBackground = <bool>[];
+  final List<bool> relatedRetryQuota = <bool>[];
   final List<CancelToken?> relatedTokens = <CancelToken?>[];
   List<DeezerArtist> related = const <DeezerArtist>[];
   bool onDeezer = true;
   Exception? relatedError;
+  Exception? searchError;
   bool hang = false;
 
   int get requests => searched.length + relatedBackground.length;
@@ -113,6 +118,7 @@ class _FakeDeezer extends DeezerApiClient {
     bool retryQuota = true,
   }) async {
     searched.add(name);
+    if (searchError case final error?) throw error;
     return onDeezer ? [DeezerArtist(id: 7, name: name)] : const [];
   }
 
@@ -122,8 +128,10 @@ class _FakeDeezer extends DeezerApiClient {
     int limit = 20,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     relatedBackground.add(background);
+    relatedRetryQuota.add(retryQuota);
     relatedTokens.add(cancelToken);
     if (hang) {
       await cancelToken!.whenCancel;
@@ -794,6 +802,7 @@ void main() {
       LastFmApiClient? lastFm,
       List<Song> serverSimilar = const <Song>[],
       Duration timeout = const Duration(seconds: 6),
+      List<Override> extraOverrides = const <Override>[],
     }) {
       final api = _MockSubsonicApiClient();
       when(
@@ -817,6 +826,7 @@ void main() {
             lastFmApiClientProvider.overrideWithValue(lastFm),
             lastFmBundledKeyProvider.overrideWithValue(false),
             integrationPolicyProvider.overrideWithValue(policy),
+            ...extraOverrides,
             recommendationServiceProvider.overrideWith(
               (ref) => RecommendationService(
                 ref,
@@ -885,12 +895,38 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('background reaches the related-artists request', () async {
+    test('background reaches the related-artists request, without the quota '
+        'retry', () async {
       final database = await library();
       final container = containerFor(database);
       deezer.related = [related('Alpha', 4)];
       await radio(container);
       expect(deezer.relatedBackground, [true]);
+      expect(deezer.relatedRetryQuota, [false]);
+    }, skip: !sqliteAvailable);
+
+    test('a related entry named like the seed artist is skipped by name, '
+        'whatever id the seed carries', () async {
+      final database = await library();
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'z-seed-2',
+          title: 'Title z-seed-2',
+          artistId: const Value('ar-seed'),
+          artistName: const Value('Seed Artist'),
+        ),
+      ]);
+      final container = containerFor(database);
+      deezer.related = [related('SEED ARTIST', 9), related('Alpha', 4)];
+      final service = container.read(recommendationServiceProvider);
+      final pool = await service.eligibleLibrary(const RadioFilters());
+      final songs = await service.deezerMatches(
+        Song(id: 'a-seed', title: 'Title a-seed', artist: 'Seed Artist'),
+        pool,
+        count: 10,
+      );
+      expect(songs.map((song) => song.id), isNot(contains('z-seed-2')));
+      expect(songs, isNotEmpty);
     }, skip: !sqliteAvailable);
 
     for (final entry in const <String, IntegrationPolicy>{
@@ -934,6 +970,49 @@ void main() {
         skip: !sqliteAvailable,
       );
     }
+
+    for (final entry in <String, void Function(_FakeDeezer)>{
+      'a plain exception': (d) => d.relatedError = Exception('boom'),
+      'a format exception': (d) => d.relatedError = const FormatException('x'),
+      'a failing artist search': (d) => d.searchError = Exception('gone'),
+    }.entries) {
+      test(
+        '${entry.key} from Deezer leaves radio built from local taste',
+        () async {
+          final database = await library();
+          final container = containerFor(database);
+          entry.value(deezer);
+          final batch = await radio(container);
+          expect(batch.songs, isNotEmpty);
+          expect(batch.source, RecommendationSource.localTaste);
+          expect(batch.issue, RecommendationIssue.none);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test(
+      'a failing library lookup leaves radio built from local taste',
+      () async {
+        final database = await library();
+        final container = containerFor(
+          database,
+          extraOverrides: [
+            libraryArtistNameIndexProvider.overrideWithValue(
+              LibraryArtistNameIndexCache(
+                loadArtists: () async => throw StateError('db closed'),
+              ),
+            ),
+          ],
+        );
+        deezer.related = [related('Alpha', 4)];
+        final batch = await radio(container);
+        expect(batch.songs, isNotEmpty);
+        expect(batch.source, RecommendationSource.localTaste);
+        expect(batch.issue, RecommendationIssue.none);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'a hanging Deezer is cancelled after the cap and radio completes',

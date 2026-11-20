@@ -12,6 +12,7 @@ class _FakeDeezer extends DeezerApiClient {
   new() : super(dio: Dio());
 
   final List<String> calls = <String>[];
+  final List<bool> relatedRetryQuota = <bool>[];
   Exception? error;
 
   @override
@@ -32,8 +33,10 @@ class _FakeDeezer extends DeezerApiClient {
     int limit = 20,
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) async {
     calls.add('artist/$artistId/related?limit=$limit');
+    relatedRetryQuota.add(retryQuota);
     return const [DeezerArtist(id: 2, name: 'Related')];
   }
 
@@ -159,6 +162,12 @@ void main() {
     await catalog.artist(1);
     await catalog.relatedArtists(1);
     expect(deezer.calls, hasLength(4));
+  });
+
+  test('related artists ask with the quota retry unless told not to', () async {
+    await catalog.relatedArtists(10);
+    await catalog.relatedArtists(11, retryQuota: false);
+    expect(deezer.relatedRetryQuota, [true, false]);
   });
 
   test("an artist's albums are kept for 24 hours", () async {

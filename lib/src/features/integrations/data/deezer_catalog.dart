@@ -58,6 +58,7 @@ class DeezerCatalog {
     int artistId, {
     CancelToken? cancelToken,
     bool background = false,
+    bool retryQuota = true,
   }) => _cached(
     namespace: DeezerCache.relatedArtistsNamespace,
     key: '$artistId',
@@ -67,6 +68,7 @@ class DeezerCatalog {
       limit: relatedArtistLimit,
       cancelToken: cancelToken,
       background: background,
+      retryQuota: retryQuota,
     ),
     encode: (artists) => [for (final artist in artists) artist.toJson()],
     decode: (json) => [
