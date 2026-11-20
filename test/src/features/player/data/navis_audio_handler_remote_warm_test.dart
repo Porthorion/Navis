@@ -1132,6 +1132,36 @@ void main() {
       );
     });
 
+    test('Android: a prefetch still starting when dispose begins never '
+        'reaches the origin or the cache folder (#720)', () async {
+      await setUpAndroid(prefetch: false, gated: {});
+      final source = handler.debugRegisteredLockCacheSource('song-3')!;
+      final folder = (await source.cacheFile).parent;
+      List<String> listing() =>
+          folder.listSync().map((e) => e.path).toList()..sort();
+      final before = listing();
+      unawaited(source.prefetch().catchError((Object _) {}));
+      await handler.disposeHandler();
+      await quiet();
+      expect(fetched('song-3'), 0);
+      expect(listing(), before);
+      // The player retrying after our cancel error must not restart it.
+      await expectLater(source.request(), throwsA(isA<StateError>()));
+      await quiet();
+      expect(fetched('song-3'), 0);
+      expect(listing(), before);
+    });
+
+    test('Android: a download finishing as dispose begins starts no next-song '
+        'warm (#720)', () async {
+      await setUpAndroid();
+      await until(() => fetched('song-1') == 1, reason: 'lock-cache fetch');
+      gates['song-1']!.complete();
+      await handler.disposeHandler();
+      await quiet();
+      expect(fetched('song-2'), 0);
+    });
+
     test('Android: re-publishing the old current song during a far '
         'navigation keeps the target fetch (#653)', () async {
       await setUpAndroid(prefetch: false, gated: {'song-5'});

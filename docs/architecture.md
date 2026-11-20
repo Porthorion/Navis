@@ -6153,7 +6153,11 @@ keep their downloads (`_lockCacheAheadSongIds`), because the player prepares as
 far ahead as its buffer budget (180 s, 32 MB) reaches, so short songs put a
 fetch it started three items ahead, and dropping it would ask the origin again.
 While a range fetch plays, all of those downloads pause, not only the current
-and next. Disposal cancels every registered unfinished download. Known
+and next. Disposal closes every lock-cache writer it can reach (registered,
+held by a deck or finished and evicted) with `LockCachingAudioSource.close()`: a
+terminal cancel that also stops a fetch still starting, makes later requests fail
+and waits for a download already finishing to publish its file, within the 2 s
+disposal bound (#720). Known
 remaining duplicate origin requests for a slow remote song: the local-only
 (cellular) cross-fade deck still clones remote neighbours (#672), a writer that was
 never flagged (its row fell back to a clone) has its range fetches cancelled once when

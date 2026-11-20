@@ -1130,6 +1130,26 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
   }
 
+  /// Every lock-cache writer disposal must close, once each: the registered
+  /// ones, the player's held writers (a finished-then-evicted one is not
+  /// registered) and whatever either deck's sequence reaches.
+  // ignore: experimental_member_use, reason: as above.
+  Set<LockCachingAudioSource> _lockCacheWritersToClose() {
+    // ignore: experimental_member_use, reason: as above.
+    final writers = Set<LockCachingAudioSource>.identity();
+    for (final entry in _lockCacheSources.values) {
+      writers.add(entry.source);
+    }
+    writers.addAll(_heldLockCacheWriters().values);
+    for (final deck in [_player, _crossfadePlayer]) {
+      for (final source in deck?.sequence ?? const <IndexedAudioSource>[]) {
+        final writer = _lockCacheSourceOf(source);
+        if (writer != null) writers.add(writer);
+      }
+    }
+    return writers;
+  }
+
   /// The source the inactive crossfade deck plays for [item]: a follower of
   /// the writer the active deck holds for its cache file, else a plain clone.
   /// A cache file has one writer across both decks and the registry. It stays
