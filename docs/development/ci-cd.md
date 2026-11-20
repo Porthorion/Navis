@@ -120,10 +120,7 @@ Checks performed (in order, fail-fast):
    (`tool/android_repeat_native_test.sh`; it runs every app JVM unit suite, not
    only the repeat ones), the sync scenario, rescan harness filter read, sync action attribution and libmpv
    download/bundle self-tests (the `static` CI job also runs these and the
-   release/secret-scan shell tests), and the Last.fm key masking / artifact secret scan shell tests
-   (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
-   fake key and synthetic artifacts, runnable on their own to debug a failure),
-   the release-notes failure guard (`tool/release_notes_test.sh`; only a
+   release shell tests), the release-notes failure guard (`tool/release_notes_test.sh`; only a
    missing changelog may fall back to generic notes) and the live-seek app
    identity guard (`tool/live_seek_stress_test.py`; a blank suffix must never
    target the real app package)
@@ -200,7 +197,8 @@ media-browser bind permission blocks Android Auto.
 Mix and radio runtime checks use an isolated Linux diagnostics clone. The
 clone-only `/v1/mix/*` API exercises production providers and queue commits;
 an optional Last.fm key file must be owned by the current user and mode 600.
-The normal build-time Last.fm key precedence remains unchanged.
+The Last.fm key precedence (a local `NAVIS_LASTFM_API_KEY` define, then the
+key saved in Settings) remains unchanged.
 
 Rapid playback navigation has a focused Linux runtime gate:
 
@@ -667,8 +665,7 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    Select `--linux-package=bundle|deb|rpm|all`; `all` packages one bundle three ways.
    Package launchers use absolute desktop Exec paths and the existing icons.
    See [release-linux.md](../release/release-linux.md) for capped local-only builds,
-   package installation checks and AUR maintenance. RPM secret scanning
-   requires `bsdtar` on the coordinator.
+   package installation checks and AUR maintenance.
    Windows target can output `.zip` (default) or Inno Setup `.exe` installer
    (`--windows-package=exe`). The installer's silent update relaunch uses
    `runasoriginaluser` to avoid restarting Navis with installer elevation.
@@ -680,8 +677,7 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    retired active Listen Together/Voyage string absence, and the Artist Top
    Tracks Album Queue marker before upload.
 5. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
-   The bundled Last.fm key goes in as a masked pair (see "Last.fm key" below),
-   not as a plain define.
+   No build bundles a Last.fm key (see "Last.fm key" below).
 6. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
 7. Creates an annotated git tag and pushes main/current branch/tag.
 8. Publishes to R2 with `tool/r2_publish.sh publish`: uploads each updater asset to
@@ -727,21 +723,6 @@ in `~/.cache/navis/dev-releases/`. Build numbering and deletion guards are in
 using fake build tools and S3, without a build, launch or remote operation.
 `r2_publish.sh` refuses to replace a release file whose content differs,
 so a given tag is published once with all its files.
-
-After each artifact is built, `release.sh` searches it for the plaintext
-Last.fm key and fails the release before anything is tagged or uploaded if it
-appears. APK, AAB, IPA, macOS zip and Windows zip are unpacked; tarballs
-(gzip, xz, zstd, bzip2) and `.deb` files (via `dpkg-deb`, or `ar` plus the
-compressed `data.tar.*` inside) are extracted; nested archives are followed up
-to four levels deep. A Windows Inno Setup `.exe` is compressed and can only be
-scanned as raw bytes, so the unpacked Windows release directory is scanned
-before it is packaged: by `release.sh` on a Windows host, and by
-`tool/windows/scan_release_secret.ps1` on the remote Windows builder (it
-recovers the key from the masked defines in memory only). An artifact that
-cannot be unpacked (a missing decompressor such as `xz` or `zstd`, a corrupt
-archive, or nesting beyond the depth cap) fails the scan rather than passing
-it, and so does any `grep`, `find`, temporary-file or extraction error: a
-scanner failure is never read as "secret absent".
 
 Use `--allow-existing-version` only when intentionally rebuilding a version
 that was already tagged, such as retrying failed artifact publication. Normal
@@ -796,35 +777,18 @@ Optional variables:
 
 Set these in `tool/release.env` or export them in your shell.
 
-`NAVIS_LASTFM_API_KEY` is required for Android and Play builds and bundled in
-every target when set.
-
 ### Last.fm key
 
-The Last.fm API key is bundled so most users never have to supply one. Builds
-do not pass it as `--dart-define=NAVIS_LASTFM_API_KEY=...`:
+Navis ships no Last.fm API key (Last.fm requires the key owner's paid plan from
+1 Dec 2026). No build script bundles one, even when `NAVIS_LASTFM_API_KEY` is set
+in the environment or `tool/release.env`: `release.sh`, `play_release.sh`,
+`dev_release.sh`, `dev_app.sh`, `remote_build_linux.sh` and
+`remote_build_windows.sh` pass no key define, and the release scripts no longer
+scan artifacts for one. Users add their own key in Settings > Integrations.
 
-- `tool/lib/lastfm_key_defines.sh` generates a fresh random pad per build and
-  writes `NAVIS_LASTFM_API_KEY_MASKED` (key XOR pad) and
-  `NAVIS_LASTFM_API_KEY_PAD` (both hex) to a mode-600 JSON file passed with
-  `--dart-define-from-file`, so neither value is on the scripts' own command
-  lines (Flutter may forward defines to its child processes, so this is hygiene,
-  not a guarantee). The file is deleted when the script exits.
-- `AppConstants.lastFmApiKey` XORs the pair back at runtime. A plain
-  `NAVIS_LASTFM_API_KEY` define is still accepted when the pair is absent, so
-  local `flutter run --dart-define=...` keeps working.
-- `release.sh`, `dev_app.sh`, `play_release.sh`, `remote_build_linux.sh` and
-  `remote_build_windows.sh` all use it. The remote scripts take
-  `--lastfm-defines-file=<path>`; the Linux builder receives it over ssh stdin
-  into a mode-600 file and the Windows builder over scp into its remote work
-  directory, and each deletes it when the build ends. The source archive sent
-  to builders excludes `tool/release.env`.
-- `play_release.sh` requires the key and scans the App Bundle too.
-
-This deters casual extraction (a `strings` search of the binary no longer finds
-the key). It is not secrecy: the app must hold the key to use it, anyone running
-it can recover it, and a Last.fm API key is a client identifier rather than a
-credential. No Last.fm shared secret is bundled or used.
+`AppConstants.lastFmApiKey` reads a plain `--dart-define=NAVIS_LASTFM_API_KEY=...`
+for local `flutter run` development only; the key field is hidden while that
+define supplies a key.
 
 ### Linux package updater checks
 

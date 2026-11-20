@@ -114,8 +114,7 @@ artifacts, with Forgejo kept only for tags and the 1.5.0 bridge release.
 - `flutter test`
 - `flutter build appbundle --release`
 - `tool/security_audit.sh`
-- `tool/play_release.sh --dry-run` (also scans the bundle for the plaintext
-  Last.fm key)
+- `tool/play_release.sh --dry-run`
 - Check AAB signing certificate before internal release.
 - Migration acceptance:
   - Upgrade a v45 database with queued scrobbles.

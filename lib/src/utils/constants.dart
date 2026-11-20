@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 
 /// Compile-time configuration for Navis services and distribution.
@@ -61,87 +60,13 @@ abstract final class AppConstants {
   static const String playStoreListingUrl =
       'https://play.google.com/store/apps/details?id=$playStorePackageName';
 
-  /// Last.fm API key bundled at build time. Empty in keyless builds.
-  ///
-  /// Release builds inject it as a masked pair (the key XOR a per-build random
-  /// pad, both hex) through `NAVIS_LASTFM_API_KEY_MASKED` and
-  /// `NAVIS_LASTFM_API_KEY_PAD`, so the plaintext key is not a string literal in
-  /// the binary. A plain `NAVIS_LASTFM_API_KEY` define is still accepted when
-  /// the masked pair is absent, which keeps local dev runs working.
-  ///
-  /// This deters casual extraction. It is not secrecy: the app has to hold the
-  /// key to use it, and a Last.fm API key is a client identifier rather than a
-  /// credential (no shared secret is bundled or used).
-  static final String lastFmApiKey = resolveLastFmApiKey(
-    masked: _lastFmApiKeyMasked,
-    pad: _lastFmApiKeyPad,
-    plain: _lastFmApiKeyPlain,
-  );
-
-  static const String _lastFmApiKeyMasked = String.fromEnvironment(
-    'NAVIS_LASTFM_API_KEY_MASKED',
-    defaultValue: '',
-  );
-  static const String _lastFmApiKeyPad = String.fromEnvironment(
-    'NAVIS_LASTFM_API_KEY_PAD',
-    defaultValue: '',
-  );
-  static const String _lastFmApiKeyPlain = String.fromEnvironment(
+  /// Last.fm API key from the `NAVIS_LASTFM_API_KEY` dart-define. Local
+  /// development only: no build or release script sets it, and Navis ships
+  /// without a bundled key. Users add their own key in Settings >
+  /// Integrations, which `lastFmApiKeyProvider` falls back to when this is
+  /// empty.
+  static final String lastFmApiKey = const String.fromEnvironment(
     'NAVIS_LASTFM_API_KEY',
     defaultValue: '',
-  );
-
-  /// Chooses the bundled Last.fm key from the build defines.
-  ///
-  /// The masked pair wins when either half is present; a half-present or
-  /// malformed pair yields an empty key rather than a wrong one. The plain
-  /// define is only the fallback when both halves are empty.
-  @visibleForTesting
-  static String resolveLastFmApiKey({
-    required String masked,
-    required String pad,
-    required String plain,
-  }) {
-    if (masked.isNotEmpty || pad.isNotEmpty) {
-      return unmaskLastFmApiKey(masked: masked, pad: pad);
-    }
-    return plain.trim();
-  }
-
-  /// XORs hex [masked] with hex [pad]. Returns an empty string unless both are
-  /// well-formed hex, [pad] covers [masked], and the result is printable ASCII
-  /// (a pair from different builds decodes to noise, which must not be sent to
-  /// Last.fm as a key).
-  @visibleForTesting
-  static String unmaskLastFmApiKey({
-    required String masked,
-    required String pad,
-  }) {
-    final maskedBytes = _decodeHex(masked);
-    final padBytes = _decodeHex(pad);
-    if (maskedBytes == null ||
-        padBytes == null ||
-        maskedBytes.isEmpty ||
-        padBytes.length < maskedBytes.length) {
-      return '';
-    }
-    final decoded = <int>[
-      for (var i = 0; i < maskedBytes.length; i++) maskedBytes[i] ^ padBytes[i],
-    ];
-    final printable = decoded.every((byte) => byte > 0x20 && byte < 0x7f);
-    return printable ? String.fromCharCodes(decoded) : '';
-  }
-
-  static List<int>? _decodeHex(String hex) {
-    if (hex.length.isOdd || !RegExp(r'^[0-9a-fA-F]*$').hasMatch(hex)) {
-      return null;
-    }
-    final bytes = <int>[];
-    for (var i = 0; i < hex.length; i += 2) {
-      final byte = int.tryParse(hex.substring(i, i + 2), radix: 16);
-      if (byte == null) return null;
-      bytes.add(byte);
-    }
-    return bytes;
-  }
+  ).trim();
 }

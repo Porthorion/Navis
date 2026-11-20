@@ -29,12 +29,16 @@ Navis only talks to your server. Everything is on by default.
   Deezer or Online services off when this arrived starts with the switch off.
 - **Last.fm** — an optional Same Vibes source (chosen under **Instant Mix**
   below, offered only with a valid key), the Instant Radio fill and a
-  top-songs fallback. No Last.fm scrobbling. Release builds bundle an API key, masked at build time to
-  deter casual extraction (a Last.fm API key is a client identifier, not a
-  secret, and Navis uses no shared secret); builds without one show a field for
-  your own key. A rejected bundled key (Last.fm requires a paid plan for keys
-  from 1 Dec 2026) is silent: Same Vibes and Personal Radio fall back to the
-  server, and only a rejected key you entered yourself shows a notice.
+  top-songs fallback. No Last.fm scrobbling. Navis ships no Last.fm API key
+  (Last.fm requires the key owner's paid plan from 1 Dec 2026): Last.fm
+  features use your own key, entered and checked under **Settings >
+  Integrations** (or in onboarding), and stay locked until it validates. Same
+  Vibes uses Deezer by default, so a key is only needed to choose Last.fm as
+  its source, for the Last.fm leg of the Instant Radio fill and for the Last.fm
+  top-songs fallback. A key you entered that Last.fm rejects shows a notice and
+  Same Vibes and Personal Radio fall back to Deezer or the server. Only a local
+  development build with the `NAVIS_LASTFM_API_KEY` define bundles a key (and
+  then hides the field; a rejected bundled key stays silent).
 - **ListenBrainz** — scrobbling, likes (sent as loved) and weekly playlists,
   after its User Token validates.
 - **LRCLIB** synced lyrics (server lyrics as fallback), **update checks**,

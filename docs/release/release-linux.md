@@ -21,9 +21,7 @@ and all existing hicolor icon sizes under `/usr/share/icons/hicolor`.
 
 Install Docker on a Linux x86_64 host and give the build account Docker access.
 The host needs Flutter on PATH (the version required by `pubspec.yaml`), a
-bootstrapped pub cache, Git and `flock`. The release coordinator also needs
-`bsdtar` to scan RPM payloads for the bundled plaintext Last.fm key
-(`libarchive-tools` on Debian/Ubuntu, `libarchive` on Arch).
+bootstrapped pub cache, Git and `flock`.
 No host GTK/compiler/dpkg/rpm toolchain is needed. SSH Linux builders need the
 same Docker/Flutter/cache setup.
 

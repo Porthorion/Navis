@@ -90,8 +90,6 @@ jobs:
         run: ./tool/github_release_test.sh
       - name: iOS release path self-test
         run: ./tool/ios_release_test.sh
-      - name: Artifact secret scan self-test
-        run: ./tool/scan_artifact_secret_test.sh
       - name: Sync scenario and rescan harness self-tests
         run: python3 -m unittest tool.dev_sync_scenario_test tool.rescan_snapshot_diagnostics_test
       - name: Sync diagnostics action attribution self-test

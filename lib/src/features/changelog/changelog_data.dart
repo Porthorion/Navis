@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Last.fm features now use your own Last.fm API key (Settings > '
+        'Integrations); Same Vibes uses Deezer by default',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Same Vibes now finds similar songs through Deezer; add your own '
         'Last.fm key in Settings to choose Last.fm instead',
         type: ChangelogEntryType.improvement,
