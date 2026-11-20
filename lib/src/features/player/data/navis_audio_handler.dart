@@ -3629,9 +3629,17 @@ class NavisAudioHandler extends BaseAudioHandler
     // is: the player's held writers and the crossfade deck's too.
     final lockCacheStops = [
       for (final source in _lockCacheWritersToClose())
-        () {
+        () async {
           source.onDownloadStart = null;
-          return source.close();
+          // Observed at once: a failing close must not surface as unhandled
+          // while the awaits below run, nor stop the others.
+          try {
+            await source.close();
+          } on Object catch (error, stackTrace) {
+            AppLogger.warning(
+              'Closing a lock-cache writer failed: $error\n$stackTrace',
+            );
+          }
         }(),
     ];
     _focusRetryTimer?.cancel();
@@ -3649,8 +3657,10 @@ class NavisAudioHandler extends BaseAudioHandler
     await _networkRecoverySubscription?.cancel();
     await _disposeInactiveCrossfadeDeck();
     await _flushQueueItemsPersistence();
+    // A close that runs long must not hold up the rest of disposal; a flush
+    // slower than the cap may still land after dispose returns.
     await Future.wait(lockCacheStops)
-        .timeout(const Duration(seconds: 2), onTimeout: () => const <void>[]);
+        .timeout(const Duration(seconds: 2), onTimeout: () => const []);
     await _sidecarDownloader.dispose();
     _sidecarSongsById.clear();
     _sidecarStreamUris.clear();

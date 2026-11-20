@@ -1629,6 +1629,41 @@ void main() {
         expect(files(), isEmpty);
       },
     );
+
+    test('an abort landing during a pending flush still cleans up and '
+        'fails the waiting request', () async {
+      final body = List<int>.filled(16 * 1024 * 1024, 5);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        request.response
+          ..bufferOutput = false
+          ..contentLength = body.length
+          ..headers.contentType = ContentType('audio', 'mpeg');
+        try {
+          request.response.add(body);
+          await request.response.close();
+        } on Object {
+          // The client went away.
+        }
+      });
+      final source = build(server, 'flush');
+      await source.prefetch();
+      while (source.downloadedBytes == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      // The request dispatches (and flushes the sink) synchronously; the
+      // abort lands while that flush is still pending.
+      final waiting = source.request();
+      final failed = expectLater(waiting, throwsA(isA<Object>()));
+      await Future<void>.delayed(Duration.zero);
+      await source.cancelDownload().timeout(const Duration(seconds: 5));
+      await failed.timeout(const Duration(seconds: 5));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(files(), isEmpty);
+      expect(source.downloadedBytes, 0);
+      await source.close().timeout(const Duration(seconds: 2));
+    });
   });
 
   test(

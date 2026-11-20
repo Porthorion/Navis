@@ -496,3 +496,9 @@ the headers or mid-body also deletes the `.mime` written for that download (when
 no cache file exists), not only the `.part`. Handler dispose closes every writer it
 can reach; a closed source that was finishing may publish its file, which no
 registry knows and the startup orphan sweep removes after two hours.
+The abort path tolerates `sink.close()` throwing "StreamSink is bound to a stream"
+(an abort landing while `dispatchRequests` awaits `sink.flush()`): waiting
+requests and responses still fail, the `.part` and `.mime` are deleted and the
+state resets in a `finally`. `close()` never throws (a failure is swallowed so
+disposal goes on); the handler also guards each writer's close and a late queue
+load closes the sources it resolved after disposal began.

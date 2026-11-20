@@ -531,6 +531,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       // A retired source must not take the registry slot back by restarting a
       // download (onDownloadStart); the rebuilt queue builds fresh sources.
       entry.value.source.onDownloadStart = null;
+      // cancelDownload, not close (#720): a retried load can reuse these very
+      // objects (_replaceQueuePhase1 continues with its already prepared
+      // start source after a phase-1 timeout), and a closed source refuses to
+      // download.
       if (!identical(entry.value.source, retiredWriter)) {
         await entry.value.source.cancelDownload();
       }
@@ -1868,6 +1872,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       initialPosition: initialPosition,
     );
     token?.checkCancelled();
+    _abortLoadIfDisposing(audioSources);
     _tracedNativeIndex = null;
     _tracedCurrentSong = null;
     _transportTrace.record(
@@ -1920,8 +1925,25 @@ extension _NavisQueueLoading on NavisAudioHandler {
       _sourceAppliesInFlight--;
     }
     token?.checkCancelled();
+    // Dispose began during the apply: its snapshot of writers predates these.
+    _abortLoadIfDisposing(audioSources);
     _loadedSourceApplied = true;
     await _restoreActivePlayerVolume();
+  }
+
+  /// Sources resolved or applied after disposal began are outside its writer
+  /// snapshot, and nobody else would stop their downloads: close them and end
+  /// the load as cancelled (#720).
+  void _abortLoadIfDisposing(List<AudioSource> audioSources) {
+    if (!_disposeHandlerStarted) return;
+    for (final source in audioSources) {
+      // ignore: experimental_member_use, reason: as above.
+      final writer = _lockCacheSourceOf(source);
+      if (writer == null) continue;
+      writer.onDownloadStart = null;
+      unawaited(writer.close());
+    }
+    throw OperationCancelledException();
   }
 
   /// Waits, up to [NavisPlaybackTimeouts.remoteLoad], for the server to answer

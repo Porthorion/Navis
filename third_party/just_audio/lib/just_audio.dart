@@ -3983,11 +3983,13 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// unregistered; the startup orphan sweep removes it. Safe to call twice.
   Future<void> close() async {
     _closed = true;
-    await cancelDownload();
     try {
+      await cancelDownload();
       await _finishing;
     } on Object {
-      // The finish failure already reached the download's own error path.
+      // Disposal must go on. A failed abort already failed the waiting
+      // requests; a failed finish leaves a partial file for the orphan sweep.
+      // Catching here only keeps the error from escaping unhandled.
     }
   }
 
@@ -4395,7 +4397,14 @@ class LockCachingAudioSource extends StreamAudioSource {
       final cancelling = subscription.cancel();
       httpClient.close(force: true);
       await cancelling;
-      await sink.close();
+      // Navis: an abort landing while dispatchRequests awaits sink.flush()
+      // makes close() throw "StreamSink is bound to a stream". Waiting
+      // requests, the files and the flags are cleaned up regardless.
+      try {
+        await sink.close();
+      } on Object {
+        // The pending flush drains the sink on its own.
+      }
       final error = Exception('Download cancelled');
       for (final req in _requests) {
         req.fail(error);
@@ -4407,15 +4416,20 @@ class LockCachingAudioSource extends StreamAudioSource {
           res.controller.close();
         }
       }
-      final partial = await _partialCacheFile;
-      if (partial.existsSync()) partial.deleteSync();
-      // Navis: the mime written for this cancelled download goes with it.
-      if (!cacheFile.existsSync() && mimeFile.existsSync()) {
-        mimeFile.deleteSync();
+      try {
+        final partial = await _partialCacheFile;
+        if (partial.existsSync()) partial.deleteSync();
+        // Navis: the mime written for this cancelled download goes with it.
+        if (!cacheFile.existsSync() && mimeFile.existsSync()) {
+          mimeFile.deleteSync();
+        }
+      } on FileSystemException {
+        // A handle still open on the partial file; the orphan sweep removes it.
+      } finally {
+        _response = null;
+        _progress = 0;
+        _downloading = false;
       }
-      _response = null;
-      _progress = 0;
-      _downloading = false;
     };
     return response;
   }
