@@ -1532,68 +1532,80 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// SQL for "the user chose this song": starred, rated, or in a local
-  /// playlist or one owned by [owner] (bound to `?` after [songAlias] uses).
-  /// Remote rows (`is_external`, `ext-`) never qualify.
+  /// playlist or one the user owns (one `?` for the owner, bound by the
+  /// caller after the other variables). Remote rows (`is_external`, `ext-`,
+  /// legacy `remote-`) never qualify. The playlist test is the SQL form of
+  /// `isOwnPlaylist` (playlist_ownership.dart); keep the two in step.
   static String _userChosenSongSql(String a) =>
-      "($a.is_external = 0 AND $a.id NOT LIKE 'ext-%' AND "
-      '($a.starred IS NOT NULL OR $a.user_rating IS NOT NULL OR EXISTS ('
-      'SELECT 1 FROM playlist_songs ps JOIN playlists p '
+      "($a.is_external = 0 AND $a.id NOT LIKE 'ext-%' "
+      "AND $a.id NOT LIKE 'remote-%' AND "
+      '($a.starred IS NOT NULL OR $a.user_rating IS NOT NULL OR EXISTS '
+      '(SELECT 1 FROM playlist_songs ps JOIN playlists p '
       'ON p.id = ps.playlist_id WHERE ps.song_id = $a.id '
-      'AND (p.is_local = 1 OR p.owner = ?))))';
+      'AND (p.is_local = 1 OR (COALESCE(p.read_only, 0) = 0 '
+      'AND (p.owner IS NULL OR lower(p.owner) = lower(?)) '
+      "AND COALESCE(p.comment, '') NOT LIKE 'Auto-imported from ''%')))))";
 
-  /// Of [songIds], those the user chose (see [_userChosenSongSql]); the rest
-  /// are retained silently without a review row.
-  Future<Set<String>> userChosenSongIds(
-    Iterable<String> songIds, {
+  /// Of [ids] (songs, albums or artists, by [entityType]), those carrying
+  /// something the user chose: a favorite or rating, or a song they put in a
+  /// local or own playlist. Chunked, so cost follows rows, not statements.
+  Future<Set<String>> userChosenIds(
+    String entityType,
+    Iterable<String> ids, {
     required String? owner,
   }) async {
+    final (table, own) = switch (entityType) {
+      'song' => ('songs', _userChosenSongSql('x')),
+      'album' => (
+        'albums',
+        '(x.starred IS NOT NULL OR x.user_rating IS NOT NULL OR EXISTS '
+            '(SELECT 1 FROM songs s WHERE s.album_id = x.id AND '
+            '${_userChosenSongSql('s')}))',
+      ),
+      _ => (
+        'artists',
+        '(x.starred IS NOT NULL OR EXISTS (SELECT 1 FROM songs s WHERE '
+            's.artist_id = x.id AND ${_userChosenSongSql('s')}))',
+      ),
+    };
     final chosen = <String>{};
-    for (final id in songIds) {
-      final row = await customSelect(
-        'SELECT 1 FROM songs s WHERE s.id = ? AND ${_userChosenSongSql('s')}',
-        variables: [Variable<String>(id), Variable<String>(owner ?? '')],
-        readsFrom: {attachedDatabase.songsTable},
-      ).getSingleOrNull();
-      if (row != null) chosen.add(id);
+    for (final chunk in chunked(ids.toList(growable: false), 500)) {
+      final rows = await customSelect(
+        'SELECT x.id FROM $table x WHERE x.id IN '
+        '(${List.filled(chunk.length, '?').join(',')}) AND $own',
+        variables: [
+          for (final id in chunk) Variable<String>(id),
+          Variable<String>(owner ?? ''),
+        ],
+      ).get();
+      chosen.addAll(rows.map((row) => row.read<String>('id')));
     }
     return chosen;
   }
+
+  /// Of [songIds], those the user chose; the rest are retained silently
+  /// without a review row.
+  Future<Set<String>> userChosenSongIds(
+    Iterable<String> songIds, {
+    required String? owner,
+  }) => userChosenIds('song', songIds, owner: owner);
 
   /// Whether a song, album or artist still has something the user chose.
   Future<bool> hasUserChosenReference(
     String entityType,
     String id, {
     required String? owner,
-  }) async {
-    final o = Variable<String>(owner ?? '');
-    final row = await switch (entityType) {
-      'song' => customSelect(
-        'SELECT 1 FROM songs s WHERE s.id = ? AND ${_userChosenSongSql('s')}',
-        variables: [Variable<String>(id), o],
-      ),
-      'album' => customSelect(
-        'SELECT 1 WHERE EXISTS (SELECT 1 FROM albums WHERE id = ?1 AND '
-        '(starred IS NOT NULL OR user_rating IS NOT NULL)) OR EXISTS ('
-        'SELECT 1 FROM songs s WHERE s.album_id = ?1 AND '
-        '${_userChosenSongSql('s')})',
-        variables: [Variable<String>(id), o],
-      ),
-      _ => customSelect(
-        'SELECT 1 WHERE EXISTS (SELECT 1 FROM artists WHERE id = ?1 AND '
-        'starred IS NOT NULL) OR EXISTS (SELECT 1 FROM songs s WHERE '
-        's.artist_id = ?1 AND ${_userChosenSongSql('s')})',
-        variables: [Variable<String>(id), o],
-      ),
-    }.getSingleOrNull();
-    return row != null;
-  }
+  }) async => (await userChosenIds(entityType, [id], owner: owner)).isNotEmpty;
 
   /// Deletes pending review rows that no longer need a decision: the old id
-  /// is live again in [generation] (`missingFromCatalog` only), an identity
-  /// alias exists, the row is gone, or nothing the user chose references it.
-  /// Rows are deleted, never given a disposition, so an item that disappears
-  /// again is listed again. Other dispositions are never touched. Cheap and
-  /// idempotent: run it on every promotion.
+  /// is live again in [generation] (`missingFromCatalog` songs, and albums
+  /// and artists of any reason: their old id is the old entity itself; an
+  /// ambiguous song row's old id is the new canonical song, so it is exempt),
+  /// an identity alias exists, the row is gone, or nothing the user chose
+  /// references it. Rows are deleted, never given a disposition, so an item
+  /// that disappears again is listed again. Other dispositions are never
+  /// touched. Idempotent: run it on every promotion. Work is chunked
+  /// (`IN (...)`, 500 ids per statement), not per row.
   Future<int> autoResolveRecoveryReview({
     required int serverId,
     required int generation,
@@ -1606,49 +1618,65 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
             ))
             .get();
     final doomed = <int>[];
-    for (final row in pending) {
-      final table = switch (row.entityType) {
+    for (final type in const ['song', 'album', 'artist']) {
+      final rows = pending
+          .where((row) => row.entityType == type)
+          .toList(growable: false);
+      final table = switch (type) {
         'song' => 'songs',
         'album' => 'albums',
         _ => 'artists',
       };
-      final live = row.entityType == 'song'
-          ? ' AND server_deleted_at IS NULL'
-          : '';
-      final current = await customSelect(
-        'SELECT 1 FROM $table WHERE id = ? AND is_provisional = 0 '
-        'AND catalog_generation = ?$live',
-        variables: [Variable<String>(row.oldId), Variable<int>(generation)],
-      ).getSingleOrNull();
-      final gone = await customSelect(
-        'SELECT 1 FROM $table WHERE id = ?',
-        variables: [Variable<String>(row.oldId)],
-      ).getSingleOrNull();
-      final aliased = await customSelect(
-        'SELECT 1 FROM entity_identity_aliases WHERE entity_type = ? '
-        'AND old_id = ? AND (server_id = ? OR server_id IS NULL)',
-        variables: [
-          Variable<String>(row.entityType),
-          Variable<String>(row.oldId),
-          Variable<int>(serverId),
-        ],
-      ).getSingleOrNull();
-      if ((row.reason == 'missingFromCatalog' && current != null) ||
-          aliased != null ||
-          gone == null ||
-          (row.reason == 'missingFromCatalog' &&
-              !await hasUserChosenReference(
-                row.entityType,
-                row.oldId,
-                owner: owner,
-              ))) {
-        doomed.add(row.id);
+      final live = type == 'song' ? ' AND server_deleted_at IS NULL' : '';
+      for (final chunk in chunked(rows, 500)) {
+        final ids = [for (final row in chunk) row.oldId];
+        final marks = List.filled(ids.length, '?').join(',');
+        final idVars = [for (final id in ids) Variable<String>(id)];
+        Future<Set<String>> column(
+          String sql,
+          String name,
+          List<Variable<Object>> variables,
+        ) async => {
+          for (final row in await customSelect(sql, variables: variables).get())
+            row.read<String>(name),
+        };
+        final current = await column(
+          'SELECT id FROM $table WHERE id IN ($marks) AND is_provisional = 0 '
+              'AND catalog_generation = ?$live',
+          'id',
+          [...idVars, Variable<int>(generation)],
+        );
+        final present = await column(
+          'SELECT id FROM $table WHERE id IN ($marks)',
+          'id',
+          idVars,
+        );
+        final aliased = await column(
+          'SELECT old_id FROM entity_identity_aliases WHERE entity_type = ? '
+              'AND old_id IN ($marks) AND (server_id = ? OR server_id IS NULL)',
+          'old_id',
+          [Variable<String>(type), ...idVars, Variable<int>(serverId)],
+        );
+        final chosen = await userChosenIds(type, ids, owner: owner);
+        for (final row in chunk) {
+          final missing = row.reason == 'missingFromCatalog';
+          // Albums and artists: the old id is the old entity, so a live row
+          // under it resolves any reason. Songs: only a missing-song row.
+          final liveAgain =
+              (missing || type != 'song') && current.contains(row.oldId);
+          if (liveAgain ||
+              aliased.contains(row.oldId) ||
+              !present.contains(row.oldId) ||
+              (missing && !chosen.contains(row.oldId))) {
+            doomed.add(row.id);
+          }
+        }
       }
     }
-    for (final id in doomed) {
+    for (final chunk in chunked(doomed, 500)) {
       await (delete(
         libraryRecoveryReviewTable,
-      )..where((t) => t.id.equals(id) & t.disposition.equals('pending'))).go();
+      )..where((t) => t.id.isIn(chunk) & t.disposition.equals('pending'))).go();
     }
     return doomed.length;
   }

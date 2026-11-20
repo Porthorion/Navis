@@ -351,11 +351,10 @@ class EntityIdentityReconciler {
     return a.trim().toLowerCase() == b.trim().toLowerCase();
   }
 
-  /// A review entry is only worth showing when the row still carries user
-  /// state or live references; ephemeral provisional parents are garbage
-  /// collected instead.
-  /// Only what the user chose is worth a review (starred, rated, or in a
-  /// local or own playlist); retention itself is unchanged.
+  /// A review entry is only worth showing when the user chose something on
+  /// the row (starred, rated, or a song in a local or own playlist);
+  /// ephemeral provisional parents are garbage collected instead, and
+  /// retention itself is unchanged.
   Future<bool> _albumNeedsReview(AlbumsTableData album) => _database
       .librarySyncDao
       .hasUserChosenReference('album', album.id, owner: owner);

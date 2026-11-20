@@ -16,6 +16,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -2085,6 +2086,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
           serverId: serverId,
           entityType: type,
           localIds: absenceCandidateIds,
+          unavailableIds: localIds.difference(absenceCandidateIds),
           serverIds: starredAt.keys.toSet(),
           protectedIds: pendingByType[type]!,
         );
@@ -2210,6 +2212,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required int? serverId,
     required String entityType,
     required Set<String> localIds,
+    required Set<String> unavailableIds,
     required Set<String> serverIds,
     required Set<String> protectedIds,
   }) async {
@@ -2221,7 +2224,9 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     await _database.librarySyncDao.clearStarredAbsenceCandidates(
       serverId: serverId,
       entityType: entityType,
-      ids: {...serverIds, ...protectedIds},
+      // Unavailable (tombstoned) songs can never be listed as starred, so
+      // earlier absences prove nothing once they return.
+      ids: {...serverIds, ...protectedIds, ...unavailableIds},
     );
     final absentIds = localIds.difference(serverIds).difference(protectedIds);
     return await _database.librarySyncDao.observeStarredAbsences(
@@ -3887,7 +3892,8 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             protectedSongIds: readProtectedSongIds?.call() ?? const <String>{},
           );
 
-      final retainedForReview = <SongsTableData>[];
+      // Ids only: rows are re-read in chunks after the late identity pass.
+      final retainedForReview = <String>[];
       await for (final staleSongs in _keysetPages(
         fetch: (afterId) => _database.librarySyncCandidateDao.getStaleSongsPage(
           serverId: serverId,
@@ -3904,13 +3910,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             staleSongs.length - removal.retainedUnavailableIds.length;
         deferredCacheFiles.addAll(removal.deferredCacheFiles);
         retainedUnavailableCount += removal.retainedUnavailableIds.length;
-        final retainedById = <String, SongsTableData>{
-          for (final song in staleSongs) song.id: song,
-        };
-        retainedForReview.addAll([
-          for (final retainedId in removal.retainedUnavailableIds)
-            ?retainedById[retainedId],
-        ]);
+        retainedForReview.addAll(removal.retainedUnavailableIds);
       }
 
       // Rows this promotion just kept as provisional (downloads of rebuilt
@@ -3945,25 +3945,23 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
 
       // Recorded only now so songs the late pass relinked are never listed, and
       // only for what the user chose; the rest stay retained, silently.
+      // The owner is the promoted server's user, not whichever is active now.
       final reviewOwner =
-          (await _serverConfigRepository.getActiveServer())?.username;
-      final stillThere = <SongsTableData>[];
-      for (final song in retainedForReview) {
-        if (await _database.libraryDao.getSongById(song.id) != null) {
-          stillThere.add(song);
-        }
+          await (_database.select(_database.serverConfigTable)
+                ..where((t) => t.id.equals(serverId)))
+              .map((row) => row.username)
+              .getSingleOrNull();
+      for (final ids in chunked(retainedForReview, 500)) {
+        final chosen = await _database.librarySyncDao.userChosenSongIds(
+          ids,
+          owner: reviewOwner,
+        );
+        await _database.librarySyncDao.recordRecoveryReviewBatch(
+          serverId: serverId,
+          retainedSongs: await _database.libraryDao.getSongsByIds(chosen),
+          evidenceGeneration: generation,
+        );
       }
-      final chosen = await _database.librarySyncDao.userChosenSongIds([
-        for (final song in stillThere) song.id,
-      ], owner: reviewOwner);
-      await _database.librarySyncDao.recordRecoveryReviewBatch(
-        serverId: serverId,
-        retainedSongs: [
-          for (final song in stillThere)
-            if (chosen.contains(song.id)) song,
-        ],
-        evidenceGeneration: generation,
-      );
 
       // Album/artist relinking runs after rows are preserved as provisional
       // and the retained song set is final, but before removable stale rows
