@@ -232,6 +232,17 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Liked songs that are removed from the server no longer lose their '
+        'like',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Unavailable items now resolve on their own when a song comes back or '
+        'is matched, and only list music you liked, rated or put in a '
+        'playlist',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Trending opens right away when you open it while the library syncs '
         'at launch, instead of showing a placeholder until the sync ends',
         type: ChangelogEntryType.fix,

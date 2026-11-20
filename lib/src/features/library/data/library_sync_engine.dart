@@ -16,6 +16,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -2077,10 +2078,15 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       ]) {
         final localIds = await _database.libraryDao.getStarredIds(type);
         before['${type}s'] = localIds.length;
+        final absenceCandidateIds = await _database.libraryDao.getStarredIds(
+          type,
+          excludeUnavailable: true,
+        );
         final confirmedAbsentIds = await _confirmedStarredAbsences(
           serverId: serverId,
           entityType: type,
-          localIds: localIds,
+          localIds: absenceCandidateIds,
+          unavailableIds: localIds.difference(absenceCandidateIds),
           serverIds: starredAt.keys.toSet(),
           protectedIds: pendingByType[type]!,
         );
@@ -2206,6 +2212,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required int? serverId,
     required String entityType,
     required Set<String> localIds,
+    required Set<String> unavailableIds,
     required Set<String> serverIds,
     required Set<String> protectedIds,
   }) async {
@@ -2217,7 +2224,9 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     await _database.librarySyncDao.clearStarredAbsenceCandidates(
       serverId: serverId,
       entityType: entityType,
-      ids: {...serverIds, ...protectedIds},
+      // Unavailable (tombstoned) songs can never be listed as starred, so
+      // earlier absences prove nothing once they return.
+      ids: {...serverIds, ...protectedIds, ...unavailableIds},
     );
     final absentIds = localIds.difference(serverIds).difference(protectedIds);
     return await _database.librarySyncDao.observeStarredAbsences(
@@ -3894,6 +3903,8 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             protectedSongIds: readProtectedSongIds?.call() ?? const <String>{},
           );
 
+      // Ids only: rows are re-read in chunks after the late identity pass.
+      final retainedForReview = <String>[];
       await for (final staleSongs in _keysetPages(
         fetch: (afterId) => _database.librarySyncCandidateDao.getStaleSongsPage(
           serverId: serverId,
@@ -3910,18 +3921,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             staleSongs.length - removal.retainedUnavailableIds.length;
         deferredCacheFiles.addAll(removal.deferredCacheFiles);
         retainedUnavailableCount += removal.retainedUnavailableIds.length;
-        final retainedById = <String, SongsTableData>{
-          for (final song in staleSongs) song.id: song,
-        };
-        final retainedSongs = <SongsTableData>[
-          for (final retainedId in removal.retainedUnavailableIds)
-            ?retainedById[retainedId],
-        ];
-        await _database.librarySyncDao.recordRecoveryReviewBatch(
-          serverId: serverId,
-          retainedSongs: retainedSongs,
-          evidenceGeneration: generation,
-        );
+        retainedForReview.addAll(removal.retainedUnavailableIds);
       }
 
       // Rows this promotion just kept as provisional (downloads of rebuilt
@@ -3954,12 +3954,35 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         }
       }
 
+      // Recorded only now so songs the late pass relinked are never listed, and
+      // only for what the user chose; the rest stay retained, silently.
+      // The owner is the promoted server's user, not whichever is active now.
+      final reviewOwner =
+          await (_database.select(_database.serverConfigTable)
+                ..where((t) => t.id.equals(serverId)))
+              .map((row) => row.username)
+              .getSingleOrNull();
+      for (final ids in chunked(retainedForReview, 500)) {
+        final chosen = await _database.librarySyncDao.userChosenSongIds(
+          ids,
+          owner: reviewOwner,
+        );
+        await _database.librarySyncDao.recordRecoveryReviewBatch(
+          serverId: serverId,
+          retainedSongs: await _database.libraryDao.getSongsByIds(chosen),
+          evidenceGeneration: generation,
+        );
+      }
+
       // Album/artist relinking runs after rows are preserved as provisional
       // and the retained song set is final, but before removable stale rows
       // are deleted: unresolved entities must still be reviewable from their
       // recorded metadata, and remapped entities delete their own rows.
-      final entityIdentitySummary = await EntityIdentityReconciler(_database)
-          .reconcile(
+      final entityIdentitySummary =
+          await EntityIdentityReconciler(
+            _database,
+            owner: reviewOwner,
+          ).reconcile(
             serverId: serverId,
             generation: generation,
             songAliases: <SongIdentityAlias>[
@@ -3993,6 +4016,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         );
       }
       await _database.libraryDao.deleteArtistsByIds(removableArtistIds);
+      await _database.librarySyncDao.autoResolveRecoveryReview(
+        serverId: serverId,
+        generation: generation,
+        owner: reviewOwner,
+      );
 
       final afterCatalog = await _database.libraryDao.getCatalogCounts();
       await _database.librarySyncDao.writeState(

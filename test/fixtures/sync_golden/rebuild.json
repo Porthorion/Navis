@@ -566,21 +566,7 @@
     "recoveryReviews": [
       {
         "entity_type": "album",
-        "old_id": "al-gone",
-        "reason": "missingFromCatalog",
-        "candidate_json": null,
-        "disposition": "pending"
-      },
-      {
-        "entity_type": "album",
         "old_id": "al-plain",
-        "reason": "missingFromCatalog",
-        "candidate_json": null,
-        "disposition": "pending"
-      },
-      {
-        "entity_type": "artist",
-        "old_id": "ar-gone",
         "reason": "missingFromCatalog",
         "candidate_json": null,
         "disposition": "pending"
