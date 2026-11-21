@@ -15,6 +15,7 @@ import 'package:navis/src/features/library/presentation/artist_deezer_providers.
     show libraryAlbumTitlesReader;
 import 'package:navis/src/features/player/data/same_vibes_deezer_pool.dart';
 import 'package:navis/src/features/player/domain/same_vibes_ranking.dart';
+import 'package:navis/src/features/player/domain/scrobble_threshold.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/features/player/domain/artist_spacing.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -116,6 +117,17 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// The anchor's resolved metadata, stored by the initial refill.
   _SeedMetadata? _anchorSeed;
 
+  /// Mix songs the player left after the scrobble threshold, oldest first
+  /// (#743). The snapshot's position is not refreshed on every tick, so the
+  /// furthest streamed position of the playing song is tracked separately.
+  final List<String> _playedThrough = <String>[];
+
+  /// Artist names of the songs the mix queued, for the played-through radios.
+  final Map<String, String> _mixArtists = <String, String>{};
+  String? _playingSongId;
+  Duration _playingDuration = Duration.zero;
+  Duration _furthestPosition = Duration.zero;
+
   /// The mix's Deezer lists, created by its first Deezer leg and set after
   /// `session.start()` (#743). Every refill reads it into a local first.
   SameVibesDeezerPool? _vibesPool;
@@ -139,6 +151,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   @override
   SameVibesState build() {
     ref.listen<PlaybackSnapshot>(playerStateProvider, _onSnapshotChanged);
+    ref.listen<AsyncValue<Duration>>(playbackPositionProvider, (_, next) {
+      final position = next.asData?.value;
+      if (position != null && position > _furthestPosition) {
+        _furthestPosition = position;
+      }
+    });
     ref.listen<int>(regularQueueReplacementEpochProvider, (prev, next) {
       if (state.active) {
         deactivate();
@@ -167,6 +185,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
     _mixSongIds = null;
     _mixSongKeys = null;
+    _resetPlayedThrough();
     _parkedSeedSongId = null;
     _lastRefill = null;
     _consecutiveTransientFailures = 0;
@@ -218,6 +237,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _lastFeatureIds = const <int>[];
     _mixSongIds = null;
     _mixSongKeys = null;
+    _resetPlayedThrough();
     _activationInProgress = false;
     _suppressActivationSeedSnapshot = false;
     state = const SameVibesState.inactive();
@@ -243,8 +263,43 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
   }
 
+  void _resetPlayedThrough() {
+    _playedThrough.clear();
+    _mixArtists.clear();
+    _playingSongId = null;
+    _playingDuration = Duration.zero;
+    _furthestPosition = Duration.zero;
+  }
+
+  /// Notes a mix song the player just left after the scrobble threshold.
+  /// Runs before every early return of [_onSnapshotChanged]: a refill in
+  /// flight must not lose it. Skips (below the threshold) never count.
+  void _trackPlayedThrough(PlaybackSnapshot next) {
+    final id = next.isRadioMode ? null : next.currentSongId;
+    if (id == _playingSongId) {
+      if (next.duration > Duration.zero) _playingDuration = next.duration;
+      return;
+    }
+    final left = _playingSongId;
+    if (left != null &&
+        left != _anchorId &&
+        (_mixSongIds?.contains(left) ?? false) &&
+        reachedScrobbleThreshold(
+          duration: _playingDuration,
+          position: _furthestPosition,
+        )) {
+      _playedThrough
+        ..remove(left)
+        ..add(left);
+    }
+    _playingSongId = id;
+    _playingDuration = next.duration;
+    _furthestPosition = Duration.zero;
+  }
+
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
+    _trackPlayedThrough(next);
     if (_activationInProgress) return;
     if (_consumeActivationSeedSnapshot(next)) return;
     if (next.isRadioMode) return;
@@ -696,6 +751,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         totalQueued = result.count;
         if (totalQueued > 0) {
           (_mixSongIds ??= <String>{}).addAll(result.insertedIds);
+          for (final song in songsToQueue) {
+            final artist = song.artist;
+            if (artist != null && result.insertedIds.contains(song.id)) {
+              _mixArtists[song.id] = artist;
+            }
+          }
           final keys = _mixSongKeys ??= <String>{};
           for (final song in songsToQueue) {
             final key = sameVibesCanonicalSongKey(
@@ -1297,6 +1358,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       report.pool,
       stopwatch.elapsedMilliseconds,
       skipped: result.message == _kDeezerSkippedReason,
+      likedSignals: report.likedSignals,
     );
     return result;
   }
@@ -1305,6 +1367,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     SameVibesDeezerPool? pool,
     int msTotal, {
     required bool skipped,
+    required int likedSignals,
   }) {
     final stats = pool?.stats;
     return <String, Object?>{
@@ -1312,8 +1375,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       'relatedCount': stats?.relatedCount ?? 0,
       'listsUsed': stats?.listsUsed ?? 0,
       'featuresUsed': stats?.featuresUsed ?? 0,
-      // Liked-song radios come with the played-through signal (P7).
-      'likedSignals': 0,
+      'likedSignals': likedSignals,
       'deadlineHit': stats?.deadlineHit ?? false,
       'msLists': stats?.msLists ?? 0,
       'msTotal': msTotal,
@@ -1402,7 +1464,20 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           .topUp(_lastFeatureIds)
           .timeout(_kVibesTopUpWait, onTimeout: () {});
       // Errors propagate (the Deezer-leg failure path); null is a clean empty.
-      final lists = await vibesPool.refillLists(const <int>[]);
+      // The last two played-through songs by the seed's neighbourhood.
+      final likedIds = <int>[];
+      for (final songId in _playedThrough.reversed) {
+        final artist = _mixArtists[songId];
+        final deezerId = artist == null
+            ? null
+            : vibesPool.deezerArtistIdFor(artist);
+        if (deezerId != null && !likedIds.contains(deezerId)) {
+          likedIds.add(deezerId);
+          if (likedIds.length == 2) break;
+        }
+      }
+      report.likedSignals = likedIds.length;
+      final lists = await vibesPool.refillLists(likedIds);
       final seedArtistId = vibesPool.seedArtistId;
       if (lists == null || seedArtistId == null) return empty;
       ranking = rankSameVibesPool(
@@ -1932,6 +2007,9 @@ final sameVibesProvider = NotifierProvider<SameVibesNotifier, SameVibesState>(
 class _DeezerLegReport {
   SameVibesDeezerPool? pool;
   bool firstBatch = false;
+
+  /// Liked-song radios this refill asked for (played-through signals).
+  int likedSignals = 0;
 
   /// Deezer mode never asks Last.fm, so its outcome fields stay null.
   bool lastFmSkipped = false;

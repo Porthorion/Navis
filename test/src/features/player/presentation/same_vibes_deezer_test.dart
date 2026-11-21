@@ -235,6 +235,7 @@ class _Rig {
   var now = DateTime(2026, 11, 18, 12);
 
   final _database = createTestDatabase();
+  final positions = StreamController<Duration>.broadcast();
 
   late final ProviderContainer container = createRecommendationContainer(
     lastFmMode: false,
@@ -264,6 +265,7 @@ class _Rig {
           ),
         ),
       ),
+      playbackPositionProvider.overrideWith((ref) => positions.stream),
       downloadedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
       cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
       sameVibesAlbumSongCountLookupProvider.overrideWithValue(
@@ -292,10 +294,31 @@ class _Rig {
         ).copyWith(position: Duration(seconds: tick)),
       );
 
+  /// Makes [id] the current song of a queue holding the mix, reports
+  /// [position] into it and lets the notifier see both.
+  Future<void> play(String id, {Duration? position, int tick = 0}) async {
+    container
+        .read(recommendationSnapshotProvider.notifier)
+        .emitSnapshot(
+          recommendationSnapshot(
+            queueSongIds: ['seed', ..._ids(queue.queuedSongs), 'q-9'],
+            currentSongId: id,
+            currentIndex: 0,
+          ).copyWith(position: Duration(milliseconds: tick)),
+        );
+    await pumpEventQueue();
+    if (position != null) {
+      positions.add(position);
+      await pumpEventQueue();
+    }
+  }
+
   /// Lets the unawaited background top-up run to its end.
   Future<void> settle() => pumpEventQueue(times: 300);
 
   Future<void> start() async {
+    // The mix is listened to in the app; an unlistened notifier is paused.
+    container.listen(sameVibesProvider, (_, _) {});
     container.read(_modeProvider.notifier).set(mode);
     emit(1);
     await notifier.activate('seed');
@@ -1218,6 +1241,162 @@ void main() {
       verifyNoDeezerCalls(rig);
       expect(rig.state.active, isFalse);
       expect(_ids(rig.queue.queuedSongs), queued);
+    });
+
+    group('played-through signals', () {
+      _Rig neighbourhoodRig([PreferredMixMode? mode]) =>
+          (mode == null ? _Rig() : _Rig(mode: mode))
+            ..relatedArtists = related6
+            ..relatedRadio = relatedList
+            ..relatedTop = ((id) async => [
+              tk(id * 10 + 1, 'Rel$id', 'Top$id'),
+            ]);
+      List<String> relSongs(_Rig rig) => [
+        for (final s in rig.queue.queuedSongs)
+          if (s.artist!.startsWith('Rel')) s.id,
+      ];
+      String otherSong(_Rig rig) => rig.queue.queuedSongs
+          .firstWhere((s) => !s.artist!.startsWith('Rel'))
+          .id;
+      void verifyLiked(_Rig rig, int artistId, {required int times}) => verify(
+        () => rig.deezer.getArtistRadio(
+          artistId,
+          limit: 25,
+          cancelToken: any(named: 'cancelToken'),
+          background: true,
+          retryQuota: false,
+        ),
+      ).called(times);
+      // A distinct position each time: the stream drops repeated values.
+      var ticks = 0;
+      Future<void> playThrough(_Rig rig, String id) =>
+          rig.play(id, position: Duration(seconds: 100 + ticks++));
+      int? liked(_Rig rig) =>
+          rig.notifier.lastRefill?.deezer?['likedSignals'] as int?;
+
+      test('a neighbourhood song played past the threshold becomes a liked '
+          'radio', () async {
+        final rig = neighbourhoodRig();
+        await rig.start();
+        await rig.settle();
+        clearInteractions(rig.deezer);
+        final rel = relSongs(rig).first;
+        await playThrough(rig, rel);
+        await rig.play(otherSong(rig));
+        await rig.refill();
+
+        final id = int.parse(rel.substring(3, 5));
+        verifyLiked(rig, id, times: 1);
+        expect(liked(rig), 1);
+      });
+
+      test(
+        'a skipped song, the anchor and a non-mix song never count',
+        () async {
+          final rig = neighbourhoodRig();
+          await rig.start();
+          await rig.settle();
+          clearInteractions(rig.deezer);
+          final rel = relSongs(rig);
+          await rig.play('seed', position: const Duration(seconds: 100));
+          await rig.play(rel[0], position: const Duration(seconds: 5));
+          await rig.play('q-9', position: const Duration(seconds: 100));
+          await rig.play(rel[1]);
+          await rig.refill();
+
+          verifyNever(
+            () => rig.deezer.getArtistRadio(
+              any(),
+              limit: 25,
+              cancelToken: any(named: 'cancelToken'),
+              background: any(named: 'background'),
+              retryQuota: any(named: 'retryQuota'),
+            ),
+          );
+          expect(liked(rig), 0);
+        },
+      );
+
+      test('only neighbourhood artists count, at most two, most recent '
+          'first out', () async {
+        final rig = neighbourhoodRig();
+        await rig.start();
+        await rig.settle();
+        clearInteractions(rig.deezer);
+        // One song per related artist ('RelNN-...').
+        final byArtist = <String, String>{};
+        for (final id in relSongs(rig)) {
+          byArtist.putIfAbsent(id.substring(0, 5), () => id);
+        }
+        final rel = byArtist.values.toList();
+        expect(rel.length, greaterThanOrEqualTo(3));
+        for (final id in rel.take(3)) {
+          await playThrough(rig, id);
+        }
+        await playThrough(rig, otherSong(rig));
+        await rig.play('q-9');
+        await rig.refill();
+
+        int idOf(String song) => int.parse(song.substring(3, 5));
+        verifyNever(
+          () => rig.deezer.getArtistRadio(
+            idOf(rel[0]),
+            limit: 25,
+            cancelToken: any(named: 'cancelToken'),
+            background: true,
+            retryQuota: false,
+          ),
+        );
+        verifyLiked(rig, idOf(rel[1]), times: 1);
+        verifyLiked(rig, idOf(rel[2]), times: 1);
+        expect(liked(rig), 2);
+      });
+
+      test('a song played through while a refill runs is not lost', () async {
+        final rig = neighbourhoodRig();
+        await rig.start();
+        await rig.settle();
+        clearInteractions(rig.deezer);
+        final rel = relSongs(rig).first;
+        final held = Completer<List<DeezerTrack>>();
+        rig.radio = () => held.future;
+        unawaited(rig.refill());
+        await pumpEventQueue();
+        expect(rig.state.refilling, isTrue);
+
+        await playThrough(rig, rel);
+        await rig.play(otherSong(rig));
+        rig.radio = () async => freshRadio();
+        held.complete(freshRadio());
+        while (rig.state.refilling) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        await rig.refill();
+
+        verifyLiked(rig, int.parse(rel.substring(3, 5)), times: 1);
+      });
+
+      test('Last.fm mode ignores played-through songs', () async {
+        final rig = neighbourhoodRig(PreferredMixMode.sameVibesLastFm);
+        await rig.start();
+        await rig.settle();
+        clearInteractions(rig.deezer);
+        final first = rig.queue.queuedSongs.first.id;
+        await playThrough(rig, first);
+        await rig.play('q-9');
+        await rig.refill();
+
+        verifyNever(
+          () => rig.deezer.getArtistRadio(
+            any(),
+            limit: any(named: 'limit'),
+            cancelToken: any(named: 'cancelToken'),
+            background: any(named: 'background'),
+            retryQuota: any(named: 'retryQuota'),
+          ),
+        );
+        expect(rig.notifier.lastRefill?.deezer, isNull);
+      });
     });
   });
 }

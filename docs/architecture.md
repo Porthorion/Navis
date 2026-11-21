@@ -4705,7 +4705,8 @@ generic server results to it.
 
 A mix starts from the song its caller chose, which need not be the one
 playing (Android Auto starts mixes from browsed songs): the first refill uses
-the requested seed and later refills follow the current song. Starting a mix
+the requested seed. Later Server Mix and Last.fm refills follow the current
+song; Same Vibes through Deezer stays on the mix's anchor (below). Starting a mix
 keeps only the seed in the queue, clearing deferred played history and upcoming
 songs even when the player already holds only the seed, so the first refill
 treats only the seed as already queued; songs from an earlier mix still behind
@@ -4745,8 +4746,9 @@ its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
 Personal Radio, Server Mix and Same Vibes start background refills with four
 tracks remaining after the current song (`kRecommendationRefillLowWater`);
-Same Vibes queues up to ten songs per batch from at most twenty Last.fm
-recommendations; a shortfall is topped up from the server's similar songs. An unavailable Next at the Personal
+Same Vibes queues up to ten songs per batch (from at most twenty Last.fm
+recommendations, or the ranked Deezer pool); a shortfall is topped up from the
+server's similar songs. An unavailable Next at the Personal
 Radio queue tail records one pending skip in the notifier and starts the
 existing refill if one is due. After a successful recommendation append, it
 advances to the first inserted track only while the same session owns the queue
@@ -4774,7 +4776,13 @@ queue commits attempt to restore the previous queue and play state. Persisted
 recommendation tracks restore as an ordinary queue after restart, without
 restarting refills.
 
-Same Vibes and Server Mix refills seed on the current song. A refill that
+Server Mix refills seed on the current song. Same Vibes keeps two seeds: the
+**anchor**, the song the mix was activated from (whatever its kind, remote
+songs included), and the **trigger**, the song playing when a refill fires.
+Deezer-sourced Same Vibes ranks from the anchor for the whole mix, so a mix
+that drifts to other artists keeps its character; Last.fm-sourced Same Vibes
+asks about the trigger as before (anchoring it was never judged blind and is
+left out). The trigger is also the park and retry key. A refill that
 queues nothing without a failure (Last.fm has no or only queued similar songs,
 the server has none left, or the seed is not server-addressable) is not a
 failure: the mix parks on that seed, with no retry timer and no failure count,
@@ -4794,13 +4802,43 @@ initial-start timeout, terminal Last.fm errors (invalid key, rate
 limit) and a server that lacks the similarity endpoints still end the mix with
 their notice. A remote song without a library copy has no similar songs of
 its own, and never borrows a queue neighbour's: Server Mix only parks. Same
-Vibes asks the server's similar songs for its anchor (the song the mix started
-from, or its library copy) first, then for the song that fired the refill when
-the anchor added nothing (all queued, gone from the server, or a failed ask),
-so a mix of remote songs keeps growing. A failed ask of either, with nothing
-queued, retries like any failure; a gone anchor or an empty result is not a
-failure and parks on the triggering song. A remote anchor without a library
-copy goes straight to the trigger. A refill that parks on the last item with repeat off
+Vibes fills from the server for either source: it asks the server's similar
+songs for the anchor (or its library copy) first, then for the trigger when the
+anchor added nothing (all queued, gone from the server, or a failed ask), so a
+mix of remote songs keeps growing; when the trigger is the anchor (the initial
+refill) there is one ask. A failed ask of either, with nothing queued, retries
+like any failure; a gone anchor (404) or an empty result is not a failure and
+parks on the triggering song. A remote anchor without a library copy goes
+straight to the trigger.
+
+The Deezer source (`SameVibesDeezerPool`, one per mix, created by the mix's
+first Deezer leg, dropped when the mix ends) resolves the anchor artist once,
+fetches its artist radio, its twenty related artists and, for the six nearest,
+a radio and a top-five list, plus the anchor's track and the features (BPM,
+gain, rank) of the likeliest candidates. `rankSameVibesPool` weights the lists
+by related-artist rank and shifts the order by the feature distance to the
+anchor; the ranked order is what the mapper queues. The first batch is
+foreground and ships at a 2.5 s soft deadline with the lists that have arrived
+(inside the 6 s leg timeout); everything later is background under the mix's
+cancel token. Each later refill awaits `topUp` (repairing failed lists and
+fetching features, up to 12 s; a slow top-up keeps running and the next
+ranking uses what has arrived) and asks one fresh anchor radio. Requests go
+through the Deezer client's limiter: a quota answer is not retried and skips
+Deezer for that refill (the server fills, the mix keeps going). Stopping the
+mix cancels the pool.
+
+Played-through songs refine later Deezer refills. A mix song (never the anchor)
+counts when the player leaves it after reaching the scrobble threshold (half the
+song, capped at four minutes; `reachedScrobbleThreshold`, shared with
+scrobbling); a skip never counts and never moves the anchor. The snapshot's
+position is not refreshed on every tick, so the notifier keeps the furthest
+`playbackPositionProvider` value of the playing song. The signal is recorded
+before the notifier's early returns, so a song finished during a refill is not
+lost. A refill takes the last two played-through songs whose artist is in the
+pool's neighbourhood (anchor artist plus related artists), asks each artist's
+radio, and ranks those lists with the pool's. Last.fm mode ignores the signal.
+Known unjudged area: on library-only servers most of a batch is the anchor's
+server fill, which no blind test covered (the judges saw Deezer-only lists). A refill that parks on the last item with repeat off
 ends the mix right away, provided that song is still the playing one; a skip
 made while a refill runs is re-checked as soon as the refill parks.
 

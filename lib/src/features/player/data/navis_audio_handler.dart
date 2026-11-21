@@ -19,6 +19,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/player/domain/scrobble_threshold.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
