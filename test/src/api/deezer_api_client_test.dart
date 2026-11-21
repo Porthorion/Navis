@@ -379,6 +379,74 @@ void main() {
     expect(await client.getArtist(9), isNull);
   });
 
+  test('getTrack reads track/{id} with bpm, date and explicit flag', () async {
+    adapter.queue('/track/42', <String, Object?>{
+      ..._track(42, 'Demons'),
+      'bpm': 120.5,
+      'release_date': '2013-04-12',
+      'explicit_lyrics': true,
+    });
+
+    final track = await client.getTrack(42);
+
+    expect(adapter.requests.single.path, '/track/42');
+    expect(track?.title, 'Demons');
+    expect(track?.bpm, 120.5);
+    expect(track?.releaseDate, '2013-04-12');
+    expect(track?.explicitLyrics, isTrue);
+  });
+
+  test('getTrack keeps bpm 0 and a zero release date verbatim', () async {
+    adapter.queue('/track/43', <String, Object?>{
+      ..._track(43, 'Old'),
+      'bpm': 0,
+      'release_date': '0000-00-00',
+    });
+
+    final track = await client.getTrack(43);
+
+    expect(track?.bpm, 0);
+    expect(track?.releaseDate, '0000-00-00');
+    expect(track?.explicitLyrics, isNull);
+  });
+
+  test('getTrack reads code 800 as null and skips ids <= 0', () async {
+    adapter.queue('/track/9', _error(800, 'DataException', 'no data'));
+
+    expect(await client.getTrack(9), isNull);
+    expect(await client.getTrack(0), isNull);
+    expect(adapter.requests, hasLength(1));
+  });
+
+  test('getTrack with retryQuota false throws at once on quota', () async {
+    adapter.queue('/track/5', _error(4, 'Exception', 'quota'));
+
+    await expectLater(
+      client.getTrack(5, retryQuota: false),
+      throwsA(isA<DeezerApiException>()),
+    );
+    expect(adapter.requests, hasLength(1));
+  });
+
+  test('track fields round-trip through toJson and stay null when absent', () {
+    final full = DeezerTrack.fromJson(<String, Object?>{
+      ..._track(7, 'Wonder'),
+      'bpm': 98,
+      'release_date': '2020-01-02',
+      'explicit_lyrics': false,
+    });
+    final copy = DeezerTrack.fromJson(full.toJson());
+    expect(copy.bpm, 98);
+    expect(copy.releaseDate, '2020-01-02');
+    expect(copy.explicitLyrics, isFalse);
+
+    final bare = DeezerTrack.fromJson(_track(8, 'Bare'));
+    expect(bare.bpm, isNull);
+    expect(bare.releaseDate, isNull);
+    expect(bare.explicitLyrics, isNull);
+    expect(bare.toJson().containsKey('bpm'), isFalse);
+  });
+
   test('getRelatedArtists parses artists and sends the limit', () async {
     adapter.queue('/artist/1105/related', <String, Object?>{
       'data': <Object?>[
