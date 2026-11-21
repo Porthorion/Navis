@@ -1,3 +1,7 @@
+// ponytail: the 0.5.x/0.2.x bridge keeps identical behaviour; it is deprecated
+// upstream, so move to the nativeapi Window/DisplayManager API before it goes.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -10,8 +14,8 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:screen_retriever/screen_retriever.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:screen_retriever/legacy.dart';
+import 'package:window_manager/legacy.dart';
 
 class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   new({required this.bounds, this.maximized = false});

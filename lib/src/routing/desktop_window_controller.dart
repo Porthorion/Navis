@@ -1,3 +1,7 @@
+// ponytail: the 0.5.x/0.2.x bridge keeps identical behaviour; it is deprecated
+// upstream, so move to the nativeapi Window/DisplayManager API before it goes.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -9,8 +13,8 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:screen_retriever/screen_retriever.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:screen_retriever/legacy.dart';
+import 'package:window_manager/legacy.dart';
 
 enum DesktopWindowMode { desktop, miniPlayer }
 
