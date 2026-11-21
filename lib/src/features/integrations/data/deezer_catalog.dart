@@ -200,11 +200,19 @@ class DeezerCatalog {
     String query, {
     int limit = searchLimit,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) => _searchCached(
     'track',
     query,
     limit,
-    () => _client.searchTracks(query, limit: limit, cancelToken: cancelToken),
+    () => _client.searchTracks(
+      query,
+      limit: limit,
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    ),
   );
 
   /// `/search/artist`, like [searchTracks].

@@ -475,6 +475,8 @@ class SameVibesDeezerPool {
           (token) => _catalog.searchTracks(
             '${seed.artist} ${seed.title}',
             cancelToken: token,
+            background: background,
+            retryQuota: false,
           ),
         );
         final titleKey = songVersionTitleKey(seed.title);

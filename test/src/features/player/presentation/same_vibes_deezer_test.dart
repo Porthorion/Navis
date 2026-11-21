@@ -194,6 +194,8 @@ class _Rig {
         any(),
         limit: any(named: 'limit'),
         cancelToken: any(named: 'cancelToken'),
+        background: any(named: 'background'),
+        retryQuota: any(named: 'retryQuota'),
       ),
     ).thenAnswer((_) async => searchHits);
     this.mode = mode;

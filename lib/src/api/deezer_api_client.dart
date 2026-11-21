@@ -171,13 +171,18 @@ class DeezerApiClient {
     String query, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
-    final data = await _getData('search/track', <String, Object>{
-      'q': trimmed,
-      'limit': limit,
-    }, cancelToken: cancelToken);
+    final data = await _getData(
+      'search/track',
+      <String, Object>{'q': trimmed, 'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    );
     return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
   }
 

@@ -48,6 +48,7 @@ class _FakeClient extends DeezerApiClient {
   /// `search:<query>`, in the order the pool asked.
   final List<String> calls = <String>[];
   final List<bool> backgrounds = <bool>[];
+  final List<bool> searchRetryQuotas = <bool>[];
 
   /// Held until completed (checked after the call is recorded).
   final Map<String, Completer<void>> gates = <String, Completer<void>>{};
@@ -138,8 +139,11 @@ class _FakeClient extends DeezerApiClient {
     String query, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
-    await _enter('search:$query', false);
+    searchRetryQuotas.add(retryQuota);
+    await _enter('search:$query', background);
     return searchResults;
   }
 }
@@ -342,12 +346,12 @@ void main() {
       'track:900',
     ]);
     expect(added.skip(4), [for (final id in ids.take(24)) 'track:$id']);
-    // The search has no background flag; every other request is background.
+    // Every request, the seed-track search included, is background and a
+    // quota answer is not retried.
     for (var i = before; i < rig.client.calls.length; i++) {
-      if (!rig.client.calls[i].startsWith('search:')) {
-        expect(rig.client.backgrounds[i], isTrue, reason: rig.client.calls[i]);
-      }
+      expect(rig.client.backgrounds[i], isTrue, reason: rig.client.calls[i]);
     }
+    expect(rig.client.searchRetryQuotas, [false]);
     expect(rig.pool.seedTrack?.bpm, 100);
     expect(rig.pool.featuresOf(5003)?.bpm, 100);
     expect(rig.pool.relatedLists[4].top, isNotNull);

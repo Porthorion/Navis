@@ -58,6 +58,8 @@ class _FakeDeezer extends DeezerApiClient {
     String query, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
     calls.add('search/track?q=$query&limit=$limit');
     if (error case final error?) throw error;

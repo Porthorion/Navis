@@ -94,6 +94,8 @@ class _FakeDeezerApiClient extends DeezerApiClient {
     String query, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async => const [];
 }
 
