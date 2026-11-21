@@ -136,6 +136,7 @@ class LyricsResolver {
               !lrclibResult.failed &&
               lrclibResult.resolution?.instrumental != true &&
               !preferred.instrumental,
+          serverLookupFailed: server.failed,
         );
       }
 
@@ -165,13 +166,21 @@ class LyricsResolver {
     }
 
     if (cachedResolution != null) {
-      return cachedResolution;
+      return server.failed
+          ? LyricsResolution(
+              lyrics: cachedResolution.lyrics,
+              source: cachedResolution.source,
+              instrumental: cachedResolution.instrumental,
+              serverLookupFailed: true,
+            )
+          : cachedResolution;
     }
 
     return LyricsResolution(
       lyrics: const LyricsList(),
       source: LyricsSource.serverPlain,
       confirmedMiss: _apiClient != null && !server.failed,
+      serverLookupFailed: server.failed,
     );
   }
 

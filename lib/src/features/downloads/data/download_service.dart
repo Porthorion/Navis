@@ -35,6 +35,7 @@ import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
@@ -3000,7 +3001,14 @@ class DownloadService {
         _emitBackfill(blockedReason: BackfillBlockedReason.none);
       }
       final api = _readApiClient()!;
-      final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
+      // Only songs this pass will work on, so progress is not padded by songs
+      // that already have lyrics or a recent miss.
+      final permanentIds = {
+        for (final song in await _cacheDao.getPermanentDownloadMetadata())
+          if (!_visitedLyrics.contains(song.songId) &&
+              _shouldBackfillLyrics(song.lyricsCache, force: force))
+            song.songId,
+      };
       final songs = await _libraryDao.getSongsByIds(permanentIds);
       _emitBackfill(total: songs.length);
       for (final song in songs) {
@@ -3012,6 +3020,7 @@ class DownloadService {
               CacheType.permanent) {
             continue;
           }
+          // Re-check: playback may have cached lyrics since the list was built.
           final existing = await _libraryDao.getExternalLyricsCache(song.id);
           if (!_shouldBackfillLyrics(existing, force: force)) continue;
           if (!_backfillReady()) return false;
@@ -3238,9 +3247,22 @@ class DownloadService {
         'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '
         'for $songId',
       );
+      // Plain-only lyrics with no synced upgrade possible (LRCLIB off, or no
+      // artist/title to search) would otherwise reopen the gate every trigger.
+      final plainOnly =
+          !resolution.instrumental &&
+          (!useLrclib || metadata == null) &&
+          !resolution.serverLookupFailed &&
+          hasAnyLyrics(resolution.lyrics) &&
+          (resolution.source == LyricsSource.serverPlain ||
+              resolution.source == LyricsSource.lrclibPlain);
+      final alreadyHadPlain =
+          plainOnly && previous?.plainLyrics?.trim().isNotEmpty == true;
       if (!resolution.instrumental &&
-          (resolution.confirmedMiss || resolution.syncedUpgradeMiss) &&
-          !_lrclibClient.isRateLimited &&
+          (resolution.confirmedMiss ||
+              resolution.syncedUpgradeMiss ||
+              plainOnly) &&
+          (!useLrclib || !_lrclibClient.isRateLimited) &&
           // A miss resolved under a permission that flipped mid-request must
           // not re-arm the backoff the re-enable reset just cleared (#76).
           useLrclib == _readLyricsAllowed()) {
@@ -3258,7 +3280,7 @@ class DownloadService {
           lastFailedAt: DateTime.now(),
         );
       }
-      return hasAnyLyrics(resolution.lyrics);
+      return !alreadyHadPlain && hasAnyLyrics(resolution.lyrics);
     } on Object catch (e) {
       // Never let a lyrics error abort or surface through the download flow.
       AppLogger.warning(
