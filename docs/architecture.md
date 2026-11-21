@@ -4728,8 +4728,18 @@ queues the copy or the remote original right behind the seed. A remote seed
 without a library copy never borrows the similar songs of an unrelated queue
 neighbour. Same Vibes tells queued and merged songs apart by one identity,
 `sameVibesCanonicalSongKey` (`normalizeMetadata` artist and
-`normalizeMetadataKeepingEdition` title), so a Japanese and an English edition
-of a song are both kept.
+`songVersionTitleKey` title), so "Song", "Song (Live)" and "Song - Sped Up"
+are one song while a Japanese and an English edition are both kept. The mix
+remembers every song it queued (`_mixSongIds`) and its key (`_mixSongKeys`)
+for the whole session, so a song that played and left the queue is not queued
+again; the memory is in-session only. Sped-up, slowed, nightcore, reverb, 8D,
+karaoke and instrumental versions (`isJunkSongVersion`) are dropped unless the
+seed is one. Before any library search the mapper also drops remembered songs,
+junk versions, second versions and more than three candidates per artist, and
+a batch takes two songs per artist and no artist back to back
+(`spaceByArtist`, `ArtistSpacing`, shared with Personal Radio), relaxing to
+three, then any number, then back to back instead of queueing fewer songs.
+Deezer's artist radio is asked for 40 songs and the server fill for 20.
 
 Home and Android Auto **Instant Radio** use `PersonalRadioNotifier` and the
 queue-independent `RecommendationService`. Radio starts with likes and up to
