@@ -24,6 +24,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Target number of tracks to queue per background refill.
@@ -805,6 +806,23 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       var parked = false;
       if (songsToQueue.isNotEmpty) {
         if (isInitial) {
+          // The handler loads the seed from the database when it is neither
+          // playing nor queued; a seed it cannot load would clear the queue.
+          final loadable = await _seedLoadable(
+            snapshot,
+            normalizedSeedSongId,
+            seed?.song,
+          );
+          // The store awaited; a newer mix must not be retained over or failed.
+          if (!_isCurrent(session)) return;
+          if (!loadable) {
+            _retryTimer?.cancel();
+            _retryTimer = null;
+            _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
+            state = const SameVibesState(error: SameVibesError.networkError);
+            _reportFailed(session, SameVibesError.networkError);
+            return;
+          }
           initialQueueChangeAttempted = true;
           await ref
               .read(queueProvider.notifier)
@@ -1043,6 +1061,43 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         .report(session, stage: 'failed', errorCategory: error.name);
   }
 
+  /// Whether keeping [seedId] as the queue can load it. A seed that is neither
+  /// playing nor queued comes from the database; a remote search result is not
+  /// there yet, so [fetched] (the server's answer) is stored as the search
+  /// menus store theirs, under the requested id even when the server answers
+  /// with its library copy.
+  Future<bool> _seedLoadable(
+    PlaybackSnapshot snapshot,
+    String seedId,
+    Song? fetched,
+  ) async {
+    if (snapshot.currentSongId == seedId ||
+        snapshot.queueSongIds.contains(seedId)) {
+      return true;
+    }
+    try {
+      if (await ref.read(sameVibesSeedStoredLookupProvider)(seedId)) {
+        return true;
+      }
+      if (fetched == null) return false;
+      await ref.read(queueProvider.notifier).storeProvisionalSongs([
+        fetched.id == seedId
+            ? fetched
+            // The copy's album and artist are library rows; a remote row
+            // must not point at them.
+            : fetched.copyWith(
+                id: seedId,
+                isExternal: isExternalCatalogSource(id: seedId),
+                albumId: null,
+                artistId: null,
+              ),
+      ]);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
   Future<void> _restorePreviousQueue(
     PlaybackSnapshot snapshot,
     RecommendationSession session,
@@ -1108,6 +1163,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           artist: fromMediaItem.artist,
           libraryCopyId: libraryCopyId,
           artistId: fromMediaItem.artistId ?? song.artistId?.trim(),
+          song: song,
         );
       }
       if (title.isEmpty || artist.isEmpty) {
@@ -1118,6 +1174,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         artist: artist,
         libraryCopyId: libraryCopyId,
         artistId: song.artistId?.trim(),
+        song: song,
       );
     } on SubsonicNotFoundException {
       if (rethrowNotFound) rethrow;
@@ -2040,10 +2097,14 @@ class _SeedMetadata {
     required this.title,
     this.libraryCopyId,
     this.artistId,
+    this.song,
   });
 
   final String artist;
   final String title;
+
+  /// What `getSong` answered for the seed, kept to store an unsaved seed.
+  final Song? song;
 
   /// The server's artist id, when known; it keys the Deezer artist lookup.
   final String? artistId;
@@ -2088,6 +2149,15 @@ final sameVibesAlbumSongCountLookupProvider = Provider<_AlbumSongCountLookup>((
     final dao = ref.read(navisDatabaseProvider).libraryDao;
     return await dao.getAlbumSongCountsByIds(albumIds);
   };
+});
+
+typedef _SeedStoredLookup = Future<bool> Function(String songId);
+
+/// Whether the database has the song row (the handler loads queues from it).
+final sameVibesSeedStoredLookupProvider = Provider<_SeedStoredLookup>((ref) {
+  return (songId) async =>
+      await ref.read(navisDatabaseProvider).libraryDao.getSongById(songId) !=
+      null;
 });
 
 final sameVibesQueueSongKeyLookupProvider = Provider<_QueueSongKeyLookup>((
