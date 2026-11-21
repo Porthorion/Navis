@@ -17,8 +17,8 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(librarySyncNotifierProvider);
-    expect(container.exists(appLocaleProvider), isFalse);
-    expect(container.exists(navisDatabaseProvider), isFalse);
+    expect(container.read(appLocaleProvider.exists), isFalse);
+    expect(container.read(navisDatabaseProvider.exists), isFalse);
 
     const state = LibrarySyncState(
       status: LibrarySyncStatus.idle,
@@ -30,9 +30,9 @@ void main() {
     await notifier.dismissProgress();
     await Future<void>.delayed(Duration.zero);
 
-    expect(container.exists(appLocaleProvider), isFalse);
-    expect(container.exists(appSettingsProvider), isFalse);
-    expect(container.exists(navisDatabaseProvider), isFalse);
+    expect(container.read(appLocaleProvider.exists), isFalse);
+    expect(container.read(appSettingsProvider.exists), isFalse);
+    expect(container.read(navisDatabaseProvider.exists), isFalse);
   });
   test('download provider does not resolve notification locale', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
@@ -60,6 +60,6 @@ void main() {
     final service = container.read(downloadServiceProvider);
     await service.start();
     await service.stop();
-    expect(container.exists(appLocaleProvider), isFalse);
+    expect(container.read(appLocaleProvider.exists), isFalse);
   }, skip: !sqliteAvailable);
 }
