@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/internet_radio_station.dart';
@@ -89,9 +90,9 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
     final typeFilterQuery = _query;
     List<InternetRadioStation> filtered(List<InternetRadioStation> list) {
       if (typeFilterQuery.isEmpty) return list;
-      final query = typeFilterQuery.toLowerCase();
+      final query = normalizeSearchText(typeFilterQuery);
       return list
-          .where((station) => station.name.toLowerCase().contains(query))
+          .where((station) => searchTextMatches(query, [station.name]))
           .toList();
     }
 

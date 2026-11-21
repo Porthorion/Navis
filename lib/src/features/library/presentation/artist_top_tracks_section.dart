@@ -24,6 +24,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/utils/external_links.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
@@ -33,10 +34,19 @@ import 'package:navis/src/theme/artwork_shape.dart';
 /// to 10. The artist page renders it only while a top-songs source is
 /// allowed.
 class ArtistTopTracksSection extends ConsumerStatefulWidget {
-  const new({required this.artistId, required this.artistName, super.key});
+  const new({
+    required this.artistId,
+    required this.artistName,
+    this.filterQuery = '',
+    super.key,
+  });
 
   final String artistId;
   final String artistName;
+
+  /// The page's in-page filter: only songs whose title matches show, all at
+  /// once, and tapping one queues the matches.
+  final String filterQuery;
 
   @override
   ConsumerState<ArtistTopTracksSection> createState() =>
@@ -192,13 +202,12 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
     return asyncTracks.when(
       skipLoadingOnReload: true,
       data: (tracks) {
-        final resolved = tracks
-            .where((t) => t.isLocallyResolved)
-            .toList(growable: false);
+        final resolved = filterArtistTopTracks(tracks, widget.filterQuery);
         if (resolved.isEmpty) return const SizedBox.shrink();
         return _TrackList(
           artistName: widget.artistName,
           tracks: resolved,
+          filtering: widget.filterQuery.trim().isNotEmpty,
           expanded: _expanded,
           playing: _playing,
           l10n: l10n,
@@ -212,6 +221,22 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
   }
 }
 
+/// The locally playable [tracks] whose title matches [query] (all of them
+/// when [query] is blank).
+List<ResolvedArtistTopTrack> filterArtistTopTracks(
+  List<ResolvedArtistTopTrack> tracks,
+  String query,
+) {
+  final normalized = normalizeSearchText(query);
+  return tracks
+      .where(
+        (t) =>
+            t.isLocallyResolved &&
+            (normalized.isEmpty || searchTextMatches(normalized, [t.title])),
+      )
+      .toList(growable: false);
+}
+
 // ---------------------------------------------------------------------------
 // Private: track list panel
 // ---------------------------------------------------------------------------
@@ -220,6 +245,7 @@ class _TrackList extends StatelessWidget {
   const new({
     required this.artistName,
     required this.tracks,
+    required this.filtering,
     required this.expanded,
     required this.playing,
     required this.l10n,
@@ -229,6 +255,7 @@ class _TrackList extends StatelessWidget {
 
   final String artistName;
   final List<ResolvedArtistTopTrack> tracks;
+  final bool filtering;
   final bool expanded;
   final bool playing;
   final AppLocalizations l10n;
@@ -262,11 +289,12 @@ class _TrackList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleCount =
-        (expanded ? kArtistTopTracksSectionMax : kArtistTopTracksCollapsed)
-            .clamp(0, tracks.length);
+    final visibleCount = filtering
+        ? tracks.length
+        : (expanded ? kArtistTopTracksSectionMax : kArtistTopTracksCollapsed)
+              .clamp(0, tracks.length);
     final visible = tracks.take(visibleCount).toList(growable: false);
-    final canExpand = tracks.length > kArtistTopTracksCollapsed;
+    final canExpand = !filtering && tracks.length > kArtistTopTracksCollapsed;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),

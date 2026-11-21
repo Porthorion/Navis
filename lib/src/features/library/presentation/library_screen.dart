@@ -24,6 +24,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/list_filter_field.dart';
+import 'package:navis/src/common_widgets/type_to_filter.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
@@ -46,8 +47,6 @@ import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
 import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
-import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
-    show quickSearchOverlayVisibleProvider;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -71,11 +70,12 @@ part 'library_genres_tab.dart';
 
 enum _AlbumSort { recentlyAdded, newest, name, artist, byYear }
 
-bool _likedSongMatchesTypeFilter(SongsTableData song, String queryLower) {
-  return song.title.toLowerCase().contains(queryLower) ||
-      (song.artistName?.toLowerCase().contains(queryLower) ?? false) ||
-      (song.albumName?.toLowerCase().contains(queryLower) ?? false);
-}
+bool _likedSongMatchesTypeFilter(SongsTableData song, String normalizedQuery) =>
+    searchTextMatches(normalizedQuery, [
+      song.title,
+      song.artistName,
+      song.albumName,
+    ]);
 
 List<SongsTableData> _filterLikedSongs(
   List<SongsTableData> songs, {
@@ -91,9 +91,9 @@ List<SongsTableData> _filterLikedSongs(
     return downloadFiltered;
   }
 
-  final queryLower = typeFilterQuery.toLowerCase();
+  final normalizedQuery = normalizeSearchText(typeFilterQuery);
   return downloadFiltered
-      .where((song) => _likedSongMatchesTypeFilter(song, queryLower))
+      .where((song) => _likedSongMatchesTypeFilter(song, normalizedQuery))
       .toList(growable: false);
 }
 
@@ -110,12 +110,13 @@ class LibraryScreen extends ConsumerStatefulWidget {
 const double _kArtistGridActiveLetterOffset = 48;
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, TypeToFilter<LibraryScreen> {
   _AlbumSort _albumSort = _AlbumSort.recentlyAdded;
   bool _downloadedOnly = false;
   bool _artistsLikedOnly = false;
   final ScrollController _albumsScrollController = ScrollController();
   final ScrollController _likedScrollController = ScrollController();
+  final TextEditingController _likedFilter = TextEditingController();
   final ScrollController _playlistsScrollController = ScrollController();
   final ScrollController _radioScrollController = ScrollController();
   final ItemScrollController _genresItemScrollController =
@@ -163,11 +164,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final ProviderSubscription<LibraryScrollDiagnosticsRequest?>
   _scrollDiagnosticsSubscription;
   int _lastLibraryScrollRequest = 0;
-
-  // ── Type-to-filter (keyboard-driven inline search) ──────────────────────
-  String _typeFilterQuery = '';
-  bool _typeFilterOverlayVisible = false;
-  Timer? _typeFilterFadeTimer;
 
   @override
   void initState() {
@@ -218,7 +214,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         if (!mounted || next == null) {
           return;
         }
-        _updateTypeFilter(next);
+        updateTypeFilter(next);
       },
     );
     _scrollDiagnosticsSubscription = ref.listenManual(
@@ -255,7 +251,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         }
       },
     );
-    HardwareKeyboard.instance.addHandler(_onLibraryKeyEvent);
   }
 
   @override
@@ -270,6 +265,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ..removeListener(_onAlbumsScroll)
       ..dispose();
     _likedScrollController.dispose();
+    _likedFilter.dispose();
     _artistsGridScrollController
       ..removeListener(_onArtistsGridScrolled)
       ..dispose();
@@ -281,8 +277,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _yearItemPositionsListener.itemPositions.removeListener(
       _onYearViewportChanged,
     );
-    HardwareKeyboard.instance.removeHandler(_onLibraryKeyEvent);
-    _typeFilterFadeTimer?.cancel();
     super.dispose();
   }
 
@@ -301,7 +295,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Widget? _buildClearFiltersAction({bool includesLikedOnly = false}) {
     final hasActiveFilters =
         _downloadedOnly ||
-        _typeFilterQuery.isNotEmpty ||
+        typeFilterQuery.isNotEmpty ||
         (includesLikedOnly && _artistsLikedOnly);
     if (!hasActiveFilters) {
       return null;
@@ -311,14 +305,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       style: NavisColorStyleData.tonalStyleOf(context),
       key: const ValueKey<String>('libraryClearFiltersAction'),
       onPressed: () {
-        _typeFilterFadeTimer?.cancel();
-        setState(() {
-          _typeFilterQuery = '';
-          _typeFilterOverlayVisible = false;
-          if (includesLikedOnly) {
-            _artistsLikedOnly = false;
-          }
-        });
+        clearTypeFilter();
+        if (includesLikedOnly) {
+          setState(() => _artistsLikedOnly = false);
+        }
         _updateDownloadedOnly(false);
       },
       icon: const Icon(Icons.filter_alt_off_outlined),
@@ -326,96 +316,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Type-to-filter — keyboard handler & state helpers
-  // ---------------------------------------------------------------------------
+  // Type-to-filter keys, query and badge/overlay come from [TypeToFilter].
 
-  bool _onLibraryKeyEvent(KeyEvent event) {
-    if (!mounted) return false;
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
-    // The shell keeps this branch mounted behind other tabs; only the visible
-    // Library tab may take keystrokes.
-    if (!TickerMode.valuesOf(context).enabled) return false;
-    // Don't intercept when the quick-search overlay is visible.
-    if (ref.read(quickSearchOverlayVisibleProvider)) return false;
-    // Only when library root is the active screen (not inside album/artist detail)
+  /// The shell keeps this branch mounted under detail pages: only the root
+  /// (nothing to pop) takes keystrokes.
+  @override
+  bool get typeFilterPageActive {
     final nav = Navigator.maybeOf(context, rootNavigator: false);
-    if (nav != null && nav.canPop()) return false;
-    // Don't intercept modifier combos (shortcuts)
-    if (HardwareKeyboard.instance.isControlPressed ||
-        HardwareKeyboard.instance.isMetaPressed ||
-        HardwareKeyboard.instance.isAltPressed) {
-      return false;
-    }
-    // Don't intercept when a text field is being edited
-    final focusWidget = FocusManager.instance.primaryFocus?.context?.widget;
-    if (focusWidget is EditableText) return false;
-    if (FocusManager.instance.primaryFocus?.context
-            ?.findAncestorStateOfType<EditableTextState>() !=
-        null) {
-      return false;
-    }
-    final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.backspace) {
-      if (_typeFilterQuery.isEmpty) return false;
-      _updateTypeFilter(
-        _typeFilterQuery.substring(0, _typeFilterQuery.length - 1),
-      );
-      return true;
-    }
-    if (key == LogicalKeyboardKey.escape && _typeFilterQuery.isNotEmpty) {
-      _clearTypeFilter();
-      return true;
-    }
-    final char = event.character;
-    if (char != null && char.isNotEmpty && !_isLibraryFilterControlChar(char)) {
-      // Don't start a new filter with a space — only add spaces to an
-      // existing query so play/pause isn't swallowed before typing begins.
-      if (char == ' ' && _typeFilterQuery.isEmpty) return false;
-      _updateTypeFilter(_typeFilterQuery + char);
-      return true;
-    }
-    return false;
+    return nav == null || !nav.canPop();
   }
 
-  bool _isLibraryFilterControlChar(String s) {
-    if (s.isEmpty) return true;
-    final code = s.codeUnitAt(0);
-    return code < 32 || code == 127;
-  }
-
-  void _updateTypeFilter(String query) {
-    if (query.isEmpty) {
-      _clearTypeFilter();
-      return;
-    }
-    _typeFilterFadeTimer?.cancel();
-    setState(() {
-      _typeFilterQuery = query;
-      _typeFilterOverlayVisible = true;
-      _cachedArtists = null; // invalidate artist cache so grouping rebuilds
-      _cachedYearSectionsSource = null; // invalidate year cache
-    });
-    ref.read(libraryTypeFilterActiveProvider.notifier).active = true;
-    _typeFilterFadeTimer = Timer(const Duration(milliseconds: 900), () {
-      if (mounted) {
-        setState(() => _typeFilterOverlayVisible = false);
-        ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
-      }
-    });
-  }
-
-  void _clearTypeFilter() {
-    _typeFilterFadeTimer?.cancel();
-    setState(() {
-      _typeFilterQuery = '';
-      _typeFilterOverlayVisible = false;
-      _cachedArtists = null;
+  @override
+  void onTypeFilterChanged({required bool cleared}) {
+    _cachedArtists = null; // invalidate artist cache so grouping rebuilds
+    _cachedYearSectionsSource = null; // invalidate year cache
+    if (cleared) {
       _cachedAlbums = null;
       _yearListItems = const <_YearListItem>[];
-      _cachedYearSectionsSource = null;
-    });
-    ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
+    }
   }
 
   void _animateScrollControllerToTop(ScrollController controller) {
@@ -542,20 +460,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       LibrarySection.artists => _buildArtistsTab(context),
       LibrarySection.genres => _LibraryGenresTab(
         itemScrollController: _genresItemScrollController,
-        typeFilterQuery: _typeFilterQuery,
-        onClearTypeFilter: _clearTypeFilter,
+        typeFilterQuery: typeFilterQuery,
+        onClearTypeFilter: clearTypeFilter,
         onRailScrubbing: (value) =>
             setState(() => _isGenreRailScrubbing = value),
       ),
       LibrarySection.playlists => _LibraryPlaylistsTab(
         scrollController: _playlistsScrollController,
-        typeFilterQuery: _typeFilterQuery,
-        onClearTypeFilter: _clearTypeFilter,
+        typeFilterQuery: typeFilterQuery,
+        onClearTypeFilter: clearTypeFilter,
       ),
       LibrarySection.radio => RadioTabContent(
         scrollController: _radioScrollController,
-        typeFilterQuery: _typeFilterQuery,
-        onClearTypeFilter: _clearTypeFilter,
+        typeFilterQuery: typeFilterQuery,
+        onClearTypeFilter: clearTypeFilter,
       ),
     };
   }
@@ -702,11 +620,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 },
               ),
             ),
-            if (_typeFilterQuery.isNotEmpty)
-              _TypeFilterBadge(
-                query: _typeFilterQuery,
-                onClear: _clearTypeFilter,
-              ),
+            ?typeFilterBadge(),
             Expanded(
               child: TabBarView(
                 controller: tabController,
@@ -725,35 +639,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ],
         ),
         // Type-to-filter: large typography overlay with dimming
-        if (_typeFilterOverlayVisible && _typeFilterQuery.isNotEmpty)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedOpacity(
-                opacity: _typeFilterOverlayVisible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Text(
-                        _typeFilterQuery,
-                        style: Theme.of(context).textTheme.displayLarge
-                            ?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white.withValues(alpha: 0.85),
-                              letterSpacing: 2,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+        ?typeFilterOverlay(),
       ],
     );
 
@@ -1078,12 +964,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 final filteredItems = _downloadedOnly
                     ? _filterDownloadedArtists(items)
                     : items;
-                final typeFiltered = _typeFilterQuery.isEmpty
+                final typeFiltered = typeFilterQuery.isEmpty
                     ? filteredItems
                     : filteredItems
                           .where(
-                            (a) => a.name.toLowerCase().contains(
-                              _typeFilterQuery.toLowerCase(),
+                            (a) => searchTextMatches(
+                              normalizeSearchText(typeFilterQuery),
+                              [a.name],
                             ),
                           )
                           .toList(growable: false);
@@ -1092,21 +979,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: <Widget>[
                       EmptyState(
-                        title: _typeFilterQuery.isNotEmpty
-                            ? l10n.libraryFilterNoResults(_typeFilterQuery)
+                        title: typeFilterQuery.isNotEmpty
+                            ? l10n.libraryFilterNoResults(typeFilterQuery)
                             : _artistsLikedOnly
                             ? l10n.libraryLikedOnlyEmptyTitle
                             : _downloadedOnly
                             ? l10n.libraryDownloadedOnlyEmpty
                             : l10n.libraryArtistsEmptyTitle,
-                        subtitle: _typeFilterQuery.isNotEmpty
+                        subtitle: typeFilterQuery.isNotEmpty
                             ? null
                             : _artistsLikedOnly
                             ? l10n.libraryLikedOnlyEmptySubtitle
                             : _downloadedOnly
                             ? l10n.libraryDownloadedOnlyEmptySubtitle
                             : l10n.libraryArtistsEmptySubtitle,
-                        icon: _typeFilterQuery.isNotEmpty
+                        icon: typeFilterQuery.isNotEmpty
                             ? Icons.search_off
                             : _artistsLikedOnly
                             ? Icons.favorite_border_outlined
@@ -1289,7 +1176,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final sortOrder = _toAlbumSortOrder(_albumSort);
     final albumsAsync = ref.watch(
-      _downloadedOnly || _typeFilterQuery.isNotEmpty
+      _downloadedOnly || typeFilterQuery.isNotEmpty
           ? sortedAlbumsProvider((sort: sortOrder, likedOnly: false))
           : pagedAlbumsProvider((sort: sortOrder, limit: limit)),
     );
@@ -1338,14 +1225,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               ? _filterDownloadedAlbums(items)
               : items;
           // Apply type-to-filter query (client-side substring match).
-          final typeFiltered = _typeFilterQuery.isEmpty
+          final typeFiltered = typeFilterQuery.isEmpty
               ? filteredItems
               : filteredItems
                     .where((album) {
-                      final q = _typeFilterQuery.toLowerCase();
-                      return album.name.toLowerCase().contains(q) ||
-                          (album.artistName?.toLowerCase().contains(q) ??
-                              false);
+                      final q = normalizeSearchText(typeFilterQuery);
+                      return searchTextMatches(q, [
+                        album.name,
+                        album.artistName,
+                      ]);
                     })
                     .toList(growable: false);
           _reportVisibleAlbumPriority(typeFiltered);
@@ -1354,12 +1242,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               if (mounted) _onAlbumsScroll();
             });
           }
-          final totalAlbums = _downloadedOnly || _typeFilterQuery.isNotEmpty
+          final totalAlbums = _downloadedOnly || typeFilterQuery.isNotEmpty
               ? typeFiltered.length
               : (totalAlbumsAsync.asData?.value ?? items.length);
           final hasMore =
               !_downloadedOnly &&
-              _typeFilterQuery.isEmpty &&
+              typeFilterQuery.isEmpty &&
               items.length < totalAlbums;
           return LayoutBuilder(
             builder: (context, constraints) {
@@ -1422,17 +1310,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       SliverFillRemaining(
                         hasScrollBody: false,
                         child: EmptyState(
-                          title: _typeFilterQuery.isNotEmpty
-                              ? l10n.libraryFilterNoResults(_typeFilterQuery)
+                          title: typeFilterQuery.isNotEmpty
+                              ? l10n.libraryFilterNoResults(typeFilterQuery)
                               : _downloadedOnly
                               ? l10n.libraryDownloadedOnlyEmpty
                               : l10n.libraryAlbumsEmptyTitle,
-                          subtitle: _typeFilterQuery.isNotEmpty
+                          subtitle: typeFilterQuery.isNotEmpty
                               ? null
                               : _downloadedOnly
                               ? l10n.libraryDownloadedOnlyEmptySubtitle
                               : l10n.libraryAlbumsEmptySubtitle,
-                          icon: _typeFilterQuery.isNotEmpty
+                          icon: typeFilterQuery.isNotEmpty
                               ? Icons.search_off
                               : _downloadedOnly
                               ? Icons.download_done_outlined
@@ -1522,8 +1410,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (sectionsAsync.asData != null) {
       var sections = sectionsAsync.asData!.value;
       // Apply type-to-filter to the year-based view.
-      if (_typeFilterQuery.isNotEmpty) {
-        final q = _typeFilterQuery.toLowerCase();
+      if (typeFilterQuery.isNotEmpty) {
+        final q = normalizeSearchText(typeFilterQuery);
         sections = sections
             .map(
               (s) => AlbumYearSection(
@@ -1532,11 +1420,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 year: s.year,
                 isUnknownYear: s.isUnknownYear,
                 albums: s.albums
-                    .where(
-                      (a) =>
-                          a.name.toLowerCase().contains(q) ||
-                          (a.artistName?.toLowerCase().contains(q) ?? false),
-                    )
+                    .where((a) => searchTextMatches(q, [a.name, a.artistName]))
                     .toList(growable: false),
               ),
             )
@@ -1605,13 +1489,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: <Widget>[
                       EmptyState(
-                        title: _typeFilterQuery.isNotEmpty
-                            ? l10n.libraryFilterNoResults(_typeFilterQuery)
+                        title: typeFilterQuery.isNotEmpty
+                            ? l10n.libraryFilterNoResults(typeFilterQuery)
                             : l10n.libraryAlbumsByYearEmptyTitle,
-                        subtitle: _typeFilterQuery.isNotEmpty
+                        subtitle: typeFilterQuery.isNotEmpty
                             ? l10n.libraryFilterNoResultsSubtitle
                             : l10n.libraryAlbumsByYearEmptySubtitle,
-                        icon: _typeFilterQuery.isNotEmpty
+                        icon: typeFilterQuery.isNotEmpty
                             ? Icons.search_off_rounded
                             : Icons.calendar_today_outlined,
                         action: _buildClearFiltersAction(),
@@ -1743,8 +1627,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
+  /// The Liked tab's active filter: the typed query on desktop, else the
+  /// touch field.
+  String get _likedQuery => activeFilterQuery(_likedFilter.text);
+
+  void _clearLikedFilter() {
+    _likedFilter.clear();
+    clearTypeFilter();
+  }
+
   Widget _buildLikedTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
+    final likedQuery = _likedQuery;
+    final normalizedLikedQuery = normalizeSearchText(likedQuery);
     // Filter the full recent order before deriving a pane-sized preview.
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
 
@@ -1779,7 +1674,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final filteredPlaybackSongs = _filterLikedSongs(
       likedPlaybackSongs,
       downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
-      typeFilterQuery: _typeFilterQuery,
+      typeFilterQuery: likedQuery,
     );
     final artists = _downloadedOnly
         ? (likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[])
@@ -1791,34 +1686,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               .toList(growable: false)
         : likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[];
     // Apply type-to-filter if active.
-    final filteredAlbums = _typeFilterQuery.isEmpty
+    final filteredAlbums = likedQuery.isEmpty
         ? albums
         : albums
               .where(
-                (a) =>
-                    a.name.toLowerCase().contains(
-                      _typeFilterQuery.toLowerCase(),
-                    ) ||
-                    (a.artistName?.toLowerCase().contains(
-                          _typeFilterQuery.toLowerCase(),
-                        ) ??
-                        false),
+                (a) => searchTextMatches(normalizedLikedQuery, [
+                  a.name,
+                  a.artistName,
+                ]),
               )
               .toList(growable: false);
-    final filteredArtists = _typeFilterQuery.isEmpty
+    final filteredArtists = likedQuery.isEmpty
         ? artists
         : artists
-              .where(
-                (a) => a.name.toLowerCase().contains(
-                  _typeFilterQuery.toLowerCase(),
-                ),
-              )
+              .where((a) => searchTextMatches(normalizedLikedQuery, [a.name]))
               .toList(growable: false);
     final filteredSongs = _filterLikedSongs(
       likedSongsAsync.asData?.value ?? const <SongsTableData>[],
       downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
-      typeFilterQuery: _typeFilterQuery,
+      typeFilterQuery: likedQuery,
     );
+    final showFilterField =
+        !desktopMode &&
+        (albums.isNotEmpty || artists.isNotEmpty || songs.isNotEmpty);
+    // A hidden field must not keep filtering content that appears later.
+    if (!showFilterField && _likedFilter.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _likedFilter.clear();
+        setState(() {});
+      });
+    }
     final error =
         likedAlbumsRecentAsync.error ??
         likedAlbumSongsAsync.error ??
@@ -1856,7 +1754,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
-    return NavisRefreshIndicator(
+    // Desktop filters by typing; touch gets the field, pinned above the list.
+    final refreshable = NavisRefreshIndicator(
       onRefresh: _refreshLibrary,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1898,24 +1797,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   filteredPlaybackSongs.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: EmptyState(
-                    title: _typeFilterQuery.isNotEmpty
-                        ? l10n.libraryFilterNoResults(_typeFilterQuery)
-                        : _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmpty
-                        : l10n.libraryLikedEmptyTitle,
-                    subtitle: _typeFilterQuery.isNotEmpty
-                        ? l10n.libraryFilterNoResultsSubtitle
-                        : _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmptySubtitle
-                        : l10n.libraryLikedEmptySubtitle,
-                    icon: _typeFilterQuery.isNotEmpty
-                        ? Icons.search_off_rounded
-                        : _downloadedOnly
-                        ? Icons.download_done_outlined
-                        : Icons.favorite_border_outlined,
-                    action: _buildClearFiltersAction(),
-                  ),
+                  child: likedQuery.isNotEmpty
+                      ? FilterNoResults(
+                          query: likedQuery,
+                          onClear: _clearLikedFilter,
+                        )
+                      : EmptyState(
+                          title: _downloadedOnly
+                              ? l10n.libraryDownloadedOnlyEmpty
+                              : l10n.libraryLikedEmptyTitle,
+                          subtitle: _downloadedOnly
+                              ? l10n.libraryDownloadedOnlyEmptySubtitle
+                              : l10n.libraryLikedEmptySubtitle,
+                          icon: _downloadedOnly
+                              ? Icons.download_done_outlined
+                              : Icons.favorite_border_outlined,
+                          action: _buildClearFiltersAction(),
+                        ),
                 )
               else ...<Widget>[
                 if (filteredArtists.isNotEmpty)
@@ -2117,6 +2015,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         },
       ),
     );
+    if (!showFilterField) return refreshable;
+    return Column(
+      children: <Widget>[
+        ListFilterField(
+          controller: _likedFilter,
+          hint: l10n.libraryLikedFilterHint,
+          onChanged: (_) => setState(() {}),
+          onClear: _clearLikedFilter,
+        ),
+        Expanded(child: refreshable),
+      ],
+    );
   }
 
   void _handleLikedSongTap(
@@ -2189,7 +2099,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void _onAlbumsScroll() {
     if (_albumSort == _AlbumSort.byYear ||
         _downloadedOnly ||
-        _typeFilterQuery.isNotEmpty ||
+        typeFilterQuery.isNotEmpty ||
         !_albumsScrollController.hasClients) {
       return;
     }
