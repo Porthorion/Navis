@@ -13,6 +13,7 @@ import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart'
     show PlaybackSourceUnavailableException;
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -513,6 +514,43 @@ class QueueController extends Notifier<List<String>> {
         ))
           song.id,
     ]);
+  }
+
+  /// Whether keeping [seedId] as the queue can load it. A seed that is neither
+  /// playing nor queued in [snapshot] comes from the database; a remote search
+  /// result is not there yet, so [fetch] (the server's answer) is stored as the
+  /// search menus store theirs, under the requested id even when the server
+  /// answers with its library copy. Never throws: a seed that cannot be
+  /// fetched or stored is not loadable.
+  Future<bool> ensureSeedLoadable(
+    PlaybackSnapshot snapshot,
+    String seedId,
+    Future<Song?> Function() fetch,
+  ) async {
+    if (snapshot.currentSongId == seedId ||
+        snapshot.queueSongIds.contains(seedId)) {
+      return true;
+    }
+    try {
+      if (await ref.read(queueSeedStoredLookupProvider)(seedId)) return true;
+      final fetched = await fetch();
+      if (fetched == null) return false;
+      await storeProvisionalSongs([
+        fetched.id == seedId
+            ? fetched
+            // The copy's album and artist are library rows; a remote row
+            // must not point at them.
+            : fetched.copyWith(
+                id: seedId,
+                isExternal: isExternalCatalogSource(id: seedId),
+                albumId: null,
+                artistId: null,
+              ),
+      ]);
+      return true;
+    } on Object {
+      return false;
+    }
   }
 
   Future<void> _ensureSongsInDatabase(List<Song> songs) async {
@@ -1017,6 +1055,15 @@ Future<Map<String, String>> Function(Iterable<String>) serializeRelinks(
     return run;
   };
 }
+
+typedef _SeedStoredLookup = Future<bool> Function(String songId);
+
+/// Whether the database has the song row (the handler loads queues from it).
+final queueSeedStoredLookupProvider = Provider<_SeedStoredLookup>((ref) {
+  return (songId) async =>
+      await ref.read(navisDatabaseProvider).libraryDao.getSongById(songId) !=
+      null;
+});
 
 final queueProvider = NotifierProvider<QueueController, List<String>>(
   QueueController.new,

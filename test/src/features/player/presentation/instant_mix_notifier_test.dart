@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
@@ -17,6 +18,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/recommendation_test_harness.dart';
+import '../../../../helpers/test_database.dart';
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
@@ -42,6 +44,15 @@ class _DryingQueueController extends RecordingRecommendationQueue {
       isCurrent: isCurrent,
     );
   }
+}
+
+/// A queue whose provisional store always fails.
+class _FailingStoreQueueController extends RecordingRecommendationQueue {
+  new() : super();
+
+  @override
+  Future<void> storeProvisionalSongs(List<Song> songs) =>
+      Future<void>.error(StateError('disk full'));
 }
 
 /// Holds every recommendation append until [gate] completes, then asks
@@ -982,6 +993,263 @@ void main() {
       );
       expect(container.read(recommendationSessionProvider).stage, 'failed');
     });
+  });
+
+  group('an unsaved seed (#751)', () {
+    const seedId = 'seed-new';
+    const extId = 'ext-deezer-song-9';
+    late _MockSubsonicApiClient api;
+    late NavisDatabase database;
+    var stored = <String>{};
+    Completer<void>? storeGate;
+
+    Song fetched(String id, {String title = 'Fetched'}) => Song(
+      id: id,
+      title: title,
+      artist: 'Artist',
+      artistId: 'ar-1',
+      albumId: 'al-1',
+      album: 'Album',
+    );
+
+    setUp(() {
+      api = _MockSubsonicApiClient();
+      database = createTestDatabase();
+      addTearDown(database.close);
+      stored = <String>{};
+      storeGate = null;
+      for (final id in [seedId, 'lib-copy']) {
+        when(
+          () => api.getSimilarSongs2(
+            id,
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async => songs(3));
+      }
+    });
+
+    ProviderContainer build({
+      List<String> queued = const <String>['q-1', 'q-2'],
+      QueueController Function() queue = RecordingRecommendationQueue.new,
+    }) {
+      final container = createRecommendationContainer(
+        seedsStored: false,
+        overrides: [
+          queueProvider.overrideWith(queue),
+          subsonicApiProvider.overrideWithValue(api),
+          navisDatabaseProvider.overrideWithValue(database),
+          queueSeedStoredLookupProvider.overrideWithValue((id) async {
+            final gate = storeGate;
+            if (gate != null && id == seedId) await gate.future;
+            return stored.contains(id) ||
+                await database.libraryDao.getSongById(id) != null;
+          }),
+        ],
+      );
+      container.listen(instantMixProvider, (_, _) {});
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: queued,
+              currentSongId: queued.first,
+              currentIndex: 0,
+            ),
+          );
+      return container;
+    }
+
+    RecordingRecommendationQueue queueOf(ProviderContainer c) =>
+        c.read(queueProvider.notifier) as RecordingRecommendationQueue;
+
+    void expectQueueUntouchedAndFailed(ProviderContainer c) {
+      expect(queueOf(c).retainedSongIds, isEmpty);
+      expect(queueOf(c).appendedSongBatches, isEmpty);
+      final state = c.read(instantMixProvider);
+      expect(state.active, isFalse);
+      expect(state.error, InstantMixError.networkError);
+      final session = c.read(recommendationSessionProvider);
+      expect(session.stage, 'failed');
+      expect(session.errorCategory, InstantMixError.networkError.name);
+    }
+
+    test('is fetched and stored before it becomes the queue', () async {
+      when(() => api.getSong(seedId, cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((_) async => fetched(seedId));
+      final container = build();
+
+      await container.read(instantMixProvider.notifier).activate(seedId);
+
+      expect((await database.libraryDao.getSongById(seedId))?.title, 'Fetched');
+      expect(queueOf(container).retainedSongIds, <String>[seedId]);
+      expect(queueOf(container).queuedSongs, hasLength(3));
+      expect(container.read(instantMixProvider).active, isTrue);
+      expect(container.read(recommendationSessionProvider).stage, 'active');
+      verify(() => api.getSong(seedId, cancelToken: any(named: 'cancelToken')))
+          .called(1);
+    });
+
+    test('keeps the requested id when the server answers with its library '
+        'copy', () async {
+      when(() => api.getSong(extId, cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((_) async => fetched('lib-copy'));
+      final container = build();
+
+      await container.read(instantMixProvider.notifier).activate(extId);
+
+      final row = await database.libraryDao.getSongById(extId);
+      expect(row?.title, 'Fetched');
+      expect(row?.albumId, isNull);
+      expect(row?.artistId, isNull);
+      expect(await database.libraryDao.getSongById('lib-copy'), isNull);
+      expect(queueOf(container).retainedSongIds, <String>[extId]);
+      expect(container.read(instantMixProvider).active, isTrue);
+    });
+
+    test('that is playing or queued is neither fetched nor stored', () async {
+      final container = build(queued: const <String>[seedId, 'q-2']);
+      await container.read(instantMixProvider.notifier).activate(seedId);
+      expect(queueOf(container).retainedSongIds, <String>[seedId]);
+
+      final queuedContainer = build(queued: const <String>['q-1', seedId]);
+      await queuedContainer.read(instantMixProvider.notifier).activate(seedId);
+      expect(queueOf(queuedContainer).retainedSongIds, <String>[seedId]);
+
+      verifyNever(
+        () => api.getSong(any(), cancelToken: any(named: 'cancelToken')),
+      );
+      expect(await database.libraryDao.getSongById(seedId), isNull);
+    });
+
+    test('already in the database is not fetched again', () async {
+      stored = {seedId};
+      final container = build();
+
+      await container.read(instantMixProvider.notifier).activate(seedId);
+
+      verifyNever(
+        () => api.getSong(any(), cancelToken: any(named: 'cancelToken')),
+      );
+      expect(queueOf(container).retainedSongIds, <String>[seedId]);
+      expect(container.read(instantMixProvider).active, isTrue);
+    });
+
+    test(
+      'that cannot be fetched leaves the queue alone and ends the mix',
+      () async {
+        when(() => api.getSong(seedId, cancelToken: any(named: 'cancelToken')))
+            .thenThrow(Exception('offline'));
+        final container = build();
+
+        await container.read(instantMixProvider.notifier).activate(seedId);
+
+        expectQueueUntouchedAndFailed(container);
+        expect(await database.libraryDao.getSongById(seedId), isNull);
+      },
+    );
+
+    test('that the server does not know ends the mix', () async {
+      when(
+        () => api.getSong(seedId, cancelToken: any(named: 'cancelToken')),
+      ).thenThrow(const SubsonicNotFoundException(message: 'Song not found'));
+      final container = build();
+
+      await container.read(instantMixProvider.notifier).activate(seedId);
+
+      expectQueueUntouchedAndFailed(container);
+    });
+
+    test(
+      'that cannot be stored leaves the queue alone and ends the mix',
+      () async {
+        when(() => api.getSong(seedId, cancelToken: any(named: 'cancelToken')))
+            .thenAnswer((_) async => fetched(seedId));
+        final container = build(queue: _FailingStoreQueueController.new);
+
+        await container.read(instantMixProvider.notifier).activate(seedId);
+
+        expectQueueUntouchedAndFailed(container);
+      },
+    );
+
+    test('a newer mix started while the store awaited is left alone', () async {
+      when(() => api.getSong(seedId, cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((_) async => fetched(seedId));
+      when(
+        () => api.getSimilarSongs2(
+          'seed-b',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => songs(2, prefix: 'b'));
+      final container = build(queued: const <String>['seed-b', 'q-2']);
+      storeGate = Completer<void>();
+      final notifier = container.read(instantMixProvider.notifier);
+
+      final first = notifier.activate(seedId);
+      await pumpEventQueue();
+      await notifier.activate('seed-b');
+      storeGate!.complete();
+      await first;
+      await pumpEventQueue();
+
+      expect(queueOf(container).retainedSongIds, <String>['seed-b']);
+      final session = container.read(recommendationSessionProvider);
+      expect(session.seedId, 'seed-b');
+      expect(session.stage, 'active');
+      final state = container.read(instantMixProvider);
+      expect(state.active, isTrue);
+      expect(state.error, isNull);
+    });
+
+    test(
+      'whose fetch fails after a newer mix started leaves the newer mix alone',
+      () async {
+        final fetch = Completer<Song>();
+        when(() => api.getSong(seedId, cancelToken: any(named: 'cancelToken')))
+            .thenAnswer((_) => fetch.future);
+        when(
+          () => api.getSimilarSongs2(
+            'seed-b',
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async => songs(2, prefix: 'b'));
+        final container = build(queued: const <String>['seed-b', 'q-2']);
+        final notifier = container.read(instantMixProvider.notifier);
+        final first = notifier.activate(seedId);
+        await pumpEventQueue();
+        await notifier.activate('seed-b');
+        fetch.completeError(Exception('cancelled'));
+        await first;
+        await pumpEventQueue();
+        final session = container.read(recommendationSessionProvider);
+        expect(session.seedId, 'seed-b');
+        expect(session.stage, 'active');
+        expect(container.read(instantMixProvider).error, isNull);
+        expect(container.read(instantMixProvider).active, isTrue);
+      },
+    );
+
+    test(
+      'is not kept as the queue when the mix stops while it is stored',
+      () async {
+        when(() => api.getSong(seedId, cancelToken: any(named: 'cancelToken')))
+            .thenAnswer((_) async => fetched(seedId));
+        final container = build();
+        storeGate = Completer<void>();
+        final notifier = container.read(instantMixProvider.notifier);
+        final first = notifier.activate(seedId);
+        await pumpEventQueue();
+        notifier.deactivate();
+        storeGate!.complete();
+        await first;
+        await pumpEventQueue();
+        expect(queueOf(container).retainedSongIds, isEmpty);
+        expect(container.read(instantMixProvider).active, isFalse);
+      },
+    );
   });
 
   group('activating again while a refill runs', () {
