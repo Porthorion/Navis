@@ -1464,6 +1464,24 @@ void main() {
         expect(liked(rig), 1);
       });
 
+      test('a played-through song counts with nothing listening to the mix or '
+          'the position (#747)', () async {
+        final rig = neighbourhoodRig();
+        // Not rig.start(): that listens to the mix, as the app shell does.
+        rig.container.read(_modeProvider.notifier).set(rig.mode);
+        rig.emit(1);
+        await rig.notifier.activate('seed');
+        await rig.settle();
+        clearInteractions(rig.deezer);
+        final rel = relSongs(rig).first;
+        await playThrough(rig, rel);
+        await rig.play(otherSong(rig));
+        await rig.refill();
+
+        verifyLiked(rig, int.parse(rel.substring(3, 5)), times: 1);
+        expect(liked(rig), 1);
+      });
+
       test(
         'a skipped song, the anchor and a non-mix song never count',
         () async {
