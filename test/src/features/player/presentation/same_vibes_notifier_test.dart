@@ -679,9 +679,15 @@ void main() {
     },
   );
 
-  for (final bundled in [true, false]) {
+  for (final (bundled, serverUnsupported) in [
+    (true, false),
+    (false, false),
+    (true, true),
+    (false, true),
+  ]) {
     test(
-      'a rejected Last.fm key ${bundled ? 'stays silent when bundled' : 'is reported when it is the user\'s own'} (#694)',
+      'a rejected Last.fm key ${bundled ? 'stays silent when bundled' : 'is reported when it is the user\'s own'}'
+      '${serverUnsupported ? ' even when the server lacks similar songs (#717)' : ' (#694)'}',
       () async {
         final api = _MockSubsonicApiClient();
         final lastFm = _MockLastFmApiClient();
@@ -710,7 +716,11 @@ void main() {
             count: any(named: 'count'),
             cancelToken: any(named: 'cancelToken'),
           ),
-        ).thenAnswer((_) async => const <Song>[]);
+        ).thenAnswer(
+          (_) async => serverUnsupported
+              ? throw SubsonicNotFoundException(message: 'Unsupported endpoint')
+              : const <Song>[],
+        );
 
         final container = createRecommendationContainer(
           overrides: [
@@ -765,6 +775,7 @@ void main() {
         final error = container.read(sameVibesProvider).error;
         if (bundled) {
           expect(error, isNot(SameVibesError.invalidKey));
+          if (serverUnsupported) expect(error, SameVibesError.unsupported);
         } else {
           expect(error, SameVibesError.invalidKey);
         }
