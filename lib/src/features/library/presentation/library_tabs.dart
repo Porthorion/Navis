@@ -776,8 +776,7 @@ class _LikedAlbumsAllScreenState extends ConsumerState<LikedAlbumsAllScreen>
         TypeToFilter<LikedAlbumsAllScreen>,
         DebouncedSearch<LikedAlbumsAllScreen> {
   /// The active filter: the typed query on desktop, else the touch field.
-  String get _filterQuery =>
-      (typeFilterQuery.isNotEmpty ? typeFilterQuery : query).trim();
+  String get _filterQuery => activeFilterQuery(query);
 
   void _clearFilter() {
     clearSearch();
@@ -961,8 +960,7 @@ class _LikedArtistsAllScreenState extends ConsumerState<LikedArtistsAllScreen>
         TypeToFilter<LikedArtistsAllScreen>,
         DebouncedSearch<LikedArtistsAllScreen> {
   /// The active filter: the typed query on desktop, else the touch field.
-  String get _filterQuery =>
-      (typeFilterQuery.isNotEmpty ? typeFilterQuery : query).trim();
+  String get _filterQuery => activeFilterQuery(query);
 
   void _clearFilter() {
     clearSearch();

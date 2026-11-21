@@ -11,6 +11,13 @@ String normalizeSearchText(String value) {
       .trim();
 }
 
+/// [query] trimmed, or '' when it has nothing searchable (empty or only
+/// punctuation), so such a query counts as no filter everywhere.
+String effectiveFilterQuery(String query) {
+  final trimmed = query.trim();
+  return normalizeSearchText(trimmed).isEmpty ? '' : trimmed;
+}
+
 /// Whether any of [fields] contains [normalizedQuery], an already
 /// [normalizeSearchText]ed query (normalize once, then test every row). The
 /// shared match for in-page list filters, so "beyonce" finds "Beyoncé".

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/utils/search_text.dart';
 
 /// Desktop type-to-filter: typing on a page that has no focused text field
 /// builds a query with no visible input. The page shows [typeFilterBadge] and
@@ -20,9 +21,21 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 /// in-memory lists; wrap its body with [typeFilterFrame] (or place
 /// [typeFilterBadge] and [typeFilterOverlay] itself).
 mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
-  String typeFilterQuery = '';
+  String _typedFilter = '';
+
+  /// What was typed, or '' when it holds nothing searchable (only
+  /// punctuation): such a query is no filter, so no badge and no matching.
+  String get typeFilterQuery => effectiveFilterQuery(_typedFilter);
+
+  /// The page's active filter: the typed query, else the touch field's
+  /// [touchQuery].
+  String activeFilterQuery(String touchQuery) => typeFilterQuery.isNotEmpty
+      ? typeFilterQuery
+      : effectiveFilterQuery(touchQuery);
+
   bool typeFilterOverlayVisible = false;
   Timer? _typeFilterFadeTimer;
+  late final LibraryTypeFilterOwners _typeFilterOwners;
 
   /// Whether this page may take keystrokes now. Detail pages: they are the
   /// current route. The Library root overrides it (it stays mounted under
@@ -36,6 +49,7 @@ mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
   @override
   void initState() {
     super.initState();
+    _typeFilterOwners = ref.read(libraryTypeFilterOwnersProvider.notifier);
     HardwareKeyboard.instance.addHandler(_onTypeFilterKey);
   }
 
@@ -43,6 +57,9 @@ mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onTypeFilterKey);
     _typeFilterFadeTimer?.cancel();
+    // Deferred: provider listeners must not be notified mid-unmount.
+    final owners = _typeFilterOwners;
+    scheduleMicrotask(() => owners.remove(this));
     super.dispose();
   }
 
@@ -71,13 +88,11 @@ mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
     }
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.backspace) {
-      if (typeFilterQuery.isEmpty) return false;
-      updateTypeFilter(
-        typeFilterQuery.substring(0, typeFilterQuery.length - 1),
-      );
+      if (_typedFilter.isEmpty) return false;
+      updateTypeFilter(_typedFilter.substring(0, _typedFilter.length - 1));
       return true;
     }
-    if (key == LogicalKeyboardKey.escape && typeFilterQuery.isNotEmpty) {
+    if (key == LogicalKeyboardKey.escape && _typedFilter.isNotEmpty) {
       clearTypeFilter();
       return true;
     }
@@ -85,8 +100,8 @@ mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
     if (char != null && char.isNotEmpty && !_isControlChar(char)) {
       // Don't start a new filter with a space; only add spaces to an
       // existing query so play/pause isn't swallowed before typing begins.
-      if (char == ' ' && typeFilterQuery.isEmpty) return false;
-      updateTypeFilter(typeFilterQuery + char);
+      if (char == ' ' && _typedFilter.isEmpty) return false;
+      updateTypeFilter(_typedFilter + char);
       return true;
     }
     return false;
@@ -104,15 +119,15 @@ mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
     }
     _typeFilterFadeTimer?.cancel();
     setState(() {
-      typeFilterQuery = query;
+      _typedFilter = query;
       typeFilterOverlayVisible = true;
       onTypeFilterChanged(cleared: false);
     });
-    ref.read(libraryTypeFilterActiveProvider.notifier).active = true;
+    _typeFilterOwners.add(this);
     _typeFilterFadeTimer = Timer(const Duration(milliseconds: 900), () {
       if (mounted) {
         setState(() => typeFilterOverlayVisible = false);
-        ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
+        _typeFilterOwners.remove(this);
       }
     });
   }
@@ -120,11 +135,11 @@ mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
   void clearTypeFilter() {
     _typeFilterFadeTimer?.cancel();
     setState(() {
-      typeFilterQuery = '';
+      _typedFilter = '';
       typeFilterOverlayVisible = false;
       onTypeFilterChanged(cleared: true);
     });
-    ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
+    _typeFilterOwners.remove(this);
   }
 
   /// The `Filtering: "<query>"` strip, or null with no query.
@@ -135,8 +150,8 @@ mixin TypeToFilter<T extends ConsumerStatefulWidget> on ConsumerState<T> {
   /// The dimmed full-screen echo of the typed text, shown while typing and
   /// briefly after; null otherwise. Place it last in a [Stack].
   Widget? typeFilterOverlay() =>
-      typeFilterOverlayVisible && typeFilterQuery.isNotEmpty
-      ? Positioned.fill(child: _TypeFilterOverlay(query: typeFilterQuery))
+      typeFilterOverlayVisible && _typedFilter.isNotEmpty
+      ? Positioned.fill(child: _TypeFilterOverlay(query: _typedFilter))
       : null;
 
   /// [child] under the badge with the overlay on top.

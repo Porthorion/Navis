@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +14,10 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/common_widgets/type_to_filter.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -22,6 +27,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/queue_replace_spy.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
@@ -151,11 +157,16 @@ final _playlistSongs = [
   _song('s3', 'Lemonade Song', artist: 'Someone', album: 'Café Sessions'),
 ];
 
-Future<void> _pumpPlaylist(WidgetTester tester, Size size) => _pump(
+Future<void> _pumpPlaylist(
+  WidgetTester tester,
+  Size size, {
+  List<Object?> extraOverrides = const [],
+}) => _pump(
   tester,
   size: size,
   child: const PlaylistDetailScreen(playlistId: 'pl'),
   overrides: [
+    ...extraOverrides,
     playlistByIdProvider('pl').overrideWith(
       (ref) => Stream.value(
         const PlaylistsTableData(isLocal: false, id: 'pl', name: 'Mix'),
@@ -289,6 +300,113 @@ void main() {
     });
   });
 
+  group('playlist filter edge cases', () {
+    testWidgets('a punctuation-only query is no filter', (tester) async {
+      await _pumpPlaylist(tester, _desktop);
+      await _type(tester, '..');
+      expect(find.textContaining('Filtering:'), findsNothing);
+      expect(find.text('Halo'), findsOneWidget);
+      expect(find.text('Crazy in Love'), findsOneWidget);
+      expect(find.text('Lemonade Song'), findsOneWidget);
+      expect(find.byIcon(Icons.drag_handle), findsNWidgets(3));
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('touch punctuation-only query is no filter', (tester) async {
+      await _pumpPlaylist(tester, _touch);
+      await _filter(tester, '..');
+      expect(find.text('Lemonade Song'), findsOneWidget);
+      expect(find.byIcon(Icons.drag_handle), findsNWidgets(3));
+    });
+
+    testWidgets('tapping a row on a filtered playlist queues the matches', (
+      tester,
+    ) async {
+      await _pumpPlaylist(
+        tester,
+        _touch,
+        extraOverrides: [
+          albumQueueEnabledProvider.overrideWithValue(true),
+          queueProvider.overrideWith(QueueReplaceSpy.new),
+        ],
+      );
+      await _filter(tester, 'beyonce');
+      await tester.tap(find.text('Crazy in Love'));
+      await _settle(tester);
+      final queue = ProviderScope.containerOf(
+        tester.element(find.byType(PlaylistDetailScreen)),
+      ).read(queueProvider.notifier) as QueueReplaceSpy;
+      expect(queue.lastReplaceIds, <String>['s1', 's2']);
+      expect(queue.lastStartIndex, 1);
+    });
+
+    testWidgets('disposing within the fade window clears the active flag', (
+      tester,
+    ) async {
+      await _pumpPlaylist(tester, _desktop);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PlaylistDetailScreen)),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyB, character: 'b');
+      await tester.pump();
+      expect(container.read(libraryTypeFilterActiveProvider), isTrue);
+      // The fade timer (900 ms) is still pending: leave the page now.
+      unawaited(
+        Navigator.of(tester.element(find.byType(PlaylistDetailScreen)))
+            .pushReplacement(
+              MaterialPageRoute<void>(builder: (_) => const SizedBox()),
+            ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(PlaylistDetailScreen), findsNothing);
+      expect(container.read(libraryTypeFilterActiveProvider), isFalse);
+    });
+  });
+
+  group('type filter active flag is per page', () {
+    testWidgets('a root timer does not clear a pushed page\'s filter', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(home: _FilterProbe(root: true, label: 'root')),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(_FilterProbe)),
+      );
+      final rootState = tester.state<_FilterProbeState>(
+        find.byType(_FilterProbe),
+      );
+      rootState.updateTypeFilter('ab');
+      await tester.pump();
+      expect(container.read(libraryTypeFilterActiveProvider), isTrue);
+
+      unawaited(
+        Navigator.of(rootState.context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _FilterProbe(root: false, label: 'detail'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final detail = tester.state<_FilterProbeState>(
+        find.byWidgetPredicate((w) => w is _FilterProbe && !w.root),
+      );
+      detail.updateTypeFilter('cd');
+
+      // The root's 900 ms timer (started ~300 ms earlier) fires while the
+      // detail page, 650 ms into its own, still filters.
+      await tester.pump(const Duration(milliseconds: 650));
+      expect(container.read(libraryTypeFilterActiveProvider), isTrue);
+
+      detail.clearTypeFilter();
+      await tester.pump();
+      expect(container.read(libraryTypeFilterActiveProvider), isFalse);
+    });
+  });
+
   group('liked albums page filter', () {
     final albums = [
       _album('l1', 'Lemonade', artistName: 'Beyoncé'),
@@ -411,4 +529,25 @@ void main() {
       expect(find.text('Beyoncé'), findsOneWidget);
     });
   });
+}
+
+class _FilterProbe extends ConsumerStatefulWidget {
+  const _FilterProbe({required this.root, required this.label});
+
+  final bool root;
+  final String label;
+
+  @override
+  ConsumerState<_FilterProbe> createState() => _FilterProbeState();
+}
+
+class _FilterProbeState extends ConsumerState<_FilterProbe>
+    with TypeToFilter<_FilterProbe> {
+  @override
+  bool get typeFilterPageActive => widget.root
+      ? !Navigator.of(context).canPop()
+      : super.typeFilterPageActive;
+
+  @override
+  Widget build(BuildContext context) => Text(widget.label);
 }

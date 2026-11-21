@@ -65,8 +65,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen>
         TypeToFilter<PlaylistDetailScreen>,
         DebouncedSearch<PlaylistDetailScreen> {
   /// The active filter: the typed query on desktop, else the touch field.
-  String get _filterQuery =>
-      (typeFilterQuery.isNotEmpty ? typeFilterQuery : query).trim();
+  String get _filterQuery => activeFilterQuery(query);
 
   void _clearFilter() {
     clearSearch();

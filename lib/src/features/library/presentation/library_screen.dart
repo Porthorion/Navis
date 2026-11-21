@@ -1629,8 +1629,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   /// The Liked tab's active filter: the typed query on desktop, else the
   /// touch field.
-  String get _likedQuery =>
-      (typeFilterQuery.isNotEmpty ? typeFilterQuery : _likedFilter.text).trim();
+  String get _likedQuery => activeFilterQuery(_likedFilter.text);
 
   void _clearLikedFilter() {
     _likedFilter.clear();
