@@ -26,8 +26,6 @@ class _Watch<T> {
   }
 }
 
-// Adds only a commit barrier; the executor is still NavisDatabase.atPath's
-// production WAL connection with both reader isolates.
 // Drift >= 2.35.1 hands a nested transaction's table updates to the enclosing
 // transaction, so subscribers hear of them once, after the outermost COMMIT.
 // Returns the root announcements; the listener is created outside any
@@ -45,6 +43,8 @@ Future<void> _expectNoAnnouncement(List<Set<TableUpdate>> updates) async {
   expect(updates, isEmpty, reason: 'announced inside the open transaction');
 }
 
+// Adds only a commit barrier; the executor is still NavisDatabase.atPath's
+// production WAL connection with both reader isolates.
 class _CommitBarrierDatabase extends NavisDatabase {
   new atPath(super.databasePath) : super.atPath();
 
@@ -232,9 +232,9 @@ void main() {
           await database
               .into(database.artistsTable)
               .insert(ArtistsTableCompanion.insert(id: 'gone', name: 'Gone'));
-          throw StateError('inner');
+          throw Exception('inner');
         }, requireNew: true);
-      } on StateError {
+      } on Exception {
         // The savepoint is undone; the outer transaction continues.
       }
       await database

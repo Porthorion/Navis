@@ -453,7 +453,8 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   announcements. A rolled-back transaction may still announce its tables
   (harmless re-read of unchanged rows). `customStatement` writers must call
   `notifyUpdates` for every table a stream may watch after their method's
-  transaction succeeds, as `enqueueWork` and identity remaps do; inside an
+  transaction succeeds, as `enqueueWork` does (identity remaps use
+  `customUpdate(updates:)`); inside an
   outer transaction Drift defers these to its commit. Ordinary Drift writes and
   batches already announce their tables; raw SQL cannot be inferred.
   `transaction_stream_runtime_test` pins this behaviour on the real WAL
