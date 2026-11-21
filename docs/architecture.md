@@ -4794,11 +4794,13 @@ initial-start timeout, terminal Last.fm errors (invalid key, rate
 limit) and a server that lacks the similarity endpoints still end the mix with
 their notice. A remote song without a library copy has no similar songs of
 its own, and never borrows a queue neighbour's: Server Mix only parks. Same
-Vibes falls back to its anchor, the server-addressable song the mix started
-from, for Last.fm and the server's similar songs, until the anchor's results
-are all queued or the server no longer has it (a failed ask, such as a network
-error, does not spend it and retries like any failure); a mix started from a
-remote song has no anchor. A refill that parks on the last item with repeat off
+Vibes asks the server's similar songs for its anchor (the song the mix started
+from, or its library copy) first, then for the song that fired the refill when
+the anchor added nothing (all queued, gone from the server, or a failed ask),
+so a mix of remote songs keeps growing. A failed ask of either, with nothing
+queued, retries like any failure; a gone anchor or an empty result is not a
+failure and parks on the triggering song. A remote anchor without a library
+copy goes straight to the trigger. A refill that parks on the last item with repeat off
 ends the mix right away, provided that song is still the playing one; a skip
 made while a refill runs is re-checked as soon as the refill parks.
 

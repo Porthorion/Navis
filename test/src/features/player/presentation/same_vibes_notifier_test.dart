@@ -2716,13 +2716,13 @@ void main() {
       while (container.read(sameVibesProvider).refilling) {
         await Future<void>.delayed(const Duration(milliseconds: 5));
       }
-      expect(similarCalls, 2, reason: 'the failed refill schedules a retry');
+      expect(similarCalls, 3, reason: 'the failed refill schedules a retry');
 
       // The injected clock never moves, so it lags the real retry timer
       // (3 s plus up to 0.6 s jitter): the timer fires while `now` is still
       // before the backoff deadline, and the retry must still run.
       await Future<void>.delayed(const Duration(milliseconds: 3800));
-      expect(similarCalls, greaterThan(2));
+      expect(similarCalls, greaterThan(3));
     });
 
     test('five failed refills wait for the next song, then retry', () async {
@@ -2760,7 +2760,7 @@ void main() {
       expect(similarCalls, 1);
 
       await playToEnd(6);
-      expect(similarCalls, 2);
+      expect(similarCalls, 3);
       expect(
         stage(),
         'retryPending',
@@ -2769,10 +2769,10 @@ void main() {
       for (var length = 7; length <= 9; length++) {
         await playToEnd(length);
       }
-      expect(similarCalls, 5);
+      expect(similarCalls, 9);
       expect(stage(), 'retryPending');
       await playToEnd(10);
-      expect(similarCalls, 6);
+      expect(similarCalls, 11);
       expect(stage(), 'retryExhausted');
       expect(container.read(recommendationSessionProvider).retryCount, 5);
 
@@ -2791,19 +2791,19 @@ void main() {
             );
         await pumpEventQueue();
       }
-      expect(similarCalls, 6);
+      expect(similarCalls, 11);
       expect(stage(), 'retryExhausted');
 
       // The next song re-arms the mix with a fresh failure count.
       await playToEnd(11);
-      expect(similarCalls, 7);
+      expect(similarCalls, 13);
       expect(stage(), 'retryPending');
       expect(container.read(recommendationSessionProvider).retryCount, 1);
 
       // Once the connection is back the mix queues songs again.
       failing = false;
       await playToEnd(12);
-      expect(similarCalls, 8);
+      expect(similarCalls, 14);
       expect(stage(), 'active');
       expect(
         container.read(queueProvider.notifier),
@@ -2819,7 +2819,7 @@ void main() {
 
       // Starting the mix again re-arms it too.
       await notifier.activate('seed-a');
-      expect(similarCalls, 9);
+      expect(similarCalls, 15);
     });
   });
 
@@ -3112,13 +3112,13 @@ void main() {
         for (var tick = 1; tick <= 6; tick++) {
           await play(0, tick);
         }
-        expect(similarCalls, 2, reason: 'one fetch, then parked on the song');
+        expect(similarCalls, 3, reason: 'anchor and trigger once, then parked');
         expect(container.read(recommendationSessionProvider).retryCount, 0);
         expect(stages, isNot(contains('retryPending')));
         expect(stages, isNot(contains('retryExhausted')));
 
         await play(1, 100);
-        expect(similarCalls, 3, reason: 'a new song gets its own try');
+        expect(similarCalls, 5, reason: 'a new song gets its own try');
         expect(fallbackSeeds.last, 'q-2');
         expect(container.read(sameVibesProvider).active, isTrue);
         expect(container.read(sameVibesProvider).error, isNull);
@@ -3151,7 +3151,7 @@ void main() {
           expect(session.retryCount, 1);
           // Not parked: another snapshot on the same song asks again.
           await play(0, 2);
-          expect(similarCalls, 3);
+          expect(similarCalls, 5);
         },
       );
     }
@@ -3169,7 +3169,7 @@ void main() {
         fallbackError = null;
         await play(0, 2);
         final session = container.read(recommendationSessionProvider);
-        expect(similarCalls, 3);
+        expect(similarCalls, 5);
         expect(session.stage, 'active');
         expect(session.retryCount, 0);
       },
@@ -3195,8 +3195,8 @@ void main() {
       }
 
       await play(1, 3);
-      expect(similarCalls, 3);
-      expect(fallbackSeeds, ['seed-a', 'q-1', 'q-2']);
+      expect(similarCalls, 5);
+      expect(fallbackSeeds, ['seed-a', 'seed-a', 'q-1', 'seed-a', 'q-2']);
     });
 
     test('a skip during a parking refill still gives the new song its try without another snapshot', () async {
@@ -3219,13 +3219,13 @@ void main() {
       await Future<void>.delayed(const Duration(seconds: 4));
       container.read(sameVibesProvider);
       await pumpEventQueue();
-      expect(similarCalls, 3, reason: 'q-2 never gets its refill');
+      expect(similarCalls, 5, reason: 'q-2 got its refill once, no more');
     });
 
     test('a skip within the minimum refill interval of a park still gets its refill', () async {
       final (:container, :play) = await start();
       await play(0, 1);
-      expect(similarCalls, 2);
+      expect(similarCalls, 3);
       // Skip to q-2 without the clock moving past the minimum interval.
       container
           .read(recommendationSnapshotProvider.notifier)
@@ -3247,7 +3247,7 @@ void main() {
       await pumpEventQueue();
       expect(
         similarCalls,
-        3,
+        5,
         reason: 'q-2 refill was dropped by the 1.2 s gate',
       );
     });
@@ -3280,7 +3280,7 @@ void main() {
         while (container.read(sameVibesProvider).refilling) {
           await Future<void>.delayed(const Duration(milliseconds: 5));
         }
-        expect(similarCalls, 2);
+        expect(similarCalls, 3);
         // The park on the last song ends the mix at once when repeat is off.
         expect(
           container.read(sameVibesProvider).active,
@@ -3289,7 +3289,7 @@ void main() {
 
         playLast(2);
         await pumpEventQueue();
-        expect(similarCalls, 2);
+        expect(similarCalls, 3);
         final state = container.read(sameVibesProvider);
         expect(state.error, isNull, reason: 'running out is not an error');
         expect(state.active, repeatMode != AudioServiceRepeatMode.none);
@@ -3776,10 +3776,12 @@ void main() {
     });
   });
 
-  // #377 (i377c): a mix whose songs are all remote (Deezer) with no library
-  // copy falls back to the activation seed instead of parking for good. One
-  // snapshot per song change, as the real handler broadcasts.
-  group('remote-only mix batch falls back to the anchor (#377)', () {
+  // The server fill asks the mix's anchor (activation seed) first and the
+  // song that fired the refill second (#743); that also keeps a mix whose
+  // songs are all remote (Deezer, no library copy) from parking for good
+  // (#377, i377c). One snapshot per song change, as the real handler
+  // broadcasts.
+  group('anchor-first server fill (#377, #743)', () {
     late _MockSubsonicApiClient api;
     late _MockLastFmApiClient lastFm;
     late DateTime fakeNow;
@@ -3913,7 +3915,6 @@ void main() {
       expect(queued(container).length, greaterThan(5));
       expect(serverSeeds.skip(1).toSet(), <String>{'seed-a'});
       final last = container.read(sameVibesProvider.notifier).lastRefill!;
-      expect(last.anchorUsed, isTrue);
       expect(last.isInitial, isFalse);
       expect(last.inserted, 5);
     });
@@ -3924,7 +3925,8 @@ void main() {
       expect(container.read(sameVibesProvider).active, isTrue);
     });
 
-    test('the anchor spent too parks; the last item ends the mix', () async {
+    test('a dry anchor and an unaddressable trigger park; the last item ends '
+        'the mix', () async {
       // Every ask returns the same five songs: the anchor's are all queued.
       similar = (seed, call) => remoteBatch('ext-deezer-song-');
       final container = start();
@@ -3937,25 +3939,19 @@ void main() {
       expect(queued(container).length, 5);
       expect(container.read(sameVibesProvider).active, isTrue);
       expect(container.read(sameVibesProvider).error, isNull);
-      final callsAfterFirstPark = serverSeeds.length;
-      await playAt(container, queue, 2);
-      expect(
-        serverSeeds.length,
-        callsAfterFirstPark,
-        reason: 'a spent anchor is not asked again',
-      );
+      expect(container.read(recommendationSessionProvider).retryCount, 0);
       await playAt(container, queue, 5);
       expect(queued(container).length, 5);
       expect(container.read(sameVibesProvider).active, isFalse);
       expect(container.read(sameVibesProvider).error, isNull);
     });
 
-    test('a mix started from a remote seed has no anchor, and a replaced mix '
-        'never uses the old one', () async {
+    test('a replaced mix never uses the old anchor; a remote seed anchors '
+        'on its library copy', () async {
       libraryCopyOf['ext-deezer-song-seed'] = 'lib-copy';
       similar = (seed, call) => switch (seed) {
         'seed-a' => remoteBatch('old-'),
-        _ => call == 1 ? remoteBatch('ext-deezer-song-') : const <Song>[],
+        _ => remoteBatch('n$call-'),
       };
       final container = start();
       await container.read(sameVibesProvider.notifier).activate('seed-a');
@@ -3967,14 +3963,11 @@ void main() {
         'ext-deezer-song-seed',
         for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
       ];
-      for (var index = 1; index <= 5; index++) {
+      for (var index = 1; index <= 3; index++) {
         await playAt(container, queue, index);
       }
-      expect(serverSeeds, isNot(contains('seed-a')));
-      expect(
-        container.read(sameVibesProvider.notifier).lastRefill?.anchorUsed,
-        isFalse,
-      );
+      expect(serverSeeds, isNotEmpty);
+      expect(serverSeeds.toSet(), <String>{'lib-copy'});
     });
 
     test('a library mix replaced by another one uses the new anchor', () async {
@@ -3999,96 +3992,162 @@ void main() {
       expect(serverSeeds.toSet(), <String>{'seed-b'});
     });
 
-    test('a failed anchor ask does not spend the anchor', () async {
-      var seedAsks = 0;
-      when(
-        () => lastFm.getSimilarTracksResult(
-          artist: any(named: 'artist'),
-          track: any(named: 'track'),
-          limit: any(named: 'limit'),
-        ),
-      ).thenAnswer((invocation) async {
-        // The anchor is the media item 'Seed'; its second ask (the first is
-        // the initial refill) hits a network error.
-        final isAnchor = invocation.namedArguments[#track] == 'Seed';
-        if (isAnchor && ++seedAsks == 2) {
-          return const LastFmTrackFetchResult(
-            outcome: LastFmFetchOutcome.networkError,
-            tracks: <LastFmTrackRecommendation>[],
-          );
-        }
-        return const LastFmTrackFetchResult(
-          outcome: LastFmFetchOutcome.noResults,
-          tracks: <LastFmTrackRecommendation>[],
-        );
-      });
-      similar = (seed, call) => switch (call) {
-        0 => remoteBatch('ext-deezer-song-'),
-        1 => const <Song>[],
-        _ => remoteBatch('later-'),
-      };
+    // Library songs as the mix's later songs: each is its own fill seed.
+    List<String> libQueue() => <String>[
+      'seed-a',
+      for (var i = 1; i <= 5; i++) 'lib-$i',
+    ];
+
+    test('a refill fills from the anchor first', () async {
+      similar = (seed, call) =>
+          call == 0 ? remoteBatch('lib-') : remoteBatch('new-$call-');
       final container = start();
       await container.read(sameVibesProvider.notifier).activate('seed-a');
-      final queue = <String>[
-        'seed-a',
-        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
-      ];
-      await playAt(container, queue, 1);
-      expect(queued(container).length, 5);
-      await playAt(container, queue, 2);
-      expect(serverSeeds, <String>['seed-a', 'seed-a', 'seed-a']);
+      await playAt(container, libQueue(), 1);
+      expect(serverSeeds, <String>['seed-a', 'seed-a']);
       expect(queued(container).length, 10);
     });
 
-    test('an anchor the server no longer has is spent at once', () async {
-      similar = (seed, call) => call == 0
-          ? remoteBatch('ext-deezer-song-')
-          : throw SubsonicNotFoundException(message: 'gone');
+    test('the initial refill asks the server once', () async {
+      similar = (seed, call) => remoteBatch('lib-');
       final container = start();
       await container.read(sameVibesProvider.notifier).activate('seed-a');
-      final queue = <String>[
-        'seed-a',
-        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
-      ];
-      for (var index = 1; index <= 4; index++) {
-        await playAt(container, queue, index);
-      }
-      expect(serverSeeds, <String>['seed-a', 'seed-a']);
+      expect(serverSeeds, <String>['seed-a']);
+      expect(queued(container).length, 5);
     });
 
-    test('an anchor whose song lookup is not found is spent at once', () async {
-      // The anchor is not the playing media item, so its metadata comes from
-      // the server, as it does while a remote song plays.
-      var anchorSongLookups = 0;
-      when(() => api.getSong('seed-b', cancelToken: any(named: 'cancelToken')))
-          .thenAnswer((_) async {
-            anchorSongLookups += 1;
-            // The activation resolves the seed; from the first refill on, the
-            // server no longer has it.
-            if (anchorSongLookups > 1) {
-              throw SubsonicNotFoundException(message: 'gone');
-            }
-            return Song(id: 'seed-b', title: 'Seed', artist: 'Artist');
-          });
+    test('a dry anchor fills from the trigger and the mix continues over two '
+        'refills', () async {
+      // The anchor's similar songs are all queued after the first batch.
       similar = (seed, call) =>
-          call == 0 ? remoteBatch('ext-deezer-song-') : const <Song>[];
+          seed == 'seed-a' ? remoteBatch('lib-') : remoteBatch('$seed-n-');
       final container = start();
-      await container.read(sameVibesProvider.notifier).activate('seed-b');
-      final queue = <String>[
-        'seed-b',
-        for (var i = 1; i <= 5; i++) 'ext-deezer-song-$i',
-      ];
-      for (var index = 1; index <= 4; index++) {
-        await playAt(container, queue, index);
-      }
-      expect(
-        anchorSongLookups,
-        2,
-        reason: 'the anchor is asked once, then spent',
-      );
-      expect(serverSeeds, <String>['seed-b']);
-      expect(container.read(recommendationSessionProvider).retryCount, 0);
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      await playAt(container, libQueue(), 1);
+      expect(serverSeeds, <String>['seed-a', 'seed-a', 'lib-1']);
+      expect(queued(container).length, 10);
+      await playAt(container, libQueue(), 2);
+      expect(serverSeeds.skip(3), <String>['seed-a', 'lib-2']);
+      expect(queued(container).length, 15);
+      expect(container.read(sameVibesProvider).active, isTrue);
     });
+
+    test('an anchor the server no longer has fills from the trigger', () async {
+      similar = (seed, call) => switch (seed) {
+        'seed-a' when call > 0 => throw SubsonicNotFoundException(
+          message: 'gone',
+        ),
+        'seed-a' => remoteBatch('lib-'),
+        _ => remoteBatch('t-'),
+      };
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      await playAt(container, libQueue(), 1);
+      expect(serverSeeds, <String>['seed-a', 'seed-a', 'lib-1']);
+      expect(queued(container).length, 10);
+    });
+
+    test('an anchor the server no longer has and an empty trigger park, no '
+        'retry', () async {
+      similar = (seed, call) => switch (seed) {
+        'seed-a' when call > 0 => throw SubsonicNotFoundException(
+          message: 'gone',
+        ),
+        'seed-a' => remoteBatch('lib-'),
+        _ => const <Song>[],
+      };
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      await playAt(container, libQueue(), 1);
+      expect(serverSeeds, <String>['seed-a', 'seed-a', 'lib-1']);
+      final session = container.read(recommendationSessionProvider);
+      expect(session.retryCount, 0);
+      expect(session.stage, 'active');
+      expect(container.read(sameVibesProvider).active, isTrue);
+      // Parked on the trigger: the same song asks nothing more.
+      await playAt(container, libQueue(), 1);
+      expect(serverSeeds.length, 3);
+    });
+
+    test('an anchor transport error and a clean empty trigger schedule a '
+        'retry on the trigger', () async {
+      similar = (seed, call) => switch (seed) {
+        'seed-a' when call > 0 => throw const SubsonicConnectionException(
+          'offline',
+        ),
+        'seed-a' => remoteBatch('lib-'),
+        _ => const <Song>[],
+      };
+      final container = start();
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      await playAt(container, libQueue(), 1);
+      expect(serverSeeds, <String>['seed-a', 'seed-a', 'lib-1']);
+      final session = container.read(recommendationSessionProvider);
+      expect(session.stage, 'retryPending');
+      expect(session.retryCount, 1);
+    });
+
+    test(
+      'a remote anchor without a library copy fills from the trigger',
+      () async {
+        // The initial refill maps Last.fm songs; the anchor is remote with no
+        // library copy, so it has no fill id of its own.
+        var lastFmCalls = 0;
+        when(
+          () => lastFm.getSimilarTracksResult(
+            artist: any(named: 'artist'),
+            track: any(named: 'track'),
+            limit: any(named: 'limit'),
+          ),
+        ).thenAnswer((_) async {
+          if (++lastFmCalls > 1) {
+            return const LastFmTrackFetchResult(
+              outcome: LastFmFetchOutcome.noResults,
+              tracks: <LastFmTrackRecommendation>[],
+            );
+          }
+          return const LastFmTrackFetchResult(
+            outcome: LastFmFetchOutcome.success,
+            tracks: <LastFmTrackRecommendation>[
+              LastFmTrackRecommendation(
+                artist: 'ArtistA',
+                title: 'SongA',
+                match: 1,
+              ),
+            ],
+          );
+        });
+        when(
+          () => api.search3(
+            query: any(named: 'query'),
+            artistCount: any(named: 'artistCount'),
+            albumCount: any(named: 'albumCount'),
+            songCount: any(named: 'songCount'),
+            artistOffset: any(named: 'artistOffset'),
+            albumOffset: any(named: 'albumOffset'),
+            songOffset: any(named: 'songOffset'),
+          ),
+        ).thenAnswer(
+          (_) async => const SearchResult3(
+            songs: <Song>[Song(id: 'm-1', title: 'SongA', artist: 'ArtistA')],
+          ),
+        );
+        similar = (seed, call) => remoteBatch('t-');
+        final container = start();
+        await container
+            .read(sameVibesProvider.notifier)
+            .activate('ext-deezer-song-seed');
+        expect(queued(container).map((s) => s.id), <String>['m-1']);
+        expect(serverSeeds, isEmpty, reason: 'no addressable id to ask');
+        await playAt(container, <String>[
+          'ext-deezer-song-seed',
+          'm-1',
+          'lib-2',
+        ], 2);
+        expect(serverSeeds, <String>['lib-2']);
+        expect(queued(container).length, 6);
+      },
+    );
 
     test('a refill that parks after a skip onto the last item does not end the '
         'mix', () async {
@@ -4184,9 +4243,6 @@ void main() {
         'lastFmSource',
         'mapped',
         'fallbackReason',
-        'anchorUsed',
-        'anchorLastFmOutcome',
-        'anchorMapped',
         'inserted',
         'parkedSeedId',
       });

@@ -59,8 +59,6 @@ const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 /// Retry window base/cap for transient failures.
 const _kRetryBackoffBase = Duration(seconds: 3);
 
-/// The anchor could not be read this time (no metadata, or Last.fm failed).
-const _kAnchorTransientReason = 'anchor_transient';
 const _kRetryBackoffMax = Duration(seconds: 45);
 const _kRetryJitterMaxMs = 600;
 
@@ -102,11 +100,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// queued again, even after it played and left the queue.
   Set<String>? _mixSongKeys;
 
-  /// The activation seed when it is server-addressable: the mix's own seed,
-  /// which a refill falls back to when the playing song is a remote one with
-  /// no library copy (#377). A mix started from a remote seed has none.
-  String? _anchorSeedId;
-
   /// The activation seed, whatever its kind (#743). Deezer refills rank from
   /// it for the whole mix; the song playing when a refill fires is only the
   /// trigger (park key, retry key).
@@ -115,8 +108,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// The anchor's resolved metadata, stored by the initial refill.
   _SeedMetadata? _anchorSeed;
 
-  /// The anchor's songs are all queued already; asking again finds nothing.
-  bool _anchorSpent = false;
   SameVibesRefillRecord? _lastRefill;
 
   /// What the last refill did, for the diagnostics (never credentials).
@@ -165,12 +156,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _session = session;
     // After `start`: a superseded mix's listener runs deactivate() inside it,
     // which clears the anchor.
-    _anchorSeedId = isServerAddressableSongId(normalizedSeedSongId)
-        ? normalizedSeedSongId
-        : null;
     _anchorId = normalizedSeedSongId;
     _anchorSeed = null;
-    _anchorSpent = false;
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
     // A fresh state also clears the refilling flag of a refill still running
@@ -203,10 +190,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _nextRefillAllowedAt = null;
     _consecutiveTransientFailures = 0;
     _parkedSeedSongId = null;
-    _anchorSeedId = null;
     _anchorId = null;
     _anchorSeed = null;
-    _anchorSpent = false;
     _mixSongIds = null;
     _mixSongKeys = null;
     _activationInProgress = false;
@@ -300,7 +285,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     final normalizedSeedSongId = seedSongId.trim();
     final session = _session;
     // Read now: a refill of a superseded mix must not pick up the new mix's.
-    final anchorSeedId = _anchorSeedId;
     final anchorId = _anchorId;
     final anchorSeed = _anchorSeed;
     if (session == null ||
@@ -484,13 +468,21 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         LastFmFetchOutcome.notConfigured => mappedSongCount < targetBatch,
       };
 
+      // Server fill order: the mix's anchor first, then the song that fired
+      // the refill (a dry or missing anchor must not end the mix, #743).
+      final anchorFillId = anchorId == null
+          ? null
+          : _resolveFallbackSeedSongId(
+              preferredSeedSongId: anchorId,
+              libraryCopyId: (isInitial ? seed : anchorSeed)?.libraryCopyId,
+            );
+      final triggerFillId = _resolveFallbackSeedSongId(
+        preferredSeedSongId: normalizedSeedSongId,
+        libraryCopyId: seed?.libraryCopyId,
+      );
       if (shouldAttemptFallback) {
-        final fallbackSeedSongId = _resolveFallbackSeedSongId(
-          preferredSeedSongId: normalizedSeedSongId,
-          libraryCopyId: seed?.libraryCopyId,
-        );
-        fallbackSeedEligible = fallbackSeedSongId != null;
-        if (fallbackSeedSongId == null) {
+        fallbackSeedEligible = anchorFillId != null || triggerFillId != null;
+        if (!fallbackSeedEligible) {
           fallbackDecision = 'skip';
           fallbackReason = 'seed_not_server_addressable';
         } else {
@@ -520,91 +512,107 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         'seedEligible=$fallbackSeedEligible',
       );
 
-      if (shouldAttemptFallback && fallbackSeedEligible) {
-        final fallbackSeedSongId = _resolveFallbackSeedSongId(
-          preferredSeedSongId: normalizedSeedSongId,
-          libraryCopyId: seed?.libraryCopyId,
+      // Either fill erred (transport/api): with nothing queued, a retry.
+      var fillErrored = false;
+      var fillUnsupported = false;
+      final legReason = fallbackReason;
+
+      /// Asks the server for [serverSeedId]'s similar songs; true when it
+      /// added songs. A failure only sets the reason; never throws.
+      Future<bool> fillFrom(String serverSeedId) async {
+        AppLogger.debug(
+          'SameVibes diagnostics: fallback engaged '
+          'reason="$fallbackReason" '
+          'mapped=$mappedSongCount seed=$serverSeedId',
         );
-        if (fallbackSeedSongId != null) {
-          AppLogger.debug(
-            'SameVibes diagnostics: fallback engaged '
-            'reason="$fallbackReason" '
-            'mapped=$mappedSongCount seed=$fallbackSeedSongId',
+        try {
+          final fallback = await api.getSimilarSongs(
+            serverSeedId,
+            count: _kServerFillLimit,
           );
-          try {
-            final fallback = await api.getSimilarSongs(
-              fallbackSeedSongId,
-              count: _kServerFillLimit,
-            );
-            AppLogger.debug(
-              'SameVibes diagnostics: fallback candidates=${fallback.length}',
-            );
-            fallbackSongs = _mergeUniqueSongs(
-              fallback: fallback,
-              excludedIds: queuedIds,
-              excludedSongKeys: queuedSongKeys,
-              targetCount: targetBatch - mappedSongCount,
-              chosen: mappedSongs,
-              seedTitle: seed?.title,
-              allowJunk: candidatePreferences.allowJunkVersions,
-            );
-            if (fallbackSongs.isNotEmpty) {
-              for (final song in fallbackSongs) {
-                final id = song.id.trim();
-                if (id.isNotEmpty) {
-                  queuedIds.add(id);
-                }
-                final key = sameVibesCanonicalSongKey(
-                  song.artist ?? '',
-                  song.title,
-                );
-                if (key != null) {
-                  queuedSongKeys.add(key);
-                }
-              }
-              fallbackQueued = fallbackSongs.length;
+          AppLogger.debug(
+            'SameVibes diagnostics: fallback candidates=${fallback.length}',
+          );
+          fallbackSongs = _mergeUniqueSongs(
+            fallback: fallback,
+            excludedIds: queuedIds,
+            excludedSongKeys: queuedSongKeys,
+            targetCount: targetBatch - mappedSongCount,
+            chosen: mappedSongs,
+            seedTitle: seed?.title,
+            allowJunk: candidatePreferences.allowJunkVersions,
+          );
+          for (final song in fallbackSongs) {
+            final id = song.id.trim();
+            if (id.isNotEmpty) {
+              queuedIds.add(id);
             }
-            AppLogger.debug(
-              'SameVibes diagnostics: mergedAfterFallback='
-              '${mappedSongCount + fallbackQueued}',
+            final key = sameVibesCanonicalSongKey(
+              song.artist ?? '',
+              song.title,
             );
-          } on SubsonicNotFoundException catch (error) {
-            final endpointUnsupported = _isEndpointUnsupportedMessage(
-              error.message,
-            );
-            AppLogger.debug(
-              'SameVibes diagnostics: fallback notfound '
-              'code=${error.code} message="${error.message}" '
-              'endpointUnsupported=$endpointUnsupported',
-            );
-            // The user's own rejected Last.fm key outranks "server unsupported":
-            // fall through to the terminal invalid-key check below (#717).
-            final userKeyRejected =
-                (lastFmResult.apiErrorCode == 10 ||
-                    lastFmResult.apiErrorCode == 26) &&
-                !ref.read(lastFmBundledKeyProvider);
-            if (endpointUnsupported &&
-                mappedSongs.isEmpty &&
-                !userKeyRejected) {
-              if (!_isCurrent(session)) return;
-              state = const SameVibesState(error: SameVibesError.unsupported);
-              _reportFailed(session, SameVibesError.unsupported);
-              return;
+            if (key != null) {
+              queuedSongKeys.add(key);
             }
-            fallbackReason = _subsonicFailureReason(error);
-          } on SubsonicApiException catch (error) {
-            AppLogger.debug(
-              'SameVibes diagnostics: fallback api_error '
-              'code=${error.code} message="${error.message}"',
-            );
-            fallbackReason = _subsonicFailureReason(error);
-          } on SubsonicException catch (error) {
-            AppLogger.debug(
-              'SameVibes diagnostics: fallback transport_error '
-              'message="${error.message}"',
-            );
-            fallbackReason = _subsonicFailureReason(error);
           }
+          fallbackQueued = fallbackSongs.length;
+          AppLogger.debug(
+            'SameVibes diagnostics: mergedAfterFallback='
+            '${mappedSongCount + fallbackQueued}',
+          );
+          if (fallbackQueued > 0) fallbackReason = legReason;
+          return fallbackQueued > 0;
+        } on SubsonicNotFoundException catch (error) {
+          final endpointUnsupported = _isEndpointUnsupportedMessage(
+            error.message,
+          );
+          AppLogger.debug(
+            'SameVibes diagnostics: fallback notfound '
+            'code=${error.code} message="${error.message}" '
+            'endpointUnsupported=$endpointUnsupported',
+          );
+          // The user's own rejected Last.fm key outranks "server unsupported":
+          // fall through to the terminal invalid-key check below (#717).
+          final userKeyRejected =
+              (lastFmResult.apiErrorCode == 10 ||
+                  lastFmResult.apiErrorCode == 26) &&
+              !ref.read(lastFmBundledKeyProvider);
+          if (endpointUnsupported && mappedSongs.isEmpty && !userKeyRejected) {
+            fillUnsupported = true;
+          }
+          fallbackReason = _subsonicFailureReason(error);
+        } on SubsonicApiException catch (error) {
+          AppLogger.debug(
+            'SameVibes diagnostics: fallback api_error '
+            'code=${error.code} message="${error.message}"',
+          );
+          fallbackReason = _subsonicFailureReason(error);
+          fillErrored = true;
+        } on SubsonicException catch (error) {
+          AppLogger.debug(
+            'SameVibes diagnostics: fallback transport_error '
+            'message="${error.message}"',
+          );
+          fallbackReason = _subsonicFailureReason(error);
+          fillErrored = true;
+        }
+        return false;
+      }
+
+      if (shouldAttemptFallback && fallbackSeedEligible) {
+        var filled = anchorFillId != null && await fillFrom(anchorFillId);
+        if (!filled &&
+            !fillUnsupported &&
+            triggerFillId != null &&
+            triggerFillId != anchorFillId) {
+          if (!_isCurrent(session)) return;
+          filled = await fillFrom(triggerFillId);
+        }
+        if (fillUnsupported) {
+          if (!_isCurrent(session)) return;
+          state = const SameVibesState(error: SameVibesError.unsupported);
+          _reportFailed(session, SameVibesError.unsupported);
+          return;
         }
       }
 
@@ -620,41 +628,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       // (that would collapse the new mix's queue) or append anything.
       if (!_isCurrent(session)) return;
 
-      // The playing song is remote with no library copy and gave nothing new:
-      // the mix's own server-addressable seed still can (#377).
-      var anchorUsed = false;
-      String? anchorLastFmOutcome;
-      var anchorMapped = 0;
-      if (!isInitial &&
-          !fallbackSeedEligible &&
-          mappedSongs.isEmpty &&
-          fallbackSongs.isEmpty &&
-          anchorSeedId != null &&
-          anchorSeedId != normalizedSeedSongId &&
-          !_anchorSpent) {
-        anchorUsed = true;
-        final anchor = await _fetchAnchorBatch(
-          api: api,
-          anchorSeedId: anchorSeedId,
-          blockedIds: queuedIds,
-          blockedSongKeys: queuedSongKeys,
-          preferences: candidatePreferences,
-          targetBatch: targetBatch,
-        );
-        if (!_isCurrent(session)) return;
-        anchorLastFmOutcome = anchor.lastFmOutcome;
-        anchorMapped = anchor.mapped.length;
-        mappedSongs.addAll(anchor.mapped);
-        fallbackSongs = anchor.similar;
-        fallbackReason = anchor.failureReason ?? fallbackReason;
-        // A clean empty result, or an anchor the server no longer has, spends
-        // it; any other failure may retry.
-        _anchorSpent =
-            mappedSongs.isEmpty &&
-            fallbackSongs.isEmpty &&
-            (anchor.failureReason == null ||
-                anchor.failureReason == 'fallback_seed_not_found');
-      }
       if (!state.active) {
         AppLogger.debug(
           'SameVibes diagnostics: refill canceled (state inactive post-fallback)',
@@ -756,9 +729,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               LastFmFetchOutcome.apiError => !lastFmResult.hasNoSimilarTracks,
               _ => false,
             } ||
-            fallbackReason == 'fallback_api_error' ||
-            fallbackReason == 'fallback_transport_error' ||
-            fallbackReason == _kAnchorTransientReason;
+            fillErrored;
         if (failed) {
           _scheduleTransientRetry(
             reason: fallbackReason,
@@ -797,9 +768,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         lastFmSource: lastFmResult.source.name,
         mapped: mappedSongCount,
         fallbackReason: fallbackReason,
-        anchorUsed: anchorUsed,
-        anchorLastFmOutcome: anchorLastFmOutcome,
-        anchorMapped: anchorMapped,
         inserted: totalQueued,
         parkedSeedId: parked ? normalizedSeedSongId : null,
       );
@@ -1313,116 +1281,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     );
   }
 
-  /// Last.fm then server similar songs for the mix's anchor seed, filtered
-  /// against the queue. Never throws on a Subsonic failure; reports it.
-  Future<
-    ({
-      List<Song> mapped,
-      List<Song> similar,
-      String? failureReason,
-      String? lastFmOutcome,
-    })
-  >
-  _fetchAnchorBatch({
-    required SubsonicApiClient api,
-    required String anchorSeedId,
-    required Set<String> blockedIds,
-    required Set<String> blockedSongKeys,
-    required _CandidatePreferenceContext preferences,
-    required int targetBatch,
-  }) async {
-    final mapped = <Song>[];
-    blockedIds.add(anchorSeedId);
-    void block(Song song) {
-      final id = song.id.trim();
-      if (id.isNotEmpty) blockedIds.add(id);
-      final key = sameVibesCanonicalSongKey(song.artist ?? '', song.title);
-      if (key != null) blockedSongKeys.add(key);
-    }
-
-    String? lastFmOutcome;
-    String? failureReason;
-    final _SeedMetadata? seed;
-    try {
-      seed = await _resolveSeedMetadata(
-        api: api,
-        seedSongId: anchorSeedId,
-        rethrowNotFound: true,
-      );
-    } on SubsonicNotFoundException catch (error) {
-      // The server no longer has the anchor: that is final, not a retry.
-      return (
-        mapped: const <Song>[],
-        similar: const <Song>[],
-        failureReason: _subsonicFailureReason(error),
-        lastFmOutcome: null,
-      );
-    }
-    if (seed == null) {
-      failureReason = _kAnchorTransientReason;
-    } else {
-      final blockedCopy = seed.libraryCopyId;
-      if (blockedCopy != null) blockedIds.add(blockedCopy);
-      final lastFm = await _fetchRecommendations(
-        seed: seed,
-        anchorSeed: seed,
-        limit: _kLastFmRecommendationLimit,
-        background: true,
-      );
-      lastFmOutcome = lastFm.outcome.name;
-      final lastFmFailed = switch (lastFm.outcome) {
-        LastFmFetchOutcome.networkError ||
-        LastFmFetchOutcome.parseError => true,
-        LastFmFetchOutcome.apiError => !lastFm.hasNoSimilarTracks,
-        _ => false,
-      };
-      if (lastFmFailed) failureReason = _kAnchorTransientReason;
-      if (lastFm.outcome == LastFmFetchOutcome.success &&
-          lastFm.tracks.isNotEmpty) {
-        await _mapLastFmRecommendationsIncremental(
-          api: api,
-          recommendations: lastFm.tracks,
-          blockedIds: blockedIds,
-          blockedSongKeys: blockedSongKeys,
-          preferences: preferences,
-          targetCount: targetBatch,
-          maxSearchAttempts: _kMaxSearchAttempts,
-          onChunk: (chunk) async {
-            mapped.addAll(chunk);
-            chunk.forEach(block);
-            return chunk.length;
-          },
-        );
-      }
-    }
-    var similar = const <Song>[];
-    if (mapped.length < targetBatch) {
-      try {
-        similar = _mergeUniqueSongs(
-          fallback: await api.getSimilarSongs(
-            anchorSeedId,
-            count: _kServerFillLimit,
-          ),
-          excludedIds: blockedIds,
-          excludedSongKeys: blockedSongKeys,
-          targetCount: targetBatch - mapped.length,
-          chosen: mapped,
-          seedTitle: seed?.title,
-          allowJunk: preferences.allowJunkVersions,
-        );
-      } on SubsonicException catch (error) {
-        AppLogger.debug('SameVibes diagnostics: anchor fallback: $error');
-        failureReason = _subsonicFailureReason(error);
-      }
-    }
-    return (
-      mapped: mapped,
-      similar: similar,
-      failureReason: failureReason,
-      lastFmOutcome: lastFmOutcome,
-    );
-  }
-
   /// The server id whose similar songs back the fallback: the seed itself, or
   /// a remote seed's library copy. A remote seed without a library copy has no
   /// fallback, and never borrows the similar songs of an unrelated queue
@@ -1929,9 +1787,6 @@ class SameVibesRefillRecord {
     required this.lastFmSource,
     required this.mapped,
     required this.fallbackReason,
-    required this.anchorUsed,
-    required this.anchorLastFmOutcome,
-    required this.anchorMapped,
     required this.inserted,
     required this.parkedSeedId,
   });
@@ -1950,9 +1805,6 @@ class SameVibesRefillRecord {
   final String lastFmSource;
   final int mapped;
   final String fallbackReason;
-  final bool anchorUsed;
-  final String? anchorLastFmOutcome;
-  final int anchorMapped;
   final int inserted;
   final String? parkedSeedId;
 
@@ -1966,9 +1818,6 @@ class SameVibesRefillRecord {
     'lastFmSource': lastFmSource,
     'mapped': mapped,
     'fallbackReason': fallbackReason,
-    'anchorUsed': anchorUsed,
-    'anchorLastFmOutcome': anchorLastFmOutcome,
-    'anchorMapped': anchorMapped,
     'inserted': inserted,
     'parkedSeedId': parkedSeedId,
   };
