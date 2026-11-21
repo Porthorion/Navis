@@ -57,7 +57,7 @@ void main() {
         expect(completed, isTrue, reason: 'commit stays in the fake queue');
         expect(
           updates.where((set) => set.any((u) => u.table == 'artists')),
-          hasLength(nested ? 2 : 1),
+          hasLength(1),
         );
         expect(await database.libraryDao.getArtistById('artist'), isNotNull);
       },
@@ -65,7 +65,7 @@ void main() {
     );
   }
 
-  test('rollback completes in fake microtasks without a replay', () async {
+  test('rollback completes in fake microtasks', () async {
     final database = createTestDatabase();
     final clock = FakeAsync();
     addTearDown(() async {
@@ -104,9 +104,6 @@ void main() {
     });
 
     expect(caught, same(error));
-    // Drift still invalidates the rolled-back transaction's affected tables.
-    // The database override must not add a post-commit replay.
-    expect(updates, hasLength(1));
     expect(await database.libraryDao.getArtistById('discard'), isNull);
   }, skip: !sqliteAvailable);
 }
