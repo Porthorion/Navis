@@ -102,22 +102,35 @@ final librarySectionProvider =
       _LibrarySectionNotifier.new,
     );
 
-/// Whether a library type-to-filter session is currently active (the overlay
-/// text is visible). While `true`, transport shortcuts like space → play/pause
-/// should be suppressed to avoid interfering with filter input.
-class _LibraryTypeFilterActiveNotifier extends Notifier<bool> {
+/// The pages whose type-to-filter session is currently active (the overlay
+/// text is visible). Each page adds and removes only itself, so one page's
+/// timer or disposal never clears another's session.
+class LibraryTypeFilterOwners extends Notifier<Set<Object>> {
   @override
-  bool build() => false;
+  Set<Object> build() => const <Object>{};
 
-  bool get active => state;
+  void add(Object owner) {
+    if (!state.contains(owner)) state = {...state, owner};
+  }
 
-  set active(bool value) => state = value;
+  void remove(Object owner) {
+    if (ref.mounted && state.contains(owner)) {
+      state = {...state}..remove(owner);
+    }
+  }
 }
 
-final libraryTypeFilterActiveProvider =
-    NotifierProvider<_LibraryTypeFilterActiveNotifier, bool>(
-      _LibraryTypeFilterActiveNotifier.new,
+final libraryTypeFilterOwnersProvider =
+    NotifierProvider<LibraryTypeFilterOwners, Set<Object>>(
+      LibraryTypeFilterOwners.new,
     );
+
+/// Whether any page's type-to-filter session is active. While `true`,
+/// transport shortcuts like space → play/pause are suppressed so they don't
+/// interfere with filter input.
+final libraryTypeFilterActiveProvider = Provider<bool>(
+  (ref) => ref.watch(libraryTypeFilterOwnersProvider).isNotEmpty,
+);
 
 /// Clone-diagnostics command for exercising the production Library filter
 /// without desktop input automation. It is ignored until [LibraryScreen]

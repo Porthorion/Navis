@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
@@ -74,6 +77,31 @@ class ListFilterField extends StatelessWidget {
             vertical: dense ? 10 : 14,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The empty state of a filtered list: no match for [query], with a way back.
+class FilterNoResults extends StatelessWidget {
+  const new({super.key, required this.query, required this.onClear});
+
+  final String query;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return EmptyState(
+      title: l10n.libraryFilterNoResults(query),
+      subtitle: l10n.libraryFilterNoResultsSubtitle,
+      icon: Icons.search_off,
+      action: FilledButton.tonalIcon(
+        style: NavisColorStyleData.tonalStyleOf(context),
+        key: const ValueKey<String>('filterClearAction'),
+        onPressed: onClear,
+        icon: const Icon(Icons.filter_alt_off_outlined),
+        label: Text(l10n.libraryClearFiltersAction),
       ),
     );
   }

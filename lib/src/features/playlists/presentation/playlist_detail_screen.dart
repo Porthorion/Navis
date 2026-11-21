@@ -15,7 +15,10 @@ import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/common_widgets/type_to_filter.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -57,7 +60,29 @@ enum _PlaylistSongContextAction {
   removeFromPlaylist,
 }
 
-class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
+class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen>
+    with
+        TypeToFilter<PlaylistDetailScreen>,
+        DebouncedSearch<PlaylistDetailScreen> {
+  /// The active filter: the typed query on desktop, else the touch field.
+  String get _filterQuery => activeFilterQuery(query);
+
+  void _clearFilter() {
+    clearSearch();
+    clearTypeFilter();
+  }
+
+  /// Whether [song] passes the in-page filter (title, artist or album).
+  bool _matchesFilter(SongsTableData song) {
+    final normalized = normalizeSearchText(_filterQuery);
+    return normalized.isEmpty ||
+        searchTextMatches(normalized, [
+          song.title,
+          song.artistName,
+          song.albumName,
+        ]);
+  }
+
   /// The loaded playlist when the signed-in user may change its songs, else
   /// null. Set once per build: read-only and other users' playlists show no
   /// drag handles and no Remove action.
@@ -149,15 +174,17 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         title: Text(l10n.playlistDetailTitle),
         actions: const <Widget>[],
       ),
-      body: desktopMode
-          ? DesktopFrame(
-              layoutClass: resolveDesktopLayoutClass(
-                MediaQuery.sizeOf(context).width,
-              ),
-              padding: EdgeInsets.zero,
-              child: playlistBody,
-            )
-          : playlistBody,
+      body: typeFilterFrame(
+        desktopMode
+            ? DesktopFrame(
+                layoutClass: resolveDesktopLayoutClass(
+                  MediaQuery.sizeOf(context).width,
+                ),
+                padding: EdgeInsets.zero,
+                child: playlistBody,
+              )
+            : playlistBody,
+      ),
     );
   }
 
@@ -196,7 +223,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         : null;
     final visibleEntries = songs.indexed
         .where(
-          (entry) => !downloadedOnly || downloadedSongIds.contains(entry.$2.id),
+          (entry) =>
+              (!downloadedOnly || downloadedSongIds.contains(entry.$2.id)) &&
+              _matchesFilter(entry.$2),
         )
         .map((entry) => (song: entry.$2, playlistIndex: entry.$1))
         .toList(growable: false);
@@ -204,6 +233,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         .map((entry) => entry.song)
         .toList(growable: false);
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    // A filtered list is a plain list: no reordering while a filter is on.
+    final filtering = _filterQuery.isNotEmpty;
+    final plainList = downloadedOnly || filtering;
     const desktopTrackPadding = EdgeInsets.fromLTRB(24, 0, 24, 0);
     // The desktop header follows the window height band; tall is the original.
     final heightClass = desktopHeightClassOf(context);
@@ -346,6 +378,17 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     ],
                   ),
           ),
+          // Desktop filters by typing; touch gets the field (kept while a
+          // query is set so it can always be cleared).
+          if (!desktopMode && (songs.isNotEmpty || search.text.isNotEmpty))
+            SliverToBoxAdapter(
+              child: ListFilterField(
+                controller: search,
+                hint: l10n.playlistDetailFilterHint,
+                onChanged: onSearchChanged,
+                onClear: _clearFilter,
+              ),
+            ),
           if (visibleSongs.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -353,7 +396,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 child: AdaptiveTrackHeader(
                   actionExtent: desktopMode
                       ? null
-                      : (downloadedOnly || !_canEdit ? 96 : 144),
+                      : (plainList || !_canEdit ? 96 : 144),
                 ),
               ),
             ),
@@ -364,6 +407,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 hasScrollBody: false,
                 child: isLoading
                     ? const ShimmerListPage(songRows: true)
+                    : filtering && songs.isNotEmpty
+                    ? FilterNoResults(
+                        query: _filterQuery,
+                        onClear: _clearFilter,
+                      )
                     : downloadedOnly
                     ? EmptyState(
                         title: l10n.libraryDownloadedOnlyEmpty,
@@ -377,7 +425,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       ),
               ),
             )
-          else if (downloadedOnly)
+          else if (plainList)
             SliverPadding(
               padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
               sliver: SliverList(
@@ -697,36 +745,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   title: Text(l10n.librarySongMenuPlayNow),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    final downloadedOnly = ref.read(
-                      downloadedOnlyFilterProvider,
-                    );
-                    final downloadedSongIds = downloadedOnly
-                        ? ref.read(downloadedSongIdsProvider).asData?.value ??
-                              const <String>{}
-                        : const <String>{};
-                    final songs =
-                        ref
-                            .read(playlistSongsProvider(widget.playlistId))
-                            .asData
-                            ?.value ??
-                        const <SongsTableData>[];
-                    final playableEntries = songs.indexed
-                        .where(
-                          (entry) =>
-                              !downloadedOnly ||
-                              downloadedSongIds.contains(entry.$2.id),
-                        )
-                        .toList(growable: false);
-                    final playableSongs = playableEntries
-                        .map((entry) => entry.$2)
-                        .toList(growable: false);
-                    final visibleIndex = playableEntries.indexWhere(
-                      (entry) => entry.$1 == songIndex,
-                    );
-                    if (visibleIndex < 0) {
-                      return;
-                    }
-                    _playNow(playableSongs, visibleIndex);
+                    _playSongFromMenu(song, songIndex);
                   },
                 ),
                 ListTile(
@@ -1007,7 +1026,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         const <SongsTableData>[];
     final playableEntries = songs.indexed
         .where(
-          (entry) => !downloadedOnly || downloadedSongIds.contains(entry.$2.id),
+          (entry) =>
+              (!downloadedOnly || downloadedSongIds.contains(entry.$2.id)) &&
+              _matchesFilter(entry.$2),
         )
         .toList(growable: false);
     final playableSongs = playableEntries

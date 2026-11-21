@@ -689,8 +689,9 @@ void main() {
       expect(find.text('Albums'), findsOneWidget);
       expect(find.byIcon(Icons.more_horiz), findsNWidgets(2));
       expect(find.text('Album 1'), findsAtLeastNWidgets(1));
+      // The page's filter field sits above the albums.
       await tester.scrollUntilVisible(
-        find.text('Featured In'),
+        find.text('Album 2'),
         200,
         scrollable: find
             .descendant(

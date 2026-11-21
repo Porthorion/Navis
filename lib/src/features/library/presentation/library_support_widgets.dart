@@ -1,52 +1,5 @@
 part of 'library_screen.dart';
 
-class _TypeFilterBadge extends StatelessWidget {
-  const new({required this.query, required this.onClear});
-
-  final String query;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context)!;
-    return Container(
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: <Widget>[
-          Icon(
-            Icons.filter_list_rounded,
-            size: 16,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              l10n.libraryFilteringLabel(query),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Tooltip(
-            message: l10n.libraryClearFiltersAction,
-            child: GestureDetector(
-              onTap: onClear,
-              child: Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class LibrarySyncStatusBanner extends StatefulWidget {
   const new({
     super.key,
