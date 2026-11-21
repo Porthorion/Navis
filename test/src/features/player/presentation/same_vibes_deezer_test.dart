@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -348,7 +349,10 @@ List<String> _ids(Iterable<Song> songs) => [for (final s in songs) s.id];
 void main() {
   setUpAll(() {
     registerFallbackValue(CancelToken());
+    // Some tests build two rigs, each with its own in-memory database.
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   });
+  tearDownAll(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false);
 
   test('Deezer mode queues the artist radio and never calls Last.fm', () async {
     final rig = _Rig();
