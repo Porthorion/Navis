@@ -1877,7 +1877,7 @@ class SyncDiagnosticsServer {
         final provider = requiredLibraryRebuildControllerProvider(
           RequiredLibraryRebuildReason.initialLogin,
         );
-        if (!_container.exists(provider)) {
+        if (!_container.read(provider.exists)) {
           await _respond(request, HttpStatus.conflict, <String, Object?>{
             'error': 'Initial setup controller is not active',
           });
@@ -4014,7 +4014,7 @@ class SyncDiagnosticsServer {
       return;
     }
     final provider = requiredLibraryRebuildControllerProvider(reason);
-    if (!_container.exists(provider)) {
+    if (!_container.read(provider.exists)) {
       await _respond(request, HttpStatus.ok, <String, Object?>{
         'reason': reason.routeValue,
         'status': 'inactive',
@@ -4031,7 +4031,7 @@ class SyncDiagnosticsServer {
           await controller.cancelAndSignOut();
           await _respond(request, HttpStatus.ok, <String, Object?>{
             'reason': reason.routeValue,
-            'status': _container.exists(provider)
+            'status': _container.read(provider.exists)
                 ? _container.read(provider).status.name
                 : 'inactive',
           });
@@ -4272,7 +4272,7 @@ class SyncDiagnosticsServer {
     final setup = requiredLibraryRebuildControllerProvider(
       RequiredLibraryRebuildReason.initialLogin,
     );
-    final initialSync = _container.exists(setup)
+    final initialSync = _container.read(setup.exists)
         ? _container.read(setup).status
         : _initialSyncStatus(phase, sync);
     return <String, Object?>{

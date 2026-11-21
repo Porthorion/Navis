@@ -99,7 +99,7 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
     }
     await repository.save(config);
     await refresh();
-    if (ref.exists(audioBootstrapControllerProvider)) {
+    if (ref.read(audioBootstrapControllerProvider.exists)) {
       ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
     }
   }
