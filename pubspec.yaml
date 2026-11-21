@@ -16,7 +16,7 @@ dependencies:
   audio_session: ^0.2.4
   cached_network_image: ^4.0.7
   cupertino_ui: ^1.1.7
-  cupertino_icons: ^1.0.9
+  cupertino_icons: ^2.0.0
   connectivity_plus: ^7.3.1
   convert: ^3.1.2
   crypto: ^3.0.8
@@ -26,7 +26,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_cache_manager: ^3.5.0
-  flutter_local_notifications: ^22.3.3
+  flutter_local_notifications: ^23.0.0
   flutter_localizations:
     sdk: flutter
   flutter_markdown_plus: ^1.0.12
@@ -82,7 +82,7 @@ dev_dependencies:
     sdk: flutter
   # Not used by Navis's own analysis_options, but the root `flutter analyze`
   # resolves the vendored third_party/ packages' `include:` of it.
-  flutter_lints: ^3.0.1
+  flutter_lints: ^6.0.0
   json_serializable: ^6.15.2
   mocktail: ^1.0.5
   very_good_analysis: ^11.0.0

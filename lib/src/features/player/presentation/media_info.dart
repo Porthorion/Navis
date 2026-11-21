@@ -94,7 +94,7 @@ Future<void> showMediaInfo(BuildContext context) {
   final songId = container.read(playerStateProvider).currentSongId;
   if (songId != null) {
     final details = songServerDetailsProvider(songId);
-    if (container.exists(details) &&
+    if (container.read(details.exists) &&
         container.read(details).hasError &&
         !container.read(details).isLoading) {
       container.invalidate(details);
