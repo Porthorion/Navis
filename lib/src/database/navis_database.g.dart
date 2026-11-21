@@ -36933,10 +36933,11 @@ class $$ServerConfigTableTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (librarySyncStateTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          LibrarySyncStateTableData
+                          LibrarySyncStateTableData,
+                          $LibrarySyncStateTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -36947,17 +36948,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncStateTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (librarySyncWorkTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          LibrarySyncWorkTableData
+                          LibrarySyncWorkTableData,
+                          $LibrarySyncWorkTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -36968,17 +36968,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncWorkTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (starredAbsenceCandidatesTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          StarredAbsenceCandidatesTableData
+                          StarredAbsenceCandidatesTableData,
+                          $StarredAbsenceCandidatesTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -36989,17 +36988,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).starredAbsenceCandidatesTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (librarySyncOperationLedgerTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          LibrarySyncOperationLedgerTableData
+                          LibrarySyncOperationLedgerTableData,
+                          $LibrarySyncOperationLedgerTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -37010,17 +37008,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncOperationLedgerTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (librarySyncExecutionLeaseTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          LibrarySyncExecutionLeaseTableData
+                          LibrarySyncExecutionLeaseTableData,
+                          $LibrarySyncExecutionLeaseTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -37031,17 +37028,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncExecutionLeaseTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (librarySyncRunRequestTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          LibrarySyncRunRequestTableData
+                          LibrarySyncRunRequestTableData,
+                          $LibrarySyncRunRequestTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -37052,17 +37048,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncRunRequestTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (libraryScanObservationTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          LibraryScanObservationTableData
+                          LibraryScanObservationTableData,
+                          $LibraryScanObservationTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -37073,17 +37068,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).libraryScanObservationTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (libraryRecoveryReviewTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          LibraryRecoveryReviewTableData
+                          LibraryRecoveryReviewTableData,
+                          $LibraryRecoveryReviewTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -37094,17 +37088,16 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).libraryRecoveryReviewTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                       if (entityIdentityAliasTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ServerConfigTableData,
                           $ServerConfigTableTable,
-                          EntityIdentityAliasTableData
+                          EntityIdentityAliasTableData,
+                          $EntityIdentityAliasTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ServerConfigTableTableReferences
@@ -37115,10 +37108,8 @@ class $$ServerConfigTableTableTableManager
                                 table,
                                 p0,
                               ).entityIdentityAliasTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.serverId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'server_id',
                           typedResults: items,
                         ),
                     ];
@@ -40847,10 +40838,11 @@ class $$ArtistsTableTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (albumsTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ArtistsTableData,
                           $ArtistsTableTable,
-                          AlbumsTableData
+                          AlbumsTableData,
+                          $AlbumsTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ArtistsTableTableReferences
@@ -40861,17 +40853,16 @@ class $$ArtistsTableTableTableManager
                                 table,
                                 p0,
                               ).albumsTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.artistId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'artist_id',
                           typedResults: items,
                         ),
                       if (songsTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           ArtistsTableData,
                           $ArtistsTableTable,
-                          SongsTableData
+                          SongsTableData,
+                          $SongsTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$ArtistsTableTableReferences
@@ -40882,10 +40873,8 @@ class $$ArtistsTableTableTableManager
                                 table,
                                 p0,
                               ).songsTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.artistId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'artist_id',
                           typedResults: items,
                         ),
                     ];
@@ -41641,10 +41630,11 @@ class $$AlbumsTableTableTableManager
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (songsTableRefs)
-                    await $_getPrefetchedData<
+                    await $_getPrefetchedDataByColumns<
                       AlbumsTableData,
                       $AlbumsTableTable,
-                      SongsTableData
+                      SongsTableData,
+                      $SongsTableTable
                     >(
                       currentTable: table,
                       referencedTable: $$AlbumsTableTableReferences
@@ -41655,8 +41645,8 @@ class $$AlbumsTableTableTableManager
                             table,
                             p0,
                           ).songsTableRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.albumId == item.id),
+                      currentColumn: 'id',
+                      referencedColumn: 'album_id',
                       typedResults: items,
                     ),
                 ];
@@ -43028,10 +43018,11 @@ class $$SongsTableTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (playlistSongsTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           SongsTableData,
                           $SongsTableTable,
-                          PlaylistSongsTableData
+                          PlaylistSongsTableData,
+                          $PlaylistSongsTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$SongsTableTableReferences
@@ -43042,17 +43033,16 @@ class $$SongsTableTableTableManager
                                 table,
                                 p0,
                               ).playlistSongsTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.songId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'song_id',
                           typedResults: items,
                         ),
                       if (playHistoryTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           SongsTableData,
                           $SongsTableTable,
-                          PlayHistoryTableData
+                          PlayHistoryTableData,
+                          $PlayHistoryTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$SongsTableTableReferences
@@ -43063,17 +43053,16 @@ class $$SongsTableTableTableManager
                                 table,
                                 p0,
                               ).playHistoryTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.songId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'song_id',
                           typedResults: items,
                         ),
                       if (playQueueItemsTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           SongsTableData,
                           $SongsTableTable,
-                          PlayQueueItemsTableData
+                          PlayQueueItemsTableData,
+                          $PlayQueueItemsTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$SongsTableTableReferences
@@ -43084,17 +43073,16 @@ class $$SongsTableTableTableManager
                                 table,
                                 p0,
                               ).playQueueItemsTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.songId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'song_id',
                           typedResults: items,
                         ),
                       if (scrobbleQueueTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           SongsTableData,
                           $SongsTableTable,
-                          ScrobbleQueueTableData
+                          ScrobbleQueueTableData,
+                          $ScrobbleQueueTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$SongsTableTableReferences
@@ -43105,17 +43093,16 @@ class $$SongsTableTableTableManager
                                 table,
                                 p0,
                               ).scrobbleQueueTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.songId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'song_id',
                           typedResults: items,
                         ),
                       if (listenBrainzFeedbackQueueTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           SongsTableData,
                           $SongsTableTable,
-                          ListenBrainzFeedbackQueueTableData
+                          ListenBrainzFeedbackQueueTableData,
+                          $ListenBrainzFeedbackQueueTableTable
                         >(
                           currentTable: table,
                           referencedTable: $$SongsTableTableReferences
@@ -43126,10 +43113,8 @@ class $$SongsTableTableTableManager
                                 table,
                                 p0,
                               ).listenBrainzFeedbackQueueTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.songId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'song_id',
                           typedResults: items,
                         ),
                     ];
@@ -44791,10 +44776,11 @@ class $$PlaylistsTableTableTableManager
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (playlistSongsTableRefs)
-                    await $_getPrefetchedData<
+                    await $_getPrefetchedDataByColumns<
                       PlaylistsTableData,
                       $PlaylistsTableTable,
-                      PlaylistSongsTableData
+                      PlaylistSongsTableData,
+                      $PlaylistSongsTableTable
                     >(
                       currentTable: table,
                       referencedTable: $$PlaylistsTableTableReferences
@@ -44805,8 +44791,8 @@ class $$PlaylistsTableTableTableManager
                             table,
                             p0,
                           ).playlistSongsTableRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.playlistId == item.id),
+                      currentColumn: 'id',
+                      referencedColumn: 'playlist_id',
                       typedResults: items,
                     ),
                 ];
@@ -47060,10 +47046,11 @@ class $$PlayQueueTableTableTableManager
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (playQueueItemsTableRefs)
-                    await $_getPrefetchedData<
+                    await $_getPrefetchedDataByColumns<
                       PlayQueueTableData,
                       $PlayQueueTableTable,
-                      PlayQueueItemsTableData
+                      PlayQueueItemsTableData,
+                      $PlayQueueItemsTableTable
                     >(
                       currentTable: table,
                       referencedTable: $$PlayQueueTableTableReferences
@@ -47074,8 +47061,8 @@ class $$PlayQueueTableTableTableManager
                             table,
                             p0,
                           ).playQueueItemsTableRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.queueId == item.id),
+                      currentColumn: 'id',
+                      referencedColumn: 'queue_id',
                       typedResults: items,
                     ),
                 ];
@@ -47786,10 +47773,11 @@ class $$MatchFlowsTableTableTableManager
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (matchFlowSongsTableRefs)
-                    await $_getPrefetchedData<
+                    await $_getPrefetchedDataByColumns<
                       MatchFlowsTableData,
                       $MatchFlowsTableTable,
-                      MatchFlowSongsTableData
+                      MatchFlowSongsTableData,
+                      $MatchFlowSongsTableTable
                     >(
                       currentTable: table,
                       referencedTable: $$MatchFlowsTableTableReferences
@@ -47800,8 +47788,8 @@ class $$MatchFlowsTableTableTableManager
                             table,
                             p0,
                           ).matchFlowSongsTableRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.flowId == item.id),
+                      currentColumn: 'id',
+                      referencedColumn: 'flow_id',
                       typedResults: items,
                     ),
                 ];
@@ -55490,10 +55478,11 @@ class $$LibrarySyncRunRequestTableTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (librarySyncRunAttemptTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           LibrarySyncRunRequestTableData,
                           $LibrarySyncRunRequestTableTable,
-                          LibrarySyncRunAttemptTableData
+                          LibrarySyncRunAttemptTableData,
+                          $LibrarySyncRunAttemptTableTable
                         >(
                           currentTable: table,
                           referencedTable:
@@ -55505,17 +55494,16 @@ class $$LibrarySyncRunRequestTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncRunAttemptTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.requestId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'request_id',
                           typedResults: items,
                         ),
                       if (librarySyncRunOutcomeTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           LibrarySyncRunRequestTableData,
                           $LibrarySyncRunRequestTableTable,
-                          LibrarySyncRunOutcomeTableData
+                          LibrarySyncRunOutcomeTableData,
+                          $LibrarySyncRunOutcomeTableTable
                         >(
                           currentTable: table,
                           referencedTable:
@@ -55527,10 +55515,8 @@ class $$LibrarySyncRunRequestTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncRunOutcomeTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.requestId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'request_id',
                           typedResults: items,
                         ),
                     ];
@@ -56016,10 +56002,11 @@ class $$LibrarySyncRunAttemptTableTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (librarySyncRunOutcomeTableRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           LibrarySyncRunAttemptTableData,
                           $LibrarySyncRunAttemptTableTable,
-                          LibrarySyncRunOutcomeTableData
+                          LibrarySyncRunOutcomeTableData,
+                          $LibrarySyncRunOutcomeTableTable
                         >(
                           currentTable: table,
                           referencedTable:
@@ -56031,10 +56018,8 @@ class $$LibrarySyncRunAttemptTableTableTableManager
                                 table,
                                 p0,
                               ).librarySyncRunOutcomeTableRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.attemptId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'attempt_id',
                           typedResults: items,
                         ),
                     ];
