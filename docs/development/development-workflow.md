@@ -1017,9 +1017,12 @@ the tree remains otherwise usable.
   `triggerId` (the song that fired the refill), `isInitial`, `lastFmOutcome` and
   `lastFmSource` (null in Deezer mode), `mapped`, `fallbackReason`, `inserted`,
   `parkedSeedId` and, when a Deezer leg ran, a `deezer` object: `poolSize`,
-  `relatedCount`, `listsUsed` (13 once the pool is complete), `featuresUsed`,
-  `likedSignals` (played-through radios asked), `deadlineHit`, `msLists`,
-  `msTotal` and `skipped` (quota). The clone has no Last.fm key by default. Set
+  `relatedCount`, `listsUsed` (13 once the pool is complete), `featuresUsed`
+  (top-24 candidates ranked with Deezer features), `likedSignals` (played-through
+  radios that returned songs), `deadlineHit` and `msLists` (only on the refill
+  that ran the first batch, else null), `msTotal` and `skipped` (quota, timeout
+  or cancel). `poolSize` counts every distinct song of the ranked lists, liked
+  radios included. The clone has no Last.fm key by default. Set
   `NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE` to an owned regular mode-600 key file
   only for an isolated authenticated Last.fm run. The diagnostics launcher
   rejects symlinks and permissive file modes.

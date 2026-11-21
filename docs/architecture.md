@@ -4815,7 +4815,7 @@ The Deezer source (`SameVibesDeezerPool`, one per mix, created by the mix's
 first Deezer leg, dropped when the mix ends) resolves the anchor artist once,
 fetches its artist radio, its twenty related artists and, for the six nearest,
 a radio and a top-five list, plus the anchor's track and the features (BPM,
-gain, rank) of the likeliest candidates. `rankSameVibesPool` weights the lists
+release date, explicit flag) of the likeliest candidates. `rankSameVibesPool` weights the lists
 by related-artist rank and shifts the order by the feature distance to the
 anchor; the ranked order is what the mapper queues. The first batch is
 foreground and ships at a 2.5 s soft deadline with the lists that have arrived
@@ -4823,20 +4823,29 @@ foreground and ships at a 2.5 s soft deadline with the lists that have arrived
 cancel token. Each later refill awaits `topUp` (repairing failed lists and
 fetching features, up to 12 s; a slow top-up keeps running and the next
 ranking uses what has arrived) and asks one fresh anchor radio. Requests go
-through the Deezer client's limiter: a quota answer is not retried and skips
+through the Deezer client's limiter, in the background without quota retry
+(the seed-track search included): a quota answer is not retried and skips
 Deezer for that refill (the server fills, the mix keeps going). Stopping the
-mix cancels the pool.
+mix cancels the pool. A refill leg's 20 s timeout cancels only the requests
+that leg started (the anchor and liked radios); the shared top-up belongs to
+the mix, so a later refill reuses it. While the anchor's metadata is unknown
+(a failed lookup) the Deezer leg is skipped and each refill asks again; the
+pool is never built from the trigger song.
 
 Played-through songs refine later Deezer refills. A mix song (never the anchor)
 counts when the player leaves it after reaching the scrobble threshold (half the
 song, capped at four minutes; `reachedScrobbleThreshold`, shared with
 scrobbling); a skip never counts and never moves the anchor. The snapshot's
-position is not refreshed on every tick, so the notifier keeps the furthest
-`playbackPositionProvider` value of the playing song. The signal is recorded
+position is not refreshed on every tick, so the notifier adds up the time
+listened from `playbackPositionProvider`: a tick counts only when it advances
+the position by up to three seconds, so a seek, a backwards jump or a stale
+tick of the previous song never credits a skipped song. This is stricter than
+scrobbling: a seek past the threshold followed by a skip does not count. The signal is recorded
 before the notifier's early returns, so a song finished during a refill is not
 lost. A refill takes the last two played-through songs whose artist is in the
 pool's neighbourhood (anchor artist plus related artists), asks each artist's
 radio, and ranks those lists with the pool's. Last.fm mode ignores the signal.
+
 Known unjudged area: on library-only servers most of a batch is the anchor's
 server fill, which no blind test covered (the judges saw Deezer-only lists). A refill that parks on the last item with repeat off
 ends the mix right away, provided that song is still the playing one; a skip
