@@ -361,8 +361,9 @@ class MainActivity : AudioServiceActivity() {
                         }
                     }
                     "persistTree" -> {
-                        // The picker plugin drops its persist option, so keep the
-                        // grant here; without it the folder is lost on restart.
+                        // The picker now persists the grant itself; this keeps it
+                        // for trees saved without a fresh pick, or without it the
+                        // folder is lost on restart.
                         try {
                             contentResolver.takePersistableUriPermission(
                                 Uri.parse(requireNotNull(call.argument<String>("treeUri"))),
