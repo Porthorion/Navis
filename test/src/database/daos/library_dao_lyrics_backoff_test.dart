@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
-  test('clears backoff only for empty non-instrumental lyrics rows', () async {
+  test('clears backoff for non-synced, non-instrumental lyrics rows', () async {
     final db = createTestDatabase();
     addTearDown(db.close);
     final failedAt = DateTime.utc(2026, 10, 18);
@@ -51,6 +51,7 @@ void main() {
         'null',
         'empty',
         'spaces',
+        'plain',
       }.contains(fixture.id);
       expect(
         await db.libraryDao.getExternalLyricsCache(fixture.id),

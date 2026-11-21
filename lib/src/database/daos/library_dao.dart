@@ -2494,13 +2494,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.songId.equals(songId))).getSingleOrNull();
   }
 
-  /// Clears empty lookup backoff when LRCLIB becomes available again.
+  /// Clears empty and plain-only lookup backoff when LRCLIB becomes available
+  /// again, so plain lyrics can be upgraded to synced.
   Future<void> clearEmptyLyricsFailureBackoff() =>
       (update(externalLyricsCacheTable)..where(
             (row) =>
                 (row.syncedLyrics.isNull() |
                     row.syncedLyrics.trim().equals('')) &
-                (row.plainLyrics.isNull() | row.plainLyrics.trim().equals('')) &
                 row.instrumental.equals(false),
           ))
           .write(

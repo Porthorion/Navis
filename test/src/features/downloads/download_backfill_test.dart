@@ -539,6 +539,123 @@ void main() {
     await Future<void>.delayed(Duration.zero);
   }
 
+  Future<int> plainTriggers(int times) async {
+    final progress = <BackfillProgress>[];
+    final sub = service.backfillProgress.listen(progress.add);
+    for (var i = 0; i < times; i++) {
+      await service.processQueuedDownloads();
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+    }
+    await sub.cancel();
+    return progress
+        .where(
+          (p) => p.phase == BackfillPhase.lyrics && p.total == 1 && p.done == 1,
+        )
+        .length;
+  }
+
+  test('progress total counts only songs the lyrics pass works on', () async {
+    await seed('synced1');
+    await seed('synced2');
+    await seed('missing');
+    for (final id in ['synced1', 'synced2']) {
+      await db.libraryDao.upsertExternalLyricsCache(
+        songId: id,
+        source: 'serverSynced',
+        syncedLyrics: '[00:01.00]hi',
+      );
+    }
+    final totals = <int>[];
+    final sub = service.backfillProgress
+        .where((p) => p.phase == BackfillPhase.lyrics)
+        .listen((p) => totals.add(p.total));
+    await service.runBackfillNow();
+    await sub.cancel();
+    verify(() => api.getLyricsBySongId('missing')).called(1);
+    verifyNever(() => api.getLyricsBySongId('synced1'));
+    verifyNever(() => api.getLyricsBySongId('synced2'));
+    expect(totals.reduce((a, b) => a > b ? a : b), 1);
+  });
+
+  test('LRCLIB off: cached server plain lyrics are checked once', () async {
+    lyricsAllowed = false;
+    await seed('plain');
+    await db.libraryDao.upsertExternalLyricsCache(
+      songId: 'plain',
+      source: 'serverPlain',
+      plainLyrics: 'words',
+    );
+    expect(await plainTriggers(3), 1);
+    final row = (await db.libraryDao.getExternalLyricsCache('plain'))!;
+    expect(row.failureCount, greaterThan(0));
+    expect(row.plainLyrics, 'words');
+    expect(service.currentBackfillProgress.lastResult.lyricsResolved, 0);
+  });
+
+  test('LRCLIB off: cached LRCLIB plain lyrics hit the server once', () async {
+    lyricsAllowed = false;
+    await seed('plain');
+    await db.libraryDao.upsertExternalLyricsCache(
+      songId: 'plain',
+      source: 'lrclibPlain',
+      plainLyrics: 'words',
+    );
+    await plainTriggers(3);
+    verify(() => api.getLyricsBySongId('plain')).called(1);
+  });
+
+  test(
+    'song without artist metadata and plain lyrics is checked once',
+    () async {
+      await db.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'plain',
+          title: 'Track',
+          albumId: const Value('album'),
+        ),
+      ]);
+      await db.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'plain',
+          filePath: p.join(dir.path, 'plain.mp3'),
+          fileSize: 1,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+      await db.libraryDao.upsertExternalLyricsCache(
+        songId: 'plain',
+        source: 'serverPlain',
+        plainLyrics: 'words',
+      );
+      expect(await plainTriggers(3), 1);
+      expect(external.calls, 0);
+    },
+  );
+
+  test(
+    'LRCLIB re-enable clears plain-only backoff so it can upgrade',
+    () async {
+      await seed('plain', cover: null);
+      await db.libraryDao.upsertExternalLyricsCache(
+        songId: 'plain',
+        source: 'serverPlain',
+        plainLyrics: 'words',
+        failureCount: 1,
+        lastFailedAt: DateTime.now(),
+      );
+      lyricsAllowed = false;
+      await service.processQueuedDownloads();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(external.calls, 0);
+      lyricsAllowed = true;
+      await triggerAutomaticBackfill();
+      expect(external.calls, 1);
+    },
+  );
+
   test('LRCLIB re-enable retries server-only misses without force', () async {
     await seed('song', cover: null);
     lyricsAllowed = false;
