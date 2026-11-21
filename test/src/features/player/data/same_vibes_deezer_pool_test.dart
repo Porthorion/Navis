@@ -205,7 +205,14 @@ class _Rig {
     title: 'Seed Song',
   );
 
-  Future<T> runner<T>(Future<T> Function(CancelToken cancelToken) request) {
+  /// The `leg` flag of every request the pool made, in order.
+  final List<bool> legs = <bool>[];
+
+  Future<T> runner<T>(
+    Future<T> Function(CancelToken cancelToken) request, {
+    bool leg = false,
+  }) {
+    legs.add(leg);
     if (cancelled) {
       return Future.error(
         DioException.requestCancelled(
@@ -239,6 +246,23 @@ List<int> _ids(String prefix, List<String> calls) => [
 ];
 
 void main() {
+  test('only the first batch and the refill radios are tied to the leg, the '
+      'top-up stays with the mix (F4)', () async {
+    final rig = _Rig();
+    await rig.pool.firstBatch(rig.seed);
+    expect(rig.legs, isNotEmpty);
+    expect(rig.legs.every((leg) => leg), isTrue, reason: 'first batch');
+
+    rig.legs.clear();
+    await rig.pool.topUp([5000, 5001]);
+    expect(rig.legs, isNotEmpty);
+    expect(rig.legs.any((leg) => leg), isFalse, reason: 'top-up');
+
+    rig.legs.clear();
+    await rig.pool.refillLists([20, 21]);
+    expect(rig.legs, [true, true, true], reason: 'seed radio + 2 liked');
+  });
+
   test(
     'requests the lists in fetch order after the seed radio and related',
     () async {

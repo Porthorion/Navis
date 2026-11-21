@@ -442,8 +442,17 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
         return;
       }
-      if (isInitial && seed != null && _isCurrent(session)) {
-        _anchorSeed = seed;
+      // The anchor's own metadata, never the trigger's: a refill whose anchor
+      // lookup failed earlier asks again, and the Deezer leg waits for it.
+      var anchorMeta = isInitial ? seed : anchorSeed;
+      if (anchorMeta == null && anchorId != null) {
+        anchorMeta = normalizedSeedSongId == anchorId
+            ? seed
+            : await _resolveSeedMetadata(api: api, seedSongId: anchorId);
+        if (!_isCurrent(session)) return;
+      }
+      if (anchorMeta != null && _anchorSeed == null && _isCurrent(session)) {
+        _anchorSeed = anchorMeta;
       }
       // The library copy of a remote seed is the same recording; never queue
       // it right behind its remote twin.
@@ -484,7 +493,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (seed != null) {
         lastFmResult = await _fetchRecommendations(
           seed: seed,
-          anchorSeed: isInitial ? seed : anchorSeed ?? seed,
+          anchorSeed: anchorMeta,
           anchorId: anchorId,
           session: session,
           pool: vibesPool,
@@ -571,7 +580,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           ? null
           : _resolveFallbackSeedSongId(
               preferredSeedSongId: anchorId,
-              libraryCopyId: (isInitial ? seed : anchorSeed)?.libraryCopyId,
+              libraryCopyId: anchorMeta?.libraryCopyId,
             );
       final triggerFillId = _resolveFallbackSeedSongId(
         preferredSeedSongId: normalizedSeedSongId,
@@ -616,7 +625,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
       /// Asks the server for [serverSeedId]'s similar songs; true when it
       /// added songs. A failure only sets the reason; never throws.
-      Future<bool> fillFrom(String serverSeedId) async {
+      Future<bool> fillFrom(String serverSeedId, String? seedTitle) async {
         AppLogger.debug(
           'SameVibes diagnostics: fallback engaged '
           'reason="$fallbackReason" '
@@ -636,7 +645,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             excludedSongKeys: queuedSongKeys,
             targetCount: targetBatch - mappedSongCount,
             chosen: mappedSongs,
-            seedTitle: seed?.title,
+            seedTitle: seedTitle,
             allowJunk: candidatePreferences.allowJunkVersions,
           );
           for (final song in fallbackSongs) {
@@ -697,13 +706,15 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
 
       if (shouldAttemptFallback && fallbackSeedEligible) {
-        var filled = anchorFillId != null && await fillFrom(anchorFillId);
+        var filled =
+            anchorFillId != null &&
+            await fillFrom(anchorFillId, anchorMeta?.title);
         if (!filled &&
             !fillUnsupported &&
             triggerFillId != null &&
             triggerFillId != anchorFillId) {
           if (!_isCurrent(session)) return;
-          filled = await fillFrom(triggerFillId);
+          filled = await fillFrom(triggerFillId, seed?.title);
         }
         if (fillUnsupported) {
           if (!_isCurrent(session)) return;
@@ -761,7 +772,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
                       .owns(session),
             );
         totalQueued = result.count;
-        if (totalQueued > 0) {
+        // A superseded or stopped mix owns no state any more.
+        if (totalQueued > 0 && _isCurrent(session)) {
           (_mixSongIds ??= <String>{}).addAll(result.insertedIds);
           for (final song in songsToQueue) {
             final artist = song.artist;
@@ -1224,7 +1236,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// mode never calls Last.fm, so only that source's errors can end a mix.
   Future<LastFmTrackFetchResult> _fetchRecommendations({
     required _SeedMetadata seed,
-    required _SeedMetadata anchorSeed,
+    required _SeedMetadata? anchorSeed,
     required String? anchorId,
     required RecommendationSession session,
     required SameVibesDeezerPool? pool,
@@ -1316,7 +1328,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   ///
   /// ponytail: an empty radio has no `/top` fallback; the server fills.
   Future<LastFmTrackFetchResult> _fetchDeezerRadio({
-    required _SeedMetadata seed,
+    required _SeedMetadata? seed,
     required String? anchorId,
     required RecommendationSession session,
     required SameVibesDeezerPool? pool,
@@ -1328,9 +1340,21 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       tracks: <LastFmTrackRecommendation>[],
       message: _kDeezerSkippedReason,
     );
+    if (seed == null) {
+      // The anchor's metadata is still unknown: never rank from the trigger.
+      // The server fills; the next refill asks for the anchor again.
+      report.record = _deezerRecord(
+        null,
+        0,
+        skipped: true,
+        firstBatch: false,
+        likedSignals: 0,
+      );
+      return skipped;
+    }
     final stopwatch = Stopwatch()..start();
     final legToken = CancelToken();
-    if (!background) _deezerLegToken = legToken;
+    _deezerLegToken = legToken;
     LastFmTrackFetchResult result;
     try {
       result =
@@ -1340,6 +1364,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             session: session,
             pool: pool,
             report: report,
+            legToken: legToken,
           ).timeout(
             background ? _kDeezerRefillLegTimeout : _kDeezerLegTimeout,
             onTimeout: () {
@@ -1370,7 +1395,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       report.pool,
       stopwatch.elapsedMilliseconds,
       skipped: result.message == _kDeezerSkippedReason,
+      firstBatch: report.firstBatch,
       likedSignals: report.likedSignals,
+      poolSize: report.poolSize,
+      featuresUsed: report.featuresUsed,
     );
     return result;
   }
@@ -1379,17 +1407,21 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     SameVibesDeezerPool? pool,
     int msTotal, {
     required bool skipped,
+    required bool firstBatch,
     required int likedSignals,
+    int poolSize = 0,
+    int featuresUsed = 0,
   }) {
     final stats = pool?.stats;
     return <String, Object?>{
-      'poolSize': stats?.poolSize ?? 0,
+      'poolSize': poolSize,
       'relatedCount': stats?.relatedCount ?? 0,
       'listsUsed': stats?.listsUsed ?? 0,
-      'featuresUsed': stats?.featuresUsed ?? 0,
+      'featuresUsed': featuresUsed,
       'likedSignals': likedSignals,
-      'deadlineHit': stats?.deadlineHit ?? false,
-      'msLists': stats?.msLists ?? 0,
+      // Only the refill that ran the first batch has these.
+      'deadlineHit': firstBatch ? stats?.deadlineHit : null,
+      'msLists': firstBatch ? stats?.msLists : null,
       'msTotal': msTotal,
       'skipped': skipped,
     };
@@ -1397,18 +1429,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
   /// A request of the pool, under the mix's cancel token. Stopping the mix
   /// stops the pool: a cancelled session starts no further request.
-  Future<T> Function<T>(Future<T> Function(CancelToken)) _poolRunner(
-    RecommendationSession session,
-  ) =>
-      <T>(request) => session.withCancelToken((token) {
+  SameVibesPoolRunner _poolRunner(RecommendationSession session) =>
+      <T>(request, {leg = false}) => session.withCancelToken((token) {
         if (token.isCancelled) {
           throw DioException.requestCancelled(
             requestOptions: RequestOptions(),
             reason: 'Same Vibes stopped',
           );
         }
-        final leg = _deezerLegToken;
-        if (leg != null) unawaited(leg.whenCancel.then((_) => token.cancel()));
+        final legToken = leg ? _deezerLegToken : null;
+        if (legToken != null) {
+          unawaited(legToken.whenCancel.then((_) => token.cancel()));
+        }
         return request(token);
       });
 
@@ -1418,6 +1450,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     required RecommendationSession session,
     required SameVibesDeezerPool? pool,
     required _DeezerLegReport report,
+    required CancelToken legToken,
   }) async {
     var vibesPool = pool;
     const empty = LastFmTrackFetchResult(
@@ -1488,10 +1521,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           if (likedIds.length == 2) break;
         }
       }
-      report.likedSignals = likedIds.length;
       final lists = await vibesPool.refillLists(likedIds);
       final seedArtistId = vibesPool.seedArtistId;
       if (lists == null || seedArtistId == null) return empty;
+      report.likedSignals = lists.likedRadios.length;
       ranking = rankSameVibesPool(
         seedArtistId: seedArtistId,
         relatedArtistIds: vibesPool.relatedArtistIds,
@@ -1502,7 +1535,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         featuresOf: vibesPool.featuresOf,
       );
     }
-    if (_isCurrent(session)) _lastFeatureIds = ranking.featureIds;
+    // A leg that timed out (its token is cancelled) must not overwrite what a
+    // newer refill ranked.
+    if (_isCurrent(session) && !legToken.isCancelled) {
+      _lastFeatureIds = ranking.featureIds;
+    }
+    report.poolSize = ranking.ordered.length;
+    final pooled = vibesPool;
+    report.featuresUsed = pooled.seedTrack == null
+        ? 0
+        : ranking.featureIds
+              .where((id) => pooled.featuresOf(id) != null)
+              .length;
     // The mapper sorts by match, so the ranked order needs strictly
     // decreasing values; the seed itself is never recommended.
     final seedKey = sameVibesCanonicalSongKey(seed.artist, seed.title);
@@ -2019,6 +2063,8 @@ final sameVibesProvider = NotifierProvider<SameVibesNotifier, SameVibesState>(
 class _DeezerLegReport {
   SameVibesDeezerPool? pool;
   bool firstBatch = false;
+  int poolSize = 0;
+  int featuresUsed = 0;
 
   /// Liked-song radios this refill asked for (played-through signals).
   int likedSignals = 0;

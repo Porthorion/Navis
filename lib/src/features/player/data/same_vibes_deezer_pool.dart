@@ -49,13 +49,18 @@ class SameVibesPoolInputs {
 }
 
 /// Runs a request under the session's cancel token
-/// (`RecommendationSession.withCancelToken`).
+/// (`RecommendationSession.withCancelToken`). [leg] ties it to the running
+/// Deezer leg too (its timeout cancels it); the shared top-up is never tied
+/// to a leg, so a slow refill cannot cancel what a later refill reuses.
 typedef SameVibesPoolRunner = Future<T> Function<T>(
-  Future<T> Function(CancelToken cancelToken) request,
-);
+  Future<T> Function(CancelToken cancelToken) request, {
+  bool leg,
+});
 
-Future<T> _runWithFreshToken<T>(Future<T> Function(CancelToken) request) =>
-    request(CancelToken());
+Future<T> _runWithFreshToken<T>(
+  Future<T> Function(CancelToken) request, {
+  bool leg = false,
+}) => request(CancelToken());
 
 /// The Deezer lists one Same Vibes mix ranks, fetched once and reused by every
 /// refill. The pool fetches, it does not rank: the notifier passes it the
@@ -252,10 +257,13 @@ class SameVibesDeezerPool {
       artistId,
       seedRadioLimit,
       background: true,
+      leg: true,
     );
     final liked = [
       for (final id in likedArtistIds.take(_likedRadioCount))
-        _safeValue(_fetchRadio(id, relatedRadioLimit, background: true)),
+        _safeValue(
+          _fetchRadio(id, relatedRadioLimit, background: true, leg: true),
+        ),
     ];
     final seedRadio = await seedRadioFuture;
     final likedRadios = [
@@ -352,10 +360,13 @@ class SameVibesDeezerPool {
     }
   }
 
+  /// [leg] defaults to the foreground requests; a refill's radios are
+  /// background but still belong to its leg.
   Future<List<DeezerTrack>> _fetchRadio(
     int artistId,
     int limit, {
     required bool background,
+    bool? leg,
   }) => _run(
     (token) => _client.getArtistRadio(
       artistId,
@@ -364,6 +375,7 @@ class SameVibesDeezerPool {
       background: background,
       retryQuota: false,
     ),
+    leg: leg ?? !background,
   );
 
   Future<void> _once(String key, Future<void> Function() fetch) async {
@@ -399,6 +411,7 @@ class SameVibesDeezerPool {
           background: background,
           retryQuota: false,
         ),
+        leg: !background,
       );
       if (id == null) return;
       _seedArtistId = id;
@@ -418,6 +431,7 @@ class SameVibesDeezerPool {
           background: background,
           retryQuota: false,
         ),
+        leg: !background,
       );
       _relatedIds = [for (final artist in related) artist.id];
       for (final artist in related) {
@@ -446,6 +460,7 @@ class SameVibesDeezerPool {
             background: background,
             retryQuota: false,
           ),
+          leg: !background,
         );
       } else {
         _radios[rank] = await _fetchRadio(
@@ -478,6 +493,7 @@ class SameVibesDeezerPool {
             background: background,
             retryQuota: false,
           ),
+          leg: !background,
         );
         final titleKey = songVersionTitleKey(seed.title);
         for (final hit in hits) {
@@ -497,6 +513,7 @@ class SameVibesDeezerPool {
                 background: background,
                 retryQuota: false,
               ),
+              leg: !background,
             );
       if (track == null) {
         _noSeedTrack = true;
