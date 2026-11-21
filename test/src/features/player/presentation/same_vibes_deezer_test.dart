@@ -13,6 +13,7 @@ import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/integrations/data/deezer_artist_resolver.dart';
 import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
@@ -84,6 +85,8 @@ class _Rig {
     this.seedTitle = 'Seed Song',
     this.seedArtist = 'Seed Artist',
     this.seedArtistId = 'ar-1',
+    this.mediaId = 'seed',
+    this.checkStored = false,
   }) {
     addTearDown(_database.close);
     when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
@@ -205,6 +208,12 @@ class _Rig {
   final String seedArtist;
   final String seedArtistId;
 
+  /// The id of the playing media item the notifier reads the seed from.
+  final String mediaId;
+
+  /// Whether the notifier looks seeds up in this rig's database.
+  final bool checkStored;
+
   /// The Deezer artist the resolver answers for the seed.
   var seedDeezerId = 27;
   var relatedArtists = const <DeezerArtist>[];
@@ -242,6 +251,7 @@ class _Rig {
 
   late final ProviderContainer container = createRecommendationContainer(
     lastFmMode: false,
+    seedsStored: !checkStored,
     overrides: [
       _modeProvider.overrideWith(_ModeController.new),
       preferredMixModeProvider.overrideWith((ref) => ref.watch(_modeProvider)),
@@ -255,13 +265,18 @@ class _Rig {
         DeezerCatalog(client: deezer, cache: _MemoryCache()),
       ),
       navisDatabaseProvider.overrideWithValue(_database),
+      if (checkStored)
+        sameVibesSeedStoredLookupProvider.overrideWithValue(
+          (songId) async =>
+              await _database.libraryDao.getSongById(songId) != null,
+        ),
       integrationPolicyProvider.overrideWithValue(
         const IntegrationPolicy(lastFmVerified: true),
       ),
       currentMediaItemProvider.overrideWith(
         (ref) => Stream<MediaItem?>.value(
           MediaItem(
-            id: 'seed',
+            id: mediaId,
             title: seedTitle,
             artist: seedArtist,
             extras: {'artistId': seedArtistId},
@@ -339,6 +354,29 @@ class _Rig {
     await notifier.activate('seed');
   }
 
+  /// Starts a mix on [seedId] while two other songs play: the seed is in
+  /// neither the player's queue nor, unless a test stores it, the database.
+  Future<void> startOn(String seedId) async {
+    container.listen(sameVibesProvider, (_, _) {});
+    // The playing item's metadata is read synchronously once it has arrived.
+    container.listen(currentMediaItemProvider, (_, _) {});
+    await pumpEventQueue();
+    container.read(_modeProvider.notifier).set(mode);
+    container
+        .read(recommendationSnapshotProvider.notifier)
+        .emitSnapshot(
+          recommendationSnapshot(
+            queueSongIds: const ['q-1', 'q-2'],
+            currentSongId: 'q-1',
+            currentIndex: 0,
+          ),
+        );
+    await notifier.activate(seedId);
+  }
+
+  Future<SongsTableData?> storedSong(String id) =>
+      _database.libraryDao.getSongById(id);
+
   /// Plays the end of a longer queue so a non-initial refill is due.
   Future<void> refill() async {
     now = now.add(const Duration(minutes: 5));
@@ -367,6 +405,75 @@ void main() {
     driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   });
   tearDownAll(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false);
+
+  group('an unsaved seed (#750)', () {
+    const extId = 'ext-deezer-song-9';
+    Song fetched({String id = extId, String title = 'Fetched'}) => Song(
+      id: id,
+      title: title,
+      artist: 'Seed Artist',
+      artistId: 'ar-1',
+      albumId: 'al-1',
+      album: 'Album',
+    );
+
+    test('is stored before it becomes the queue, and the mix starts', () async {
+      final rig = _Rig(checkStored: true);
+      rig.songById[extId] = fetched();
+      await rig.startOn(extId);
+
+      expect((await rig.storedSong(extId))?.title, 'Fetched');
+      expect(rig.queue.retainedSongIds, [extId]);
+      expect(_ids(rig.queue.queuedSongs), hasLength(10));
+      expect(rig.state.active, isTrue);
+    });
+
+    test('keeps the requested id when the server answers with its library '
+        'copy', () async {
+      final rig = _Rig(checkStored: true);
+      rig.songById[extId] = fetched(id: 'lib-copy');
+      await rig.startOn(extId);
+
+      final row = await rig.storedSong(extId);
+      expect(row?.title, 'Fetched');
+      expect(row?.albumId, isNull);
+      expect(row?.artistId, isNull);
+      expect(await rig.storedSong('lib-copy'), isNull);
+      expect(rig.queue.retainedSongIds, [extId]);
+      expect(rig.state.active, isTrue);
+    });
+
+    test(
+      'that cannot be fetched leaves the queue alone and ends the mix',
+      () async {
+        final rig = _Rig(mediaId: extId, checkStored: true);
+        when(
+          () => rig.api.getSong(extId, cancelToken: any(named: 'cancelToken')),
+        ).thenThrow(Exception('offline'));
+        await rig.startOn(extId);
+
+        expect(rig.queue.retainedSongIds, isEmpty);
+        expect(rig.queue.appendedSongBatches, isEmpty);
+        expect(await rig.storedSong(extId), isNull);
+        expect(rig.state.active, isFalse);
+        expect(rig.state.error, SameVibesError.networkError);
+      },
+    );
+
+    test('already in the database is not fetched or stored again', () async {
+      final rig = _Rig(checkStored: true);
+      rig.songById[extId] = fetched(title: 'Fetched');
+      await rig.queue.storeProvisionalSongs([fetched(title: 'Stored')]);
+      await rig.startOn(extId);
+
+      expect((await rig.storedSong(extId))?.title, 'Stored');
+      verify(
+        () => rig.api.getSong(extId, cancelToken: any(named: 'cancelToken')),
+      ).called(1);
+      expect(rig.queue.retainedSongIds, [extId]);
+      expect(rig.state.active, isTrue);
+    });
+  });
 
   test('Deezer mode queues the artist radio and never calls Last.fm', () async {
     final rig = _Rig();
