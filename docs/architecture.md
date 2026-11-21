@@ -2385,6 +2385,10 @@ across cooldowns. Backfill pauses while a song's stream load holds new work
 and never runs twice at once. App launch, each foreground return, library-sync
 completion (automatic, manual or pull-to-refresh), reconnect and existing
 policy/client changes and reconciliation completion re-arm the same gates.
+Lyrics progress counts only the songs a pass will request (no cached synced
+lyrics, no recent miss). Plain-only lyrics that cannot be upgraded (LRCLIB off,
+or no artist/title) get the same one-week checked marker, which re-enabling
+LRCLIB clears so the upgrade is retried.
 A local joined metadata query shares the pass's synced-upgrade predicate,
 including the seven-day miss/failure backoff, so only currently actionable
 lyrics gaps reopen the gate. Artwork presence is verified once per cover in
