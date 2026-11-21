@@ -334,6 +334,28 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         return;
       }
       if (isInitial) {
+        // The handler loads the seed from the database when it is neither
+        // playing nor queued; a seed it cannot load would clear the queue.
+        final loadable = await ref
+            .read(queueProvider.notifier)
+            .ensureSeedLoadable(
+              ref.read(playerStateProvider),
+              seedSongId,
+              () => session.withCancelToken(
+                (cancelToken) => ref
+                    .read(subsonicApiProvider)!
+                    .getSong(seedSongId, cancelToken: cancelToken),
+              ),
+            );
+        // The store awaited; a newer mix must not be retained over or failed.
+        if (!ref.mounted) return;
+        if (!coordinator.owns(session)) return;
+        if (epoch != _refillEpoch) return;
+        if (!loadable) {
+          state = const InstantMixState(error: InstantMixError.networkError);
+          _reportFailed(session, InstantMixError.networkError);
+          return;
+        }
         queueChangeAttempted = true;
         await ref.read(queueProvider.notifier).retainCurrentAsQueue(seedSongId);
         if (!ref.mounted) return;

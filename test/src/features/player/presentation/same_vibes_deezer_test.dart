@@ -266,7 +266,7 @@ class _Rig {
       ),
       navisDatabaseProvider.overrideWithValue(_database),
       if (checkStored)
-        sameVibesSeedStoredLookupProvider.overrideWithValue(
+        queueSeedStoredLookupProvider.overrideWithValue(
           (songId) async =>
               await _database.libraryDao.getSongById(songId) != null,
         ),
