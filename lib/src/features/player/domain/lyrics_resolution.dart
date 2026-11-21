@@ -9,6 +9,7 @@ class LyricsResolution {
     this.instrumental = false,
     this.confirmedMiss = false,
     this.syncedUpgradeMiss = false,
+    this.serverLookupFailed = false,
   });
 
   final LyricsList lyrics;
@@ -20,6 +21,10 @@ class LyricsResolution {
 
   /// A successful LRCLIB attempt found no synced upgrade for these lyrics.
   final bool syncedUpgradeMiss;
+
+  /// The server lookup hit a transport error, so the result may be a stale
+  /// cached fallback rather than what the server would answer.
+  final bool serverLookupFailed;
 
   bool get isExternal =>
       source == LyricsSource.lrclibSynced || source == LyricsSource.lrclibPlain;
