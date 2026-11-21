@@ -11,6 +11,10 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart'
+    show libraryAlbumTitlesReader;
+import 'package:navis/src/features/player/data/same_vibes_deezer_pool.dart';
+import 'package:navis/src/features/player/domain/same_vibes_ranking.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/features/player/domain/artist_spacing.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -27,10 +31,6 @@ const _kTargetQueueBatchSize = 10;
 /// Last.fm recommendation request limit per refill.
 const _kLastFmRecommendationLimit = 20;
 
-/// Deezer artist radio length: the filters below drop many, and the single
-/// call and its 6 s budget stay the same.
-const _kDeezerRadioLimit = 40;
-
 /// The server fill asks for more than a batch so the artist spacing has a
 /// choice.
 const _kServerFillLimit = 20;
@@ -42,6 +42,14 @@ const _kMaxSearchedPerArtist = 3;
 /// The whole Deezer leg (artist lookup and radio) must answer within this, or
 /// the server fills the refill instead.
 const _kDeezerLegTimeout = Duration(seconds: 6);
+
+/// A background refill's Deezer leg waits for the pool top-up first, so it
+/// gets longer.
+const _kDeezerRefillLegTimeout = Duration(seconds: 20);
+
+/// How long a refill waits for the pool top-up before ranking with what the
+/// pool holds (the top-up keeps running).
+const _kVibesTopUpWait = Duration(seconds: 12);
 
 /// Deezer was over its quota or too slow; the server fills, nothing retries.
 const _kDeezerSkippedReason = 'deezer_skipped';
@@ -108,6 +116,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// The anchor's resolved metadata, stored by the initial refill.
   _SeedMetadata? _anchorSeed;
 
+  /// The mix's Deezer lists, created by its first Deezer leg and set after
+  /// `session.start()` (#743). Every refill reads it into a local first.
+  SameVibesDeezerPool? _vibesPool;
+
+  /// Track ids of the last ranking's top 24: the top-up fetches their
+  /// features for the next refill.
+  List<int> _lastFeatureIds = const <int>[];
+
+  /// While the foreground first-batch leg runs: its timeout cancels the
+  /// requests the pool starts meanwhile.
+  CancelToken? _deezerLegToken;
+
   SameVibesRefillRecord? _lastRefill;
 
   /// What the last refill did, for the diagnostics (never credentials).
@@ -158,6 +178,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     // which clears the anchor.
     _anchorId = normalizedSeedSongId;
     _anchorSeed = null;
+    _vibesPool = null;
+    _lastFeatureIds = const <int>[];
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
     // A fresh state also clears the refilling flag of a refill still running
@@ -192,6 +214,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _parkedSeedSongId = null;
     _anchorId = null;
     _anchorSeed = null;
+    _vibesPool = null;
+    _lastFeatureIds = const <int>[];
     _mixSongIds = null;
     _mixSongKeys = null;
     _activationInProgress = false;
@@ -287,6 +311,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     // Read now: a refill of a superseded mix must not pick up the new mix's.
     final anchorId = _anchorId;
     final anchorSeed = _anchorSeed;
+    final vibesPool = _vibesPool;
+    final deezerReport = _DeezerLegReport();
     if (session == null ||
         !ref.read(recommendationSessionProvider.notifier).owns(session)) {
       return;
@@ -392,6 +418,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         lastFmResult = await _fetchRecommendations(
           seed: seed,
           anchorSeed: isInitial ? seed : anchorSeed ?? seed,
+          anchorId: anchorId,
+          session: session,
+          pool: vibesPool,
+          report: deezerReport,
           limit: _kLastFmRecommendationLimit,
           background: !isInitial,
         );
@@ -764,13 +794,24 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         seedId: anchorId ?? normalizedSeedSongId,
         triggerId: normalizedSeedSongId,
         isInitial: isInitial,
-        lastFmOutcome: lastFmResult.outcome.name,
-        lastFmSource: lastFmResult.source.name,
+        lastFmOutcome: deezerReport.lastFmSkipped
+            ? null
+            : lastFmResult.outcome.name,
+        lastFmSource: deezerReport.lastFmSkipped
+            ? null
+            : lastFmResult.source.name,
+        deezer: deezerReport.record,
         mapped: mappedSongCount,
         fallbackReason: fallbackReason,
         inserted: totalQueued,
         parkedSeedId: parked ? normalizedSeedSongId : null,
       );
+      // The first Deezer batch shipped what had arrived; fetch the rest (and
+      // the features) in the background for the next refill.
+      final topUpPool = deezerReport.pool;
+      if (deezerReport.firstBatch && topUpPool != null && _isCurrent(session)) {
+        unawaited(topUpPool.topUp(_lastFeatureIds));
+      }
       ref
           .read(recommendationSessionProvider.notifier)
           .report(
@@ -1111,13 +1152,25 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   Future<LastFmTrackFetchResult> _fetchRecommendations({
     required _SeedMetadata seed,
     required _SeedMetadata anchorSeed,
+    required String? anchorId,
+    required RecommendationSession session,
+    required SameVibesDeezerPool? pool,
+    required _DeezerLegReport report,
     required int limit,
     required bool background,
   }) async {
     switch (ref.read(preferredMixModeProvider)) {
       case PreferredMixMode.sameVibesDeezer:
         _recommendationSource = 'deezer';
-        return _fetchDeezerRadio(seed: anchorSeed, background: background);
+        report.lastFmSkipped = true;
+        return _fetchDeezerRadio(
+          seed: anchorSeed,
+          anchorId: anchorId,
+          session: session,
+          pool: pool,
+          report: report,
+          background: background,
+        );
       case PreferredMixMode.legacyInstantMix:
         // The user switched to Server Mix after this mix started.
         return const LastFmTrackFetchResult(
@@ -1162,6 +1215,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             .allows(IntegrationFeature.deezerSameVibes)) {
       final deezer = await _fetchDeezerRadio(
         seed: anchorSeed,
+        anchorId: anchorId,
+        session: session,
+        pool: pool,
+        report: report,
         background: background,
       );
       if (deezer.tracks.isNotEmpty) {
@@ -1178,13 +1235,19 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     return result;
   }
 
-  /// The Deezer leg: the seed artist's radio as recommendations, within
-  /// [_kDeezerLegTimeout]. Quota or a timeout reads as "skipped" (no retry);
-  /// codes stay null so Last.fm's terminal errors cannot come from here.
+  /// The Deezer leg: the anchor's pool ranked into recommendations, within
+  /// [_kDeezerLegTimeout] (the first batch) or [_kDeezerRefillLegTimeout] (a
+  /// refill, which waits for the pool top-up). Quota or a timeout reads as
+  /// "skipped" (no retry); codes stay null so Last.fm's terminal errors cannot
+  /// come from here.
   ///
   /// ponytail: an empty radio has no `/top` fallback; the server fills.
   Future<LastFmTrackFetchResult> _fetchDeezerRadio({
     required _SeedMetadata seed,
+    required String? anchorId,
+    required RecommendationSession session,
+    required SameVibesDeezerPool? pool,
+    required _DeezerLegReport report,
     required bool background,
   }) async {
     const skipped = LastFmTrackFetchResult(
@@ -1192,22 +1255,28 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       tracks: <LastFmTrackRecommendation>[],
       message: _kDeezerSkippedReason,
     );
-    final cancelToken = CancelToken();
+    final stopwatch = Stopwatch()..start();
+    final legToken = CancelToken();
+    if (!background) _deezerLegToken = legToken;
+    LastFmTrackFetchResult result;
     try {
-      return await _deezerRadioLeg(
-        seed: seed,
-        background: background,
-        cancelToken: cancelToken,
-      ).timeout(
-        _kDeezerLegTimeout,
-        onTimeout: () {
-          cancelToken.cancel();
-          return skipped;
-        },
-      );
+      result =
+          await _deezerRadioLeg(
+            seed: seed,
+            anchorId: anchorId,
+            session: session,
+            pool: pool,
+            report: report,
+          ).timeout(
+            background ? _kDeezerRefillLegTimeout : _kDeezerLegTimeout,
+            onTimeout: () {
+              legToken.cancel();
+              return skipped;
+            },
+          );
     } on DeezerApiException catch (error) {
       AppLogger.debug('SameVibes diagnostics: deezer leg $error');
-      return error.isQuotaExceeded
+      result = error.isQuotaExceeded
           ? skipped
           : const LastFmTrackFetchResult(
               outcome: LastFmFetchOutcome.networkError,
@@ -1215,64 +1284,157 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             );
     } on DioException catch (error) {
       AppLogger.debug('SameVibes diagnostics: deezer leg ${error.type.name}');
-      return CancelToken.isCancel(error)
+      result = CancelToken.isCancel(error)
           ? skipped
           : const LastFmTrackFetchResult(
               outcome: LastFmFetchOutcome.networkError,
               tracks: <LastFmTrackRecommendation>[],
             );
+    } finally {
+      if (identical(_deezerLegToken, legToken)) _deezerLegToken = null;
     }
+    report.record = _deezerRecord(
+      report.pool,
+      stopwatch.elapsedMilliseconds,
+      skipped: result.message == _kDeezerSkippedReason,
+    );
+    return result;
   }
+
+  Map<String, Object?> _deezerRecord(
+    SameVibesDeezerPool? pool,
+    int msTotal, {
+    required bool skipped,
+  }) {
+    final stats = pool?.stats;
+    return <String, Object?>{
+      'poolSize': stats?.poolSize ?? 0,
+      'relatedCount': stats?.relatedCount ?? 0,
+      'listsUsed': stats?.listsUsed ?? 0,
+      'featuresUsed': stats?.featuresUsed ?? 0,
+      // Liked-song radios come with the played-through signal (P7).
+      'likedSignals': 0,
+      'deadlineHit': stats?.deadlineHit ?? false,
+      'msLists': stats?.msLists ?? 0,
+      'msTotal': msTotal,
+      'skipped': skipped,
+    };
+  }
+
+  /// A request of the pool, under the mix's cancel token. Stopping the mix
+  /// stops the pool: a cancelled session starts no further request.
+  Future<T> Function<T>(Future<T> Function(CancelToken)) _poolRunner(
+    RecommendationSession session,
+  ) =>
+      <T>(request) => session.withCancelToken((token) {
+        if (token.isCancelled) {
+          throw DioException.requestCancelled(
+            requestOptions: RequestOptions(),
+            reason: 'Same Vibes stopped',
+          );
+        }
+        final leg = _deezerLegToken;
+        if (leg != null) unawaited(leg.whenCancel.then((_) => token.cancel()));
+        return request(token);
+      });
 
   Future<LastFmTrackFetchResult> _deezerRadioLeg({
     required _SeedMetadata seed,
-    required bool background,
-    required CancelToken cancelToken,
+    required String? anchorId,
+    required RecommendationSession session,
+    required SameVibesDeezerPool? pool,
+    required _DeezerLegReport report,
   }) async {
-    // Read the providers directly: an unlistened provider is paused.
-    final artistId = await ref
-        .read(deezerArtistResolverProvider)
-        .resolve(
-          artistId: seed.artistId ?? '',
-          name: seed.artist,
-          cancelToken: cancelToken,
-          background: background,
-          retryQuota: false,
-        );
-    if (artistId == null) {
-      return const LastFmTrackFetchResult(
-        outcome: LastFmFetchOutcome.noResults,
-        tracks: <LastFmTrackRecommendation>[],
+    var vibesPool = pool;
+    const empty = LastFmTrackFetchResult(
+      outcome: LastFmFetchOutcome.noResults,
+      tracks: <LastFmTrackRecommendation>[],
+    );
+    var firstBatch = false;
+    if (vibesPool == null) {
+      // The mix's first Deezer leg (also after a switch from Last.fm).
+      if (!_isCurrent(session)) return empty;
+      final libraryArtistId = seed.artistId;
+      // Read the providers directly: an unlistened provider is paused.
+      vibesPool = _vibesPool = SameVibesDeezerPool(
+        client: ref.read(deezerApiClientProvider),
+        catalog: ref.read(deezerCatalogProvider),
+        resolver: ref.read(deezerArtistResolverProvider),
+        readLibraryAlbumTitles:
+            libraryArtistId == null ||
+                libraryArtistId.isEmpty ||
+                libraryArtistId.startsWith('ext-')
+            ? null
+            : libraryAlbumTitlesReader(
+                ref.read(navisDatabaseProvider).libraryDao,
+                libraryArtistId,
+              ),
+        runner: _poolRunner(session),
+      );
+      firstBatch = true;
+    }
+    report
+      ..pool = vibesPool
+      ..firstBatch = firstBatch;
+    final SameVibesRanking ranking;
+    if (firstBatch) {
+      final batch = await vibesPool.firstBatch(
+        SameVibesPoolSeed(
+          songId: anchorId ?? '',
+          artistId: seed.artistId,
+          artist: seed.artist,
+          title: seed.title,
+        ),
+      );
+      if (batch == null) return empty;
+      ranking = rankSameVibesPool(
+        seedArtistId: batch.seedArtistId,
+        relatedArtistIds: batch.relatedArtistIds,
+        seedRadio: batch.seedRadio,
+        relatedLists: batch.relatedLists,
+        seedFeatures: vibesPool.seedTrack,
+        featuresOf: vibesPool.featuresOf,
+      );
+    } else {
+      // Repair what the pool lacks first; the top-up keeps running if it is
+      // slow, and the ranking uses what has arrived.
+      await vibesPool
+          .topUp(_lastFeatureIds)
+          .timeout(_kVibesTopUpWait, onTimeout: () {});
+      // Errors propagate (the Deezer-leg failure path); null is a clean empty.
+      final lists = await vibesPool.refillLists(const <int>[]);
+      final seedArtistId = vibesPool.seedArtistId;
+      if (lists == null || seedArtistId == null) return empty;
+      ranking = rankSameVibesPool(
+        seedArtistId: seedArtistId,
+        relatedArtistIds: vibesPool.relatedArtistIds,
+        seedRadio: lists.seedRadio,
+        relatedLists: vibesPool.relatedLists,
+        likedRadios: lists.likedRadios,
+        seedFeatures: vibesPool.seedTrack,
+        featuresOf: vibesPool.featuresOf,
       );
     }
-    final radio = await ref
-        .read(deezerApiClientProvider)
-        .getArtistRadio(
-          artistId,
-          limit: _kDeezerRadioLimit,
-          cancelToken: cancelToken,
-          background: background,
-          retryQuota: false,
-        );
-    // Deezer's order is the relevance; the mapper sorts by match.
-    final seen = <String?>{sameVibesCanonicalSongKey(seed.artist, seed.title)};
-    final tracks = <LastFmTrackRecommendation>[];
-    for (final track in radio) {
-      final recommendation = LastFmTrackRecommendation(
-        artist: track.artist.name,
-        title: track.title,
-        match: 1 - tracks.length / math.max(radio.length, 1),
-      );
-      if (recommendation.isUsable &&
-          seen.add(
-            sameVibesCanonicalSongKey(
-              recommendation.artist,
-              recommendation.title,
-            ),
-          )) {
-        tracks.add(recommendation);
-      }
-    }
+    if (_isCurrent(session)) _lastFeatureIds = ranking.featureIds;
+    // The mapper sorts by match, so the ranked order needs strictly
+    // decreasing values; the seed itself is never recommended.
+    final seedKey = sameVibesCanonicalSongKey(seed.artist, seed.title);
+    final usable = <DeezerTrack>[
+      for (final track in ranking.ordered)
+        if (track.artist.name.trim().isNotEmpty &&
+            track.title.trim().isNotEmpty &&
+            sameVibesCanonicalSongKey(track.artist.name, track.title) !=
+                seedKey)
+          track,
+    ];
+    final tracks = <LastFmTrackRecommendation>[
+      for (var i = 0; i < usable.length; i++)
+        LastFmTrackRecommendation(
+          artist: usable[i].artist.name,
+          title: usable[i].title,
+          match: 1 - i / usable.length,
+        ),
+    ];
     return LastFmTrackFetchResult(
       outcome: tracks.isEmpty
           ? LastFmFetchOutcome.noResults
@@ -1746,15 +1908,6 @@ final sameVibesAlbumSongCountLookupProvider = Provider<_AlbumSongCountLookup>((
   };
 });
 
-/// Shared queue, memory and merge identity: one song across its live, remix,
-/// acoustic and junk versions; language editions remain distinct.
-String? sameVibesCanonicalSongKey(String artist, String title) {
-  final artistKey = normalizeMetadata(artist);
-  final titleKey = songVersionTitleKey(title);
-  if (artistKey.isEmpty || titleKey.isEmpty) return null;
-  return '$artistKey|$titleKey';
-}
-
 final sameVibesQueueSongKeyLookupProvider = Provider<_QueueSongKeyLookup>((
   ref,
 ) {
@@ -1774,6 +1927,17 @@ final sameVibesProvider = NotifierProvider<SameVibesNotifier, SameVibesState>(
   SameVibesNotifier.new,
 );
 
+/// What one refill's Deezer leg tells the refill: the pool it used, whether
+/// that was the mix's first batch, and the record for the diagnostics.
+class _DeezerLegReport {
+  SameVibesDeezerPool? pool;
+  bool firstBatch = false;
+
+  /// Deezer mode never asks Last.fm, so its outcome fields stay null.
+  bool lastFmSkipped = false;
+  Map<String, Object?>? record;
+}
+
 /// The last refill of a mix, for the diagnostics. Holds song ids and enum
 /// names only: no server address, user name or token.
 class SameVibesRefillRecord {
@@ -1785,6 +1949,7 @@ class SameVibesRefillRecord {
     required this.isInitial,
     required this.lastFmOutcome,
     required this.lastFmSource,
+    this.deezer,
     required this.mapped,
     required this.fallbackReason,
     required this.inserted,
@@ -1801,8 +1966,14 @@ class SameVibesRefillRecord {
   final String seedId;
   final String triggerId;
   final bool isInitial;
-  final String lastFmOutcome;
-  final String lastFmSource;
+
+  /// Null when Last.fm was not asked (Deezer mode).
+  final String? lastFmOutcome;
+  final String? lastFmSource;
+
+  /// The Deezer leg: pool counts, `msTotal` and `skipped`; null when the
+  /// refill never ran a Deezer leg.
+  final Map<String, Object?>? deezer;
   final int mapped;
   final String fallbackReason;
   final int inserted;
@@ -1816,6 +1987,7 @@ class SameVibesRefillRecord {
     'isInitial': isInitial,
     'lastFmOutcome': lastFmOutcome,
     'lastFmSource': lastFmSource,
+    'deezer': deezer,
     'mapped': mapped,
     'fallbackReason': fallbackReason,
     'inserted': inserted,

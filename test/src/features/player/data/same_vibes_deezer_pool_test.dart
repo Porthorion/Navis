@@ -436,9 +436,30 @@ void main() {
       expect(rig.client.calls, ['radio:1:40', 'radio:20:25', 'radio:21:25']);
       expect(refill!.likedRadios, hasLength(2));
       expect(rig.client.backgrounds.reversed.take(3), everyElement(isTrue));
+    },
+  );
+
+  test(
+    'refillLists lets a seed radio error propagate, a clean empty is null',
+    () async {
+      final rig = _Rig();
+      await rig.pool.firstBatch(rig.seed);
 
       rig.client.failAlways.add('radio:1:40');
+      await expectLater(rig.pool.refillLists([20]), throwsException);
+      rig.client.failAlways.clear();
+      rig.client.failOnce['radio:1:40'] = const DeezerApiException(code: 4);
+      await expectLater(
+        rig.pool.refillLists([20]),
+        throwsA(isA<DeezerApiException>()),
+      );
+
+      rig.client.seedRadio = const [];
       expect(await rig.pool.refillLists([20]), isNull);
+
+      final offDeezer = _Rig()..resolver.answer = null;
+      expect(await offDeezer.pool.firstBatch(offDeezer.seed), isNull);
+      expect(await offDeezer.pool.refillLists(const []), isNull);
     },
   );
 
@@ -451,7 +472,10 @@ void main() {
       final before = rig.client.calls.length;
       rig.cancelled = true;
       await rig.pool.topUp([5000]);
-      expect(await rig.pool.refillLists([20]), isNull);
+      await expectLater(
+        rig.pool.refillLists([20]),
+        throwsA(isA<DioException>()),
+      );
       expect(rig.client.calls.length, before);
     },
   );

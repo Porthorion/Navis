@@ -10,6 +10,7 @@ import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/player/domain/same_vibes_ranking.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
@@ -4241,6 +4242,7 @@ void main() {
         'isInitial',
         'lastFmOutcome',
         'lastFmSource',
+        'deezer',
         'mapped',
         'fallbackReason',
         'inserted',

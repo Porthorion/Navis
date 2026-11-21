@@ -240,32 +240,31 @@ class SameVibesDeezerPool {
   }
 
   /// Background: a fresh seed radio and the radios of up to two liked
-  /// artists. Null when the seed radio fails (or the seed is unresolved).
+  /// artists. Null on a clean empty (the artist is not on Deezer, or its seed
+  /// radio is empty). A quota, transport or cancel error of the resolution or
+  /// the seed radio propagates, as in [firstBatch]; a failed liked radio is
+  /// just left out.
   Future<({List<DeezerTrack> seedRadio, List<List<DeezerTrack>> likedRadios})?>
   refillLists(List<int> likedArtistIds) async {
-    try {
-      final artistId = await _resolveSeed(background: true);
-      if (artistId == null) return null;
-      final seedRadioFuture = _fetchRadio(
-        artistId,
-        seedRadioLimit,
-        background: true,
-      );
-      final liked = [
-        for (final id in likedArtistIds.take(_likedRadioCount))
-          _safeValue(_fetchRadio(id, relatedRadioLimit, background: true)),
-      ];
-      final seedRadio = await seedRadioFuture;
-      final likedRadios = [
-        for (final radio in await Future.wait(liked))
-          if (radio != null && radio.isNotEmpty) radio,
-      ];
-      if (seedRadio.isEmpty) return null;
-      _seedRadio = seedRadio;
-      return (seedRadio: seedRadio, likedRadios: likedRadios);
-    } on Object {
-      return null;
-    }
+    final artistId = await _resolveSeed(background: true);
+    if (artistId == null) return null;
+    final seedRadioFuture = _fetchRadio(
+      artistId,
+      seedRadioLimit,
+      background: true,
+    );
+    final liked = [
+      for (final id in likedArtistIds.take(_likedRadioCount))
+        _safeValue(_fetchRadio(id, relatedRadioLimit, background: true)),
+    ];
+    final seedRadio = await seedRadioFuture;
+    final likedRadios = [
+      for (final radio in await Future.wait(liked))
+        if (radio != null && radio.isNotEmpty) radio,
+    ];
+    if (seedRadio.isEmpty) return null;
+    _seedRadio = seedRadio;
+    return (seedRadio: seedRadio, likedRadios: likedRadios);
   }
 
   /// The Deezer id of the seed artist or one of its related artists, by loose
@@ -277,6 +276,10 @@ class SameVibesDeezerPool {
   List<SameVibesPoolList> get relatedLists => [
     for (var i = 0; i < _relatedCount; i++) (radio: _radios[i], top: _tops[i]),
   ];
+
+  int? get seedArtistId => _seedArtistId;
+
+  List<int> get relatedArtistIds => _relatedIds ?? const <int>[];
 
   /// The seed's `/track` record (bpm, date, explicit), once known.
   DeezerTrack? get seedTrack => _seedTrack;
