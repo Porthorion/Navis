@@ -24,18 +24,24 @@ Future<String?> pickDownloadDirectory({
       // A failed native panel must not leave the user without a picker.
     }
   }
-  final picked = await FilePicker.pickDirectory(
-    dialogTitle: title,
-    androidOptions: Platform.isAndroid
-        ? FilePickerAndroidOptions(
-            safOptions: AndroidSAFOptions(
-              grant: AndroidSAFGrant.lifetime,
-              accessMode: AndroidSAFAccessMode.readWrite,
-              persistGrant: true,
-            ),
-          )
-        : const AndroidOptions(),
-  );
+  final Uri? picked;
+  try {
+    picked = await FilePicker.pickDirectory(
+      dialogTitle: title,
+      androidOptions: Platform.isAndroid
+          ? FilePickerAndroidOptions(
+              safOptions: AndroidSAFOptions(
+                grant: AndroidSAFGrant.lifetime,
+                accessMode: AndroidSAFAccessMode.readWrite,
+                persistGrant: true,
+              ),
+            )
+          : const AndroidOptions(),
+    );
+  } on PlatformException {
+    // getDirectoryPath returned null on a failed panel; keep that.
+    return null;
+  }
   // Android yields the content:// tree URI; elsewhere a directory file URI
   // that goes back to the plain path getDirectoryPath used to return.
   if (picked == null) return null;

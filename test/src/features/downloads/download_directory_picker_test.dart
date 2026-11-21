@@ -51,6 +51,13 @@ void main() {
     expect(await pickDownloadDirectory(title: 'Choose'), isNull);
   });
 
+  test('a failed file_picker panel picks nothing', () async {
+    final previous = FilePickerPlatform.instance;
+    FilePickerPlatform.instance = _FakePicker(null, fails: true);
+    addTearDown(() => FilePickerPlatform.instance = previous);
+    expect(await pickDownloadDirectory(title: 'Choose'), isNull);
+  });
+
   test('a Runner without the channel falls back to file_picker', () async {
     final previous = FilePickerPlatform.instance;
     FilePickerPlatform.instance = _FakePicker('/fallback');
@@ -63,8 +70,9 @@ void main() {
 }
 
 class _FakePicker extends FilePickerPlatform {
-  new(this.path);
+  new(this.path, {this.fails = false});
   final String? path;
+  final bool fails;
 
   @override
   Future<String?> getDirectoryPath({
@@ -74,5 +82,8 @@ class _FakePicker extends FilePickerPlatform {
     WindowsOptions windowsOptions = const WindowsOptions(),
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
-  }) async => path;
+  }) async {
+    if (fails) throw PlatformException(code: 'already_active');
+    return path;
+  }
 }
