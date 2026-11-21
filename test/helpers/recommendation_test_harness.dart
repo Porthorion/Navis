@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Test-controlled playback state for recommendation notifier tests.
@@ -102,6 +103,10 @@ class RecordingRecommendationQueue extends QueueController {
 ProviderContainer createRecommendationContainer({
   List<Override> overrides = const <Override>[],
   bool lastFmMode = true,
+
+  /// Whether every seed counts as stored; tests of unsaved seeds pass false
+  /// and supply their own sameVibesSeedStoredLookupProvider.
+  bool seedsStored = true,
 }) {
   final container = ProviderContainer(
     overrides: <Override>[
@@ -112,6 +117,10 @@ ProviderContainer createRecommendationContainer({
       if (lastFmMode)
         preferredMixModeProvider.overrideWithValue(
           PreferredMixMode.sameVibesLastFm,
+        ),
+      if (seedsStored)
+        sameVibesSeedStoredLookupProvider.overrideWithValue(
+          (songId) async => true,
         ),
       ...overrides,
     ],

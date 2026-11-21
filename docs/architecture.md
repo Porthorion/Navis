@@ -4710,7 +4710,10 @@ song; Same Vibes through Deezer stays on the mix's anchor (below). Starting a mi
 keeps only the seed in the queue, clearing deferred played history and upcoming
 songs even when the player already holds only the seed, so the first refill
 treats only the seed as already queued; songs from an earlier mix still behind
-it are fair recommendations again. Similarity endpoints know only server ids, so a remote
+it are fair recommendations again. A seed that is neither playing nor queued is stored
+provisionally first (from the `getSong` answer, under the requested id) because the
+player loads it from the database; when it cannot be stored the mix ends and the
+queue stays as it was (#750). Similarity endpoints know only server ids, so a remote
 seed (an Octo-Fiesta `ext-` id) mixes from the library copy `getSong` maps it
 to, when the server has one. `RecommendationService.libraryCopyId` owns that
 lookup for both recommendations and the Server Mix seed-availability provider.
