@@ -612,7 +612,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Artist and playlist pages can now be filtered: use the field on '
+        'Artist, playlist and Liked pages can now be filtered: use the field on '
         'phones and tablets, or just start typing on desktop. Filters across '
         'the app now ignore accents, so "beyonce" finds "Beyoncé"',
         type: ChangelogEntryType.improvement,

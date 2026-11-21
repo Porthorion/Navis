@@ -2991,6 +2991,116 @@ void main() {
       expect(tops, orderedEquals(<double>[...tops]..sort()));
     });
 
+    Future<void> pumpLikedTab(WidgetTester tester, Size size) async {
+      setAdaptiveTestViewport(tester, size);
+      await _pumpLibraryScreen(
+        tester,
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: size.width > 900,
+          viewportSize: size,
+          safePadding: EdgeInsets.zero,
+        ),
+        overrides: [
+          showLikedPageProvider.overrideWithValue(true),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+          ),
+          likedAlbumsRecentProvider.overrideWithValue(
+            AsyncData([
+              _likedAlbum(id: 'a1', name: 'Café Sessions'),
+              _likedAlbum(id: 'a2', name: 'Lemonade', artistName: 'Beyoncé'),
+            ]),
+          ),
+          likedArtistsProvider.overrideWithValue(
+            const AsyncData([
+              ArtistsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'r1',
+                name: 'Rihanna',
+              ),
+            ]),
+          ),
+          likedSongsProvider.overrideWithValue(
+            AsyncData([
+              _likedSong(id: 's1', title: 'Halo', albumId: 'a2'),
+              _likedSong(id: 's2', title: 'Umbrella', albumId: 'a1'),
+            ]),
+          ),
+          likedAlbumSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+        ],
+      );
+      await tester.tap(find.text('Liked'));
+      await tester.pumpAndSettle();
+    }
+
+    _testWidgetsWithCleanup(
+      'Liked tab touch field filters albums, artists and songs',
+      (tester) async {
+        await pumpLikedTab(tester, const Size(390, 1200));
+        expect(find.text('Filter liked music...'), findsOneWidget);
+        expect(find.text('Halo'), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField), 'CAFE');
+        await tester.pumpAndSettle();
+        expect(find.text('Café Sessions'), findsOneWidget);
+        expect(find.text('Lemonade'), findsNothing);
+        expect(find.text('Rihanna'), findsNothing);
+        expect(find.text('Halo'), findsNothing);
+
+        await tester.enterText(find.byType(TextField), 'umbrella');
+        await tester.pumpAndSettle();
+        expect(find.text('Umbrella'), findsOneWidget);
+        expect(find.text('Halo'), findsNothing);
+
+        await tester.enterText(find.byType(TextField), 'zzz');
+        await tester.pumpAndSettle();
+        expect(find.text('No results for "zzz"'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('filterClearAction')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Rihanna'), findsOneWidget);
+        expect(find.text('Halo'), findsOneWidget);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'Liked tab desktop typing filters without a field; Esc restores',
+      (tester) async {
+        await pumpLikedTab(tester, const Size(1280, 1200));
+        expect(find.byType(TextField), findsNothing);
+
+        for (final char in 'rih'.split('')) {
+          await tester.sendKeyEvent(
+            LogicalKeyboardKey.findKeyByKeyId(char.codeUnitAt(0))!,
+            character: char,
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Filtering: "rih"'), findsOneWidget);
+        expect(find.text('Rihanna'), findsOneWidget);
+        expect(find.text('Halo'), findsNothing);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('Halo'), findsOneWidget);
+
+        for (final char in 'zzz'.split('')) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyZ, character: char);
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('No results for "zzz"'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('filterClearAction')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Halo'), findsOneWidget);
+      },
+    );
+
     _testWidgetsWithCleanup(
       'playlists tab filter field matches displayed titles case-insensitively',
       (tester) async {

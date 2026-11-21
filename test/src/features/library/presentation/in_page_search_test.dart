@@ -12,6 +12,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -27,15 +28,17 @@ import '../../../../helpers/test_theme.dart';
 const _touch = Size(390, 1600);
 const _desktop = Size(1280, 1600);
 
-AlbumsTableData _album(String id, String name) => AlbumsTableData(
-  isProvisional: false,
-  isExternal: false,
-  id: id,
-  name: name,
-  artistId: 'artist-1',
-  songsHydrated: true,
-  artists: const <ArtistRef>[],
-);
+AlbumsTableData _album(String id, String name, {String? artistName}) =>
+    AlbumsTableData(
+      isProvisional: false,
+      isExternal: false,
+      id: id,
+      name: name,
+      artistName: artistName,
+      artistId: 'artist-1',
+      songsHydrated: true,
+      artists: const <ArtistRef>[],
+    );
 
 ResolvedArtistTopTrack _top(int rank, String title) => ResolvedArtistTopTrack(
   rank: rank,
@@ -283,6 +286,129 @@ void main() {
 
       await _type(tester, 'zzz');
       expect(find.text('No results for "zzz"'), findsOneWidget);
+    });
+  });
+
+  group('liked albums page filter', () {
+    final albums = [
+      _album('l1', 'Lemonade', artistName: 'Beyoncé'),
+      _album('l2', 'Café Sessions', artistName: 'Someone'),
+      _album('l3', 'Dangerously', artistName: 'Else'),
+    ];
+    Future<void> pumpPage(WidgetTester tester, Size size) => _pump(
+      tester,
+      size: size,
+      child: const LikedAlbumsAllScreen(),
+      overrides: [likedAlbumsProvider.overrideWithValue(AsyncData(albums))],
+    );
+
+    testWidgets('touch field matches title and artist, folding accents', (
+      tester,
+    ) async {
+      await pumpPage(tester, _touch);
+      expect(find.byType(ListFilterField), findsOneWidget);
+      expect(find.text('Lemonade'), findsOneWidget);
+
+      await _filter(tester, 'cafe');
+      expect(find.text('Café Sessions'), findsOneWidget);
+      expect(find.text('Lemonade'), findsNothing);
+
+      await _filter(tester, 'beyonce');
+      expect(find.text('Lemonade'), findsOneWidget);
+      expect(find.text('Dangerously'), findsNothing);
+
+      await _filter(tester, 'zzz');
+      expect(find.text('No results for "zzz"'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('filterClearAction')));
+      await _settle(tester);
+      expect(find.text('Lemonade'), findsOneWidget);
+      expect(find.text('Dangerously'), findsOneWidget);
+    });
+
+    testWidgets('desktop typing filters without a field; Esc restores', (
+      tester,
+    ) async {
+      await pumpPage(tester, _desktop);
+      expect(find.byType(ListFilterField), findsNothing);
+
+      await _type(tester, 'danger');
+      expect(find.text('Filtering: "danger"'), findsOneWidget);
+      expect(find.text('Dangerously'), findsOneWidget);
+      expect(find.text('Lemonade'), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(find.text('Lemonade'), findsOneWidget);
+
+      await _type(tester, 'zzz');
+      expect(find.text('No results for "zzz"'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('filterClearAction')));
+      await _settle(tester);
+      expect(find.text('Lemonade'), findsOneWidget);
+    });
+  });
+
+  group('liked artists page filter', () {
+    const artists = [
+      ArtistsTableData(
+        isProvisional: false,
+        isExternal: false,
+        id: 'r1',
+        name: 'Beyoncé',
+      ),
+      ArtistsTableData(
+        isProvisional: false,
+        isExternal: false,
+        id: 'r2',
+        name: 'Rihanna',
+      ),
+    ];
+    Future<void> pumpPage(WidgetTester tester, Size size) => _pump(
+      tester,
+      size: size,
+      child: const LikedArtistsAllScreen(),
+      overrides: [
+        likedArtistsProvider.overrideWithValue(const AsyncData(artists)),
+      ],
+    );
+
+    testWidgets('touch field filters by name, folding accents', (tester) async {
+      await pumpPage(tester, _touch);
+      expect(find.byType(ListFilterField), findsOneWidget);
+      expect(find.text('Rihanna'), findsOneWidget);
+
+      await _filter(tester, 'BEYONCE');
+      expect(find.text('Beyoncé'), findsOneWidget);
+      expect(find.text('Rihanna'), findsNothing);
+
+      await _filter(tester, 'zzz');
+      expect(find.text('No results for "zzz"'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('filterClearAction')));
+      await _settle(tester);
+      expect(find.text('Rihanna'), findsOneWidget);
+      expect(find.text('Beyoncé'), findsOneWidget);
+    });
+
+    testWidgets('desktop typing filters without a field; Esc restores', (
+      tester,
+    ) async {
+      await pumpPage(tester, _desktop);
+      expect(find.byType(ListFilterField), findsNothing);
+
+      await _type(tester, 'rih');
+      expect(find.text('Filtering: "rih"'), findsOneWidget);
+      expect(find.text('Rihanna'), findsOneWidget);
+      expect(find.text('Beyoncé'), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(find.text('Beyoncé'), findsOneWidget);
+
+      await _type(tester, 'zzz');
+      expect(find.text('No results for "zzz"'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('filterClearAction')));
+      await _settle(tester);
+      expect(find.text('Beyoncé'), findsOneWidget);
     });
   });
 }

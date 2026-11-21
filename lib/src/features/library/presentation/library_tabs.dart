@@ -763,78 +763,120 @@ enum _PlaylistContextAction { edit, delete }
 // Liked Albums — full-screen list (navigated to from the "See all" button)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class LikedAlbumsAllScreen extends ConsumerWidget {
+class LikedAlbumsAllScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LikedAlbumsAllScreen> createState() =>
+      _LikedAlbumsAllScreenState();
+}
+
+class _LikedAlbumsAllScreenState extends ConsumerState<LikedAlbumsAllScreen>
+    with
+        TypeToFilter<LikedAlbumsAllScreen>,
+        DebouncedSearch<LikedAlbumsAllScreen> {
+  /// The active filter: the typed query on desktop, else the touch field.
+  String get _filterQuery =>
+      (typeFilterQuery.isNotEmpty ? typeFilterQuery : query).trim();
+
+  void _clearFilter() {
+    clearSearch();
+    clearTypeFilter();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final likedAlbumsAsync = ref.watch(likedAlbumsProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloadedContentIds = downloadedOnly
         ? ref.watch(downloadedContentIdsProvider).asData?.value
         : null;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     Future<void> refresh() => triggerLibrarySyncFromPull(ref);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.libraryLikedAlbumsAllTitle)),
-      body: Column(
-        children: <Widget>[
-          _likedSyncBanner(refresh),
-          Expanded(
-            child: NavisRefreshIndicator(
-              onRefresh: refresh,
-              child: likedAlbumsAsync.when(
-                loading: () => const _LoadingListPlaceholder(),
-                error: (error, _) => ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    ErrorState(
-                      title: l10n.libraryAlbumsErrorTitle,
-                      onRetry: refresh,
-                      retryLabel: l10n.commonRetry,
-                    ),
-                  ],
-                ),
-                data: (albums) {
-                  final filteredAlbums = downloadedOnly
-                      ? albums
-                            .where(
-                              (album) =>
-                                  downloadedContentIds?.albumIds.contains(
-                                    album.id,
-                                  ) ??
-                                  false,
-                            )
-                            .toList(growable: false)
-                      : albums;
-                  if (filteredAlbums.isEmpty) {
-                    return ListView(
+      body: typeFilterFrame(
+        Column(
+          children: <Widget>[
+            _likedSyncBanner(refresh),
+            Expanded(
+              child: NavisRefreshIndicator(
+                onRefresh: refresh,
+                child: likedAlbumsAsync.when(
+                  loading: () => const _LoadingListPlaceholder(),
+                  error: (error, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      ErrorState(
+                        title: l10n.libraryAlbumsErrorTitle,
+                        onRetry: refresh,
+                        retryLabel: l10n.commonRetry,
+                      ),
+                    ],
+                  ),
+                  data: (albums) {
+                    final base = downloadedOnly
+                        ? albums
+                              .where(
+                                (album) =>
+                                    downloadedContentIds?.albumIds.contains(
+                                      album.id,
+                                    ) ??
+                                    false,
+                              )
+                              .toList(growable: false)
+                        : albums;
+                    final filtering = _filterQuery.isNotEmpty;
+                    final normalized = normalizeSearchText(_filterQuery);
+                    final filteredAlbums = filtering
+                        ? base
+                              .where(
+                                (album) => searchTextMatches(normalized, [
+                                  album.name,
+                                  album.artistName,
+                                ]),
+                              )
+                              .toList(growable: false)
+                        : base;
+                    return CustomScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.6,
-                          child: EmptyState(
-                            title: downloadedOnly
-                                ? l10n.libraryDownloadedOnlyEmpty
-                                : l10n.libraryLikedEmptyTitle,
-                            subtitle: downloadedOnly
-                                ? l10n.libraryDownloadedOnlyEmptySubtitle
-                                : l10n.libraryLikedEmptySubtitle,
-                            icon: downloadedOnly
-                                ? Icons.download_done_outlined
-                                : Icons.favorite_border_outlined,
+                      slivers: [
+                        // Desktop filters by typing; touch gets the field
+                        // (kept while a query is set so it can be cleared).
+                        if (!desktopMode &&
+                            (base.isNotEmpty || search.text.isNotEmpty))
+                          SliverToBoxAdapter(
+                            child: ListFilterField(
+                              controller: search,
+                              hint: l10n.libraryLikedAlbumsFilterHint,
+                              onChanged: onSearchChanged,
+                              onClear: _clearFilter,
+                            ),
                           ),
-                        ),
-                      ],
-                    );
-                  }
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      return CustomScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: [
+                        if (filteredAlbums.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: filtering && base.isNotEmpty
+                                ? FilterNoResults(
+                                    query: _filterQuery,
+                                    onClear: _clearFilter,
+                                  )
+                                : EmptyState(
+                                    title: downloadedOnly
+                                        ? l10n.libraryDownloadedOnlyEmpty
+                                        : l10n.libraryLikedEmptyTitle,
+                                    subtitle: downloadedOnly
+                                        ? l10n.libraryDownloadedOnlyEmptySubtitle
+                                        : l10n.libraryLikedEmptySubtitle,
+                                    icon: downloadedOnly
+                                        ? Icons.download_done_outlined
+                                        : Icons.favorite_border_outlined,
+                                  ),
+                          )
+                        else
                           ResponsiveContentSliverGrid(
                             itemCount: filteredAlbums.length,
                             itemBuilder: (context, index) {
@@ -881,15 +923,14 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                               );
                             },
                           ),
-                        ],
-                      );
-                    },
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -907,99 +948,148 @@ Widget _likedSyncBanner(Future<void> Function() onRetry) => Consumer(
 );
 
 /// A liked-artist destination when the general Artists page is hidden.
-class LikedArtistsAllScreen extends ConsumerWidget {
+class LikedArtistsAllScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LikedArtistsAllScreen> createState() =>
+      _LikedArtistsAllScreenState();
+}
+
+class _LikedArtistsAllScreenState extends ConsumerState<LikedArtistsAllScreen>
+    with
+        TypeToFilter<LikedArtistsAllScreen>,
+        DebouncedSearch<LikedArtistsAllScreen> {
+  /// The active filter: the typed query on desktop, else the touch field.
+  String get _filterQuery =>
+      (typeFilterQuery.isNotEmpty ? typeFilterQuery : query).trim();
+
+  void _clearFilter() {
+    clearSearch();
+    clearTypeFilter();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final artists = ref.watch(likedArtistsProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloaded = downloadedOnly
         ? ref.watch(downloadedContentIdsProvider).asData?.value
         : null;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     Future<void> refresh() => triggerLibrarySyncFromPull(ref);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.libraryLikedArtistsSectionTitle)),
-      body: Column(
-        children: <Widget>[
-          _likedSyncBanner(refresh),
-          Expanded(
-            child: NavisRefreshIndicator(
-              onRefresh: refresh,
-              child: artists.when(
-                loading: () => const _LoadingListPlaceholder(),
-                error: (error, stack) => ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    ErrorState(
-                      title: l10n.libraryArtistsErrorTitle,
-                      onRetry: refresh,
-                    ),
-                  ],
-                ),
-                data: (items) {
-                  final visible = downloadedOnly
-                      ? items
-                            .where(
-                              (artist) =>
-                                  downloaded?.artistIds.contains(artist.id) ??
-                                  false,
-                            )
-                            .toList(growable: false)
-                      : items;
-                  return CustomScrollView(
+      body: typeFilterFrame(
+        Column(
+          children: <Widget>[
+            _likedSyncBanner(refresh),
+            Expanded(
+              child: NavisRefreshIndicator(
+                onRefresh: refresh,
+                child: artists.when(
+                  loading: () => const _LoadingListPlaceholder(),
+                  error: (error, stack) => ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      if (visible.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: EmptyState(
-                            title: downloadedOnly
-                                ? l10n.libraryDownloadedOnlyEmpty
-                                : l10n.libraryLikedEmptyTitle,
-                            subtitle: downloadedOnly
-                                ? l10n.libraryDownloadedOnlyEmptySubtitle
-                                : l10n.libraryLikedEmptySubtitle,
-                            icon: Icons.person_outline,
-                          ),
-                        )
-                      else
-                        ResponsiveContentSliverGrid(
-                          artists: true,
-                          itemCount: visible.length,
-                          itemBuilder: (context, index) {
-                            final artist = visible[index];
-                            return ArtistCard.grid(
-                              key: ValueKey('liked-all-artist-${artist.id}'),
-                              artist: artist,
-                              onTap: () => NavService.openArtistDetail(
-                                context,
-                                ref,
-                                artist.id,
-                              ),
-                              onLongPress: () => showArtistContextMenu(
-                                context,
-                                ref,
-                                artist.id,
-                              ),
-                              onSecondaryTapDown: (details) =>
-                                  showArtistContextMenu(
-                                    context,
-                                    ref,
-                                    artist.id,
-                                    anchor: details.globalPosition,
-                                  ),
-                            );
-                          },
-                        ),
+                    children: [
+                      ErrorState(
+                        title: l10n.libraryArtistsErrorTitle,
+                        onRetry: refresh,
+                      ),
                     ],
-                  );
-                },
+                  ),
+                  data: (items) {
+                    final base = downloadedOnly
+                        ? items
+                              .where(
+                                (artist) =>
+                                    downloaded?.artistIds.contains(artist.id) ??
+                                    false,
+                              )
+                              .toList(growable: false)
+                        : items;
+                    final filtering = _filterQuery.isNotEmpty;
+                    final normalized = normalizeSearchText(_filterQuery);
+                    final visible = filtering
+                        ? base
+                              .where(
+                                (artist) => searchTextMatches(normalized, [
+                                  artist.name,
+                                ]),
+                              )
+                              .toList(growable: false)
+                        : base;
+                    return CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        // Desktop filters by typing; touch gets the field
+                        // (kept while a query is set so it can be cleared).
+                        if (!desktopMode &&
+                            (base.isNotEmpty || search.text.isNotEmpty))
+                          SliverToBoxAdapter(
+                            child: ListFilterField(
+                              controller: search,
+                              hint: l10n.libraryLikedArtistsFilterHint,
+                              onChanged: onSearchChanged,
+                              onClear: _clearFilter,
+                            ),
+                          ),
+                        if (visible.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: filtering && base.isNotEmpty
+                                ? FilterNoResults(
+                                    query: _filterQuery,
+                                    onClear: _clearFilter,
+                                  )
+                                : EmptyState(
+                                    title: downloadedOnly
+                                        ? l10n.libraryDownloadedOnlyEmpty
+                                        : l10n.libraryLikedEmptyTitle,
+                                    subtitle: downloadedOnly
+                                        ? l10n.libraryDownloadedOnlyEmptySubtitle
+                                        : l10n.libraryLikedEmptySubtitle,
+                                    icon: Icons.person_outline,
+                                  ),
+                          )
+                        else
+                          ResponsiveContentSliverGrid(
+                            artists: true,
+                            itemCount: visible.length,
+                            itemBuilder: (context, index) {
+                              final artist = visible[index];
+                              return ArtistCard.grid(
+                                key: ValueKey('liked-all-artist-${artist.id}'),
+                                artist: artist,
+                                onTap: () => NavService.openArtistDetail(
+                                  context,
+                                  ref,
+                                  artist.id,
+                                ),
+                                onLongPress: () => showArtistContextMenu(
+                                  context,
+                                  ref,
+                                  artist.id,
+                                ),
+                                onSecondaryTapDown: (details) =>
+                                    showArtistContextMenu(
+                                      context,
+                                      ref,
+                                      artist.id,
+                                      anchor: details.globalPosition,
+                                    ),
+                              );
+                            },
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

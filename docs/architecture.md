@@ -2748,6 +2748,9 @@ well as the root) and the player overlay stack before moving.
   Top Tracks by title and the playlist page filters songs by title, artist or
   album: touch layouts show a `ListFilterField`, desktop has no field. A
   filtered playlist is a plain list (no reordering) and plays the matches.
+  The Liked tab (touch field pinned above the list; its songs play the
+  matches) and the Liked Albums / Liked Artists "all" pages (title and artist /
+  name) filter the same way.
   Client-side list filters match with `searchTextMatches` (accent and case
   folded, `normalizeSearchText`). The screen's local type-to-filter query persists across section changes
   for keyboard input and clone-diagnostics commands alike. Diagnostics can

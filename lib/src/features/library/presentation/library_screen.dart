@@ -116,6 +116,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   bool _artistsLikedOnly = false;
   final ScrollController _albumsScrollController = ScrollController();
   final ScrollController _likedScrollController = ScrollController();
+  final TextEditingController _likedFilter = TextEditingController();
   final ScrollController _playlistsScrollController = ScrollController();
   final ScrollController _radioScrollController = ScrollController();
   final ItemScrollController _genresItemScrollController =
@@ -264,6 +265,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ..removeListener(_onAlbumsScroll)
       ..dispose();
     _likedScrollController.dispose();
+    _likedFilter.dispose();
     _artistsGridScrollController
       ..removeListener(_onArtistsGridScrolled)
       ..dispose();
@@ -1625,8 +1627,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
+  /// The Liked tab's active filter: the typed query on desktop, else the
+  /// touch field.
+  String get _likedQuery =>
+      (typeFilterQuery.isNotEmpty ? typeFilterQuery : _likedFilter.text).trim();
+
+  void _clearLikedFilter() {
+    _likedFilter.clear();
+    clearTypeFilter();
+  }
+
   Widget _buildLikedTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
+    final likedQuery = _likedQuery;
+    final normalizedLikedQuery = normalizeSearchText(likedQuery);
     // Filter the full recent order before deriving a pane-sized preview.
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
 
@@ -1661,7 +1675,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final filteredPlaybackSongs = _filterLikedSongs(
       likedPlaybackSongs,
       downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
-      typeFilterQuery: typeFilterQuery,
+      typeFilterQuery: likedQuery,
     );
     final artists = _downloadedOnly
         ? (likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[])
@@ -1673,30 +1687,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               .toList(growable: false)
         : likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[];
     // Apply type-to-filter if active.
-    final filteredAlbums = typeFilterQuery.isEmpty
+    final filteredAlbums = likedQuery.isEmpty
         ? albums
         : albums
               .where(
-                (a) => searchTextMatches(normalizeSearchText(typeFilterQuery), [
+                (a) => searchTextMatches(normalizedLikedQuery, [
                   a.name,
                   a.artistName,
                 ]),
               )
               .toList(growable: false);
-    final filteredArtists = typeFilterQuery.isEmpty
+    final filteredArtists = likedQuery.isEmpty
         ? artists
         : artists
-              .where(
-                (a) => searchTextMatches(normalizeSearchText(typeFilterQuery), [
-                  a.name,
-                ]),
-              )
+              .where((a) => searchTextMatches(normalizedLikedQuery, [a.name]))
               .toList(growable: false);
     final filteredSongs = _filterLikedSongs(
       likedSongsAsync.asData?.value ?? const <SongsTableData>[],
       downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
-      typeFilterQuery: typeFilterQuery,
+      typeFilterQuery: likedQuery,
     );
+    final showFilterField =
+        !desktopMode &&
+        (albums.isNotEmpty || artists.isNotEmpty || songs.isNotEmpty);
+    // A hidden field must not keep filtering content that appears later.
+    if (!showFilterField && _likedFilter.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _likedFilter.clear();
+        setState(() {});
+      });
+    }
     final error =
         likedAlbumsRecentAsync.error ??
         likedAlbumSongsAsync.error ??
@@ -1734,7 +1755,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
-    return NavisRefreshIndicator(
+    // Desktop filters by typing; touch gets the field, pinned above the list.
+    final refreshable = NavisRefreshIndicator(
       onRefresh: _refreshLibrary,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1776,24 +1798,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   filteredPlaybackSongs.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: EmptyState(
-                    title: typeFilterQuery.isNotEmpty
-                        ? l10n.libraryFilterNoResults(typeFilterQuery)
-                        : _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmpty
-                        : l10n.libraryLikedEmptyTitle,
-                    subtitle: typeFilterQuery.isNotEmpty
-                        ? l10n.libraryFilterNoResultsSubtitle
-                        : _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmptySubtitle
-                        : l10n.libraryLikedEmptySubtitle,
-                    icon: typeFilterQuery.isNotEmpty
-                        ? Icons.search_off_rounded
-                        : _downloadedOnly
-                        ? Icons.download_done_outlined
-                        : Icons.favorite_border_outlined,
-                    action: _buildClearFiltersAction(),
-                  ),
+                  child: likedQuery.isNotEmpty
+                      ? FilterNoResults(
+                          query: likedQuery,
+                          onClear: _clearLikedFilter,
+                        )
+                      : EmptyState(
+                          title: _downloadedOnly
+                              ? l10n.libraryDownloadedOnlyEmpty
+                              : l10n.libraryLikedEmptyTitle,
+                          subtitle: _downloadedOnly
+                              ? l10n.libraryDownloadedOnlyEmptySubtitle
+                              : l10n.libraryLikedEmptySubtitle,
+                          icon: _downloadedOnly
+                              ? Icons.download_done_outlined
+                              : Icons.favorite_border_outlined,
+                          action: _buildClearFiltersAction(),
+                        ),
                 )
               else ...<Widget>[
                 if (filteredArtists.isNotEmpty)
@@ -1994,6 +2015,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           );
         },
       ),
+    );
+    if (!showFilterField) return refreshable;
+    return Column(
+      children: <Widget>[
+        ListFilterField(
+          controller: _likedFilter,
+          hint: l10n.libraryLikedFilterHint,
+          onChanged: (_) => setState(() {}),
+          onClear: _clearLikedFilter,
+        ),
+        Expanded(child: refreshable),
+      ],
     );
   }
 
