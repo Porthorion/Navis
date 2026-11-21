@@ -2741,10 +2741,28 @@ well as the root) and the player overlay stack before moving.
   `librarySectionProvider` from the router's change notification (never during
   build), so returning to the tab, history, deep links and diagnostics select
   the section named. A Library location without a section keeps the current
-  one. The screen's local type-to-filter query persists across section changes
-  for keyboard input and clone-diagnostics commands alike. Diagnostics can
-  explicitly clear the query with an empty or null `query`; repeated queries
-  are new commands, so a query can be reapplied after the UI clears it.
+  one. The type-to-filter (keys, `Filtering:` badge, dimmed overlay) is the
+  shared `TypeToFilter` mixin (`common_widgets/type_to_filter.dart`), also used
+  by the artist and playlist detail pages, where it takes keys only while that
+  page is the current route. The artist page filters albums, Featured In and
+  Top Tracks by title and the playlist page filters songs by title, artist or
+  album: touch layouts show a `ListFilterField`, desktop has no field. A
+  filtered playlist is a plain list (no reordering) and plays the matches.
+  The Liked tab (touch field pinned above the list; its songs play the
+  matches) and the Liked Albums / Liked Artists "all" pages (title and artist /
+  name) filter the same way.
+  Client-side list filters match with `searchTextMatches` (accent and case
+  folded, `normalizeSearchText`); a query with nothing searchable (only
+  punctuation) is no filter. Each page tracks its own active type-to-filter
+  session (`libraryTypeFilterOwnersProvider`), and
+  `libraryTypeFilterActiveProvider` is true while any page has one, which
+  suppresses the text-sensitive transport shortcuts.
+
+  The Library screen's local type-to-filter query persists across section
+  changes for keyboard input and clone-diagnostics commands alike. Diagnostics
+  can explicitly clear the query with an empty or null `query`; repeated
+  queries are new commands, so a query can be reapplied after the UI clears
+  it.
 - **Page back buttons** use `NavService.back(context, fallback:)`: pop when the
   page has history, otherwise go to the fallback. `returnToLibrary` pops an
   unavailable detail page before switching to Library so it does not linger
