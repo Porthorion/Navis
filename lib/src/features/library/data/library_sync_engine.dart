@@ -5,13 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart'
-    show
-        BooleanExpressionOperators,
-        Table,
-        TableInfo,
-        TableUpdate,
-        Value,
-        Variable;
+    show BooleanExpressionOperators, Value, Variable;
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -782,20 +776,6 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     };
   }
 
-  /// Re-announces [tables], which a target hydration wrote, once its
-  /// transaction has committed. The DAO writes nest their own transactions,
-  /// and drift announces a nested transaction's tables when it completes,
-  /// before the outer commit; a stream re-reading then on a separate reader
-  /// connection (the app's WAL read pool) sees the old rows and is not told
-  /// again, so an artist or album page would wait for rows already stored.
-  void _notifyCommittedTargetWrites(
-    Iterable<TableInfo<Table, Object?>> tables,
-  ) {
-    _database.notifyUpdates(<TableUpdate>{
-      for (final table in tables) TableUpdate.onTable(table),
-    });
-  }
-
   Future<LibrarySyncState> hydrateAlbum(
     String albumId, {
     LibrarySyncProgressCallback? onProgress,
@@ -1017,11 +997,6 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
               );
             }
           });
-          _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
-            _database.artistsTable,
-            _database.albumsTable,
-            _database.songsTable,
-          ]);
           await _database.libraryDao.cleanupRemovedCacheFiles(
             deferredCacheFiles,
           );
@@ -1151,10 +1126,6 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             );
           }
         });
-        _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
-          _database.artistsTable,
-          _database.albumsTable,
-        ]);
         metrics.addDbWriteBatch();
         return state.copyWith(processed: 1);
       },

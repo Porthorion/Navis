@@ -169,50 +169,6 @@ class NavisDatabase extends _$NavisDatabase {
   new atPath(String databasePath)
     : this(_ReopeningExecutor(() => _openFileConnection(File(databasePath))));
 
-  final _transactionZoneKey = Object();
-
-  /// Replays nested write announcements after the outer WAL commit.
-  ///
-  /// Drift 2.35 forwards savepoint updates to the root stream store before
-  /// commit. Pooled readers can then see old data with no later invalidation.
-  @override
-  Future<T> transaction<T>(
-    Future<T> Function() action, {
-    bool requireNew = false,
-  }) async {
-    if (Zone.current[_transactionZoneKey] != null) {
-      return await super.transaction(action, requireNew: requireNew);
-    }
-
-    final updates = <TableUpdate>{};
-    // Capture the root store outside Drift's zone, but only listen once this
-    // transaction owns the writer lock. Queued transactions must not collect
-    // announcements from the transaction ahead of them.
-    final rootUpdates = tableUpdates();
-    final result = await runZoned(
-      () => super.transaction(() async {
-        final subscription = rootUpdates.listen(updates.addAll);
-        try {
-          return await action();
-        } finally {
-          // Stream.multi forwards root updates asynchronously. Drain the
-          // action's pending deliveries before canceling, while still holding
-          // the lock and before Drift dispatches this transaction's own tables.
-          await Future<void>.microtask(() {});
-          // Drift pipes a synchronous broadcast source into Stream.multi.
-          // cancel() detaches both listeners synchronously, but its future
-          // chains through Dart's root-zone completed future. Awaiting it can
-          // strand the commit in FakeAsync after its microtask drain returns.
-          unawaited(subscription.cancel());
-        }
-      }, requireNew: requireNew),
-      zoneValues: {_transactionZoneKey: true},
-    );
-    // Exceptions skip this replay and retain their original stack trace.
-    if (updates.isNotEmpty) notifyUpdates(updates);
-    return result;
-  }
-
   /// Reads SQLite's connection-local counter on the same writer every time.
   /// Ordinary pooled reads cannot be compared: each reader has its own counter.
   Future<int> readDataVersion() => exclusively(() async {
@@ -2451,7 +2407,7 @@ bool isDatabaseLockTimeout(Object error) {
       (cause.resultCode == 5 || cause.resultCode == 6);
 }
 
-/// Routes DAO transactions through the database's post-commit invalidation.
+/// Routes DAO transactions through the database's single transaction entry point.
 mixin NavisDaoTransactions on DatabaseAccessor<NavisDatabase> {
   @override
   Future<T> transaction<T>(

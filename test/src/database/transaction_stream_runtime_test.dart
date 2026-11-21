@@ -24,15 +24,23 @@ class _Watch<T> {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
   }
+}
 
-  Future<void> rereadAfter(Future<void> Function() write) async {
-    final before = values.length;
-    await write();
-    // Hold the writer transaction open until its premature root notification
-    // has made the WAL reader re-read. This reproduces a long sync transaction
-    // without depending on a fixed sleep or the writer/reader scheduling race.
-    await until((_) => values.length > before);
-  }
+// Drift >= 2.35.1 hands a nested transaction's table updates to the enclosing
+// transaction, so subscribers hear of them once, after the outermost COMMIT.
+// Returns the root announcements; the listener is created outside any
+// transaction.
+List<Set<TableUpdate>> _rootUpdates(NavisDatabase database) {
+  final updates = <Set<TableUpdate>>[];
+  final subscription = database.tableUpdates().listen(updates.add);
+  addTearDown(subscription.cancel);
+  return updates;
+}
+
+Future<void> _expectNoAnnouncement(List<Set<TableUpdate>> updates) async {
+  // The root store delivers through Stream.multi: drain it before asserting.
+  await Future<void>.delayed(Duration.zero);
+  expect(updates, isEmpty, reason: 'announced inside the open transaction');
 }
 
 // Adds only a commit barrier; the executor is still NavisDatabase.atPath's
@@ -99,7 +107,7 @@ void main() {
 
   for (final nested in [false, true]) {
     test(
-      'queued transaction does not replay preceding commit (nested: $nested)',
+      'queued transaction does not repeat preceding commit (nested: $nested)',
       () async {
         final updates = <Set<TableUpdate>>[];
         final subscription = database.tableUpdates().listen(updates.add);
@@ -162,35 +170,82 @@ void main() {
         );
         expect(
           updates.where((set) => set.any((u) => u.table == 'artists')),
-          hasLength(nested ? 2 : 1),
+          hasLength(1),
         );
       },
     );
   }
 
-  test(
-    'last asynchronous nested announcement is replayed after commit',
-    () async {
-      final updates = <Set<TableUpdate>>[];
-      final subscription = database.tableUpdates().listen(updates.add);
-      addTearDown(subscription.cancel);
+  test('nested announcement arrives once, after the outer commit', () async {
+    final updates = _rootUpdates(database);
+    await database.transaction(() async {
       await database.transaction(() async {
-        // This is the action's final write: no watch barrier or event-loop wait
-        // may be needed to collect tableUpdates' asynchronous delivery.
+        await database
+            .into(database.artistsTable)
+            .insert(ArtistsTableCompanion.insert(id: 'last', name: 'Last'));
+      }, requireNew: true);
+      await _expectNoAnnouncement(updates);
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      updates.where((set) => set.any((u) => u.table == 'artists')),
+      hasLength(1),
+    );
+    expect(await database.libraryDao.getArtistById('last'), isNotNull);
+  });
+
+  test(
+    'nested and requireNew writes reach a pooled reader after commit',
+    () async {
+      final watch = _Watch(database.select(database.artistsTable).watch());
+      await watch.until((rows) => rows.isEmpty);
+      final updates = _rootUpdates(database);
+      await database.transaction(() async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'nested', name: 'Nested'),
+        ]);
         await database.transaction(() async {
           await database
               .into(database.artistsTable)
-              .insert(ArtistsTableCompanion.insert(id: 'last', name: 'Last'));
+              .insert(
+                ArtistsTableCompanion.insert(id: 'savepoint', name: 'SP'),
+              );
         }, requireNew: true);
+        await _expectNoAnnouncement(updates);
+        expect(watch.values.last, isEmpty);
       });
-      await Future<void>.delayed(Duration.zero);
+      await watch.until((rows) => rows.length == 2);
       expect(
         updates.where((set) => set.any((u) => u.table == 'artists')),
-        hasLength(2),
+        hasLength(1),
       );
-      expect(await database.libraryDao.getArtistById('last'), isNotNull);
     },
   );
+
+  test('caught inner savepoint rollback announces once after commit', () async {
+    final watch = _Watch(database.select(database.artistsTable).watch());
+    await watch.until((rows) => rows.isEmpty);
+    final updates = _rootUpdates(database);
+    await database.transaction(() async {
+      try {
+        await database.transaction(() async {
+          await database
+              .into(database.artistsTable)
+              .insert(ArtistsTableCompanion.insert(id: 'gone', name: 'Gone'));
+          throw Exception('inner');
+        }, requireNew: true);
+      } on Exception {
+        // The savepoint is undone; the outer transaction continues.
+      }
+      await database
+          .into(database.artistsTable)
+          .insert(ArtistsTableCompanion.insert(id: 'kept', name: 'Kept'));
+      await _expectNoAnnouncement(updates);
+    });
+    await watch.until((rows) => rows.any((row) => row.id == 'kept'));
+    expect(watch.values.last.map((row) => row.id), ['kept']);
+    expect(updates, hasLength(1));
+  });
 
   for (final operation in [
     'like',
@@ -273,14 +328,14 @@ void main() {
   test('DAO setStarred publishes liked songs after outer commit', () async {
     final watch = _Watch(database.libraryDao.watchAllStarredSongs());
     await watch.until((rows) => rows.isEmpty);
+    final updates = _rootUpdates(database);
     await database.starSyncDao.transaction(() async {
-      await watch.rereadAfter(
-        () => database.starSyncDao.setStarred(
-          itemId: 'old',
-          itemType: 'song',
-          liked: true,
-        ),
+      await database.starSyncDao.setStarred(
+        itemId: 'old',
+        itemType: 'song',
+        liked: true,
       );
+      await _expectNoAnnouncement(updates);
       expect(watch.values.last, isEmpty);
     });
     await watch.until((rows) => rows.any((row) => row.id == 'old'));
@@ -289,14 +344,14 @@ void main() {
   test('DAO setRating publishes rating after outer commit', () async {
     final watch = _Watch(database.libraryDao.watchSongRating('old'));
     await watch.until((rating) => rating == null);
+    final updates = _rootUpdates(database);
     await database.starSyncDao.transaction(() async {
-      await watch.rereadAfter(
-        () => database.starSyncDao.setRating(
-          itemId: 'old',
-          itemType: 'song',
-          rating: 4,
-        ),
+      await database.starSyncDao.setRating(
+        itemId: 'old',
+        itemType: 'song',
+        rating: 4,
       );
+      await _expectNoAnnouncement(updates);
       expect(watch.values.last, isNull);
     });
     await watch.until((rating) => rating == 4);
@@ -304,35 +359,26 @@ void main() {
 
   test('playlist replacement publishes songs after outer commit', () async {
     final watch = _Watch(database.playlistDao.watchPlaylistSongs('playlist'));
-    final updates = <Set<TableUpdate>>[];
-    final subscription = database.tableUpdates().listen(updates.add);
-    addTearDown(subscription.cancel);
-    var beforeCommit = 0;
+    final updates = _rootUpdates(database);
     await watch.until((rows) => rows.isEmpty);
     await database.transaction(() async {
-      await watch.rereadAfter(
-        () => database.playlistDao.replaceHydratedPlaylist(
-          PlaylistsTableCompanion.insert(id: 'playlist', name: 'Playlist'),
-          [SongsTableCompanion.insert(id: 'old', title: 'Old')],
-          [
-            PlaylistSongsTableCompanion.insert(
-              playlistId: 'playlist',
-              songId: 'old',
-              sortOrder: 0,
-            ),
-          ],
-        ),
+      await database.playlistDao.replaceHydratedPlaylist(
+        PlaylistsTableCompanion.insert(id: 'playlist', name: 'Playlist'),
+        [SongsTableCompanion.insert(id: 'old', title: 'Old')],
+        [
+          PlaylistSongsTableCompanion.insert(
+            playlistId: 'playlist',
+            songId: 'old',
+            sortOrder: 0,
+          ),
+        ],
       );
+      await _expectNoAnnouncement(updates);
       expect(watch.values.last, isEmpty);
-      await Future<void>.delayed(Duration.zero);
-      beforeCommit = updates.length;
     });
     await Future<void>.delayed(Duration.zero);
     expect(
-      updates
-          .skip(beforeCommit)
-          .expand((set) => set)
-          .map((update) => update.table),
+      updates.expand((set) => set).map((update) => update.table),
       contains('playlist_songs'),
     );
     await watch.until((rows) => rows.any((row) => row.id == 'old'));
@@ -341,12 +387,12 @@ void main() {
   test('nested upsertArtists publishes artists after outer commit', () async {
     final watch = _Watch(database.libraryDao.watchArtists());
     await watch.until((rows) => rows.isEmpty);
+    final updates = _rootUpdates(database);
     await database.transaction(() async {
-      await watch.rereadAfter(
-        () => database.libraryDao.upsertArtists([
-          ArtistsTableCompanion.insert(id: 'artist', name: 'Artist'),
-        ]),
-      );
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'artist', name: 'Artist'),
+      ]);
+      await _expectNoAnnouncement(updates);
       expect(watch.values.last, isEmpty);
     });
     await watch.until((rows) => rows.any((row) => row.id == 'artist'));
@@ -356,8 +402,9 @@ void main() {
     // watchArtists intentionally excludes provisional references.
     final watch = _Watch(database.select(database.artistsTable).watch());
     await watch.until((rows) => rows.isEmpty);
+    final updates = _rootUpdates(database);
     database.beforeCommit = () async {
-      await watch.until((_) => watch.values.length > 1);
+      await _expectNoAnnouncement(updates);
       expect(watch.values.last, isEmpty);
     };
     await database.libraryDao.upsertArtists([
@@ -461,41 +508,29 @@ void main() {
     });
   }
 
-  test(
-    'rollback propagates unchanged without replay and later commit updates',
-    () async {
-      final watch = _Watch(database.libraryDao.watchArtists());
-      await watch.until((rows) => rows.isEmpty);
-      final updates = <Set<TableUpdate>>[];
-      final subscription = database.tableUpdates().listen(updates.add);
-      addTearDown(subscription.cancel);
-      final error = StateError('rollback sentinel');
-      var beforeRollback = 0;
-      await expectLater(
-        database.transaction(() async {
-          await watch.rereadAfter(
-            () => database.libraryDao.upsertArtists([
-              ArtistsTableCompanion.insert(id: 'rolled-back', name: 'Discard'),
-            ]),
-          );
-          beforeRollback = updates.length;
-          throw error;
-        }),
-        throwsA(same(error)),
-      );
-      // Drain microtasks: a failed transaction must not schedule a replay.
-      await Future<void>.delayed(Duration.zero);
-      expect(updates.length, beforeRollback);
-      expect(await database.libraryDao.getArtistById('rolled-back'), isNull);
-      await database.transaction(() async {
-        await watch.rereadAfter(
-          () => database.libraryDao.upsertArtists([
-            ArtistsTableCompanion.insert(id: 'committed', name: 'Keep'),
-          ]),
-        );
-      });
-      await watch.until((rows) => rows.any((row) => row.id == 'committed'));
-      expect(watch.values.last.any((row) => row.id == 'rolled-back'), isFalse);
-    },
-  );
+  test('rollback never shows the row and a later commit updates', () async {
+    final watch = _Watch(database.libraryDao.watchArtists());
+    await watch.until((rows) => rows.isEmpty);
+    final updates = _rootUpdates(database);
+    final error = StateError('rollback sentinel');
+    await expectLater(
+      database.transaction(() async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'rolled-back', name: 'Discard'),
+        ]);
+        await _expectNoAnnouncement(updates);
+        throw error;
+      }),
+      throwsA(same(error)),
+    );
+    expect(await database.libraryDao.getArtistById('rolled-back'), isNull);
+    await database.libraryDao.upsertArtists([
+      ArtistsTableCompanion.insert(id: 'committed', name: 'Keep'),
+    ]);
+    await watch.until((rows) => rows.any((row) => row.id == 'committed'));
+    expect(
+      watch.values.expand((rows) => rows).map((row) => row.id),
+      isNot(contains('rolled-back')),
+    );
+  });
 }

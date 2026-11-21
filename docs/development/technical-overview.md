@@ -60,7 +60,7 @@ Released target baselines:
 | Language | Dart | ^3.13.0 |
 | State management | flutter_riverpod | ^3.4.3 |
 | Navigation | go_router | ^18.0.1 |
-| Local database | drift + drift_flutter | ^2.35.0 / ^0.3.1 |
+| Local database | drift + drift_flutter | ^2.35.4 / ^0.3.1 |
 | Audio playback | just_audio + audio_service | ^0.10.6 / ^0.18.19 |
 | Android background work | WorkManager | 2.12.0 |
 | Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.12.0 |
