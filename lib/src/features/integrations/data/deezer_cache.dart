@@ -21,6 +21,12 @@ abstract final class DeezerCache {
   /// releases on Home.
   static const artistRecentAlbumsNamespace = 'deezer.artist-recent-albums';
 
+  /// Deezer track id → `/track/{id}` (bpm, release date, explicit flag).
+  static const trackNamespace = 'deezer.track';
+
+  /// Deezer artist id → the raw `/artist/{id}/top?limit=5`, Deezer's order.
+  static const artistTopFiveNamespace = 'deezer.artist-top5';
+
   /// `/chart/0/tracks`, for Trending on Home.
   static const chartNamespace = 'deezer.chart';
 
@@ -30,6 +36,8 @@ abstract final class DeezerCache {
   static const relatedArtistsTtl = Duration(days: 7);
   static const albumsTtl = Duration(hours: 24);
 
+  static const trackTtl = Duration(days: 30);
+  static const topFiveTtl = Duration(hours: 24);
   static const trackSearchTtl = Duration(hours: 24);
   static const chartTtl = Duration(hours: 6);
 

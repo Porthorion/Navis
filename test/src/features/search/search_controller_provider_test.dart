@@ -148,6 +148,8 @@ class _FakeDeezerCatalog extends DeezerCatalog {
     String query, {
     int limit = DeezerCatalog.searchLimit,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) => _answer('tracks:$query', tracks, cancelToken);
 
   @override

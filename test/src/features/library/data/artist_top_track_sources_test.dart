@@ -41,6 +41,8 @@ class _FakeDeezer extends DeezerApiClient {
     int artistId, {
     int limit = 50,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
     topCalls++;
     return top;
@@ -51,6 +53,8 @@ class _FakeDeezer extends DeezerApiClient {
     String query, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
     searchCalls++;
     if (searchError case final error?) throw error;

@@ -1475,7 +1475,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final position = _player.position;
     final thresholdReached =
         _player.processingState == ProcessingState.completed ||
-        _hasReachedSubmissionThreshold(duration: duration, position: position);
+        reachedScrobbleThreshold(duration: duration, position: position);
 
     if (!thresholdReached) {
       return;
@@ -1555,21 +1555,6 @@ extension _NavisMediaSession on NavisAudioHandler {
         '${songId}_${DateTime.now().microsecondsSinceEpoch}';
     _sentNowPlayingScrobble = false;
     _sentSubmissionScrobble = false;
-  }
-
-  bool _hasReachedSubmissionThreshold({
-    required Duration? duration,
-    required Duration position,
-  }) {
-    if (duration == null || duration <= Duration.zero) {
-      return false;
-    }
-    final halfDurationMs = duration.inMilliseconds ~/ 2;
-    final thresholdMs = math.min(
-      halfDurationMs,
-      const Duration(minutes: 4).inMilliseconds,
-    );
-    return position.inMilliseconds >= thresholdMs;
   }
 
   void _emitSnapshot() {
