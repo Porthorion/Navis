@@ -52,6 +52,10 @@ const _kDeezerRefillLegTimeout = Duration(seconds: 20);
 /// pool holds (the top-up keeps running).
 const _kVibesTopUpWait = Duration(seconds: 12);
 
+/// The largest position step that counts as listening (a seek, a stale tick
+/// of the previous song or a backwards jump only moves the baseline).
+const _kListenedTickMax = Duration(seconds: 3);
+
 /// Deezer was over its quota or too slow; the server fills, nothing retries.
 const _kDeezerSkippedReason = 'deezer_skipped';
 
@@ -119,14 +123,17 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
   /// Mix songs the player left after the scrobble threshold, oldest first
   /// (#743). The snapshot's position is not refreshed on every tick, so the
-  /// furthest streamed position of the playing song is tracked separately.
+  /// listened time of the playing song is accumulated from the position
+  /// stream: only ticks that advance by a normal step count, so a seek or a
+  /// stale tick of the previous song never credits a skipped song.
   final List<String> _playedThrough = <String>[];
 
   /// Artist names of the songs the mix queued, for the played-through radios.
   final Map<String, String> _mixArtists = <String, String>{};
   String? _playingSongId;
   Duration _playingDuration = Duration.zero;
-  Duration _furthestPosition = Duration.zero;
+  Duration _listened = Duration.zero;
+  Duration _lastTick = Duration.zero;
 
   /// The mix's Deezer lists, created by its first Deezer leg and set after
   /// `session.start()` (#743). Every refill reads it into a local first.
@@ -153,8 +160,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     ref.listen<PlaybackSnapshot>(playerStateProvider, _onSnapshotChanged);
     ref.listen<AsyncValue<Duration>>(playbackPositionProvider, (_, next) {
       final position = next.asData?.value;
-      if (position != null && position > _furthestPosition) {
-        _furthestPosition = position;
+      if (position == null || !state.active) return;
+      final delta = position - _lastTick;
+      _lastTick = position;
+      if (delta > Duration.zero && delta <= _kListenedTickMax) {
+        _listened += delta;
       }
     });
     ref.listen<int>(regularQueueReplacementEpochProvider, (prev, next) {
@@ -268,7 +278,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _mixArtists.clear();
     _playingSongId = null;
     _playingDuration = Duration.zero;
-    _furthestPosition = Duration.zero;
+    _listened = Duration.zero;
+    _lastTick = Duration.zero;
   }
 
   /// Notes a mix song the player just left after the scrobble threshold.
@@ -286,7 +297,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         (_mixSongIds?.contains(left) ?? false) &&
         reachedScrobbleThreshold(
           duration: _playingDuration,
-          position: _furthestPosition,
+          position: _listened,
         )) {
       _playedThrough
         ..remove(left)
@@ -294,7 +305,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
     _playingSongId = id;
     _playingDuration = next.duration;
-    _furthestPosition = Duration.zero;
+    _listened = Duration.zero;
+    _lastTick = Duration.zero;
   }
 
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {

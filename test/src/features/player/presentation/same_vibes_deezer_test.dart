@@ -308,9 +308,18 @@ class _Rig {
           ).copyWith(position: Duration(milliseconds: tick)),
         );
     await pumpEventQueue();
-    if (position != null) {
-      positions.add(position);
-      await pumpEventQueue();
+    if (position != null) await listen(position);
+  }
+
+  /// Plays the current song from its start up to [position] in 2 s ticks, the
+  /// way the player streams it (a seek would be one big step).
+  Future<void> listen(Duration position, {Duration from = Duration.zero}) async {
+    var at = from;
+    while (at < position) {
+      at += const Duration(seconds: 2);
+      if (at > position) at = position;
+      positions.add(at);
+      await pumpEventQueue(times: 3);
     }
   }
 
@@ -1378,6 +1387,71 @@ void main() {
         await rig.refill();
 
         verifyLiked(rig, int.parse(rel.substring(3, 5)), times: 1);
+      });
+
+      List<String> twoRelArtists(_Rig rig) {
+        final byArtist = <String, String>{};
+        for (final id in relSongs(rig)) {
+          byArtist.putIfAbsent(id.substring(0, 5), () => id);
+        }
+        return byArtist.values.take(2).toList();
+      }
+
+      test('a late tick of the previous song does not credit a skipped song '
+          '(F1)', () async {
+        final rig = neighbourhoodRig();
+        await rig.start();
+        await rig.settle();
+        clearInteractions(rig.deezer);
+        final [a, b] = twoRelArtists(rig);
+        await playThrough(rig, a);
+        await rig.play(b);
+        // The outgoing song's position, delivered after the snapshot moved.
+        rig.positions.add(const Duration(seconds: 176));
+        await pumpEventQueue(times: 3);
+        rig.positions.add(const Duration(seconds: 178));
+        await pumpEventQueue(times: 3);
+        await rig.play(otherSong(rig));
+        await rig.refill();
+
+        int idOf(String song) => int.parse(song.substring(3, 5));
+        verifyLiked(rig, idOf(a), times: 1);
+        verifyNever(
+          () => rig.deezer.getArtistRadio(
+            idOf(b),
+            limit: 25,
+            cancelToken: any(named: 'cancelToken'),
+            background: true,
+            retryQuota: false,
+          ),
+        );
+        expect(liked(rig), 1);
+      });
+
+      test('a seek past the threshold followed by a skip is not credited '
+          '(F1)', () async {
+        final rig = neighbourhoodRig();
+        await rig.start();
+        await rig.settle();
+        clearInteractions(rig.deezer);
+        final rel = relSongs(rig).first;
+        await rig.play(rel);
+        await rig.listen(const Duration(seconds: 10));
+        rig.positions.add(const Duration(seconds: 150));
+        await pumpEventQueue(times: 3);
+        await rig.play(otherSong(rig));
+        await rig.refill();
+
+        verifyNever(
+          () => rig.deezer.getArtistRadio(
+            any(),
+            limit: 25,
+            cancelToken: any(named: 'cancelToken'),
+            background: true,
+            retryQuota: false,
+          ),
+        );
+        expect(liked(rig), 0);
       });
 
       test('Last.fm mode ignores played-through songs', () async {
