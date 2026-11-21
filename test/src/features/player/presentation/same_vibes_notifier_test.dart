@@ -4422,6 +4422,52 @@ void main() {
       expect(container.read(sameVibesProvider).seedSongId, 'seed-b');
     });
 
+    group('refill dropped by the post-refill block (#747)', () {
+      /// Jumps near the queue end while the 1.2 s block after the initial
+      /// refill is still up (the clock is 1.15 s on: 50 ms of block left).
+      Future<void> jumpInsideBlock() async {
+        await start();
+        expect(asked, hasLength(1));
+        fakeNow = fakeNow.add(const Duration(milliseconds: 1150));
+        emitOn(15);
+        await settle();
+        expect(asked, hasLength(1), reason: 'blocked, nothing runs yet');
+      }
+
+      test('one refill runs when the block ends, without another '
+          'snapshot', () async {
+        await jumpInsideBlock();
+        fakeNow = fakeNow.add(const Duration(seconds: 1));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await settle();
+        expect(asked, hasLength(2));
+        expect(asked.last, 'Artist-q-15');
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        expect(asked, hasLength(2), reason: 'exactly one re-check');
+      });
+
+      test('a re-check that is still blocked does not loop', () async {
+        await jumpInsideBlock();
+        // The clock stands still: the re-check skips again and gives up.
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await settle();
+        expect(asked, hasLength(1));
+        fakeNow = fakeNow.add(const Duration(seconds: 1));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        expect(asked, hasLength(1), reason: 'no timer left to spin');
+      });
+
+      test('deactivating inside the block cancels the re-check', () async {
+        await jumpInsideBlock();
+        notifier().deactivate();
+        fakeNow = fakeNow.add(const Duration(seconds: 1));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await settle();
+        expect(asked, hasLength(1));
+        expect(container.read(sameVibesProvider).active, isFalse);
+      });
+    });
+
     test('an emptied queue ends the mix and stops its session', () async {
       await start();
       expect(
