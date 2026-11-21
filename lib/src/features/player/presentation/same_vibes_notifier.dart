@@ -565,7 +565,15 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               'code=${error.code} message="${error.message}" '
               'endpointUnsupported=$endpointUnsupported',
             );
-            if (endpointUnsupported && mappedSongs.isEmpty) {
+            // The user's own rejected Last.fm key outranks "server unsupported":
+            // fall through to the terminal invalid-key check below (#717).
+            final userKeyRejected =
+                (lastFmResult.apiErrorCode == 10 ||
+                    lastFmResult.apiErrorCode == 26) &&
+                !ref.read(lastFmBundledKeyProvider);
+            if (endpointUnsupported &&
+                mappedSongs.isEmpty &&
+                !userKeyRejected) {
               if (!_isCurrent(session)) return;
               state = const SameVibesState(error: SameVibesError.unsupported);
               _reportFailed(session, SameVibesError.unsupported);
