@@ -44,6 +44,13 @@ void main() {
     );
   });
 
+  test('a cancelled file_picker panel picks nothing', () async {
+    final previous = FilePickerPlatform.instance;
+    FilePickerPlatform.instance = _FakePicker(null);
+    addTearDown(() => FilePickerPlatform.instance = previous);
+    expect(await pickDownloadDirectory(title: 'Choose'), isNull);
+  });
+
   test('a Runner without the channel falls back to file_picker', () async {
     final previous = FilePickerPlatform.instance;
     FilePickerPlatform.instance = _FakePicker('/fallback');

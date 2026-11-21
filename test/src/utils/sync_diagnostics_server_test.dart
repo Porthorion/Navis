@@ -2357,15 +2357,15 @@ void main() {
       final provider = requiredLibraryRebuildControllerProvider(
         RequiredLibraryRebuildReason.initialLogin,
       );
-      expect(fixture.container.exists(provider), isFalse);
+      expect(fixture.container.read(provider.exists), isFalse);
       final response = await fixture.get('/v1/session/status');
       expect(response.statusCode, HttpStatus.ok);
       expect(response.body['initialSync'], 'idle');
-      expect(fixture.container.exists(provider), isFalse);
+      expect(fixture.container.read(provider.exists), isFalse);
       for (final action in ['retry', 'mobile', 'cancel']) {
         final inactive = await fixture.post('/v1/session/initial-sync/$action');
         expect(inactive.statusCode, HttpStatus.conflict);
-        expect(fixture.container.exists(provider), isFalse);
+        expect(fixture.container.read(provider.exists), isFalse);
       }
     },
   );
