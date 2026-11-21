@@ -70,7 +70,7 @@ SameVibesRanking rankSameVibesPool({
       final i = index.putIfAbsent(key, () {
         items.add(t);
         counts.add(0);
-        scores.add(0.0);
+        scores.add(0);
         return items.length - 1;
       });
       counts[i]++;
