@@ -131,11 +131,38 @@ class DeezerApiClient {
     int artistId, {
     int limit = 50,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) async {
-    final data = await _getData('artist/$artistId/top', <String, Object>{
-      'limit': limit,
-    }, cancelToken: cancelToken);
+    final data = await _getData(
+      'artist/$artistId/top',
+      <String, Object>{'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    );
     return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
+  }
+
+  /// `/track/{id}`: the one endpoint with bpm, release date and the explicit
+  /// flag. Null when Deezer has no such track.
+  Future<DeezerTrack?> getTrack(
+    int id, {
+    CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
+  }) async {
+    if (id <= 0) return null;
+    final body = await getJson(
+      'track/$id',
+      const <String, Object>{},
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    );
+    if (body == null) return null;
+    final track = DeezerTrack.fromJson(body);
+    return _hasTrackId(track) ? track : null;
   }
 
   /// `/search/track?q=<query>`: tracks matching [query]. Results include

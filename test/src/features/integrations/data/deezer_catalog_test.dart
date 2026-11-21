@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
+import 'package:navis/src/features/integrations/data/deezer_cache.dart';
 import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -13,6 +14,7 @@ class _FakeDeezer extends DeezerApiClient {
 
   final List<String> calls = <String>[];
   final List<bool> relatedRetryQuota = <bool>[];
+  final List<bool> trackRetryQuota = <bool>[];
   Exception? error;
 
   @override
@@ -94,6 +96,42 @@ class _FakeDeezer extends DeezerApiClient {
         title: '25',
         artist: DeezerArtist(id: 75798, name: 'Adele'),
       ),
+    ];
+  }
+
+  @override
+  Future<DeezerTrack?> getTrack(
+    int id, {
+    CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
+  }) async {
+    calls.add('track/$id${_mark(background)}');
+    trackRetryQuota.add(retryQuota);
+    return DeezerTrack(
+      id: id,
+      title: 'Dracula',
+      artist: const DeezerArtist(id: 7, name: 'Tame Impala'),
+      bpm: 118,
+    );
+  }
+
+  @override
+  Future<List<DeezerTrack>> getArtistTopTracks(
+    int artistId, {
+    int limit = 50,
+    CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
+  }) async {
+    calls.add('artist/$artistId/top?limit=$limit${_mark(background)}');
+    return [
+      for (var i = 0; i < limit; i++)
+        DeezerTrack(
+          id: 100 + i,
+          title: 'Top $i',
+          artist: DeezerArtist(id: artistId, name: 'Artist'),
+        ),
     ];
   }
 
@@ -216,6 +254,34 @@ void main() {
     now = now.add(const Duration(minutes: 1));
     await catalog.chartTracks();
     expect(deezer.calls, hasLength(2));
+  });
+
+  test('a track is kept for 30 days', () async {
+    expect((await catalog.track(5, retryQuota: false))?.bpm, 118);
+    expect(deezer.trackRetryQuota, [false]);
+    now = now.add(const Duration(days: 29, hours: 23));
+    expect((await catalog.track(5))?.bpm, 118);
+    expect(deezer.calls, ['track/5']);
+
+    now = now.add(const Duration(hours: 1));
+    await catalog.track(5, background: true);
+    expect(deezer.calls, ['track/5', 'track/5 (background)']);
+  });
+
+  test('the top five is asked with limit 5 and kept 24 hours apart', () async {
+    final top = await catalog.artistTopFive(7, background: true);
+    expect(top.map((t) => t.id), [100, 101, 102, 103, 104]);
+    now = now.add(const Duration(hours: 23, minutes: 59));
+    await catalog.artistTopFive(7);
+    expect(deezer.calls, ['artist/7/top?limit=5 (background)']);
+
+    now = now.add(const Duration(minutes: 1));
+    await catalog.artistTopFive(7);
+    expect(deezer.calls, hasLength(2));
+    expect(
+      DeezerCache.artistTopFiveNamespace,
+      isNot(DeezerCache.artistTopTracksNamespace),
+    );
   });
 
   test('search results are kept 10 minutes per query, ignoring case', () async {

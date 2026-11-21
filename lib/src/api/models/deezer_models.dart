@@ -132,12 +132,20 @@ class DeezerTrack {
     this.durationSeconds,
     this.rank,
     this.album,
+    this.bpm,
+    this.releaseDate,
+    this.explicitLyrics,
   });
 
   factory fromJson(Map<String, dynamic> json) {
     final artist = json['artist'];
     final album = json['album'];
     return DeezerTrack(
+      bpm: json['bpm'] is num ? (json['bpm'] as num).toDouble() : null,
+      releaseDate: _string(json['release_date']),
+      explicitLyrics: json['explicit_lyrics'] is bool
+          ? json['explicit_lyrics'] as bool
+          : null,
       id: _int(json['id']) ?? 0,
       title: _string(json['title']) ?? '',
       titleShort: _string(json['title_short']),
@@ -168,9 +176,22 @@ class DeezerTrack {
   final DeezerArtist artist;
   final DeezerAlbum? album;
 
+  /// Only on `/track/{id}`. 0 means Deezer has no tempo; callers treat it as
+  /// absent.
+  final double? bpm;
+
+  /// Only on `/track/{id}`, kept verbatim ("0000-00-00" when unknown).
+  final String? releaseDate;
+
+  /// Only on `/track/{id}`.
+  final bool? explicitLyrics;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
     'title': title,
+    'bpm': ?bpm,
+    'release_date': ?releaseDate,
+    'explicit_lyrics': ?explicitLyrics,
     'title_short': ?titleShort,
     'title_version': ?titleVersion,
     'isrc': ?isrc,
