@@ -94,6 +94,16 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   final math.Random _random = math.Random();
   Timer? _retryTimer;
 
+  /// Re-checks a refill the post-refill block dropped (#747).
+  Timer? _blockRecheckTimer;
+  bool _inBlockRecheck = false;
+
+  /// Listened-time feed, open while a mix is active (#747). A container-level
+  /// listener, not `ref.listen`: Riverpod 3 deactivates the notifier's own
+  /// subscriptions when nothing listens to the notifier, and an unlistened
+  /// position stream is paused, so played-through would stop counting.
+  ProviderSubscription<AsyncValue<Duration>>? _positionSub;
+
   /// `deezer` or `lastFm`: the source the latest recommendation fetch used.
   String _recommendationSource = 'lastFm';
   DateTime? _nextRefillAllowedAt;
@@ -158,15 +168,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   @override
   SameVibesState build() {
     ref.listen<PlaybackSnapshot>(playerStateProvider, _onSnapshotChanged);
-    ref.listen<AsyncValue<Duration>>(playbackPositionProvider, (_, next) {
-      final position = next.asData?.value;
-      if (position == null || !state.active) return;
-      final delta = position - _lastTick;
-      _lastTick = position;
-      if (delta > Duration.zero && delta <= _kListenedTickMax) {
-        _listened += delta;
-      }
-    });
     ref.listen<int>(regularQueueReplacementEpochProvider, (prev, next) {
       if (state.active) {
         deactivate();
@@ -184,6 +185,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     ref.onDispose(() {
       _retryTimer?.cancel();
       _retryTimer = null;
+      _blockRecheckTimer?.cancel();
+      _blockRecheckTimer = null;
+      _positionSub?.close();
+      _positionSub = null;
     });
     return const SameVibesState.inactive();
   }
@@ -214,6 +219,19 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     // A fresh state also clears the refilling flag of a refill still running
     // for a superseded mix, so this mix's first refill starts at once.
     state = SameVibesState(active: true, seedSongId: normalizedSeedSongId);
+    _positionSub?.close();
+    _positionSub = ref.container.listen<AsyncValue<Duration>>(
+      playbackPositionProvider,
+      (_, next) {
+        final position = next.asData?.value;
+        if (position == null || !state.active) return;
+        final delta = position - _lastTick;
+        _lastTick = position;
+        if (delta > Duration.zero && delta <= _kListenedTickMax) {
+          _listened += delta;
+        }
+      },
+    );
     try {
       await _refill(isInitial: true);
     } finally {
@@ -238,6 +256,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _session = null;
     _retryTimer?.cancel();
     _retryTimer = null;
+    _blockRecheckTimer?.cancel();
+    _blockRecheckTimer = null;
+    _positionSub?.close();
+    _positionSub = null;
     _nextRefillAllowedAt = null;
     _consecutiveTransientFailures = 0;
     _parkedSeedSongId = null;
@@ -359,6 +381,28 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         'SameVibes diagnostics: refill skipped (backoff active '
         'until=${nextAllowed.toIso8601String()})',
       );
+      // Steady playback sends no further snapshot (#747): look again when
+      // the block ends, unless a retry timer will refill by itself or this
+      // is already that look (an injected clock that stands still must not
+      // loop).
+      if (!isInitial &&
+          !(_retryTimer?.isActive ?? false) &&
+          _blockRecheckTimer == null &&
+          !_inBlockRecheck) {
+        _blockRecheckTimer = Timer(
+          nextAllowed.difference(now) + const Duration(milliseconds: 50),
+          () {
+            _blockRecheckTimer = null;
+            if (!ref.mounted || !state.active) return;
+            _inBlockRecheck = true;
+            try {
+              _onSnapshotChanged(null, ref.read(playerStateProvider));
+            } finally {
+              _inBlockRecheck = false;
+            }
+          },
+        );
+      }
       return;
     }
 
@@ -397,6 +441,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _nextRefillAllowedAt = now.add(_kMinimumRefillInterval);
     _retryTimer?.cancel();
     _retryTimer = null;
+    _blockRecheckTimer?.cancel();
+    _blockRecheckTimer = null;
 
     state = state.copyWith(refilling: true, clearError: true);
     const targetBatch = _kTargetQueueBatchSize;
