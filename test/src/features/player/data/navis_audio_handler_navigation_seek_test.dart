@@ -5602,6 +5602,57 @@ void main() {
       );
     });
 
+    test('a paused isolate is not counted as a seek stall', () async {
+      final (handler, player, _) = await setup();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      player.nativePositionFrozen = true;
+      var ticks = 0;
+      final flap = Timer.periodic(const Duration(milliseconds: 40), (_) {
+        player.state = player.state == ProcessingState.ready
+            ? ProcessingState.buffering
+            : ProcessingState.ready;
+        if (++ticks == 6) {
+          // The isolate stops for longer than the stall window (CI jitter,
+          // GC) while the backend reads ready: nothing was observed.
+          player.state = ProcessingState.ready;
+          final stall = Stopwatch()..start();
+          while (stall.elapsedMilliseconds < 200) {}
+        }
+      });
+      final landed = Timer(const Duration(milliseconds: 700), () {
+        flap.cancel();
+        player
+          ..state = ProcessingState.ready
+          ..simulatedPosition = player.simulatedPosition
+          ..nativePositionFrozen = false;
+      });
+      addTearDown(() {
+        flap.cancel();
+        landed.cancel();
+      });
+      await handler.seek(const Duration(seconds: 90));
+      final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+      expect(outcome['outcome'], 'completed');
+      expect(outcome['recoveryAttempts'], 0);
+    });
+
+    test('a frozen ready backend under isolate jank still recovers', () async {
+      final (handler, player, _) = await setup();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      player.nativePositionFrozen = true;
+      final jank = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        final pause = Stopwatch()..start();
+        while (pause.elapsedMilliseconds < 120) {}
+      });
+      addTearDown(jank.cancel);
+      final started = Stopwatch()..start();
+      await handler.seek(const Duration(seconds: 90));
+      jank.cancel();
+      final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
+      expect(seek['recoveryAttempts'], 1);
+      expect(started.elapsed, lessThan(const Duration(seconds: 3)));
+    });
+
     test('desktop buffering seek outlasts the load deadline without a download signal', () async {
       final directory = await Directory.systemTemp.createTemp('navis-seek-');
       final (handler, player, database) = await createHandler(

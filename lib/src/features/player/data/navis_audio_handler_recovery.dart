@@ -864,9 +864,18 @@ extension _NavisRecovery on NavisAudioHandler {
     Duration? nearPosition;
     Duration? farSince;
     String? unsettled;
+    var lastSampleAt = Duration.zero;
     while (true) {
       _checkSeekCurrent(request, token);
       final now = elapsed.elapsed;
+      // Time this loop did not run observed nothing: do not count it toward
+      // a stall. Two poll intervals of ordinary jitter still count.
+      final unobserved = now - lastSampleAt - const Duration(milliseconds: 50);
+      if (unobserved > Duration.zero) {
+        lastActivity += unobserved;
+        if (farSince != null) farSince += unobserved;
+      }
+      lastSampleAt = now;
       final position = _seekSettlementPosition;
       final buffer = _player.bufferedPosition;
       final processing = _player.processingState;
