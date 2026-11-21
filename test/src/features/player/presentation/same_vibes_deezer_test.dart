@@ -1118,6 +1118,11 @@ void main() {
           ..relatedRadio = relatedList
           ..relatedTop = ((id) async => [tk(id * 10 + 1, 'Rel$id', 'Top$id')])
           ..searchHits = [tk(700, 'Seed Artist', 'Seed Song', artistId: 27)];
+        // Server songs keep the mix alive, so only the leg timeout (not a
+        // session stop) can cancel the held request.
+        rig.serverSimilar = [
+          for (final l in _letters.take(3)) Song(id: 'srv-$l', title: 'S$l'),
+        ];
         final tokens = <CancelToken>[];
         final held = Completer<List<DeezerTrack>>();
         var hang = false;
@@ -1148,6 +1153,7 @@ void main() {
         expect(tokens.single.isCancelled, isFalse);
         async.elapse(const Duration(seconds: 21));
         async.flushMicrotasks();
+        expect(rig.state.active, isTrue);
         expect(tokens.single.isCancelled, isTrue);
 
         // The cancelled leg answers late with songs of its own.
