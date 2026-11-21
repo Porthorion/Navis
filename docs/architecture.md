@@ -4787,7 +4787,8 @@ queues nothing without a failure (Last.fm has no or only queued similar songs,
 the server has none left, or the seed is not server-addressable) is not a
 failure: the mix parks on that seed, with no retry timer and no failure count,
 and refills on the same song return at once. The next current song unparks it
-and the refill runs normally. Only real failures retry with backoff: Last.fm
+and the refill runs normally. A refill that lands inside the 1.2 s block after the previous one is
+not dropped: one timer re-checks the queue when the block ends. Only real failures retry with backoff: Last.fm
 network or parse errors and other API errors than "track not found", server
 fallback errors, and for Server Mix a connection failure. Five consecutive
 failed refills (`retryExhausted`) park the mix the same way, silently, and the
@@ -4837,7 +4838,8 @@ counts when the player leaves it after reaching the scrobble threshold (half the
 song, capped at four minutes; `reachedScrobbleThreshold`, shared with
 scrobbling); a skip never counts and never moves the anchor. The snapshot's
 position is not refreshed on every tick, so the notifier adds up the time
-listened from `playbackPositionProvider`: a tick counts only when it advances
+listened from `playbackPositionProvider` (a container-level listener kept open
+while a mix is active, so no UI listener is needed): a tick counts only when it advances
 the position by up to three seconds, so a seek, a backwards jump or a stale
 tick of the previous song never credits a skipped song. This is stricter than
 scrobbling: a seek past the threshold followed by a skip does not count. The signal is recorded
