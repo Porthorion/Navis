@@ -238,6 +238,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       // A newer activation owns the flag now.
       if (identical(_session, session)) {
         _activationInProgress = false;
+        // A failed first refill ends the mix without deactivate().
+        if (!state.active) {
+          _positionSub?.close();
+          _positionSub = null;
+        }
       }
     }
   }
