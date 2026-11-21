@@ -166,14 +166,14 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     final effectiveItems = playlistsAsync.asData?.value ?? _cachedPlaylistItems;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final query = _query;
+    final normalizedQuery = normalizeSearchText(query);
     final visibleItems = query.isEmpty
         ? effectiveItems
         : effectiveItems
               .where(
-                (item) => _displayTitle(
-                  l10n,
-                  item,
-                ).toLowerCase().contains(query.toLowerCase()),
+                (item) => searchTextMatches(normalizedQuery, [
+                  _displayTitle(l10n, item),
+                ]),
               )
               .toList(growable: false);
 

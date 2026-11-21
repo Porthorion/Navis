@@ -3033,6 +3033,24 @@ void main() {
       },
     );
 
+    _testWidgetsWithCleanup('playlists tab filter folds accents and case', (
+      tester,
+    ) async {
+      await _pumpPlaylistsTab(
+        tester,
+        items: const <PlaylistLibraryItem>[
+          PlaylistLibraryItem.normal(
+            PlaylistsTableData(isLocal: false, id: 'c', name: 'Caf\u00e9 Mix'),
+          ),
+          PlaylistLibraryItem.normal(_roadTrip),
+        ],
+      );
+      await tester.enterText(find.byType(TextField), 'CAFE');
+      await tester.pumpAndSettle();
+      expect(find.text('Caf\u00e9 Mix'), findsOneWidget);
+      expect(find.text('Road Trip'), findsNothing);
+    });
+
     _testWidgetsWithCleanup(
       'desktop playlists tab filters by the Library type-to-filter query',
       (tester) async {

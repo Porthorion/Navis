@@ -3356,6 +3356,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistsFilterHint => 'Search playlists...';
 
   @override
+  String get artistDetailFilterHint => 'Filter albums and songs...';
+
+  @override
+  String get playlistDetailFilterHint => 'Filter songs...';
+
+  @override
   String get playlistsSectionYours => 'Your Playlists';
 
   @override

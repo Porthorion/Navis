@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/song_sheet_header.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
@@ -456,11 +457,10 @@ class _QueueTab extends ConsumerWidget {
             : items
                   .where((item) {
                     final song = resolvedSongs[item.id];
-                    final title = (song?.title ?? item.songId ?? '')
-                        .toLowerCase();
-                    final artist = (song?.artistName ?? '').toLowerCase();
-                    final q = query.toLowerCase();
-                    return title.contains(q) || artist.contains(q);
+                    return searchTextMatches(normalizeSearchText(query), [
+                      song?.title ?? item.songId,
+                      song?.artistName,
+                    ]);
                   })
                   .toList(growable: false);
 
@@ -764,10 +764,10 @@ class _DownloadedTab extends ConsumerWidget {
             : tracks
                   .where((track) {
                     final song = resolvedSongs[track.songId];
-                    final title = (song?.title ?? track.songId).toLowerCase();
-                    final artist = (song?.artistName ?? '').toLowerCase();
-                    final q = query.toLowerCase();
-                    return title.contains(q) || artist.contains(q);
+                    return searchTextMatches(normalizeSearchText(query), [
+                      song?.title ?? track.songId,
+                      song?.artistName,
+                    ]);
                   })
                   .toList(growable: false);
 

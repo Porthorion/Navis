@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
 import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
+import 'package:navis/src/common_widgets/type_to_filter.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/external_album_card.dart';
@@ -82,7 +85,17 @@ class ArtistDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<ArtistDetailScreen> createState() => _ArtistDetailScreenState();
 }
 
-class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
+class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen>
+    with TypeToFilter<ArtistDetailScreen>, DebouncedSearch<ArtistDetailScreen> {
+  /// The active filter: the typed query on desktop, else the touch field.
+  String get _filterQuery =>
+      (typeFilterQuery.isNotEmpty ? typeFilterQuery : query).trim();
+
+  void _clearFilter() {
+    clearSearch();
+    clearTypeFilter();
+  }
+
   bool _isStarred = false;
   bool _isStarring = false;
 
@@ -473,11 +486,19 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     ),
                   ),
                   ArtistPlaybackProgressIndicator(artistId: widget.artistId),
+                  if (!desktopMode)
+                    ListFilterField(
+                      controller: search,
+                      hint: l10n.artistDetailFilterHint,
+                      onChanged: onSearchChanged,
+                      onClear: _clearFilter,
+                    ),
                   // ── Top Tracks (Deezer, else Last.fm; hidden without either) ──
                   if (ref.watch(artistTopSongsAllowedProvider))
                     ArtistTopTracksSection(
                       artistId: artistData.id,
                       artistName: artistData.name,
+                      filterQuery: _filterQuery,
                     ),
                   _ArtistTopTracksPlaylistCard(
                     artistId: artistData.id,
@@ -501,17 +522,47 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     );
                   }
 
+                  final filter = normalizeSearchText(_filterQuery);
+                  List<AlbumsTableData> matching(List<AlbumsTableData> a) =>
+                      filter.isEmpty
+                      ? a
+                      : a
+                            .where((x) => searchTextMatches(filter, [x.name]))
+                            .toList(growable: false);
+                  final albums = matching(sections.albums);
+                  final featuredIn = matching(sections.featuredIn);
+                  // Nothing matched in albums or in the top songs above.
+                  final noMatches =
+                      filter.isNotEmpty &&
+                      albums.isEmpty &&
+                      featuredIn.isEmpty &&
+                      (!ref.watch(artistTopSongsAllowedProvider) ||
+                          filterArtistTopTracks(
+                            ref
+                                    .watch(artistTopTracksProvider(artistKey))
+                                    .value ??
+                                const <ResolvedArtistTopTrack>[],
+                            _filterQuery,
+                          ).isEmpty);
+
                   return SliverMainAxisGroup(
                     slivers: <Widget>[
-                      if (sections.albums.isNotEmpty)
+                      if (noMatches)
+                        SliverToBoxAdapter(
+                          child: FilterNoResults(
+                            query: _filterQuery,
+                            onClear: _clearFilter,
+                          ),
+                        ),
+                      if (albums.isNotEmpty)
                         _ArtistAlbumSection(
                           title: l10n.artistDetailAlbumsSection,
-                          albums: sections.albums,
+                          albums: albums,
                         ),
-                      if (sections.featuredIn.isNotEmpty)
+                      if (featuredIn.isNotEmpty)
                         _ArtistAlbumSection(
                           title: l10n.artistDetailFeaturedSection,
-                          albums: sections.featuredIn,
+                          albums: featuredIn,
                         ),
                     ],
                   );
@@ -599,24 +650,26 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             ),
         ],
       ),
-      body: KeyedSubtree(
-        key: showsArtist ? detailPageShownKey : null,
-        child: desktopMode
-            ? DesktopFrame(
-                layoutClass: resolveDesktopLayoutClass(
-                  MediaQuery.sizeOf(context).width,
-                ),
-                // The sections add NavisSpace.md themselves, so the page
-                // gutter is xs + md = xl; the hero bleeds md beyond it.
-                padding: const EdgeInsets.fromLTRB(
-                  NavisSpace.xs,
-                  NavisSpace.sm,
-                  NavisSpace.xs,
-                  NavisSpace.lg,
-                ),
-                child: artistBody,
-              )
-            : artistBody,
+      body: typeFilterFrame(
+        KeyedSubtree(
+          key: showsArtist ? detailPageShownKey : null,
+          child: desktopMode
+              ? DesktopFrame(
+                  layoutClass: resolveDesktopLayoutClass(
+                    MediaQuery.sizeOf(context).width,
+                  ),
+                  // The sections add NavisSpace.md themselves, so the page
+                  // gutter is xs + md = xl; the hero bleeds md beyond it.
+                  padding: const EdgeInsets.fromLTRB(
+                    NavisSpace.xs,
+                    NavisSpace.sm,
+                    NavisSpace.xs,
+                    NavisSpace.lg,
+                  ),
+                  child: artistBody,
+                )
+              : artistBody,
+        ),
       ),
     );
   }

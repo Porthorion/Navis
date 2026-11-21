@@ -11,6 +11,18 @@ String normalizeSearchText(String value) {
       .trim();
 }
 
+/// Whether any of [fields] contains [normalizedQuery], an already
+/// [normalizeSearchText]ed query (normalize once, then test every row). The
+/// shared match for in-page list filters, so "beyonce" finds "Beyoncé".
+bool searchTextMatches(String normalizedQuery, Iterable<String?> fields) {
+  for (final field in fields) {
+    if (field != null && normalizeSearchText(field).contains(normalizedQuery)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /// Folds common Latin diacritics (é → e, ß → ss) and Arabic letter variants
 /// in lowercased [value], and removes combining marks and the Arabic tatweel.
 /// Every other character is kept.

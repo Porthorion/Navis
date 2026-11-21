@@ -1522,6 +1522,8 @@
   "playlistsSaveOnServerFailed": "Failed to save playlist on server",
   "playlistsDeleteFailed": "Failed to delete playlist",
   "playlistsFilterHint": "Search playlists...",
+  "artistDetailFilterHint": "Filter albums and songs...",
+  "playlistDetailFilterHint": "Filter songs...",
   "playlistsSectionYours": "Your Playlists",
   "playlistsSectionMadeForYou": "Made for You",
   "playlistsSectionOther": "Other Playlists",

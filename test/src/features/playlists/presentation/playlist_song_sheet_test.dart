@@ -125,7 +125,11 @@ Future<void> _pump(
 
 Future<void> _openSheetAndScrollToRemove(WidgetTester tester) async {
   final row = find.text('First song');
-  await tester.scrollUntilVisible(row, 100);
+  await tester.scrollUntilVisible(
+    row,
+    100,
+    scrollable: find.byType(Scrollable).first,
+  );
   await tester.longPress(row);
   await tester.pumpAndSettle();
   final remove = find.text('Remove from Playlist');
@@ -174,7 +178,13 @@ void main() {
       miniPlayer: true,
       topInset: 120,
     );
-    await tester.scrollUntilVisible(find.text('First song'), 100);
+    await tester.scrollUntilVisible(
+      find.text('First song'),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.text('First song'));
+    await tester.pumpAndSettle();
     await tester.longPress(find.text('First song'));
     await tester.pumpAndSettle();
     expect(

@@ -611,6 +611,12 @@ const List<ChangelogVersion> changelogs = [
         platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Artist and playlist pages can now be filtered: use the field on '
+        'phones and tablets, or just start typing on desktop. Filters across '
+        'the app now ignore accents, so "beyonce" finds "Beyoncé"',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
