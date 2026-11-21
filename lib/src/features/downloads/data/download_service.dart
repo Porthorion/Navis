@@ -3252,6 +3252,8 @@ class DownloadService {
       final plainOnly =
           !resolution.instrumental &&
           (!useLrclib || metadata == null) &&
+          !resolution.serverLookupFailed &&
+          hasAnyLyrics(resolution.lyrics) &&
           (resolution.source == LyricsSource.serverPlain ||
               resolution.source == LyricsSource.lrclibPlain);
       final alreadyHadPlain =
@@ -3260,7 +3262,7 @@ class DownloadService {
           (resolution.confirmedMiss ||
               resolution.syncedUpgradeMiss ||
               plainOnly) &&
-          !_lrclibClient.isRateLimited &&
+          (!useLrclib || !_lrclibClient.isRateLimited) &&
           // A miss resolved under a permission that flipped mid-request must
           // not re-arm the backoff the re-enable reset just cleared (#76).
           useLrclib == _readLyricsAllowed()) {

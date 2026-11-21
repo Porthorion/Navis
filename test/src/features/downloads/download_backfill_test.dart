@@ -16,6 +16,7 @@ import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -653,6 +654,65 @@ void main() {
       lyricsAllowed = true;
       await triggerAutomaticBackfill();
       expect(external.calls, 1);
+    },
+  );
+
+  void failServer() {
+    when(() => api.getLyricsBySongId(any()))
+        .thenThrow(const SubsonicConnectionException('offline'));
+    when(
+      () => api.getLyrics(
+        artist: any(named: 'artist'),
+        title: any(named: 'title'),
+      ),
+    ).thenThrow(const SubsonicConnectionException('offline'));
+  }
+
+  for (final cachedPlain in [false, true]) {
+    test(
+      'LRCLIB off: server transport failure sets no backoff: cachedPlain=$cachedPlain',
+      () async {
+        lyricsAllowed = false;
+        await seed('plain', cover: null);
+        if (cachedPlain) {
+          await db.libraryDao.upsertExternalLyricsCache(
+            songId: 'plain',
+            source: 'lrclibPlain',
+            plainLyrics: 'words',
+          );
+        }
+        failServer();
+        await service.runBackfillNow();
+        final row = await db.libraryDao.getExternalLyricsCache('plain');
+        expect(row?.failureCount ?? 0, 0);
+        expect(row?.lastFailedAt, isNull);
+      },
+    );
+  }
+
+  test('LRCLIB off: successful server plain result gets the backoff', () async {
+    lyricsAllowed = false;
+    await seed('plain', cover: null);
+    await service.runBackfillNow();
+    final row = (await db.libraryDao.getExternalLyricsCache('plain'))!;
+    expect(row.failureCount, 1);
+    expect(row.plainLyrics, 'server words');
+  });
+
+  test(
+    'LRCLIB off: a cooldown does not suppress the plain-only backoff',
+    () async {
+      lyricsAllowed = false;
+      external.limited = true;
+      await seed('plain', cover: null);
+      await db.libraryDao.upsertExternalLyricsCache(
+        songId: 'plain',
+        source: 'serverPlain',
+        plainLyrics: 'words',
+      );
+      await service.runBackfillNow();
+      final row = (await db.libraryDao.getExternalLyricsCache('plain'))!;
+      expect(row.failureCount, 1);
     },
   );
 
