@@ -1012,7 +1012,17 @@ the tree remains otherwise usable.
   and optional `likedOnly`/`downloadedOnly` booleans for radio. Status reports
   mode, operation generation, seed, request stage, source, candidate and actual
   inserted counts, error category, and retry state, without credentials or
-  server URLs. The clone has no Last.fm key by default. Set
+  server URLs. `lastRefill` describes the last Same Vibes refill: `mixSource`
+  (`deezer`, `lastFm`, `server`), `seedId` (the anchor, the activation seed) and
+  `triggerId` (the song that fired the refill), `isInitial`, `lastFmOutcome` and
+  `lastFmSource` (null in Deezer mode), `mapped`, `fallbackReason`, `inserted`,
+  `parkedSeedId` and, when a Deezer leg ran, a `deezer` object: `poolSize`,
+  `relatedCount`, `listsUsed` (13 once the pool is complete), `featuresUsed`
+  (top-24 candidates ranked with Deezer features), `likedSignals` (played-through
+  radios that returned songs), `deadlineHit` and `msLists` (only on the refill
+  that ran the first batch, else null), `msTotal` and `skipped` (quota, timeout
+  or cancel). `poolSize` counts every distinct song of the ranked lists, liked
+  radios included. The clone has no Last.fm key by default. Set
   `NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE` to an owned regular mode-600 key file
   only for an isolated authenticated Last.fm run. The diagnostics launcher
   rejects symlinks and permissive file modes.

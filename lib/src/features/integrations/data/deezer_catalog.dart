@@ -123,6 +123,54 @@ class DeezerCatalog {
     ],
   );
 
+  /// `/track/{id}` with bpm, release date and the explicit flag, cached 30
+  /// days. Null when Deezer has no such track.
+  Future<DeezerTrack?> track(
+    int id, {
+    CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
+  }) => _cached(
+    namespace: DeezerCache.trackNamespace,
+    key: '$id',
+    ttl: DeezerCache.trackTtl,
+    fetch: () => _client.getTrack(
+      id,
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    ),
+    encode: (track) => track?.toJson(),
+    decode: (json) => json is Map
+        ? DeezerTrack.fromJson(Map<String, dynamic>.from(json))
+        : null,
+  );
+
+  /// `/artist/{id}/top?limit=5`: Deezer's own order, cached 24 hours.
+  Future<List<DeezerTrack>> artistTopFive(
+    int artistId, {
+    CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
+  }) => _cached(
+    namespace: DeezerCache.artistTopFiveNamespace,
+    key: '$artistId',
+    ttl: DeezerCache.topFiveTtl,
+    fetch: () => _client.getArtistTopTracks(
+      artistId,
+      limit: 5,
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    ),
+    encode: (tracks) => [for (final track in tracks) track.toJson()],
+    decode: (json) => [
+      if (json is List)
+        for (final item in json.whereType<Map<Object?, Object?>>())
+          DeezerTrack.fromJson(Map<String, dynamic>.from(item)),
+    ],
+  );
+
   /// `/chart/0/tracks`: the [chartTrackLimit] most played tracks on Deezer
   /// in the caller's country, cached 6 hours.
   Future<List<DeezerTrack>> chartTracks({
@@ -152,11 +200,19 @@ class DeezerCatalog {
     String query, {
     int limit = searchLimit,
     CancelToken? cancelToken,
+    bool background = false,
+    bool retryQuota = true,
   }) => _searchCached(
     'track',
     query,
     limit,
-    () => _client.searchTracks(query, limit: limit, cancelToken: cancelToken),
+    () => _client.searchTracks(
+      query,
+      limit: limit,
+      cancelToken: cancelToken,
+      background: background,
+      retryQuota: retryQuota,
+    ),
   );
 
   /// `/search/artist`, like [searchTracks].
