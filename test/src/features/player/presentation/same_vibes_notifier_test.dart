@@ -4178,6 +4178,7 @@ void main() {
         'at',
         'mixSource',
         'seedId',
+        'triggerId',
         'isInitial',
         'lastFmOutcome',
         'lastFmSource',
@@ -4189,6 +4190,200 @@ void main() {
         'inserted',
         'parkedSeedId',
       });
+    });
+  });
+
+  group('anchor and trigger (#743)', () {
+    late _MockSubsonicApiClient api;
+    late _MockLastFmApiClient lastFm;
+    late ProviderContainer container;
+    var fakeNow = DateTime(2026, 11, 21, 12);
+    var tick = 0;
+    var lastFmCalls = 0;
+    // The Last.fm answer for the call after the initial one.
+    var laterOutcome = LastFmFetchOutcome.noResults;
+    final asked = <String>[];
+    Completer<void>? holdSeedA;
+    final queue20 = List<String>.generate(20, (i) => 'q-$i');
+
+    setUp(() {
+      fakeNow = DateTime(2026, 11, 21, 12);
+      tick = 0;
+      lastFmCalls = 0;
+      laterOutcome = LastFmFetchOutcome.noResults;
+      asked.clear();
+      holdSeedA = null;
+      api = _MockSubsonicApiClient();
+      lastFm = _MockLastFmApiClient();
+      // Every song is its own artist, so the seed a leg asks for is visible.
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((invocation) async {
+            final id = invocation.positionalArguments.first as String;
+            return Song(id: id, title: 'T-$id', artist: 'Artist-$id');
+          });
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((invocation) async {
+        final artist = invocation.namedArguments[#artist] as String;
+        asked.add(artist);
+        // The first call (mix A's initial refill) waits when a test holds it.
+        final call = lastFmCalls++;
+        final hold = call == 0 ? holdSeedA : null;
+        if (hold != null) await hold.future;
+        return LastFmTrackFetchResult(
+          outcome: call == 0 ? LastFmFetchOutcome.noResults : laterOutcome,
+          tracks: const <LastFmTrackRecommendation>[],
+        );
+      });
+      // Only the initial refill gets songs, so the mix starts and later
+      // refills have nothing from the server.
+      var similarCalls = 0;
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async {
+        if (similarCalls++ == 0) {
+          return [
+            for (var i = 0; i < 5; i++) Song(id: 'rec-$i', title: 'Rec $i'),
+          ];
+        }
+        return const <Song>[];
+      });
+      container = _parkContainer(api: api, lastFm: lastFm, now: () => fakeNow);
+    });
+
+    SameVibesNotifier notifier() => container.read(sameVibesProvider.notifier);
+
+    void emitOn(int index) => container
+        .read(recommendationSnapshotProvider.notifier)
+        .emitSnapshot(
+          snapshot(
+            queueSongIds: queue20,
+            currentSongId: queue20[index],
+            currentIndex: index,
+          ).copyWith(position: Duration(seconds: tick++)),
+        );
+
+    Future<void> settle() async {
+      await pumpEventQueue();
+      while (container.read(sameVibesProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    /// Plays song [index] of the queue with the clock past every backoff.
+    Future<void> playSong(int index) async {
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      emitOn(index);
+      await settle();
+    }
+
+    Future<void> start([String seed = 'seed-a']) async {
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: [seed],
+              currentSongId: seed,
+              currentIndex: 0,
+            ),
+          );
+      await notifier().activate(seed);
+    }
+
+    test('Last.fm refills still ask for the trigger; the record names the '
+        'anchor, the trigger and the unchanged activation seed', () async {
+      await start();
+      await playSong(3);
+      await playSong(4);
+
+      // The initial refill's seed comes from the playing media item.
+      expect(asked, ['Artist', 'Artist-q-3', 'Artist-q-4']);
+      final record = notifier().lastRefill!;
+      expect(record.seedId, 'seed-a');
+      expect(record.triggerId, 'q-4');
+      expect(container.read(sameVibesProvider).seedSongId, 'seed-a');
+      expect(record.toJson()['triggerId'], 'q-4');
+    });
+
+    test('an empty refill parks on the trigger: the same song asks nothing, '
+        'the next song re-arms', () async {
+      await start();
+      await playSong(3);
+      expect(notifier().lastRefill!.parkedSeedId, 'q-3');
+      expect(asked, hasLength(2));
+
+      await playSong(3);
+      expect(asked, hasLength(2), reason: 'parked on q-3, not on the anchor');
+
+      await playSong(4);
+      expect(asked, hasLength(3));
+      expect(notifier().lastRefill!.parkedSeedId, 'q-4');
+    });
+
+    test('five transient failures on triggers other than the anchor exhaust '
+        'the retries on the trigger; the next song re-arms', () async {
+      await start();
+      laterOutcome = LastFmFetchOutcome.networkError;
+      String stage() => container.read(recommendationSessionProvider).stage;
+      for (var i = 1; i <= 5; i++) {
+        await playSong(i);
+      }
+      expect(asked, hasLength(6));
+      expect(stage(), 'retryExhausted');
+
+      await playSong(5);
+      expect(asked, hasLength(6), reason: 'parked on q-5');
+
+      await playSong(6);
+      expect(asked, hasLength(7), reason: 'another song re-arms');
+      expect(asked.last, 'Artist-q-6');
+      expect(stage(), 'retryPending');
+    });
+
+    test('starting mix B while mix A refills keeps B\'s anchor', () async {
+      holdSeedA = Completer<void>();
+      final aStart = start();
+      await pumpEventQueue();
+      await start('seed-b');
+      holdSeedA!.complete();
+      await aStart;
+      await settle();
+
+      await playSong(3);
+      final record = notifier().lastRefill!;
+      expect(record.seedId, 'seed-b');
+      expect(record.triggerId, 'q-3');
+      expect(container.read(sameVibesProvider).seedSongId, 'seed-b');
+    });
+
+    test('an emptied queue ends the mix and stops its session', () async {
+      await start();
+      expect(
+        container.read(recommendationSessionProvider).mode,
+        RecommendationMode.sameVibes,
+      );
+
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>[],
+              currentSongId: null,
+              currentIndex: null,
+            ),
+          );
+      await pumpEventQueue();
+
+      expect(container.read(sameVibesProvider).active, isFalse);
+      expect(container.read(recommendationSessionProvider).mode, isNull);
     });
   });
 }

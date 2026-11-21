@@ -55,12 +55,14 @@ class _Rig {
   }) {
     when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
         .thenAnswer(
-          (_) async => Song(
-            id: 'seed',
-            title: seedTitle,
-            artist: seedArtist,
-            artistId: 'ar-1',
-          ),
+          (invocation) async =>
+              songById[invocation.positionalArguments.first as String] ??
+              Song(
+                id: 'seed',
+                title: seedTitle,
+                artist: seedArtist,
+                artistId: 'ar-1',
+              ),
         );
     when(
       () => api.search3(
@@ -126,6 +128,9 @@ class _Rig {
   final String seedTitle;
   final String seedArtist;
   final api = _MockSubsonicApiClient();
+
+  /// Songs the playing queue can hold besides the seed, by id.
+  final songById = <String, Song>{};
   final lastFm = _MockLastFmApiClient();
   final deezer = _MockDeezerApiClient();
   final resolver = _MockResolver();
@@ -250,6 +255,39 @@ void main() {
         retryQuota: any(named: 'retryQuota'),
       ),
     ).called(1);
+  });
+
+  test('a refill on a song by another artist still asks Deezer for the '
+      'anchor artist (#743)', () async {
+    final rig = _Rig();
+    rig.songById['q-5'] = Song(
+      id: 'q-5',
+      title: 'Elsewhere',
+      artist: 'Other Artist',
+      artistId: 'ar-2',
+    );
+    await rig.start();
+    rig.radio = () async => [
+      for (final l in ['M', 'N', 'O']) _radioTrack(l),
+    ];
+    await rig.refill();
+
+    final asked = verify(
+      () => rig.resolver.resolve(
+        artistId: captureAny(named: 'artistId'),
+        name: captureAny(named: 'name'),
+        readLibraryAlbumTitles: any(named: 'readLibraryAlbumTitles'),
+        cancelToken: any(named: 'cancelToken'),
+        background: any(named: 'background'),
+        retryQuota: any(named: 'retryQuota'),
+      ),
+    ).captured;
+    expect(asked, hasLength(4));
+    expect(asked.toSet(), {'ar-1', 'Seed Artist'});
+    final record = rig.notifier.lastRefill!;
+    expect(record.seedId, 'seed');
+    expect(record.triggerId, 'q-5');
+    expect(rig.state.seedSongId, 'seed');
   });
 
   test('Deezer mode with an empty radio never reads the Last.fm answer, '

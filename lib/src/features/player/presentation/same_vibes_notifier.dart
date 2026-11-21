@@ -107,6 +107,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// no library copy (#377). A mix started from a remote seed has none.
   String? _anchorSeedId;
 
+  /// The activation seed, whatever its kind (#743). Deezer refills rank from
+  /// it for the whole mix; the song playing when a refill fires is only the
+  /// trigger (park key, retry key).
+  String? _anchorId;
+
+  /// The anchor's resolved metadata, stored by the initial refill.
+  _SeedMetadata? _anchorSeed;
+
   /// The anchor's songs are all queued already; asking again finds nothing.
   bool _anchorSpent = false;
   SameVibesRefillRecord? _lastRefill;
@@ -160,6 +168,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _anchorSeedId = isServerAddressableSongId(normalizedSeedSongId)
         ? normalizedSeedSongId
         : null;
+    _anchorId = normalizedSeedSongId;
+    _anchorSeed = null;
     _anchorSpent = false;
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
@@ -194,6 +204,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _consecutiveTransientFailures = 0;
     _parkedSeedSongId = null;
     _anchorSeedId = null;
+    _anchorId = null;
+    _anchorSeed = null;
     _anchorSpent = false;
     _mixSongIds = null;
     _mixSongKeys = null;
@@ -232,9 +244,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
 
     if (next.queueSongIds.isEmpty) {
-      _mixSongIds = null;
-      _mixSongKeys = null;
-      state = const SameVibesState.inactive();
+      deactivate();
       return;
     }
 
@@ -291,6 +301,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     final session = _session;
     // Read now: a refill of a superseded mix must not pick up the new mix's.
     final anchorSeedId = _anchorSeedId;
+    final anchorId = _anchorId;
+    final anchorSeed = _anchorSeed;
     if (session == null ||
         !ref.read(recommendationSessionProvider.notifier).owns(session)) {
       return;
@@ -309,11 +321,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _retryTimer?.cancel();
     _retryTimer = null;
 
-    state = state.copyWith(
-      refilling: true,
-      seedSongId: normalizedSeedSongId,
-      clearError: true,
-    );
+    state = state.copyWith(refilling: true, clearError: true);
     const targetBatch = _kTargetQueueBatchSize;
     const searchAttemptLimit = _kMaxSearchAttempts;
     var initialQueueChangeAttempted = false;
@@ -357,6 +365,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
         return;
       }
+      if (isInitial && seed != null && _isCurrent(session)) {
+        _anchorSeed = seed;
+      }
       // The library copy of a remote seed is the same recording; never queue
       // it right behind its remote twin.
       final libraryCopyId = seed?.libraryCopyId;
@@ -396,6 +407,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (seed != null) {
         lastFmResult = await _fetchRecommendations(
           seed: seed,
+          anchorSeed: isInitial ? seed : anchorSeed ?? seed,
           limit: _kLastFmRecommendationLimit,
           background: !isInitial,
         );
@@ -778,7 +790,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       _lastRefill = SameVibesRefillRecord(
         mixSource: mixSource,
         at: _now().toUtc(),
-        seedId: normalizedSeedSongId,
+        seedId: anchorId ?? normalizedSeedSongId,
+        triggerId: normalizedSeedSongId,
         isInitial: isInitial,
         lastFmOutcome: lastFmResult.outcome.name,
         lastFmSource: lastFmResult.source.name,
@@ -1129,13 +1142,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   /// mode never calls Last.fm, so only that source's errors can end a mix.
   Future<LastFmTrackFetchResult> _fetchRecommendations({
     required _SeedMetadata seed,
+    required _SeedMetadata anchorSeed,
     required int limit,
     required bool background,
   }) async {
     switch (ref.read(preferredMixModeProvider)) {
       case PreferredMixMode.sameVibesDeezer:
         _recommendationSource = 'deezer';
-        return _fetchDeezerRadio(seed: seed, background: background);
+        return _fetchDeezerRadio(seed: anchorSeed, background: background);
       case PreferredMixMode.legacyInstantMix:
         // The user switched to Server Mix after this mix started.
         return const LastFmTrackFetchResult(
@@ -1179,7 +1193,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             .read(integrationPolicyProvider)
             .allows(IntegrationFeature.deezerSameVibes)) {
       final deezer = await _fetchDeezerRadio(
-        seed: seed,
+        seed: anchorSeed,
         background: background,
       );
       if (deezer.tracks.isNotEmpty) {
@@ -1351,6 +1365,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (blockedCopy != null) blockedIds.add(blockedCopy);
       final lastFm = await _fetchRecommendations(
         seed: seed,
+        anchorSeed: seed,
         limit: _kLastFmRecommendationLimit,
         background: true,
       );
@@ -1908,6 +1923,7 @@ class SameVibesRefillRecord {
     required this.at,
     required this.mixSource,
     required this.seedId,
+    required this.triggerId,
     required this.isInitial,
     required this.lastFmOutcome,
     required this.lastFmSource,
@@ -1925,7 +1941,10 @@ class SameVibesRefillRecord {
   /// Where the queued songs came from: `deezer`, `lastFm` or `server`. The
   /// `lastFm*` fields below keep their names for readers of the diagnostics.
   final String mixSource;
+
+  /// The mix's anchor (activation seed), and the song that fired the refill.
   final String seedId;
+  final String triggerId;
   final bool isInitial;
   final String lastFmOutcome;
   final String lastFmSource;
@@ -1941,6 +1960,7 @@ class SameVibesRefillRecord {
     'at': at.toIso8601String(),
     'mixSource': mixSource,
     'seedId': seedId,
+    'triggerId': triggerId,
     'isInitial': isInitial,
     'lastFmOutcome': lastFmOutcome,
     'lastFmSource': lastFmSource,
