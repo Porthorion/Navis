@@ -18,6 +18,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/radio_station_actions.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 
 import '../../../../helpers/test_theme.dart';
@@ -74,12 +75,16 @@ Future<void> _pumpRadio(
             size: size,
             textScaler: TextScaler.linear(scale),
           ),
-          child: AppNoticeScope(
-            notifier: notices,
-            child: Scaffold(
-              body: RadioTabContent(
-                typeFilterQuery: query,
-                onClearTypeFilter: onClearTypeFilter,
+          // The default zero-sized MediaQuery would read as a short window.
+          child: _tall(
+            size,
+            AppNoticeScope(
+              notifier: notices,
+              child: Scaffold(
+                body: RadioTabContent(
+                  typeFilterQuery: query,
+                  onClearTypeFilter: onClearTypeFilter,
+                ),
               ),
             ),
           ),
@@ -88,6 +93,17 @@ Future<void> _pumpRadio(
     ),
   );
 }
+
+Widget _tall(Size size, Widget child) => size != Size.zero
+    ? child
+    : AdaptiveContextScope(
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: false,
+          viewportSize: const Size(390, 844),
+          safePadding: EdgeInsets.zero,
+        ),
+        child: child,
+      );
 
 class _RadioHandler implements NavisPlaybackHandler {
   String? startedUrl;

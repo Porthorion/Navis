@@ -192,7 +192,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
         Column(
           children: <Widget>[
             if (showFilterField)
-              ListFilterField(
+              LibraryFilterField(
                 controller: _filterController,
                 hint: l10n.playlistsFilterHint,
                 onChanged: (_) => setState(() {}),

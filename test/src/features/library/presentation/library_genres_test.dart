@@ -253,6 +253,50 @@ void main() {
     ),
   ];
 
+  testWidgets('short window: one row of field, chip and sort, no title', (
+    tester,
+  ) async {
+    const size = Size(832, 384);
+    setAdaptiveTestViewport(tester, size);
+    tester.view.padding = const FakeViewPadding(top: 24);
+    tester.view.viewPadding = const FakeViewPadding(top: 24);
+    addTearDown(() {
+      tester.view.resetPadding();
+      tester.view.resetViewPadding();
+    });
+    await tester.pumpWidget(
+      _app(
+        _commonOverrides(genres: many),
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: false,
+          viewportSize: size,
+          safePadding: const EdgeInsets.only(top: 24),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Library'), findsNothing);
+    final field = tester.getRect(find.byType(TextField));
+    final sort = tester.getRect(
+      find.byKey(const ValueKey<String>('genresSortControl')),
+    );
+    final chip = tester.getRect(find.byType(FilterChip));
+    expect(field.center.dy, closeTo(sort.center.dy, 2));
+    expect(field.center.dy, closeTo(chip.center.dy, 2));
+    // Status bar 24 + tabs 48 + one 52 dp row; the list starts right below.
+    final body = tester.getRect(find.byType(TabBarView));
+    expect(body.top, 24 + 48);
+    expect(field.bottom, lessThanOrEqualTo(24 + 48 + 52));
+    final firstRow = tester.getRect(
+      find.byKey(const ValueKey<String>('genre-row-rock')),
+    );
+    expect(firstRow.top, lessThanOrEqualTo(24 + 48 + 52 + 12));
+    // With a 90 dp player strip the list keeps at least 160 dp.
+    expect(size.height - 90 - (24 + 48 + 52), greaterThanOrEqualTo(160));
+    expect(tester.takeException(), isNull);
+  });
+
   group('wide windows', () {
     Finder card(String key) => find.byKey(ValueKey<String>('genre-row-$key'));
 

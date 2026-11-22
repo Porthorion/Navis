@@ -449,19 +449,52 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
   /// a track or album list, whose rows sit on the fixed 12 px list inset.
   final bool alignWithGrid;
 
+  Widget _sortDropdown() {
+    return DropdownButton<T>(
+      key: sortKey,
+      value: sortValue,
+      isExpanded: true,
+      isDense: true,
+      items: sortItems,
+      onChanged: onSortChanged,
+    );
+  }
+
+  List<Widget> _chips(AppLocalizations l10n) => <Widget>[
+    FilterChip(
+      label: Text(l10n.libraryDownloadedOnlyFilter),
+      selected: downloadedOnly,
+      onSelected: onDownloadedOnlyChanged,
+      avatar: Icon(
+        downloadedOnly ? Icons.download_done : Icons.download_outlined,
+        size: 18,
+      ),
+    ),
+    if (onLikedOnlyChanged != null)
+      FilterChip(
+        label: Text(l10n.libraryLikedOnlyFilter),
+        selected: likedOnly,
+        onSelected: onLikedOnlyChanged,
+        avatar: Icon(
+          likedOnly ? Icons.favorite : Icons.favorite_border_outlined,
+          size: 18,
+        ),
+      ),
+  ];
+
+  /// The chips and sort as the scrolling strip of a short window's one
+  /// control row ([LibraryFilterField.shortControls]); show this row only
+  /// outside that mode. The sort gets a fixed width because a strip that
+  /// scrolls has none to share.
+  List<Widget> shortControls(AppLocalizations l10n) => <Widget>[
+    ..._chips(l10n),
+    SizedBox(width: 180, child: _sortDropdown()),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    Widget buildSortDropdown() {
-      return DropdownButton<T>(
-        key: sortKey,
-        value: sortValue,
-        isExpanded: true,
-        isDense: true,
-        items: sortItems,
-        onChanged: onSortChanged,
-      );
-    }
+    final buildSortDropdown = _sortDropdown;
 
     return LayoutBuilder(
       builder: (context, outer) {
@@ -478,31 +511,7 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
         final useStackedLayout =
             width < 320 || MediaQuery.textScalerOf(context).scale(1) > 1.3;
 
-        final filters = Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            FilterChip(
-              label: Text(l10n.libraryDownloadedOnlyFilter),
-              selected: downloadedOnly,
-              onSelected: onDownloadedOnlyChanged,
-              avatar: Icon(
-                downloadedOnly ? Icons.download_done : Icons.download_outlined,
-                size: 18,
-              ),
-            ),
-            if (onLikedOnlyChanged != null)
-              FilterChip(
-                label: Text(l10n.libraryLikedOnlyFilter),
-                selected: likedOnly,
-                onSelected: onLikedOnlyChanged,
-                avatar: Icon(
-                  likedOnly ? Icons.favorite : Icons.favorite_border_outlined,
-                  size: 18,
-                ),
-              ),
-          ],
-        );
+        final filters = Wrap(spacing: 8, runSpacing: 8, children: _chips(l10n));
 
         return Padding(
           padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),

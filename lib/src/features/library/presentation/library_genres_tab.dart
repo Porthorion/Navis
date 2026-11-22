@@ -173,37 +173,41 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
     final genres = async.asData?.value ?? _lastGenres;
     _lastGenres = genres;
 
+    final sortRow = LibrarySortFilterRow<GenreSortOrder>(
+      sortKey: const ValueKey<String>('genresSortControl'),
+      sortLabel: l10n.genresSortLabel,
+      sortValue: _sort,
+      sortItems: <DropdownMenuItem<GenreSortOrder>>[
+        DropdownMenuItem(
+          value: GenreSortOrder.songs,
+          child: Text(l10n.genresSortSongs),
+        ),
+        DropdownMenuItem(
+          value: GenreSortOrder.albums,
+          child: Text(l10n.genresSortAlbums),
+        ),
+        DropdownMenuItem(
+          value: GenreSortOrder.name,
+          child: Text(l10n.genresSortName),
+        ),
+      ],
+      onSortChanged: _setSort,
+      downloadedOnly: downloadedOnly,
+      onDownloadedOnlyChanged: _setDownloadedOnly,
+    );
+    final shortChrome = resolveAdaptiveContextFor(context).useShortHeightChrome;
+
     return Column(
       children: <Widget>[
-        ListFilterField(
+        LibraryFilterField(
           controller: search,
           alignWithContent: true,
           hint: l10n.genresSearchHint,
           onChanged: onSearchChanged,
           onClear: _clearQuery,
+          shortControls: sortRow.shortControls(l10n),
         ),
-        LibrarySortFilterRow<GenreSortOrder>(
-          sortKey: const ValueKey<String>('genresSortControl'),
-          sortLabel: l10n.genresSortLabel,
-          sortValue: _sort,
-          sortItems: <DropdownMenuItem<GenreSortOrder>>[
-            DropdownMenuItem(
-              value: GenreSortOrder.songs,
-              child: Text(l10n.genresSortSongs),
-            ),
-            DropdownMenuItem(
-              value: GenreSortOrder.albums,
-              child: Text(l10n.genresSortAlbums),
-            ),
-            DropdownMenuItem(
-              value: GenreSortOrder.name,
-              child: Text(l10n.genresSortName),
-            ),
-          ],
-          onSortChanged: _setSort,
-          downloadedOnly: downloadedOnly,
-          onDownloadedOnlyChanged: _setDownloadedOnly,
-        ),
+        if (!shortChrome) sortRow,
         Expanded(
           child: NavisRefreshIndicator(
             onRefresh: () => triggerLibrarySyncFromPull(ref),
