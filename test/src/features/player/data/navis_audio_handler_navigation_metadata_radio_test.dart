@@ -1420,6 +1420,30 @@ void main() {
       },
     );
 
+    test('a single-song load tells the app the queue is replaced', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-auto-');
+      final events = <String>[];
+      late NavisAudioHandler handler;
+      final (created, _, database) = await createHandler(
+        directory,
+        3,
+        onAndroidAutoQueueReplace: () =>
+            events.add('replace:${handler.snapshot.queueSongIds.length}'),
+      );
+      handler = created;
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+
+      await handler.prepareFromMediaId(AutoMediaId.song('song-0'));
+      await settleQueue(handler);
+
+      expect(events, ['replace:0']);
+      expect(handler.snapshot.queueSongIds, ['song-0']);
+    });
+
     for (final crossfade in [false, true]) {
       test(
         'Shuffle liked preserves collection order, fade=$crossfade',
