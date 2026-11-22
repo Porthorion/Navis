@@ -3770,11 +3770,15 @@ class _RandomAlbumsHeroCarouselState
         if (mounted &&
             _pageController.hasClients &&
             _displayedAlbums.length > 1) {
-          _pageController.animateToPage(
-            _currentVirtualPage + 1,
-            duration: const Duration(milliseconds: 460),
-            curve: Curves.easeOutCubic,
-          );
+          if (_reduceMotion) {
+            _pageController.jumpToPage(_currentVirtualPage + 1);
+          } else {
+            _pageController.animateToPage(
+              _currentVirtualPage + 1,
+              duration: const Duration(milliseconds: 460),
+              curve: Curves.easeOutCubic,
+            );
+          }
         }
       },
     );
@@ -3831,7 +3835,6 @@ class _RandomAlbumsHeroCarouselState
   void _onHomeScroll() {
     _heroVisible = false;
     _updateAutoAdvance();
-    _autoAdvance.recordInteraction();
     _scheduleVisibilityCheck();
   }
 
@@ -3873,8 +3876,7 @@ class _RandomAlbumsHeroCarouselState
           _heroVisible &&
           _overlayFree &&
           !_gestureActive &&
-          !_pageScrolling &&
-          !_reduceMotion,
+          !_pageScrolling,
     );
   }
 
