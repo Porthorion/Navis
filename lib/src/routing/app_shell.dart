@@ -1147,22 +1147,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     final compactMiniPlayerBottomInset = useCompactWideLandscape
         ? mediaViewPadding.bottom
         : 0.0;
-    // In compactWideLandscape (landscape phones and short car displays) increase
-    // to ~15% of height for a
-    // car-friendly strip that is easy to read and tap while driving.
-    // The strip renders inside a SizedBox of this height so all internal
-    // components must fit comfortably within it; the inset above is added.
-    // A landscape phone keeps the normal bar height (#758); car displays that
-    // do not match keep the taller strip.
-    final compactShortMiniPlayer =
-        useCompactWideLandscape &&
-        adaptiveContext.useShortHeightChrome &&
-        isPhoneFormFactor;
+    // compactWideLandscape only resolves for landscape viewports whose shortest
+    // side is under 600 dp (landscape phones and short car displays), so the
+    // strip uses the normal phone bar height plus the inset above (#758).
     final compactBottomMiniPlayerHeight = useCompactWideLandscape
-        ? (compactShortMiniPlayer
-                  ? kMiniPlayerHeight
-                  : (screenHeight * 0.15).clamp(90.0, 112.0)) +
-              compactMiniPlayerBottomInset
+        ? kMiniPlayerHeight + compactMiniPlayerBottomInset
         : (screenHeight * 0.18).clamp(80.0, 140.0);
     if (!adaptiveInputPolicy.enableDesktopCommandShortcuts &&
         _showQuickSearchOverlay) {
@@ -1950,7 +1939,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                   bottomInset:
                                                                       compactMiniPlayerBottomInset,
                                                                   shortHeight:
-                                                                      compactShortMiniPlayer,
+                                                                      useCompactWideLandscape,
                                                                   enableVerticalExpandGesture:
                                                                       false,
                                                                   songTitle:
