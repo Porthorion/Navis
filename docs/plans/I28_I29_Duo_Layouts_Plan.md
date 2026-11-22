@@ -180,7 +180,7 @@ viewports `_phoneSE` 667x375, `_phoneMini` 812x375 0/44/0/44 bottom 21,
 - Car-bar inset proxy (`effectiveCarBottomInset`, `app_shell.dart:990`) uses
   `viewPadding.top` when the bottom is 0: an Android phone in landscape with a 24 pt
   status bar and no bottom inset gets 24 pt extra below the rail, as 915x412 phones
-  already do. Not changed.
+  already do. Not changed here; removed later in #758 (2026-11-22).
 
 ### Risk
 
