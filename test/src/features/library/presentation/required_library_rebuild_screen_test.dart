@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +16,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -99,6 +101,9 @@ Widget _testApp({
 }) {
   return ProviderScope(
     overrides: <Override>[
+      appSettingsProvider.overrideWith(
+        (ref) => Stream.value(const AppSettingsModel.defaults()),
+      ),
       ...overrides,
       if (setup != null)
         requiredLibraryRebuildControllerProvider(
@@ -123,6 +128,30 @@ Widget _testApp({
 }
 
 void main() {
+  testWidgets('first-run build offers a Check for Updates action', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await tester.pumpWidget(
+        _testApp(
+          setup: _StaticRequiredRebuildController(
+            const RequiredLibraryRebuildState(
+              status: RequiredLibraryRebuildStatus.syncing,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey<String>('checkForUpdates')),
+        findsOneWidget,
+      );
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('cancel and sign out shows the teardown phase text', (
     tester,
   ) async {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/settings/presentation/check_for_updates_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -104,10 +105,10 @@ class _RequiredLibraryRebuildScreenState
       child: Scaffold(
         body: SafeArea(
           child: Center(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(32),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Semantics(
                     key: const ValueKey<String>(
@@ -202,6 +203,7 @@ class _RequiredLibraryRebuildScreenState
                           : l10n.requiredSyncSignOut,
                     ),
                   ),
+                  const CheckForUpdatesButton(),
                 ],
               ),
             ),

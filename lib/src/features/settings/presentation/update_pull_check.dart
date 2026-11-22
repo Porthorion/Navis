@@ -43,6 +43,44 @@ void checkForUpdatesFromPull(WidgetRef ref, {bool showNotice = false}) {
   }
 }
 
+/// The one user-triggered update check: forces a fresh check, then shows
+/// "up to date", the failure notice, or the update dialog. Shared by About and
+/// the pre-sign-in / first-run screens.
+void checkForUpdatesNow(WidgetRef ref) {
+  ref.read(updateForceCheckProvider.notifier).requestForceCheck();
+  ref.invalidate(updateProvider);
+  ProviderSubscription<AsyncValue<UpdateInfo?>>? subscription;
+  subscription = ref.listenManual(updateProvider, (_, next) {
+    if (next.isLoading) return;
+    subscription?.close();
+    final context = ref.context;
+    if (!context.mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    final info = next.asData?.value;
+    if (next.hasError) {
+      showAppNotice(
+        context,
+        message: l10n.updateCheckFailed,
+        level: AppNoticeLevel.error,
+      );
+    } else if (info == null) {
+      showAppNotice(
+        context,
+        message: l10n.updateUpToDate,
+        level: AppNoticeLevel.info,
+      );
+    } else {
+      unawaited(
+        showUpdateDialog(
+          context,
+          info,
+          updateService: ref.read(updateServiceProvider),
+        ),
+      );
+    }
+  });
+}
+
 final _noticeChecks = Expando<Future<void>>();
 
 Future<void> _showUpdateNotice(

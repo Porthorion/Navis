@@ -170,6 +170,10 @@ void main() {
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Test Connection'), findsNothing);
     expect(find.text('Connect'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('checkForUpdates')),
+      findsOneWidget,
+    );
     await _disposeApp(tester);
   });
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/settings/presentation/check_for_updates_button.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -200,6 +201,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 )
               : Text(l10n.loginConnect),
         ),
+        const SizedBox(height: 8),
+        const Center(child: CheckForUpdatesButton()),
       ],
     );
 
