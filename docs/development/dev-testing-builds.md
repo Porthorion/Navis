@@ -157,6 +157,7 @@ Stable release tags stay plain `vX.Y.Z`; dev/staging additionally accept
 manifest build with the installed build number. See [release-r2.md](../release/release-r2.md)
 for `./tool/dev_release.sh`, the monotonic dev APK counter, dry-run and cleanup.
 A channel never moves to an older version/build.
+Settings -> About shows the dev build as `X.Y.Z-dev.<build>` (tap copies it); stable shows `X.Y.Z`.
 
 Dev-channel builds also record the playback transport trace and offer Settings ->
 About -> Copy Playback Trace and Save Playback Trace (redacted JSON, see

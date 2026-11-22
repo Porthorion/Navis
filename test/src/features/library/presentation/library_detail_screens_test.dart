@@ -158,6 +158,7 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> addToQueue(
     List<String> songIds, {
     bool expandMatchFlows = true,
+    void Function()? onQueueEditStart,
   }) async {}
 
   @override

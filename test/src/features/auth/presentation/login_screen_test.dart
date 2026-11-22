@@ -170,6 +170,32 @@ void main() {
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Test Connection'), findsNothing);
     expect(find.text('Connect'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('checkForUpdates')),
+      findsOneWidget,
+    );
+    await _disposeApp(tester);
+  });
+
+  testWidgets('Check for Updates shows the up-to-date notice', (tester) async {
+    await tester.pumpWidget(
+      _buildTestApp(
+        database: database,
+        overrides: [
+          serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          updateProvider.overrideWith((ref) async => null),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('checkForUpdates')));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Navis is up to date.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
     await _disposeApp(tester);
   });
 

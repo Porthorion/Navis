@@ -39,6 +39,7 @@ Released target baselines:
 - Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, playback speed shortcuts, and guarded transport actions while typing
 - Desktop volume controls that restore the previous per-installation level and mute state on the next launch
 - Channel-aware updater behavior for stable/dev release tracks
+- A secondary "Check for Updates" action on the sign-in screen and the first-run "Building Your Library" screen (`CheckForUpdatesButton`) runs the same `checkForUpdatesNow` flow and update dialog as Settings → About, so a sync or sign-in bug can still be fixed by updating; it is hidden wherever About hides update controls (iOS App Store/TestFlight, web) or updates are off in Integrations
 
 ## Media Integration Status
 

@@ -110,6 +110,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   startPersonalRadio,
   void Function(({int index, String songId})? queueEndSkip)?
   onPersonalRadioQueueEnd,
+  void Function()? onAndroidAutoQueueReplace,
   required Future<void> Function(String) startPreferredMix,
   required Future<void> Function(String) togglePreferredMix,
   bool Function()? readRadioMetadataAllowed,
@@ -151,6 +152,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       reportRollingCacheActivity: reportRollingCacheActivity,
       startPersonalRadio: startPersonalRadio,
       onPersonalRadioQueueEnd: onPersonalRadioQueueEnd,
+      onAndroidAutoQueueReplace: onAndroidAutoQueueReplace,
       startPreferredMix: startPreferredMix,
       togglePreferredMix: togglePreferredMix,
       readRadioMetadataAllowed: readRadioMetadataAllowed,
@@ -424,7 +426,12 @@ abstract class _DelegatingNavisPlaybackHandler
   Future<void> addToQueue(
     List<String> songIds, {
     bool expandMatchFlows = true,
-  }) => _delegate.addToQueue(songIds, expandMatchFlows: expandMatchFlows);
+    void Function()? onQueueEditStart,
+  }) => _delegate.addToQueue(
+    songIds,
+    expandMatchFlows: expandMatchFlows,
+    onQueueEditStart: onQueueEditStart,
+  );
 
   @override
   Future<void> playNext(List<String> songIds, {bool expandMatchFlows = true}) =>
