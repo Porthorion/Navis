@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -23,12 +24,14 @@ Future<int> _pump(
   WidgetTester tester, {
   UpdateInfo? info,
   AppNoticeController? notices,
+  IntegrationPolicy? policy,
 }) async {
   var checks = 0;
   const button = Scaffold(body: Center(child: CheckForUpdatesButton()));
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (policy != null) integrationPolicyProvider.overrideWithValue(policy),
         appSettingsProvider.overrideWith(
           (ref) => Stream.value(const AppSettingsModel.defaults()),
         ),
@@ -57,6 +60,19 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     try {
       await _pump(tester);
+      expect(find.text(l10n.updateCheckTitle), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('hidden when updates are off in Integrations', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await _pump(
+        tester,
+        policy: const IntegrationPolicy(masterEnabled: false),
+      );
       expect(find.text(l10n.updateCheckTitle), findsNothing);
     } finally {
       debugDefaultTargetPlatformOverride = null;

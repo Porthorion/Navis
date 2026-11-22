@@ -201,10 +201,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 )
               : Text(l10n.loginConnect),
         ),
-        const SizedBox(height: 8),
-        const Center(child: CheckForUpdatesButton()),
       ],
     );
+    // Wide + short has no scrolling and a tall right column, so there the
+    // action sits under the URL field instead.
+    const updateAction = Center(child: CheckForUpdatesButton());
 
     Form buildForm(Widget child) => Form(
       key: _formKey,
@@ -234,68 +235,81 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   // Wide + short: side-by-side layout (landscape phones,
                   // short desktop windows). URL field moves to left column
                   // under the hero so only username/password/button are on
-                  // the right — they fit without scrolling.
+                  // the right. Scrolls when large text or the update action
+                  // outgrow the viewport.
                   if (isWide && isShort) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
                         ),
-                        child: ConstrainedBox(
-                          // No maxHeight — let the card be its natural size so
-                          // Center can truly center it vertically.
-                          constraints: const BoxConstraints(maxWidth: 800),
-                          child: Card(
-                            margin: EdgeInsets.zero,
-                            clipBehavior: Clip.antiAlias,
-                            child: buildForm(
-                              IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: <Widget>[
-                                            // Compact hero: smaller icon,
-                                            // no subtitle — saves ~70dp vs
-                                            // the full hero section.
-                                            const _LoginHeroSection(
-                                              compact: true,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 16,
+                            ),
+                            child: ConstrainedBox(
+                              // No maxHeight — let the card be its natural size so
+                              // Center can truly center it vertically.
+                              constraints: const BoxConstraints(maxWidth: 800),
+                              child: Card(
+                                margin: EdgeInsets.zero,
+                                clipBehavior: Clip.antiAlias,
+                                child: buildForm(
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(20),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: <Widget>[
+                                                // Compact hero: smaller icon,
+                                                // no subtitle — saves ~70dp vs
+                                                // the full hero section.
+                                                const _LoginHeroSection(
+                                                  compact: true,
+                                                ),
+                                                const SizedBox(height: 16),
+                                                urlField,
+                                                const SizedBox(height: 8),
+                                                updateAction,
+                                              ],
                                             ),
-                                            const SizedBox(height: 16),
-                                            urlField,
-                                          ],
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                    VerticalDivider(
-                                      width: 1,
-                                      thickness: 1,
-                                      indent: 12,
-                                      endIndent: 12,
-                                      color: theme.colorScheme.outlineVariant,
-                                    ),
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: <Widget>[credentialsFields],
+                                        VerticalDivider(
+                                          width: 1,
+                                          thickness: 1,
+                                          indent: 12,
+                                          endIndent: 12,
+                                          color:
+                                              theme.colorScheme.outlineVariant,
                                         ),
-                                      ),
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(20),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: <Widget>[
+                                                credentialsFields,
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -345,6 +359,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         urlField,
                                         const SizedBox(height: 16),
                                         credentialsFields,
+                                        const SizedBox(height: 8),
+                                        updateAction,
                                       ],
                                     ),
                                   ),
@@ -383,6 +399,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 urlField,
                                 const SizedBox(height: 16),
                                 credentialsFields,
+                                const SizedBox(height: 8),
+                                updateAction,
                               ],
                             ),
                           ),
