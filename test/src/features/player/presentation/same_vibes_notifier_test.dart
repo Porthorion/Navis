@@ -77,6 +77,7 @@ class _ScriptedQueue extends RecordingRecommendationQueue {
     this.loadable = true,
     this.seedGates = const <String, Completer<bool>>{},
     this.appendInserts = const <bool>[],
+    this.appendGates = const <int, Completer<void>>{},
     super.onRetain,
   });
 
@@ -87,6 +88,10 @@ class _ScriptedQueue extends RecordingRecommendationQueue {
 
   /// Whether the n-th append inserts its songs (default true).
   final List<bool> appendInserts;
+
+  /// Holds the n-th append in flight (after it recorded its songs) until the
+  /// completer answers.
+  final Map<int, Completer<void>> appendGates;
   final events = <String>[];
   int replaces = 0;
 
@@ -119,6 +124,7 @@ class _ScriptedQueue extends RecordingRecommendationQueue {
     final index = appendedSongBatches.length;
     appendedSongBatches.add(List<Song>.from(songs));
     events.add('append');
+    await appendGates[index]?.future;
     final inserts = index >= appendInserts.length || appendInserts[index];
     return RecommendationQueueResult(
       inserts ? songs.map((song) => song.id).toList() : const <String>[],
@@ -155,6 +161,7 @@ class _LiveRig {
     bool loadable = true,
     Map<String, Completer<bool>> seedGates = const <String, Completer<bool>>{},
     List<bool> appendInserts = const <bool>[],
+    Map<int, Completer<void>> appendGates = const <int, Completer<void>>{},
     this.initialQueue = const <String>['seed'],
   }) : answers = answers ?? [_liveTracks('ABCDEFGHIJ')] {
     final first = this.answers.first;
@@ -235,6 +242,7 @@ class _LiveRig {
             loadable: loadable,
             seedGates: seedGates,
             appendInserts: appendInserts,
+            appendGates: appendGates,
             onRetain: (id) => emit(<String>[id], id),
           ),
         ),
@@ -5043,6 +5051,71 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 1400));
         await pumpEventQueue();
         expect(rig.lastFmCalls, 2);
+      },
+    );
+
+    test('a mix superseded while its append is in flight writes nothing into '
+        'the newer mix', () async {
+      final appendGate = Completer<void>();
+      final rig = _LiveRig(
+        answers: [_liveTracks('ABCDE'), _liveTracks('KLMNO')],
+        appendGates: {0: appendGate},
+      );
+      final run = rig.start();
+      await rig.reachGate();
+      expect(rig.queue.appendedSongBatches, hasLength(1));
+      await rig.start('other');
+      appendGate.complete();
+      await run;
+      expect(rig.queue.appendedSongBatches, hasLength(2));
+      expect(rig.state.seedSongId, 'other');
+      expect(rig.state.refilling, isFalse);
+      expect(rig.notifier.lastRefill!.seedId, 'other');
+      expect(rig.notifier.lastRefill!.inserted, 5);
+
+      // The old songs are no mix songs of the newer mix: with only them after
+      // the current one, the mix is low and refills.
+      rig.now = rig.now.add(const Duration(seconds: 2));
+      rig.emit(['other', ...firstFive], 'other');
+      await pumpEventQueue();
+      expect(rig.lastFmCalls, 3);
+    });
+
+    group(
+      'a refill that queued songs looks again only when the song moved on',
+      () {
+        for (final skipped in [true, false]) {
+          test('skipped=$skipped', () async {
+            final gate = Completer<void>();
+            final rig = _LiveRig(
+              answers: [
+                _liveTracks('ABCDEFGHIJ'),
+                _liveTracks('KLMNO'),
+                _liveTracks('PQRST'),
+              ],
+              appendGates: {2: gate},
+            );
+            await rig.start();
+            expect(rig.lastFmCalls, 1);
+            final ids = ['seed', ...firstFive];
+            rig.now = rig.now.add(const Duration(seconds: 2));
+            rig.emit(ids, ids.last);
+            await rig.reachGate();
+            expect(rig.lastFmCalls, 2);
+            expect(rig.state.refilling, isTrue);
+            // Snapshots are ignored while the refill runs.
+            if (skipped) rig.emit(ids, 'ArtistB-SongB');
+            gate.complete();
+            await pumpEventQueue();
+            expect(rig.state.refilling, isFalse);
+            expect(rig.lastFmCalls, 2, reason: 'the refill interval blocks');
+
+            rig.now = rig.now.add(const Duration(seconds: 2));
+            await Future<void>.delayed(const Duration(milliseconds: 1400));
+            await pumpEventQueue();
+            expect(rig.lastFmCalls, skipped ? 3 : 2);
+          });
+        }
       },
     );
   });
