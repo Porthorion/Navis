@@ -75,9 +75,6 @@ const _kRetryBackoffBase = Duration(seconds: 3);
 const _kRetryBackoffMax = Duration(seconds: 45);
 const _kRetryJitterMaxMs = 600;
 
-/// Collect incremental mapped results in this chunk size.
-const _kIncrementalQueueFlushChunkSize = 3;
-
 /// Bounded concurrent `search3` fan-out for Last.fm mapping.
 const _kMappingParallelism = 5;
 
@@ -242,6 +239,13 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         if (!state.active) {
           _positionSub?.close();
           _positionSub = null;
+        } else if (ref.mounted) {
+          // Snapshots were ignored while the run streamed: the user may have
+          // skipped onto the last appended songs meanwhile.
+          final playing = ref.read(playerStateProvider);
+          if (playing.currentSongId?.trim() != normalizedSeedSongId) {
+            _onSnapshotChanged(null, playing);
+          }
         }
       }
     }
@@ -453,6 +457,16 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     const targetBatch = _kTargetQueueBatchSize;
     const searchAttemptLimit = _kMaxSearchAttempts;
     var initialQueueChangeAttempted = false;
+    // Songs are appended chunk by chunk while they map (#759): the counters
+    // live out here so a failure after the first append ends the run as a
+    // partial success instead of rolling the live mix back.
+    var totalQueued = 0;
+    var chunks = 0;
+    var seedRetained = false;
+    var seedUnloadable = false;
+    final started = Stopwatch()..start();
+    int? firstAppendMs;
+    final orderSpacing = ArtistSpacing();
     AppLogger.debug(
       'SameVibes diagnostics: refill start '
       'seedSongId=$normalizedSeedSongId '
@@ -522,6 +536,100 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         queuedSongKeys.add(seedKey);
         (_mixSongKeys ??= <String>{}).add(seedKey);
       }
+      final mappedSongs = <Song>[];
+      bool alive() => ref.mounted && _isCurrent(session) && state.active;
+      void failUnloadableSeed() {
+        _retryTimer?.cancel();
+        _retryTimer = null;
+        _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
+        state = const SameVibesState(error: SameVibesError.networkError);
+        _reportFailed(session, SameVibesError.networkError);
+      }
+
+      /// Queues one chunk. False ends the run: superseded, switched off, the
+      /// queue cleared, or a seed the handler cannot load. An append that
+      /// inserts nothing is not a stop.
+      Future<bool> flush(List<Song> chunk) async {
+        if (!alive()) return false;
+        var songs = chunk;
+        // The first chunk of an initial run sees the old queue, which the
+        // retain below replaces; every other chunk sees the live one.
+        if (!isInitial || seedRetained) {
+          final live =
+              ref.read(audioHandlerProvider)?.snapshot.queueSongIds ??
+              ref.read(playerStateProvider).queueSongIds;
+          if (live.isEmpty) {
+            deactivate();
+            return false;
+          }
+          final liveIds = live.map((id) => id.trim()).toSet();
+          songs = songs.where((s) => !liveIds.contains(s.id.trim())).toList();
+        }
+        if (songs.isEmpty) return true;
+        final ordered = spaceByArtist<Song>(
+          songs,
+          artistOf: _artistKey,
+          count: songs.length,
+          spacing: orderSpacing,
+        );
+        final queue = ref.read(queueProvider.notifier);
+        if (isInitial && !seedRetained) {
+          // The handler loads the seed from the database when it is neither
+          // playing nor queued; a seed it cannot load would clear the queue.
+          final loadable = await queue.ensureSeedLoadable(
+            snapshot,
+            normalizedSeedSongId,
+            () async => seed?.song,
+          );
+          // The store awaited; a newer mix must not be retained over or failed.
+          if (!_isCurrent(session)) return false;
+          if (!loadable) {
+            seedUnloadable = true;
+            return false;
+          }
+          initialQueueChangeAttempted = true;
+          await queue.retainCurrentAsQueue(normalizedSeedSongId);
+          seedRetained = true;
+          if (!_isCurrent(session)) return false;
+        }
+        final result = await queue.appendRecommendationTracks(
+          ordered,
+          expandMatchFlows: false,
+          isCurrent: () =>
+              ref.mounted &&
+              ref.read(recommendationSessionProvider.notifier).owns(session),
+        );
+        // A superseded or stopped mix owns no state any more.
+        if (!_isCurrent(session)) return false;
+        if (result.count == 0) return true;
+        chunks += 1;
+        firstAppendMs ??= started.elapsedMilliseconds;
+        totalQueued += result.count;
+        final insertedIds = result.insertedIds.toSet();
+        (_mixSongIds ??= <String>{}).addAll(insertedIds);
+        final keys = _mixSongKeys ??= <String>{};
+        for (final song in ordered) {
+          if (!insertedIds.contains(song.id)) continue;
+          final artist = song.artist;
+          if (artist != null) _mixArtists[song.id] = artist;
+          final key = sameVibesCanonicalSongKey(artist ?? '', song.title);
+          if (key != null) keys.add(key);
+        }
+        AppLogger.debug(
+          'SameVibes diagnostics: chunk n=$chunks inserted=${result.count} '
+          'total=$totalQueued elapsedMs=${started.elapsedMilliseconds}',
+        );
+        ref
+            .read(recommendationSessionProvider.notifier)
+            .report(
+              session,
+              stage: 'active',
+              insertedCount: totalQueued,
+              source: mappedSongs.isEmpty ? 'server' : _recommendationSource,
+            );
+        return true;
+      }
+
       final candidatePreferences = _CandidatePreferenceContext(
         allowJunkVersions: seed != null && isJunkSongVersion(seed.title),
         downloadedSongIds: await _readPreferenceSongIds(
@@ -540,7 +648,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         tracks: <LastFmTrackRecommendation>[],
       );
       var mappedSongCount = 0;
-      final mappedSongs = <Song>[];
       if (seed != null) {
         lastFmResult = await _fetchRecommendations(
           seed: seed,
@@ -558,38 +665,43 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         );
         if (lastFmResult.outcome == LastFmFetchOutcome.success &&
             lastFmResult.tracks.isNotEmpty) {
-          mappedSongCount = await _mapLastFmRecommendationsIncremental(
-            api: api,
-            recommendations: lastFmResult.tracks,
-            blockedIds: queuedIds,
-            blockedSongKeys: queuedSongKeys,
-            preferences: candidatePreferences,
-            targetCount: targetBatch,
-            maxSearchAttempts: searchAttemptLimit,
-            onChunk: (chunk) async {
-              if (chunk.isEmpty || !state.active) {
-                return 0;
-              }
-              mappedSongs.addAll(chunk);
-              for (final song in chunk) {
-                final id = song.id.trim();
-                if (id.isNotEmpty) {
-                  queuedIds.add(id);
+          try {
+            mappedSongCount = await _mapLastFmRecommendationsIncremental(
+              api: api,
+              recommendations: lastFmResult.tracks,
+              blockedIds: queuedIds,
+              blockedSongKeys: queuedSongKeys,
+              preferences: candidatePreferences,
+              targetCount: targetBatch,
+              maxSearchAttempts: searchAttemptLimit,
+              alive: alive,
+              onChunk: (chunk) {
+                mappedSongs.addAll(chunk);
+                for (final song in chunk) {
+                  final id = song.id.trim();
+                  if (id.isNotEmpty) {
+                    queuedIds.add(id);
+                  }
+                  final key = sameVibesCanonicalSongKey(
+                    song.artist ?? '',
+                    song.title,
+                  );
+                  if (key != null) {
+                    queuedSongKeys.add(key);
+                  }
                 }
-                final key = sameVibesCanonicalSongKey(
-                  song.artist ?? '',
-                  song.title,
+                AppLogger.debug(
+                  'SameVibes diagnostics: mapped incremental chunk=${chunk.length}',
                 );
-                if (key != null) {
-                  queuedSongKeys.add(key);
-                }
-              }
-              AppLogger.debug(
-                'SameVibes diagnostics: mapped incremental chunk=${chunk.length}',
-              );
-              return chunk.length;
-            },
-          );
+                return flush(chunk);
+              },
+            );
+          } on Object catch (error) {
+            // Songs are already queued: end the run as a success below.
+            if (totalQueued == 0) rethrow;
+            mappedSongCount = mappedSongs.length;
+            AppLogger.debug('SameVibes mapping stopped after queuing: $error');
+          }
         }
       } else {
         AppLogger.debug(
@@ -599,6 +711,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
       final mappedBeforeFallback = mappedSongCount;
       if (!_isCurrent(session)) return;
+      if (seedUnloadable) {
+        failUnloadableSeed();
+        return;
+      }
       AppLogger.debug(
         'SameVibes diagnostics: mappedBeforeFallback=$mappedBeforeFallback',
       );
@@ -734,7 +850,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               (lastFmResult.apiErrorCode == 10 ||
                   lastFmResult.apiErrorCode == 26) &&
               !ref.read(lastFmBundledKeyProvider);
-          if (endpointUnsupported && mappedSongs.isEmpty && !userKeyRejected) {
+          if (endpointUnsupported &&
+              mappedSongs.isEmpty &&
+              totalQueued == 0 &&
+              !userKeyRejected) {
             fillUnsupported = true;
           }
           fallbackReason = _subsonicFailureReason(error);
@@ -756,116 +875,58 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         return false;
       }
 
-      if (shouldAttemptFallback && fallbackSeedEligible) {
-        var filled =
-            anchorFillId != null &&
-            await fillFrom(anchorFillId, anchorMeta?.title);
-        if (!filled &&
-            !fillUnsupported &&
-            triggerFillId != null &&
-            triggerFillId != anchorFillId) {
-          if (!_isCurrent(session)) return;
-          filled = await fillFrom(triggerFillId, seed?.title);
-        }
-        if (fillUnsupported) {
-          if (!_isCurrent(session)) return;
-          state = const SameVibesState(error: SameVibesError.unsupported);
-          _reportFailed(session, SameVibesError.unsupported);
-          return;
-        }
-      }
-
-      if (mappedSongCount < targetBatch && !shouldAttemptFallback) {
-        AppLogger.debug(
-          'SameVibes diagnostics: fallback skipped '
-          'reason=$fallbackReason mapped=$mappedSongCount',
-        );
-      }
-
-      // The fallback fetch awaited; a newer mix may own the queue now, and
-      // `state` is its state. A superseded refill must not retain its seed
-      // (that would collapse the new mix's queue) or append anything.
-      if (!_isCurrent(session)) return;
-
-      if (!state.active) {
-        AppLogger.debug(
-          'SameVibes diagnostics: refill canceled (state inactive post-fallback)',
-        );
-        state = state.copyWith(refilling: false);
-        return;
-      }
-
-      // Spread the artists of the whole batch; nothing is dropped here.
-      final songsToQueue = spaceByArtist<Song>(
-        [...mappedSongs, ...fallbackSongs],
-        artistOf: _artistKey,
-        count: mappedSongs.length + fallbackSongs.length,
-      );
-      var totalQueued = 0;
-      var parked = false;
-      if (songsToQueue.isNotEmpty) {
-        if (isInitial) {
-          // The handler loads the seed from the database when it is neither
-          // playing nor queued; a seed it cannot load would clear the queue.
-          final loadable = await ref
-              .read(queueProvider.notifier)
-              .ensureSeedLoadable(
-                snapshot,
-                normalizedSeedSongId,
-                () async => seed?.song,
-              );
-          // The store awaited; a newer mix must not be retained over or failed.
-          if (!_isCurrent(session)) return;
-          if (!loadable) {
-            _retryTimer?.cancel();
-            _retryTimer = null;
-            _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
-            state = const SameVibesState(error: SameVibesError.networkError);
-            _reportFailed(session, SameVibesError.networkError);
+      try {
+        if (shouldAttemptFallback && fallbackSeedEligible) {
+          var filled =
+              anchorFillId != null &&
+              await fillFrom(anchorFillId, anchorMeta?.title);
+          if (!filled &&
+              !fillUnsupported &&
+              triggerFillId != null &&
+              triggerFillId != anchorFillId) {
+            if (!_isCurrent(session)) return;
+            filled = await fillFrom(triggerFillId, seed?.title);
+          }
+          if (fillUnsupported) {
+            if (!_isCurrent(session)) return;
+            state = const SameVibesState(error: SameVibesError.unsupported);
+            _reportFailed(session, SameVibesError.unsupported);
             return;
           }
-          initialQueueChangeAttempted = true;
-          await ref
-              .read(queueProvider.notifier)
-              .retainCurrentAsQueue(normalizedSeedSongId);
         }
-        if (!_isCurrent(session)) return;
-        final result = await ref
-            .read(queueProvider.notifier)
-            .appendRecommendationTracks(
-              songsToQueue,
-              expandMatchFlows: false,
-              isCurrent: () =>
-                  ref.mounted &&
-                  ref
-                      .read(recommendationSessionProvider.notifier)
-                      .owns(session),
-            );
-        totalQueued = result.count;
-        // A superseded or stopped mix owns no state any more.
-        if (totalQueued > 0 && _isCurrent(session)) {
-          (_mixSongIds ??= <String>{}).addAll(result.insertedIds);
-          for (final song in songsToQueue) {
-            final artist = song.artist;
-            if (artist != null && result.insertedIds.contains(song.id)) {
-              _mixArtists[song.id] = artist;
-            }
-          }
-          final keys = _mixSongKeys ??= <String>{};
-          for (final song in songsToQueue) {
-            final key = sameVibesCanonicalSongKey(
-              song.artist ?? '',
-              song.title,
-            );
-            if (key != null && result.insertedIds.contains(song.id)) {
-              keys.add(key);
-            }
-          }
-        }
-      }
 
-      // A superseded refill's songs were not queued (the append checks the
-      // session); its outcome belongs to no one now.
+        if (mappedSongCount < targetBatch && !shouldAttemptFallback) {
+          AppLogger.debug(
+            'SameVibes diagnostics: fallback skipped '
+            'reason=$fallbackReason mapped=$mappedSongCount',
+          );
+        }
+
+        // The fallback fetch awaited; a newer mix may own the queue now, and
+        // `state` is its state. A superseded refill must not retain its seed
+        // (that would collapse the new mix's queue) or append anything.
+        if (!_isCurrent(session)) return;
+
+        if (!state.active) {
+          AppLogger.debug(
+            'SameVibes diagnostics: refill canceled (state inactive post-fallback)',
+          );
+          state = state.copyWith(refilling: false);
+          return;
+        }
+
+        await flush(fallbackSongs);
+      } on Object catch (error) {
+        // Songs are already queued: end the run as a success below.
+        if (totalQueued == 0) rethrow;
+        AppLogger.debug('SameVibes fill stopped after queuing: $error');
+      }
+      if (!_isCurrent(session)) return;
+      if (seedUnloadable) {
+        failUnloadableSeed();
+        return;
+      }
+      var parked = false;
       if (!_isCurrent(session)) return;
       if (totalQueued <= 0) {
         if (isInitial && initialQueueChangeAttempted) {
@@ -960,6 +1021,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         fallbackReason: fallbackReason,
         inserted: totalQueued,
         parkedSeedId: parked ? normalizedSeedSongId : null,
+        chunks: chunks,
+        firstAppendMs: firstAppendMs,
       );
       // The first Deezer batch shipped what had arrived; fetch the rest (and
       // the features) in the background for the next refill.
@@ -976,7 +1039,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             stage: totalQueued > 0 || parked ? 'active' : null,
             retryCount: totalQueued > 0 || parked ? 0 : null,
             source: mixSource,
-            candidateCount: songsToQueue.length,
+            candidateCount: mappedSongs.length + fallbackSongs.length,
             insertedCount: totalQueued,
           );
       // Parked on the last song with repeat off: nothing can extend the
@@ -992,9 +1055,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
       // The user may have skipped while this refill ran (snapshots are
       // ignored meanwhile), and steady playback sends no further one.
-      if (parked &&
-          ref.read(playerStateProvider).currentSongId?.trim() !=
-              normalizedSeedSongId) {
+      // A streamed refill that queued songs looks again when the song moved on
+      // meanwhile (an unmoved song would chain refills on low-yield libraries).
+      final movedOn = ref.read(playerStateProvider).currentSongId;
+      if (parked
+          ? movedOn?.trim() != normalizedSeedSongId
+          : !isInitial &&
+                totalQueued > 0 &&
+                movedOn != snapshot.currentSongId) {
         scheduleMicrotask(() {
           if (ref.mounted) {
             _onSnapshotChanged(null, ref.read(playerStateProvider));
@@ -1002,6 +1070,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         });
       }
     } on Exception catch (error) {
+      if (totalQueued > 0) {
+        _endPartialRefill(session, error);
+        return;
+      }
       if (isInitial && initialQueueChangeAttempted) {
         await _restorePreviousQueue(snapshot, session);
       }
@@ -1024,6 +1096,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         error: SameVibesError.networkError,
       );
     } on Object catch (error, stackTrace) {
+      if (totalQueued > 0) {
+        _endPartialRefill(session, error);
+        return;
+      }
       if (isInitial && initialQueueChangeAttempted) {
         await _restorePreviousQueue(snapshot, session);
       }
@@ -1052,6 +1128,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         state = state.copyWith(refilling: false);
       }
     }
+  }
+
+  /// A failure after songs were queued ends the run as a success: a live mix
+  /// is never rolled back, shows no error and needs no retry (#759).
+  void _endPartialRefill(RecommendationSession session, Object error) {
+    AppLogger.debug('SameVibes refill error after queuing: $error');
+    if (!_isCurrent(session)) return;
+    _nextRefillAllowedAt = _now().add(_kMinimumRefillInterval);
+    state = state.copyWith(refilling: false);
+    ref
+        .read(recommendationSessionProvider.notifier)
+        .report(session, stage: 'active');
   }
 
   /// Ends [session] as failed; without this the session would keep reading
@@ -1156,7 +1244,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     required _CandidatePreferenceContext preferences,
     required int targetCount,
     required int maxSearchAttempts,
-    required Future<int> Function(List<Song> chunk) onChunk,
+    required bool Function() alive,
+    required Future<bool> Function(List<Song> chunk) onChunk,
   }) async {
     if (recommendations.isEmpty) {
       return 0;
@@ -1195,13 +1284,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     var misses = 0;
     var mappedCount = 0;
     final pendingChunk = <Song>[];
+    var stopped = false;
 
     for (
       var batchStart = 0;
       batchStart < attemptsLimit.length;
       batchStart += _kMappingParallelism
     ) {
-      if (!state.active ||
+      if (!alive() ||
           mappedCount >= targetCount ||
           misses >= maxSearchAttempts) {
         break;
@@ -1222,7 +1312,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       );
 
       for (final best in resolutions) {
-        if (!state.active || mappedCount >= targetCount) {
+        if (!alive() || mappedCount >= targetCount) {
           break;
         }
         attempts += 1;
@@ -1257,19 +1347,20 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           blockedSongKeys.add(key);
         }
         mappedCount += 1;
-
-        if (pendingChunk.length >= _kIncrementalQueueFlushChunkSize) {
-          final flushed = await onChunk(List<Song>.from(pendingChunk));
-          if (flushed <= 0 || !state.active) {
-            pendingChunk.clear();
-            break;
-          }
-          pendingChunk.clear();
+      }
+      // One append per group: a group resolves together, so nothing could be
+      // queued sooner. An append that inserted nothing is not a reason to stop.
+      if (pendingChunk.isNotEmpty) {
+        final keepGoing = await onChunk(List<Song>.from(pendingChunk));
+        pendingChunk.clear();
+        if (!keepGoing) {
+          stopped = true;
+          break;
         }
       }
     }
 
-    if (state.active && mappedCount < targetCount) {
+    if (!stopped && alive() && mappedCount < targetCount) {
       // A waiting song whose key was queued since (a later candidate placed
       // another version) stays out.
       final waiting = deferred.where((song) {
@@ -1289,11 +1380,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         mappedCount += 1;
       }
     }
-    if (state.active && pendingChunk.isNotEmpty) {
-      final flushed = await onChunk(List<Song>.from(pendingChunk));
-      if (flushed > 0) {
-        pendingChunk.clear();
-      }
+    if (!stopped && alive() && pendingChunk.isNotEmpty) {
+      await onChunk(List<Song>.from(pendingChunk));
     }
     AppLogger.debug(
       'SameVibes diagnostics: mappingSummary '
@@ -2166,6 +2254,8 @@ class SameVibesRefillRecord {
     required this.fallbackReason,
     required this.inserted,
     required this.parkedSeedId,
+    this.chunks = 0,
+    this.firstAppendMs,
   });
 
   final DateTime at;
@@ -2191,6 +2281,11 @@ class SameVibesRefillRecord {
   final int inserted;
   final String? parkedSeedId;
 
+  /// How many appends queued songs, and how long after the refill started
+  /// the first one did (null when none did).
+  final int chunks;
+  final int? firstAppendMs;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'at': at.toIso8601String(),
     'mixSource': mixSource,
@@ -2204,5 +2299,7 @@ class SameVibesRefillRecord {
     'fallbackReason': fallbackReason,
     'inserted': inserted,
     'parkedSeedId': parkedSeedId,
+    'chunks': chunks,
+    'firstAppendMs': firstAppendMs,
   };
 }
