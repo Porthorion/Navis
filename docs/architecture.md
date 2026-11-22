@@ -2912,9 +2912,13 @@ only resolves when the shortest side is under 600 dp, so this covers landscape
 phones and short car displays alike (owner decision, #758 P4). The shell and
 `resolveAdaptiveContextFor` pass `viewPadding` (not `padding`) to the resolver,
 so an open keyboard, which zeroes the bottom padding, cannot flip the mode.
-In compact-wide the shell pads its pane by the left and right insets, so the
-car Now Playing adds none of its own (the desktop Mini Player, which reuses
-that layout, still does), hides the format pills below 400 dp high, and the
+In compact-wide the shell pads its rail+pane row by the left and right insets
+and wraps the rail and the pane in `SideInsetsConsumed`, which removes them from
+`MediaQuery.padding` (`viewPadding` stays, so `bareSideInsetsOf` still finds the
+band side). Nothing below pads them a second time: a page `SafeArea`, or a
+horizontal shelf `ListView`, which pads its scroll axis by `MediaQuery.padding`
+(#758). The car Now Playing adds none of its own (the desktop Mini Player, which
+reuses that layout outside the padded row, still does), hides the format pills below 400 dp high, and the
 compact mini player strip grows by the real bottom inset (a home indicator or a
 Duo strip) with its content above it.
 The shell does not resize for the keyboard there, so the page keeps the full
@@ -2970,8 +2974,8 @@ pane. The album page caps its cover hero at 45% of the viewport height outside
 phone form factors. Widgets that float at the right edge (artist/year/genre
 rails, the mini player's buttons, the Playlists and Radio buttons) clear a
 right system strip such as the iPhone Duo cover screen's, via
-`rightSystemInsetFor`; compact-wide pads its content by that inset already, so
-it returns 0 there.
+`rightSystemInsetFor`; compact-wide pads its content by that inset already (and
+consumes it from `MediaQuery`), so it returns 0 there.
 The Library artists grid highlights the letter whose section header is within
 `_kArtistGridActiveLetterOffset` (48 dp) of the grid's own top, measured with
 `localToGlobal(ancestor: <viewport>)` because the grid starts at a different
