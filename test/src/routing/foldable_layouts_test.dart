@@ -2505,6 +2505,42 @@ void main() {
     }
   });
 
+  group('Now Playing backdrop behind the compact wide rail', () {
+    final rail = find.byKey(const ValueKey<String>('compactWideRailSurface'));
+    final backdrop = find.byKey(
+      const ValueKey<String>('compactWideNowPlayingBackdrop'),
+    );
+    Color? railColor(WidgetTester tester) =>
+        tester.widget<Material>(rail).color;
+
+    _testApp('expanded: the rail is clear and the backdrop covers every edge', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneLandscape);
+      final collapsed = railColor(tester);
+      expect(
+        collapsed,
+        Theme.of(tester.element(rail)).colorScheme.surfaceContainerLow,
+      );
+      expect(backdrop, findsNothing);
+
+      await _openNowPlaying(tester, container);
+
+      expect(railColor(tester)!.a, 0);
+      expect(
+        tester.getRect(backdrop),
+        Offset.zero & _phoneLandscape.size,
+        reason: 'under the left cutout strip, the rail and the right strip',
+      );
+
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await _settle(tester, 20);
+
+      expect(railColor(tester), collapsed);
+      expect(backdrop, findsNothing);
+    });
+  });
+
   // #758 P1: whatever owns the bottom screen edge consumes the bottom system
   // inset; nothing above it sees that inset a second time.
   group('#758 compact wide pane below the mini player strip', () {

@@ -2201,6 +2201,22 @@ disk-cache identity, load admission, clipping and provenance remain independent
 of the memory decode size. `octo_image` is an explicit dependency at its existing
 locked version; this introduces no new renderer or package version.
 
+### System bars (edge to edge)
+
+`main.dart` enables `SystemUiMode.edgeToEdge` and sets `kNavisOverlayStyle`
+(`theme/navis_theme.dart`): transparent status and navigation bars, no divider
+and `systemNavigationBarContrastEnforced: false`, so 3-button navigation shows
+the app's backdrop instead of Android's scrim. `SystemUiOverlayStyle.light`
+must not be used on its own: its navigation bar is solid black. The artwork
+app bars (Home weekly detail, album detail) use `kNavisOverlayStyle`, and
+`MaterialApp.builder` wraps the app in an `AnnotatedRegion` with
+`navisNavigationBarStyle(theme brightness)`, the only source of the navigation
+button icon brightness (dark icons in light themes, light icons otherwise).
+Flutter reads the bar fields from the region under the bottom edge and the
+status fields from the top one, so the root region carries no status fields.
+The Android `NormalTheme` also sets a transparent `navigationBarColor` for the
+frames before Flutter draws.
+
 ### Expandable Player Sheet
 
 The `ExpandablePlayerSheet` widget (`common_widgets/expandable_player_sheet.dart`)
@@ -2932,6 +2948,15 @@ branch of `search_screen.dart`, so it also applies to tablet and rail windows.
 An active filter chip is hidden with the others while the keyboard is up in a
 short window; the filter itself stays set and the chips return with the
 keyboard.
+
+While Now Playing is open in compact-wide, a full-screen `NowPlayingBackdrop`
+(`compactWideNowPlayingBackdrop`) sits under the padded rail-and-pane Row, so
+the artwork backdrop runs behind the rail and the cutout and system-bar strips.
+Its opacity and the fade of the rail's `surfaceContainerLow` background to
+transparent (`_RailSurface`) follow the sheet's progress (`_playerSheetProgress`),
+so collapsing restores the rail colour smoothly. Plain and Flat backgrounds go
+through the same widget, so the rail then shows the matching flat colour. The
+pane keeps its own backdrop. Portrait and desktop layouts are unchanged.
 
 `sideStripNav` keeps everything in the bottom-navigation branch (the I27b
 `SafeArea` and `ConsumedRightInset`, the full-width mini player, the player
