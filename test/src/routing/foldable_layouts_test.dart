@@ -2576,6 +2576,40 @@ void main() {
       }
     }
 
+    // #758 P4: on a landscape phone the strip is the normal bar height plus
+    // the bottom inset, and everything inside fits, also at large text.
+    const stripCases = <(String, _Viewport)>[
+      ...cases,
+      (
+        'car ultrawide',
+        (size: Size(1280, 480), padding: EdgeInsets.only(bottom: 20)),
+      ),
+    ];
+    for (final (name, viewport) in stripCases) {
+      // The 667x375 nav rail already overflows at 2.0x text (not the strip).
+      for (final scale in <double>[1, name.startsWith('667') ? 1.5 : 2]) {
+        _testApp('$name: strip is kMiniPlayerHeight + inset at text $scale', (
+          tester,
+        ) async {
+          await _pumpApp(tester, viewport, textScale: scale);
+          expect(tester.takeException(), isNull);
+          expect(
+            tester.getRect(strip).height,
+            kMiniPlayerHeight + viewport.padding.bottom,
+          );
+          for (final button
+              in find
+                  .descendant(of: strip, matching: find.byType(IconButton))
+                  .evaluate()) {
+            expect(
+              tester.getSize(find.byWidget(button.widget)).shortestSide,
+              greaterThanOrEqualTo(48),
+            );
+          }
+        });
+      }
+    }
+
     for (final (name, viewport) in cases) {
       _testApp('$name: library and search see no bottom inset', (tester) async {
         await _pumpApp(tester, viewport, extraOverrides: _searchOverrides());
