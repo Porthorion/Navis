@@ -83,6 +83,7 @@ class AdaptiveContext {
     required this.useStandardRailNavigation,
     required this.useCompactWideLandscape,
     required this.useRailNavigation,
+    this.useShortHeightChrome = false,
   });
 
   final bool desktopRuntime;
@@ -95,6 +96,13 @@ class AdaptiveContext {
   final bool useStandardRailNavigation;
   final bool useCompactWideLandscape;
   final bool useRailNavigation;
+
+  /// A window shorter than [kAdaptiveMediumWidth] (the same 600 dp, read as a
+  /// height) on a phone or tablet runtime: a landscape phone or a short
+  /// split-screen window. Pages drop their title and merge their controls
+  /// into one row to leave room for content. It follows the window, not the
+  /// page, so it does not flip when the mini player or keyboard appears.
+  final bool useShortHeightChrome;
 
   // Value equality lets [AdaptiveContextScope] notify dependents only when
   // the adaptive layout actually changes, not on every shell build.
@@ -110,7 +118,8 @@ class AdaptiveContext {
       other.useDesktopShell == useDesktopShell &&
       other.useStandardRailNavigation == useStandardRailNavigation &&
       other.useCompactWideLandscape == useCompactWideLandscape &&
-      other.useRailNavigation == useRailNavigation;
+      other.useRailNavigation == useRailNavigation &&
+      other.useShortHeightChrome == useShortHeightChrome;
 
   @override
   int get hashCode => Object.hash(
@@ -124,6 +133,7 @@ class AdaptiveContext {
     useStandardRailNavigation,
     useCompactWideLandscape,
     useRailNavigation,
+    useShortHeightChrome,
   );
 }
 
@@ -418,6 +428,8 @@ AdaptiveContext resolveAdaptiveContext({
     useStandardRailNavigation: useStandardRailNavigation,
     useCompactWideLandscape: useCompactWideLandscape,
     useRailNavigation: useRailNavigation,
+    useShortHeightChrome:
+        !desktopRuntime && viewportSize.height < kAdaptiveMediumWidth,
   );
 }
 

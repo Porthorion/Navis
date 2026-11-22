@@ -229,6 +229,8 @@ Widget _buildLibraryScreen({
   String artistViewMode = 'list',
   AdaptiveContext? adaptiveContext,
   bool active = true,
+  bool adaptiveFromViewport = false,
+  bool desktopRuntime = false,
 }) {
   return ProviderScope(
     overrides: withTestDatabase(
@@ -256,6 +258,18 @@ Widget _buildLibraryScreen({
           data: MediaQuery.of(context).copyWith(disableAnimations: true),
           child: child!,
         );
+        if (adaptiveFromViewport) {
+          // Follows the window, so a rotation changes the context.
+          final media = MediaQuery.of(context);
+          return AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: desktopRuntime,
+              viewportSize: media.size,
+              safePadding: media.viewPadding,
+            ),
+            child: still,
+          );
+        }
         return adaptiveContext == null
             ? still
             : AdaptiveContextScope(
@@ -461,6 +475,8 @@ Future<void> _pumpLibraryScreen(
   bool settle = true,
   String artistViewMode = 'list',
   AdaptiveContext? adaptiveContext,
+  bool adaptiveFromViewport = false,
+  bool desktopRuntime = false,
 }) async {
   await tester.pumpWidget(
     _buildLibraryScreen(
@@ -471,6 +487,8 @@ Future<void> _pumpLibraryScreen(
       textScaler: textScaler,
       artistViewMode: artistViewMode,
       adaptiveContext: adaptiveContext,
+      adaptiveFromViewport: adaptiveFromViewport,
+      desktopRuntime: desktopRuntime,
     ),
   );
   if (settle) {
@@ -1084,7 +1102,7 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
-      'phone landscape retains the Library title above its tabs',
+      'phone landscape drops the Library title for its tabs',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(844, 390));
         await _pumpLibraryScreen(
@@ -1104,7 +1122,8 @@ void main() {
         );
 
         expect(find.byType(AppBar), findsOneWidget);
-        expect(find.text('Library'), findsOneWidget);
+        // A 390 dp tall window is short: the tab bar alone heads the page.
+        expect(find.text('Library'), findsNothing);
         expect(find.byType(TabBar), findsOneWidget);
       },
     );
@@ -3110,6 +3129,7 @@ void main() {
       Size size, {
       int albumCount = 3,
       bool byYear = false,
+      bool? desktop,
     }) async {
       setAdaptiveTestViewport(tester, size);
       final pageLimits = <int>[];
@@ -3136,11 +3156,8 @@ void main() {
       ];
       await _pumpLibraryScreen(
         tester,
-        adaptiveContext: resolveAdaptiveContext(
-          desktopRuntime: size.width > 900,
-          viewportSize: size,
-          safePadding: EdgeInsets.zero,
-        ),
+        adaptiveFromViewport: true,
+        desktopRuntime: desktop ?? size.width > 900,
         overrides: [
           librarySyncControllerProvider.overrideWith(
             () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
@@ -3376,6 +3393,303 @@ void main() {
       expect(tester.widget<TextField>(searchArtists).controller?.text, 'rih');
       expect(find.text('Rihanna'), findsOneWidget);
       expect(find.text('Beyoncé'), findsNothing);
+    });
+
+    // Short windows (a landscape phone): one pinned control row per tab.
+    void statusBar24(WidgetTester tester) {
+      tester.view.padding = const FakeViewPadding(top: 24);
+      tester.view.viewPadding = const FakeViewPadding(top: 24);
+      addTearDown(() {
+        tester.view.resetPadding();
+        tester.view.resetViewPadding();
+        tester.view.resetViewInsets();
+      });
+    }
+
+    Rect rectOf(WidgetTester tester, Finder f) => tester.getRect(f);
+
+    _testWidgetsWithCleanup(
+      'short Albums: title gone, field, chip and sort share one pinned row',
+      (tester) async {
+        for (final size in const <Size>[
+          Size(832, 384),
+          Size(891, 411),
+          Size(1040, 480),
+          Size(667, 375),
+        ]) {
+          statusBar24(tester);
+          await pumpAlbumsArtists(tester, size, albumCount: 40, desktop: false);
+          expect(find.text('Library'), findsNothing, reason: '$size');
+          final field = rectOf(tester, searchAlbums);
+          final chip = rectOf(tester, find.byType(FilterChip));
+          final sort = rectOf(
+            tester,
+            find.byKey(const ValueKey<String>('libraryAlbumSortControl')),
+          );
+          expect(field.center.dy, closeTo(chip.center.dy, 2), reason: '$size');
+          expect(field.center.dy, closeTo(sort.center.dy, 2));
+          expect(field.width, inInclusiveRange(200, 360));
+          // Chrome: status bar 24, tabs 48, one row of at most 52 dp, so the
+          // grid keeps H - 124 dp (H - 214 beside a 90 dp player strip).
+          final grid = rectOf(
+            tester,
+            find.byKey(const PageStorageKey<String>('library-albums')),
+          );
+          expect(grid.top, lessThanOrEqualTo(24 + 48 + 52), reason: '$size');
+          expect(grid.height, greaterThanOrEqualTo(size.height - 124));
+          // ignore: avoid_print
+          print(
+            'albums $size grid ${grid.height} dp, ${grid.height - 90} with player',
+          );
+          // Pinned: scrolling the grid leaves the row where it was.
+          final top = field.top;
+          await tester.drag(
+            find.byKey(const PageStorageKey<String>('library-albums')),
+            const Offset(0, -300),
+          );
+          await tester.pumpAndSettle();
+          expect(rectOf(tester, searchAlbums).top, top);
+          expect(tester.takeException(), isNull);
+        }
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'short Artists: field, chips and toggle in one row',
+      (tester) async {
+        statusBar24(tester);
+        await pumpAlbumsArtists(tester, const Size(832, 384));
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
+        final field = rectOf(tester, searchArtists);
+        final toggle = rectOf(tester, find.byIcon(Icons.grid_view));
+        final likedChip = rectOf(
+          tester,
+          find.widgetWithText(FilterChip, 'Liked'),
+        );
+        expect(field.center.dy, closeTo(toggle.center.dy, 2));
+        expect(field.center.dy, closeTo(likedChip.center.dy, 2));
+        expect(toggle.left, greaterThan(likedChip.right));
+        expect(
+          rectOf(tester, find.byKey(const Key('artistAlphabetRail'))).top,
+          lessThanOrEqualTo(24 + 48 + 52 + 8),
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup('short Liked: the field is its own single row', (
+      tester,
+    ) async {
+      statusBar24(tester);
+      await pumpLikedTab(tester, const Size(832, 384));
+      expect(find.text('Library'), findsNothing);
+      final field = rectOf(tester, find.byType(TextField));
+      expect(field.width, greaterThan(400), reason: 'a field-only row');
+      expect(field.bottom, lessThanOrEqualTo(24 + 48 + 52));
+      expect(tester.takeException(), isNull);
+    });
+
+    _testWidgetsWithCleanup(
+      'portrait phone, tablets and desktop keep the title and two rows',
+      (tester) async {
+        statusBar24(tester);
+        await pumpAlbumsArtists(tester, const Size(390, 844));
+        expect(
+          find.text('Library'),
+          findsNothing,
+          reason: 'portrait: 12 dp bar',
+        );
+        expect(rectOf(tester, searchAlbums).top, 24 + 12 + 48 + 8);
+        final sort = find.byKey(
+          const ValueKey<String>('libraryAlbumSortControl'),
+        );
+        expect(
+          rectOf(tester, sort).top,
+          greaterThan(rectOf(tester, searchAlbums).bottom),
+        );
+        for (final size in const <Size>[Size(1024, 600), Size(1280, 800)]) {
+          await pumpAlbumsArtists(tester, size, desktop: false);
+          expect(find.text('Library'), findsOneWidget, reason: '$size');
+          expect(
+            rectOf(tester, sort).top,
+            greaterThan(rectOf(tester, searchAlbums).bottom),
+          );
+        }
+        await pumpAlbumsArtists(tester, const Size(1000, 500));
+        expect(
+          find.byType(TextField),
+          findsNothing,
+          reason: 'desktop 1000x500',
+        );
+        expect(find.text('Library'), findsOneWidget);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'short Albums at text scale 1.5 stays one row and scrolls sideways',
+      (tester) async {
+        statusBar24(tester);
+        tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpAlbumsArtists(tester, const Size(832, 384), albumCount: 40);
+        expect(tester.takeException(), isNull);
+        final field = rectOf(tester, searchAlbums);
+        expect(field.width, greaterThanOrEqualTo(200));
+        final sort = find.byKey(
+          const ValueKey<String>('libraryAlbumSortControl'),
+        );
+        expect(
+          rectOf(tester, find.byType(FilterChip)).center.dy,
+          closeTo(field.center.dy, 4),
+        );
+        await tester.drag(
+          find.byType(SingleChildScrollView).first,
+          const Offset(-400, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(sort, findsOneWidget);
+        expect(rectOf(tester, sort).right, lessThanOrEqualTo(832));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'rotation keeps the filter text and the grid offset',
+      (tester) async {
+        statusBar24(tester);
+        await pumpAlbumsArtists(tester, const Size(390, 844), albumCount: 59);
+        await tester.enterText(searchAlbums, 'Album');
+        await tester.pumpAndSettle();
+        final grid = find.byKey(const PageStorageKey<String>('library-albums'));
+        await tester.drag(grid, const Offset(0, -300));
+        await tester.pumpAndSettle();
+        double offset() => tester
+            .state<ScrollableState>(
+              find
+                  .descendant(of: grid, matching: find.byType(Scrollable))
+                  .first,
+            )
+            .position
+            .pixels;
+        final before = offset();
+        expect(before, greaterThan(0));
+
+        for (final size in const <Size>[Size(844, 390), Size(390, 844)]) {
+          tester.view.physicalSize = size;
+          await tester.pumpAndSettle();
+          expect(
+            tester.widget<TextField>(searchAlbums).controller?.text,
+            'Album',
+          );
+        }
+        // The grid re-anchors on its first visible row, so the offset is
+        // restored to within a fraction of a row, not to the pixel.
+        expect(offset(), closeTo(before, 100));
+        expect(offset(), greaterThan(100));
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'short window with the keyboard open keeps the focused field visible',
+      (tester) async {
+        statusBar24(tester);
+        await pumpAlbumsArtists(tester, const Size(832, 384), albumCount: 40);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+        await tester.tap(searchAlbums);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        final field = rectOf(tester, searchAlbums);
+        expect(field.top, greaterThanOrEqualTo(0));
+        expect(field.bottom, lessThanOrEqualTo(384 - 220));
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'short window of 412x420 (split view) keeps one row without overflow',
+      (tester) async {
+        statusBar24(tester);
+        await pumpAlbumsArtists(tester, const Size(412, 420), albumCount: 40);
+        expect(tester.takeException(), isNull);
+        final field = rectOf(tester, searchAlbums);
+        expect(field.width, greaterThanOrEqualTo(200));
+        expect(
+          rectOf(tester, find.byType(FilterChip)).center.dy,
+          closeTo(field.center.dy, 2),
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'rotating across the short-height breakpoint keeps the field focused',
+      (tester) async {
+        statusBar24(tester);
+        await pumpAlbumsArtists(tester, const Size(390, 844));
+        EditableText editable() => tester.widget<EditableText>(
+          find.descendant(
+            of: searchAlbums,
+            matching: find.byType(EditableText),
+          ),
+        );
+        await tester.tap(searchAlbums);
+        await tester.enterText(searchAlbums, 'abbey');
+        await tester.pumpAndSettle();
+        expect(editable().focusNode.hasFocus, isTrue);
+        for (final size in const <Size>[Size(832, 384), Size(390, 844)]) {
+          setAdaptiveTestViewport(tester, size);
+          await tester.pumpAndSettle();
+          expect(editable().focusNode.hasFocus, isTrue, reason: '$size');
+          expect(editable().controller.text, 'abbey', reason: '$size');
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'short window on the standard rail drops the Library header',
+      (tester) async {
+        statusBar24(tester);
+        setAdaptiveTestViewport(tester, const Size(1000, 400));
+        await _pumpLibraryScreen(
+          tester,
+          adaptiveFromViewport: true,
+          sidebarShowsSections: true,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+        expect(find.textContaining('Library -'), findsNothing);
+        setAdaptiveTestViewport(tester, const Size(1000, 700));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Library -'), findsOneWidget);
+      },
+    );
+
+    _testWidgetsWithCleanup('short window: no results and empty states', (
+      tester,
+    ) async {
+      statusBar24(tester);
+      await pumpAlbumsArtists(tester, const Size(832, 384));
+      await tester.enterText(searchAlbums, 'zzz');
+      await tester.pumpAndSettle();
+      expect(find.text('No results for "zzz"'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(
+        find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Abbey Road'), findsOneWidget);
+      await pumpAlbumsArtists(tester, const Size(832, 384), albumCount: 0);
+      expect(find.byType(TextField), findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
     _testWidgetsWithCleanup('Albums and Artists show no field when empty', (

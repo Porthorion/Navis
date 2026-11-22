@@ -158,6 +158,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   bool _isYearRailScrubbing = false;
   bool _isGenreRailScrubbing = false;
   TabController? _tabController;
+  // Keeps the tabs (and a focused filter field) when a rotation swaps the
+  // phone and tablet scaffolds around them.
+  final _bodyKey = GlobalKey();
   bool _synchronizingTabControllerFromSection = false;
   LibrarySection? _pendingSectionSync;
   late final ProviderSubscription<int> _libraryScrollSubscription;
@@ -314,6 +317,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     required TextEditingController controller,
     required String hint,
     required Widget child,
+    List<Widget> shortControls = const <Widget>[],
   }) {
     if (!show) {
       if (controller.text.isNotEmpty) {
@@ -327,12 +331,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     return Column(
       children: <Widget>[
-        ListFilterField(
+        LibraryFilterField(
           controller: controller,
           alignWithContent: true,
           hint: hint,
           onChanged: (_) => _onTouchFilterChanged(controller),
           onClear: () => _clearTouchFilter(controller),
+          shortControls: shortControls,
         ),
         Expanded(child: child),
       ],
@@ -607,6 +612,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final selectedSection = ref.watch(librarySectionProvider);
     final tabletMode =
         !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+    // A short window (landscape phone) drops the title for the tab bar alone.
+    final shortChrome = adaptiveContext.useShortHeightChrome;
     // The shell reports whether its sidebar shows the section links; when it
     // does not, this page shows its own section bar.
     final useWideLibraryNavigation =
@@ -675,6 +682,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     final bodyContent = Stack(
+      key: _bodyKey,
       children: <Widget>[
         Column(
           children: <Widget>[
@@ -790,15 +798,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                child: Text(
-                  wideHeaderTitle,
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+              if (!shortChrome) ...<Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+                  child: Text(
+                    wideHeaderTitle,
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
-              ),
-              const Divider(height: 1),
+                const Divider(height: 1),
+              ],
               Expanded(child: bodyContent),
             ],
           ),
@@ -810,7 +820,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return LayoutBuilder(
         builder: (context, constraints) => Scaffold(
           appBar: AppBar(
-            title: Text(l10n.libraryTitle),
+            toolbarHeight: shortChrome ? 0 : null,
+            automaticallyImplyLeading: !shortChrome,
+            title: shortChrome ? null : Text(l10n.libraryTitle),
             bottom: tabBarFor(constraints.maxWidth),
           ),
           body: Align(
@@ -829,9 +841,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     return LayoutBuilder(
       builder: (context, constraints) => Scaffold(
         appBar: AppBar(
-          toolbarHeight: portraitPhone ? 12 : null,
-          automaticallyImplyLeading: !portraitPhone,
-          title: portraitPhone ? null : Text(l10n.libraryTitle),
+          toolbarHeight: shortChrome ? 0 : (portraitPhone ? 12 : null),
+          automaticallyImplyLeading: !portraitPhone && !shortChrome,
+          title: portraitPhone || shortChrome ? null : Text(l10n.libraryTitle),
           bottom: tabBarFor(constraints.maxWidth),
         ),
         body: bodyContent,
@@ -956,17 +968,65 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildArtistsTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
+    final isGridMode = ref.watch(artistViewModeProvider) == 'grid';
+    final fieldShown =
+        !desktopMode &&
+        ref.watch(artistsProvider).asData?.value.isNotEmpty != false;
+    // A short window folds the chips and view toggle into the field's row.
+    final shortChrome =
+        fieldShown && resolveAdaptiveContextFor(context).useShortHeightChrome;
     return _withTouchFilterField(
-      show:
-          !desktopMode &&
-          ref.watch(artistsProvider).asData?.value.isNotEmpty != false,
+      show: fieldShown,
       controller: _artistsFilter,
       hint: l10n.libraryArtistsFilterHint,
-      child: _buildArtistsContent(context),
+      shortControls: <Widget>[
+        ..._artistChips(l10n),
+        _artistViewToggle(l10n, isGridMode),
+      ],
+      child: _buildArtistsContent(context, controlsInFieldRow: shortChrome),
     );
   }
 
-  Widget _buildArtistsContent(BuildContext context) {
+  List<Widget> _artistChips(AppLocalizations l10n) => <Widget>[
+    FilterChip(
+      label: Text(l10n.libraryDownloadedOnlyFilter),
+      selected: _downloadedOnly,
+      onSelected: _updateDownloadedOnly,
+      avatar: Icon(
+        _downloadedOnly ? Icons.download_done : Icons.download_outlined,
+        size: 18,
+      ),
+    ),
+    FilterChip(
+      label: Text(l10n.libraryLikedOnlyFilter),
+      selected: _artistsLikedOnly,
+      onSelected: (value) => setState(() => _artistsLikedOnly = value),
+      avatar: Icon(
+        _artistsLikedOnly ? Icons.favorite : Icons.favorite_border_outlined,
+        size: 18,
+      ),
+    ),
+  ];
+
+  Widget _artistViewToggle(AppLocalizations l10n, bool isGridMode) {
+    return IconButton(
+      icon: Icon(isGridMode ? Icons.view_list : Icons.grid_view),
+      tooltip: isGridMode
+          ? l10n.librarySwitchToArtistList
+          : l10n.librarySwitchToArtistGrid,
+      onPressed: () async {
+        await ref
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .updateArtistViewMode(isGridMode ? 'list' : 'grid');
+      },
+    );
+  }
+
+  Widget _buildArtistsContent(
+    BuildContext context, {
+    required bool controlsInFieldRow,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final artists = ref.watch(
       _artistsLikedOnly ? likedArtistsProvider : artistsProvider,
@@ -979,64 +1039,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     return Column(
       children: <Widget>[
-        LayoutBuilder(
-          // Above a grid the chips sit on its page inset; list rows keep 16.
-          builder: (context, constraints) {
-            final inset = isGridMode
-                ? ContentLayout.padding(constraints.maxWidth)
-                : 16.0;
-            return Padding(
-              padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        FilterChip(
-                          label: Text(l10n.libraryDownloadedOnlyFilter),
-                          selected: _downloadedOnly,
-                          onSelected: _updateDownloadedOnly,
-                          avatar: Icon(
-                            _downloadedOnly
-                                ? Icons.download_done
-                                : Icons.download_outlined,
-                            size: 18,
-                          ),
-                        ),
-                        FilterChip(
-                          label: Text(l10n.libraryLikedOnlyFilter),
-                          selected: _artistsLikedOnly,
-                          onSelected: (value) =>
-                              setState(() => _artistsLikedOnly = value),
-                          avatar: Icon(
-                            _artistsLikedOnly
-                                ? Icons.favorite
-                                : Icons.favorite_border_outlined,
-                            size: 18,
-                          ),
-                        ),
-                      ],
+        if (!controlsInFieldRow)
+          LayoutBuilder(
+            // Above a grid the chips sit on its page inset; list rows keep 16.
+            builder: (context, constraints) {
+              final inset = isGridMode
+                  ? ContentLayout.padding(constraints.maxWidth)
+                  : 16.0;
+              return Padding(
+                padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _artistChips(l10n),
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(isGridMode ? Icons.view_list : Icons.grid_view),
-                    tooltip: isGridMode
-                        ? l10n.librarySwitchToArtistList
-                        : l10n.librarySwitchToArtistGrid,
-                    onPressed: () async {
-                      await ref
-                          .read(navisDatabaseProvider)
-                          .appSettingsDao
-                          .updateArtistViewMode(isGridMode ? 'list' : 'grid');
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+                    _artistViewToggle(l10n, isGridMode),
+                  ],
+                ),
+              );
+            },
+          ),
         Expanded(
           child: NavisRefreshIndicator(
             onRefresh: _refreshLibrary,
@@ -1245,18 +1271,76 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildAlbumsTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
+    final fieldShown =
+        !desktopMode && ref.watch(albumCountProvider).asData?.value != 0;
+    // A short window folds the chips and sort into the field's row.
+    final sortInFieldRow =
+        fieldShown && resolveAdaptiveContextFor(context).useShortHeightChrome;
     return _withTouchFilterField(
-      show: !desktopMode && ref.watch(albumCountProvider).asData?.value != 0,
+      show: fieldShown,
       controller: _albumsFilter,
       hint: l10n.libraryAlbumsFilterHint,
-      child: _buildAlbumsContent(context),
+      shortControls: _albumSortRow(l10n).shortControls(l10n),
+      child: _buildAlbumsContent(context, sortInFieldRow: sortInFieldRow),
     );
   }
 
-  Widget _buildAlbumsContent(BuildContext context) {
+  LibrarySortFilterRow<_AlbumSort> _albumSortRow(
+    AppLocalizations l10n, {
+    bool alignWithGrid = true,
+  }) {
+    return LibrarySortFilterRow<_AlbumSort>(
+      alignWithGrid: alignWithGrid,
+      sortLabel: l10n.libraryAlbumsSortLabel,
+      sortValue: _albumSort,
+      sortItems: <DropdownMenuItem<_AlbumSort>>[
+        DropdownMenuItem(
+          value: _AlbumSort.recentlyAdded,
+          child: Text(l10n.librarySortRecentlyAdded),
+        ),
+        DropdownMenuItem(
+          value: _AlbumSort.newest,
+          child: Text(l10n.librarySortNewest),
+        ),
+        DropdownMenuItem(
+          value: _AlbumSort.name,
+          child: Text(l10n.librarySortName),
+        ),
+        DropdownMenuItem(
+          value: _AlbumSort.artist,
+          child: Text(l10n.librarySortArtist),
+        ),
+        DropdownMenuItem(
+          value: _AlbumSort.byYear,
+          child: Text(l10n.librarySortByYear),
+        ),
+      ],
+      onSortChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _albumSort = value;
+            _loadedAlbumPages = 1;
+            _cachedAlbums = null;
+            _yearListItems = const <_YearListItem>[];
+            _cachedYearSectionsSource = null;
+          });
+          if (_albumsScrollController.hasClients) {
+            _albumsScrollController.jumpTo(0);
+          }
+        }
+      },
+      downloadedOnly: _downloadedOnly,
+      onDownloadedOnlyChanged: _updateDownloadedOnly,
+    );
+  }
+
+  Widget _buildAlbumsContent(
+    BuildContext context, {
+    required bool sortInFieldRow,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     if (_albumSort == _AlbumSort.byYear) {
-      return _buildAlbumsByYearTab(context);
+      return _buildAlbumsByYearTab(context, sortInFieldRow: sortInFieldRow);
     }
 
     final pageSize = ref.watch(albumPageSizeProvider);
@@ -1354,50 +1438,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   controller: _albumsScrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: <Widget>[
-                    SliverToBoxAdapter(
-                      child: LibrarySortFilterRow<_AlbumSort>(
-                        sortLabel: l10n.libraryAlbumsSortLabel,
-                        sortValue: _albumSort,
-                        sortItems: <DropdownMenuItem<_AlbumSort>>[
-                          DropdownMenuItem(
-                            value: _AlbumSort.recentlyAdded,
-                            child: Text(l10n.librarySortRecentlyAdded),
-                          ),
-                          DropdownMenuItem(
-                            value: _AlbumSort.newest,
-                            child: Text(l10n.librarySortNewest),
-                          ),
-                          DropdownMenuItem(
-                            value: _AlbumSort.name,
-                            child: Text(l10n.librarySortName),
-                          ),
-                          DropdownMenuItem(
-                            value: _AlbumSort.artist,
-                            child: Text(l10n.librarySortArtist),
-                          ),
-                          DropdownMenuItem(
-                            value: _AlbumSort.byYear,
-                            child: Text(l10n.librarySortByYear),
-                          ),
-                        ],
-                        onSortChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _albumSort = value;
-                              _loadedAlbumPages = 1;
-                              _cachedAlbums = null;
-                              _yearListItems = const <_YearListItem>[];
-                              _cachedYearSectionsSource = null;
-                            });
-                            if (_albumsScrollController.hasClients) {
-                              _albumsScrollController.jumpTo(0);
-                            }
-                          }
-                        },
-                        downloadedOnly: _downloadedOnly,
-                        onDownloadedOnlyChanged: _updateDownloadedOnly,
-                      ),
-                    ),
+                    if (!sortInFieldRow)
+                      SliverToBoxAdapter(child: _albumSortRow(l10n)),
                     if (typeFiltered.isEmpty)
                       SliverFillRemaining(
                         hasScrollBody: false,
@@ -1490,7 +1532,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  Widget _buildAlbumsByYearTab(BuildContext context) {
+  Widget _buildAlbumsByYearTab(
+    BuildContext context, {
+    required bool sortInFieldRow,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     if (_downloadedOnly) {
       ref.watch(downloadedContentIdsProvider);
@@ -1526,46 +1571,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     return Column(
       children: <Widget>[
-        LibrarySortFilterRow<_AlbumSort>(
-          alignWithGrid: false,
-          sortLabel: l10n.libraryAlbumsSortLabel,
-          sortValue: _albumSort,
-          sortItems: <DropdownMenuItem<_AlbumSort>>[
-            DropdownMenuItem(
-              value: _AlbumSort.recentlyAdded,
-              child: Text(l10n.librarySortRecentlyAdded),
-            ),
-            DropdownMenuItem(
-              value: _AlbumSort.newest,
-              child: Text(l10n.librarySortNewest),
-            ),
-            DropdownMenuItem(
-              value: _AlbumSort.name,
-              child: Text(l10n.librarySortName),
-            ),
-            DropdownMenuItem(
-              value: _AlbumSort.artist,
-              child: Text(l10n.librarySortArtist),
-            ),
-            DropdownMenuItem(
-              value: _AlbumSort.byYear,
-              child: Text(l10n.librarySortByYear),
-            ),
-          ],
-          onSortChanged: (value) {
-            if (value == null) {
-              return;
-            }
-            setState(() {
-              _albumSort = value;
-              _cachedAlbums = null;
-              _yearListItems = const <_YearListItem>[];
-              _cachedYearSectionsSource = null;
-            });
-          },
-          downloadedOnly: _downloadedOnly,
-          onDownloadedOnlyChanged: _updateDownloadedOnly,
-        ),
+        if (!sortInFieldRow) _albumSortRow(l10n, alignWithGrid: false),
         Expanded(
           child: NavisRefreshIndicator(
             onRefresh: _refreshLibrary,
@@ -2114,7 +2120,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (!showFilterField) return refreshable;
     return Column(
       children: <Widget>[
-        ListFilterField(
+        LibraryFilterField(
           controller: _likedFilter,
           hint: l10n.libraryLikedFilterHint,
           onChanged: (_) => setState(() {}),
