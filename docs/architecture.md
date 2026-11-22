@@ -2750,7 +2750,13 @@ well as the root) and the player overlay stack before moving.
   filtered playlist is a plain list (no reordering) and plays the matches.
   The Liked tab (touch field pinned above the list; its songs play the
   matches) and the Liked Albums / Liked Artists "all" pages (title and artist /
-  name) filter the same way.
+  name) filter the same way. The phone and compact-wide album page opens the
+  field from a search icon (phone: the pinned app bar, replacing its title;
+  compact-wide: above the song list; both costing no height until used) and
+  desktop types to filter: it matches song title or artist, combines with the
+  Liked / Downloaded menu, hides disc headers without matches (multi-disc is
+  decided from the whole album), and play, shuffle and row taps use only the
+  matches; the album menu's playlist and download actions always use all songs.
   The Albums tab (grid and By Year) and the Artists tab get the same touch
   field above their chips and sort row (Albums by title or artist, Artists by
   name); each tab keeps its own text, desktop keeps the typed query, and the
@@ -2900,7 +2906,10 @@ same size, uses the standard rail. Compact-wide takes the bottom inset from
 #758: Android Auto projection never renders this shell and AAOS reports its bar
 as a bottom inset). While the mini player shows, the strip owns the bottom inset
 and `_ConsumedBottomInset` zeroes it for the pane above, so no page adds a
-second gap. The shell and
+second gap. The compact-wide strip is `kMiniPlayerHeight` (64) plus that inset
+(48 dp art, one line pair at the compact text size, 48 dp tap targets). Compact-wide
+only resolves when the shortest side is under 600 dp, so this covers landscape
+phones and short car displays alike (owner decision, #758 P4). The shell and
 `resolveAdaptiveContextFor` pass `viewPadding` (not `padding`) to the resolver,
 so an open keyboard, which zeroes the bottom padding, cannot flip the mode.
 In compact-wide the shell pads its pane by the left and right insets, so the

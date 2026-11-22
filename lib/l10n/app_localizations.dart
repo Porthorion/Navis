@@ -5313,6 +5313,12 @@ abstract class AppLocalizations {
   /// **'Filter songs...'**
   String get playlistDetailFilterHint;
 
+  /// No description provided for @albumDetailFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter songs...'**
+  String get albumDetailFilterHint;
+
   /// No description provided for @libraryLikedFilterHint.
   ///
   /// In en, this message translates to:

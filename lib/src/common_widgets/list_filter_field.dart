@@ -20,6 +20,7 @@ class ListFilterField extends StatelessWidget {
     this.dense = false,
     this.alignWithContent = false,
     this.fieldKey,
+    this.autofocus = false,
   });
 
   final TextEditingController controller;
@@ -27,6 +28,7 @@ class ListFilterField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   final bool dense;
+  final bool autofocus;
 
   /// Insets by `ContentLayout.padding` (the Library grids' inset) instead of a
   /// fixed 12, so the field lines up with the chips and cards below it.
@@ -52,6 +54,7 @@ class ListFilterField extends StatelessWidget {
       child: TextField(
         key: fieldKey,
         controller: controller,
+        autofocus: autofocus,
         onChanged: onChanged,
         onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
         textInputAction: TextInputAction.search,

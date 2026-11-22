@@ -1524,6 +1524,7 @@
   "playlistsFilterHint": "Search playlists...",
   "artistDetailFilterHint": "Filter albums and songs...",
   "playlistDetailFilterHint": "Filter songs...",
+  "albumDetailFilterHint": "Filter songs...",
   "libraryLikedFilterHint": "Filter liked music...",
   "libraryLikedAlbumsFilterHint": "Filter albums...",
   "libraryLikedArtistsFilterHint": "Filter artists...",
