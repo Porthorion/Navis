@@ -33,7 +33,9 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
+import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -2503,5 +2505,191 @@ void main() {
         expect(container.read(playerSheetExpandedProvider), isFalse);
       });
     }
+  });
+
+  // #758 P1: whatever owns the bottom screen edge consumes the bottom system
+  // inset; nothing above it sees that inset a second time.
+  group('#758 compact wide pane below the mini player strip', () {
+    const cases = <(String, _Viewport)>[
+      (
+        'S2x gesture hint on',
+        (size: Size(832, 384), padding: EdgeInsets.fromLTRB(30, 24, 0, 16)),
+      ),
+      (
+        'S2x gesture hint off',
+        (size: Size(832, 384), padding: EdgeInsets.fromLTRB(30, 24, 0, 0)),
+      ),
+      (
+        'Pixel gesture',
+        (size: Size(915, 412), padding: EdgeInsets.fromLTRB(0, 24, 0, 24)),
+      ),
+      (
+        'three-button bar on the side, left cutout',
+        (size: Size(891, 411), padding: EdgeInsets.fromLTRB(40, 24, 48, 0)),
+      ),
+      (
+        'bottom bar 48',
+        (size: Size(915, 412), padding: EdgeInsets.fromLTRB(0, 24, 0, 48)),
+      ),
+      (
+        'iPhone landscape',
+        (size: Size(852, 393), padding: EdgeInsets.fromLTRB(59, 0, 59, 21)),
+      ),
+      (
+        'QHD smallest zoom',
+        (size: Size(1040, 480), padding: EdgeInsets.fromLTRB(0, 24, 0, 24)),
+      ),
+      (
+        '667x375 phone',
+        (size: Size(667, 375), padding: EdgeInsets.fromLTRB(0, 24, 0, 16)),
+      ),
+    ];
+    final strip = find.byKey(const ValueKey<String>('compactWideMiniPlayer'));
+
+    void expectPaneInsetConsumed(
+      WidgetTester tester,
+      Type page,
+      _Viewport viewport,
+    ) {
+      final context = tester.element(find.byType(page));
+      expect(MediaQuery.paddingOf(context).bottom, 0, reason: '$page padding');
+      expect(
+        MediaQuery.viewPaddingOf(context).bottom,
+        0,
+        reason: '$page viewPadding',
+      );
+      // The strip is the one thing at the screen bottom: its height is its
+      // base plus the inset, and the page ends at its top.
+      final rect = tester.getRect(strip);
+      final bottomInset = viewport.padding.bottom;
+      expect(rect.bottom, viewport.size.height);
+      expect(rect.height, greaterThan(bottomInset));
+      expect(tester.getRect(find.byType(page)).bottom, rect.top);
+      for (final button
+          in find
+              .descendant(of: strip, matching: find.byType(IconButton))
+              .evaluate()) {
+        expect(
+          tester.getRect(find.byWidget(button.widget)).bottom,
+          lessThanOrEqualTo(viewport.size.height - bottomInset),
+        );
+      }
+    }
+
+    for (final (name, viewport) in cases) {
+      _testApp('$name: library and search see no bottom inset', (tester) async {
+        await _pumpApp(tester, viewport, extraOverrides: _searchOverrides());
+        await _go(tester, AppRoutes.librarySection('albums'));
+        expect(tester.takeException(), isNull);
+        expectPaneInsetConsumed(tester, LibraryScreen, viewport);
+        expect(
+          tester.getRect(find.byType(TabBarView)).bottom,
+          tester.getRect(strip).top,
+        );
+        final page = tester.getRect(find.byType(LibraryScreen));
+        expect(
+          page.left,
+          greaterThanOrEqualTo(
+            tester
+                .getRect(find.byKey(const ValueKey('compactRailNavTile-0')))
+                .right,
+          ),
+        );
+        expect(
+          page.right,
+          lessThanOrEqualTo(viewport.size.width - viewport.padding.right),
+        );
+
+        await _go(tester, AppRoutes.search);
+        expect(tester.takeException(), isNull);
+        expectPaneInsetConsumed(tester, SearchScreen, viewport);
+        // Search's own SafeArea has nothing left to pad.
+        final safeArea = find
+            .descendant(
+              of: find.byType(SearchScreen),
+              matching: find.byType(SafeArea),
+            )
+            .first;
+        final padding = tester.widget<Padding>(
+          find.descendant(of: safeArea, matching: find.byType(Padding)).first,
+        );
+        expect(padding.padding.resolve(TextDirection.ltr).bottom, 0);
+      });
+    }
+
+    // The inset stays consumed for the whole expand and collapse, including
+    // the frames of the 280 ms slide where the reserve above is already 0.
+    for (final (name, viewport) in cases.where(
+      (c) => c.$2.padding.bottom > 0,
+    )) {
+      _testApp('$name: expanding and collapsing keeps the inset consumed', (
+        tester,
+      ) async {
+        final container = await _pumpApp(tester, viewport);
+        await _go(tester, AppRoutes.librarySection('albums'));
+        final notifier = container.read(playerOverlayStackProvider.notifier);
+        double bottom() =>
+            MediaQuery.paddingOf(tester.element(find.byType(LibraryScreen)))
+                .bottom;
+        double viewBottom() =>
+            MediaQuery.viewPaddingOf(tester.element(find.byType(LibraryScreen)))
+                .bottom;
+
+        notifier.expand();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(bottom(), 0, reason: 'mid expand');
+        expect(viewBottom(), 0, reason: 'mid expand');
+        await _settle(tester, 20);
+        expect(bottom(), 0, reason: 'expanded');
+        expect(viewBottom(), 0, reason: 'expanded');
+
+        notifier.collapse();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(bottom(), 0, reason: 'mid collapse');
+        await _settle(tester, 20);
+        expect(bottom(), 0, reason: 'collapsed');
+        expect(viewBottom(), 0, reason: 'collapsed');
+        expect(tester.takeException(), isNull);
+        expectPaneInsetConsumed(tester, LibraryScreen, viewport);
+      });
+    }
+
+    // Nothing plays: the pane's own SafeArea pads by the real bottom inset
+    // only. A phone no longer borrows the status bar height as a stand-in
+    // for a bottom bar it does not have.
+    for (final (name, viewport) in cases) {
+      _testApp('$name: no player pads by the real inset only', (tester) async {
+        await _pumpApp(tester, viewport, playback: null);
+        await _go(tester, AppRoutes.librarySection('albums'));
+        expect(tester.takeException(), isNull);
+        expect(strip, findsNothing);
+        expect(
+          tester.getRect(find.byType(TabBarView)).bottom,
+          viewport.size.height - viewport.padding.bottom,
+        );
+      });
+    }
+
+    _testApp('keyboard open over the Liked field: field stays on screen', (
+      tester,
+    ) async {
+      const viewport = (
+        size: Size(832, 384),
+        padding: EdgeInsets.fromLTRB(30, 24, 0, 16),
+      );
+      await _pumpApp(tester, viewport);
+      await _go(tester, AppRoutes.librarySection('liked'));
+      tester.view.viewInsets = const FakeViewPadding(bottom: 200 * 3);
+      await tester.pump();
+      await _settle(tester, 5);
+      // The Liked header overflows by 8 dp in the ~184 dp left above the
+      // keyboard; that is the same with and without this change.
+      tester.takeException();
+      final field = find.byType(TextField).first;
+      expect(tester.getRect(field).bottom, lessThanOrEqualTo(384));
+      expect(tester.getRect(field).top, greaterThanOrEqualTo(0));
+    });
   });
 }
