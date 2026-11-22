@@ -2495,7 +2495,7 @@ void main() {
   );
 
   testWidgets(
-    'random hero carousel does not auto-advance with reduced motion',
+    'random hero carousel auto-advances instantly with reduced motion',
     (tester) async {
       final view = tester.view;
       view.devicePixelRatio = 1.0;
@@ -2541,8 +2541,60 @@ void main() {
       }
 
       final initialPage = currentPageKey();
-      await tester.pump(const Duration(milliseconds: 20000));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 8100));
+      // No animation frames: jumpToPage lands the next page in one pump.
+      expect(currentPageKey(), isNot(initialPage));
+    },
+  );
+
+  testWidgets(
+    'random hero carousel does not auto-advance when the setting is off',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        nativeTouch: true,
+        overrides: [
+          homeRecommendationsAutoAdvanceProvider.overrideWithValue(false),
+        ],
+        randomAlbums: const <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseAlbum(
+            id: 'reduced-hero-1',
+            name: 'Hero One',
+            artist: 'Artist One',
+            coverArtId: 'cover-reduced-hero-1',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+          HomeRandomShowcaseAlbum(
+            id: 'reduced-hero-2',
+            name: 'Hero Two',
+            artist: 'Artist Two',
+            coverArtId: 'cover-reduced-hero-2',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+        ],
+      );
+
+      Finder pageKeyFinder() => find.byWidgetPredicate((widget) {
+        final key = widget.key;
+        return key is ValueKey<String> &&
+            key.value.startsWith('home-random-hero-carousel-page-');
+      });
+      String currentPageKey() {
+        final key = tester.widget(pageKeyFinder()).key! as ValueKey<String>;
+        return key.value;
+      }
+
+      final initialPage = currentPageKey();
+      await tester.pump(const Duration(milliseconds: 8100));
       expect(currentPageKey(), initialPage);
     },
   );
@@ -3706,6 +3758,63 @@ void main() {
       findsOneWidget,
     );
     await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(
+      find.byKey(const ValueKey('home-random-hero-carousel-page-1')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('opt-in carousel keeps advancing when Home scrolls slightly', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      nativeTouch: true,
+      reduceMotion: false,
+      homeLikedSongs: [
+        for (var i = 0; i < 30; i++)
+          _songRow(
+            id: 'scroll-$i',
+            title: 'Scroll song $i',
+            albumId: 'scroll-album',
+          ),
+      ],
+      sectionOrder: const [
+        HomeSectionIds.randomAlbums,
+        HomeSectionIds.likedTracks,
+      ],
+      overrides: [
+        homeRecommendationsAutoAdvanceProvider.overrideWithValue(true),
+      ],
+      randomAlbums: const [
+        HomeRandomShowcaseAlbum(
+          id: 'scroll-one',
+          name: 'One',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+        HomeRandomShowcaseAlbum(
+          id: 'scroll-two',
+          name: 'Two',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+      ],
+    );
+    final scrollable = find
+        .descendant(
+          of: find.byType(HomeScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    await tester.pump(const Duration(seconds: 4));
+    position.jumpTo(6);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 8100));
     await tester.pump(const Duration(milliseconds: 600));
     expect(
       find.byKey(const ValueKey('home-random-hero-carousel-page-1')),
