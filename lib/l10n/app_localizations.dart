@@ -5331,6 +5331,18 @@ abstract class AppLocalizations {
   /// **'Filter artists...'**
   String get libraryLikedArtistsFilterHint;
 
+  /// No description provided for @libraryAlbumsFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search albums...'**
+  String get libraryAlbumsFilterHint;
+
+  /// No description provided for @libraryArtistsFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search artists...'**
+  String get libraryArtistsFilterHint;
+
   /// No description provided for @playlistsSectionYours.
   ///
   /// In en, this message translates to:

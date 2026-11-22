@@ -2751,6 +2751,10 @@ well as the root) and the player overlay stack before moving.
   The Liked tab (touch field pinned above the list; its songs play the
   matches) and the Liked Albums / Liked Artists "all" pages (title and artist /
   name) filter the same way.
+  The Albums tab (grid and By Year) and the Artists tab get the same touch
+  field above their chips and sort row (Albums by title or artist, Artists by
+  name); each tab keeps its own text, desktop keeps the typed query, and the
+  field hides while the library is empty.
   Client-side list filters match with `searchTextMatches` (accent and case
   folded, `normalizeSearchText`); a query with nothing searchable (only
   punctuation) is no filter. Each page tracks its own active type-to-filter
