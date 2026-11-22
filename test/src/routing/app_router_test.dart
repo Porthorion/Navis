@@ -34,6 +34,7 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/shell_offline_banner.dart';
@@ -726,6 +727,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appSettingsProvider.overrideWith(
+            (ref) => Stream.value(const AppSettingsModel.defaults()),
+          ),
           onboardingVersionProvider.overrideWithValue(const AsyncData(0)),
           requiredLibraryRebuildControllerProvider(
             RequiredLibraryRebuildReason.cacheUpgrade,
