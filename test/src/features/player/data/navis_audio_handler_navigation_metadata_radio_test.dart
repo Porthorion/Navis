@@ -1386,6 +1386,40 @@ void main() {
   });
 
   group('Android Auto collections', () {
+    test(
+      'a collection load tells the app the queue is replaced first',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-auto-');
+        final events = <String>[];
+        late NavisAudioHandler handler;
+        final (created, _, database) = await createHandler(
+          directory,
+          3,
+          onAndroidAutoQueueReplace: () =>
+              events.add('replace:${handler.snapshot.queueSongIds.length}'),
+          seed: (database) async {
+            await database.libraryDao.setEntityStarred(
+              'song',
+              'song-0',
+              DateTime(2026, 1, 1),
+            );
+          },
+        );
+        handler = created;
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+
+        await handler.prepareFromMediaId(AutoMediaRoot.likedSongs);
+        await settleQueue(handler);
+
+        expect(events, ['replace:0']);
+        expect(handler.snapshot.queueSongIds, ['song-0']);
+      },
+    );
+
     for (final crossfade in [false, true]) {
       test(
         'Shuffle liked preserves collection order, fade=$crossfade',
