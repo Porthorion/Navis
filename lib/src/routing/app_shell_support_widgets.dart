@@ -277,26 +277,24 @@ class _ConsumedBottomInset extends StatelessWidget {
 }
 
 /// Drops the left and right system padding from [MediaQuery] below it. Placed
-/// under a rail-layout `SafeArea`, which consumes only its own side: the other
-/// side's inset belongs to the neighbouring `SafeArea`, and the page or rail
-/// content must not pad by it again.
+/// under a rail-layout `SafeArea`, which consumes only its own side, or under
+/// the compact wide shell's plain `Padding` by the same insets: the other
+/// side's inset belongs to a neighbour, and the page or rail content must not
+/// pad by it again (a `SafeArea`, or a horizontal `ListView`, which pads its
+/// scroll axis by `MediaQuery.padding`). `viewPadding` stays, so
+/// `bareSideInsetsOf` can still tell which side borders a system band.
 class SideInsetsConsumed extends StatelessWidget {
-  const new({required this.enabled, required this.child});
+  const new({required this.child});
 
-  /// False under the compact wide shell, which pads by the inset itself and
-  /// leaves [MediaQuery] as the system reports it.
-  final bool enabled;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => enabled
-      ? MediaQuery.removePadding(
-          context: context,
-          removeLeft: true,
-          removeRight: true,
-          child: child,
-        )
-      : child;
+  Widget build(BuildContext context) => MediaQuery.removePadding(
+    context: context,
+    removeLeft: true,
+    removeRight: true,
+    child: child,
+  );
 }
 
 /// Tracks whether a mouse pointer is over [builder]'s subtree, rebuilding only

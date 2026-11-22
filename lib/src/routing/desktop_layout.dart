@@ -516,7 +516,7 @@ class ConsumedRightInset extends InheritedWidget {
 
   /// True beside a system strip the shell already cleared; false on an
   /// ordinary phone, unscoped, and under the compact wide shell (which pads
-  /// its content itself and leaves `MediaQuery` untouched).
+  /// its content itself and consumes the inset from `MediaQuery.padding`).
   static bool of(BuildContext context) =>
       (context
               .dependOnInheritedWidgetOfExactType<ConsumedRightInset>()
@@ -535,9 +535,10 @@ class ConsumedRightInset extends InheritedWidget {
 /// ending in a hard line next to the band.
 ({bool left, bool right}) bareSideInsetsOf(BuildContext context) {
   if (resolveAdaptiveContextFor(context).useCompactWideLandscape) {
-    // The shell pads the whole row by the raw insets (MediaQuery untouched):
-    // the side away from the rail borders the band.
-    final padding = MediaQuery.paddingOf(context);
+    // The shell pads the whole row by the insets and removes them from
+    // `padding` below it, so read `viewPadding`: the side away from the rail
+    // borders the band.
+    final padding = MediaQuery.viewPaddingOf(context);
     final ltr = Directionality.of(context) == TextDirection.ltr;
     return (left: !ltr && padding.left > 0, right: ltr && padding.right > 0);
   }
