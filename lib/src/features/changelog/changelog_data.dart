@@ -236,6 +236,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Same Vibes starts playing its songs sooner: they join the queue as '
+        'they are found instead of all at once at the end',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Newly added albums now appear at the top of their year on artist pages',
         type: ChangelogEntryType.fix,
       ),

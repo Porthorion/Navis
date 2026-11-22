@@ -2895,8 +2895,12 @@ the tracks. Phone and tablet layouts ignore the height band.
 - **All other cases** → bottom navigation bar
 
 Only short viewports get compact-wide; a 16:9 tablet, or a car display of the
-same size, uses the standard rail. The top-inset proxy for car bars that do not
-report a bottom inset applies only to compact-wide. The shell and
+same size, uses the standard rail. Compact-wide takes the bottom inset from
+`viewPadding.bottom` only (the old top-inset proxy for car bars was removed in
+#758: Android Auto projection never renders this shell and AAOS reports its bar
+as a bottom inset). While the mini player shows, the strip owns the bottom inset
+and `_ConsumedBottomInset` zeroes it for the pane above, so no page adds a
+second gap. The shell and
 `resolveAdaptiveContextFor` pass `viewPadding` (not `padding`) to the resolver,
 so an open keyboard, which zeroes the bottom padding, cannot flip the mode.
 In compact-wide the shell pads its pane by the left and right insets, so the
@@ -4754,10 +4758,21 @@ again; the memory is in-session only. Sped-up, slowed, nightcore, reverb, 8D,
 karaoke and instrumental versions (`isJunkSongVersion`) are dropped unless the
 seed is one. Before any library search the mapper also drops remembered songs,
 junk versions, second versions and more than three candidates per artist, and
-a batch takes two songs per artist and no artist back to back
+each chunk takes two songs per artist and no artist back to back
 (`spaceByArtist`, `ArtistSpacing`, shared with Personal Radio), relaxing to
 three, then any number, then back to back instead of queueing fewer songs.
 Deezer's artist radio is asked for 40 songs and the server fill for 20.
+Songs are appended as library matches resolve, not once at the end: each group
+of five searches that resolves becomes one `appendRecommendationTracks` call
+(then the server fill, if the mapping fell short), capped at ten per refill.
+The artist order carries across chunks, so a chunk avoids starting with the
+artist the previous one ended on. The seed is retained once, just before the
+first append that has songs. One run streams per refill (`refilling` blocks
+low-water refills until it ends), every append and bookkeeping step re-checks
+mix ownership, and a failure after the first append ends the run as a success
+(no restore, no error). When the run ends, a refill the user's skipping made
+due meanwhile starts. The refill record in the mix diagnostics shows `chunks`
+and `firstAppendMs`.
 
 Home and Android Auto **Instant Radio** use `PersonalRadioNotifier` and the
 queue-independent `RecommendationService`. Radio starts with likes and up to

@@ -1034,14 +1034,6 @@ class _AppShellState extends ConsumerState<AppShell> {
         desktopNowPlayingDiagnosticsOverride ?? isExpanded;
     final mediaPadding = MediaQuery.paddingOf(context);
     final mediaViewPadding = MediaQuery.viewPaddingOf(context);
-    // On AAOS, the car controls bar is reported via viewPadding.bottom.
-    // On Android Auto (phone projection), the car controls bar is NOT reported
-    // as any window inset, but the status bar IS reported via viewPadding.top.
-    // Both bars are typically the same height on car displays, so use top as a
-    // proxy when bottom is unavailable.
-    final effectiveCarBottomInset = mediaViewPadding.bottom > 0
-        ? mediaViewPadding.bottom
-        : mediaViewPadding.top;
     final adaptiveContext = resolveAdaptiveContext(
       desktopRuntime: desktopRuntime,
       viewportSize: mediaSize,
@@ -1065,11 +1057,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     final useDesktopShell = adaptiveContext.useDesktopShell;
     final desktopLayoutClass = adaptiveContext.desktopLayoutClass;
     final useCompactWideLandscape = adaptiveContext.useCompactWideLandscape;
-    // The top-inset proxy is for car displays that do not report their
-    // bottom bar; ordinary rails use the real bottom inset.
-    final railBottomInset = useCompactWideLandscape
-        ? effectiveCarBottomInset
-        : mediaViewPadding.bottom;
     final useStandardRailNavigation = adaptiveContext.useStandardRailNavigation;
     final useRailNavigation = adaptiveContext.useRailNavigation;
     // The bottom-nav shell with the bar replaced by a pill in a side strip.
@@ -1160,7 +1147,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     final compactMiniPlayerBottomInset = useCompactWideLandscape
         ? mediaViewPadding.bottom
         : 0.0;
-    // On AAOS (compactWideLandscape) increase to ~15% of height for a
+    // In compactWideLandscape (landscape phones and short car displays) increase
+    // to ~15% of height for a
     // car-friendly strip that is easy to read and tap while driving.
     // The strip renders inside a SizedBox of this height so all internal
     // components must fit comfortably within it; the inset above is added.
@@ -1759,7 +1747,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         left: !useCompactWideLandscape && ltr,
                                         right: !useCompactWideLandscape && !ltr,
                                         minimum: EdgeInsets.only(
-                                          bottom: railBottomInset,
+                                          bottom: mediaViewPadding.bottom,
                                         ),
                                         child: SideInsetsConsumed(
                                           enabled: !useCompactWideLandscape,
@@ -1847,13 +1835,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         bottom:
                                             !(useCompactWideLandscape &&
                                                 showPlayer),
-                                        // viewPadding (not padding) covers AAOS
-                                        // car bars that report as gesture-nav
-                                        // insets (padding.bottom = 0). On Android
-                                        // Auto (phone projection), the bottom bar
-                                        // is not reported at all; effectiveCarBottomInset
-                                        // falls back to viewPadding.top as a proxy
-                                        // since both car bars are typically equal height.
+                                        // viewPadding (not padding) covers car
+                                        // bars that report as gesture-nav insets
+                                        // (padding.bottom = 0). A phone with no
+                                        // bottom inset gets no stand-in band: the
+                                        // old status-bar-height proxy is gone.
                                         // In compact-wide playback, the mini
                                         // player itself owns the bottom edge, so
                                         // do not reserve a second gap below it.
@@ -1862,7 +1848,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               useCompactWideLandscape &&
                                                   showPlayer
                                               ? 0
-                                              : railBottomInset,
+                                              : mediaViewPadding.bottom,
                                         ),
                                         child: SideInsetsConsumed(
                                           enabled: !useCompactWideLandscape,
@@ -1936,6 +1922,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                   _compactWideQueueRequestHandler
                                                                       ?.call(),
                                                               miniPlayer: SizedBox(
+                                                                key:
+                                                                    const ValueKey<
+                                                                      String
+                                                                    >(
+                                                                      'compactWideMiniPlayer',
+                                                                    ),
                                                                 height:
                                                                     compactBottomMiniPlayerHeight,
                                                                 child: _MiniPlayerStrip(
