@@ -43,22 +43,24 @@ void checkForUpdatesFromPull(WidgetRef ref, {bool showNotice = false}) {
   }
 }
 
-/// True while a user-triggered check is unresolved; extra taps are ignored.
-bool _userCheckInFlight = false;
+/// Set per screen while its user-triggered check is unresolved; extra taps are
+/// ignored. Keyed by the screen's ref so a screen that closes mid-check (its
+/// subscription closes with it) never blocks checks elsewhere.
+final _userCheckInFlight = Expando<bool>();
 
 /// The one user-triggered update check: forces a fresh check, then shows
 /// "up to date", the failure notice, or the update dialog. Shared by About and
 /// the pre-sign-in / first-run screens.
 void checkForUpdatesNow(WidgetRef ref) {
-  if (_userCheckInFlight) return;
-  _userCheckInFlight = true;
+  if (_userCheckInFlight[ref] ?? false) return;
+  _userCheckInFlight[ref] = true;
   ref.read(updateForceCheckProvider.notifier).requestForceCheck();
   ref.invalidate(updateProvider);
   ProviderSubscription<AsyncValue<UpdateInfo?>>? subscription;
   subscription = ref.listenManual(updateProvider, (_, next) {
     if (next.isLoading) return;
     subscription?.close();
-    _userCheckInFlight = false;
+    _userCheckInFlight[ref] = null;
     final context = ref.context;
     if (!context.mounted) return;
     final l10n = AppLocalizations.of(context)!;
