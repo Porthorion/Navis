@@ -2716,7 +2716,7 @@ void main() {
         (size: Size(891, 411), padding: EdgeInsets.fromLTRB(40, 24, 48, 0)),
       ),
     ]) {
-      _testApp('#758 $name: Liked shelf lines up with the filter field', (
+      _testApp('#758 $name: Liked shelf adds no second side inset', (
         tester,
       ) async {
         await _pumpApp(tester, viewport);
