@@ -210,20 +210,24 @@ const SystemUiOverlayStyle kNavisOverlayStyle = SystemUiOverlayStyle(
   systemNavigationBarContrastEnforced: false,
 );
 
-/// Navigation-bar half of [kNavisOverlayStyle] for the whole app, with button
-/// icons that follow the theme: the bar sits over the page surface or the Now
-/// Playing backdrop, which is light in light themes. No status-bar fields, so
-/// each page's own app bar keeps deciding those.
-SystemUiOverlayStyle navisNavigationBarStyle(Brightness brightness) =>
-    SystemUiOverlayStyle(
-      systemNavigationBarColor: kNavisOverlayStyle.systemNavigationBarColor,
-      systemNavigationBarDividerColor:
-          kNavisOverlayStyle.systemNavigationBarDividerColor,
-      systemNavigationBarContrastEnforced: false,
-      systemNavigationBarIconBrightness: brightness == Brightness.light
-          ? Brightness.dark
-          : Brightness.light,
-    );
+/// App-wide system-bar style: [kNavisOverlayStyle]'s transparent bars with
+/// icons that follow the theme (dark icons in light themes), since the bars sit
+/// over the page surface or the Now Playing backdrop. Pages with their own app
+/// bar override the status half at the top.
+SystemUiOverlayStyle navisSystemBarStyle(Brightness brightness) {
+  final light = brightness == Brightness.light;
+  final icons = light ? Brightness.dark : Brightness.light;
+  return SystemUiOverlayStyle(
+    statusBarColor: kNavisOverlayStyle.statusBarColor,
+    statusBarIconBrightness: icons,
+    statusBarBrightness: brightness,
+    systemNavigationBarColor: kNavisOverlayStyle.systemNavigationBarColor,
+    systemNavigationBarDividerColor:
+        kNavisOverlayStyle.systemNavigationBarDividerColor,
+    systemNavigationBarContrastEnforced: false,
+    systemNavigationBarIconBrightness: icons,
+  );
+}
 
 /// Build the light [ThemeData] from a seed color.
 ThemeData buildLightTheme(

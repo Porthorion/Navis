@@ -18,14 +18,18 @@ void main() {
     });
 
     test('navigation button icons follow the theme brightness', () {
-      final dark = navisNavigationBarStyle(Brightness.dark);
-      final light = navisNavigationBarStyle(Brightness.light);
+      final dark = navisSystemBarStyle(Brightness.dark);
+      final light = navisSystemBarStyle(Brightness.light);
       expect(dark.systemNavigationBarIconBrightness, Brightness.light);
       expect(light.systemNavigationBarIconBrightness, Brightness.dark);
+      expect(dark.statusBarIconBrightness, Brightness.light);
+      expect(light.statusBarIconBrightness, Brightness.dark);
+      expect(dark.statusBarBrightness, Brightness.dark);
+      expect(light.statusBarBrightness, Brightness.light);
       for (final style in <SystemUiOverlayStyle>[dark, light]) {
         expect(style.systemNavigationBarColor, Colors.transparent);
         expect(style.systemNavigationBarContrastEnforced, isFalse);
-        expect(style.statusBarIconBrightness, isNull);
+        expect(style.statusBarColor, Colors.transparent);
       }
     });
   });

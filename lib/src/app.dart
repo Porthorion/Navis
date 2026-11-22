@@ -210,7 +210,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
         // Flutter reads the navigation bar from the region under the bottom
         // edge; without one the bar falls back to the platform's black.
         return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: navisNavigationBarStyle(Theme.of(context).brightness),
+          value: navisSystemBarStyle(brightness),
           child: content,
         );
       },

@@ -2539,6 +2539,49 @@ void main() {
       expect(railColor(tester), collapsed);
       expect(backdrop, findsNothing);
     });
+
+    _testApp('expanded: the pane paints no backdrop of its own', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneLandscape);
+      await _openNowPlaying(tester, container);
+
+      // The shell layer's tint is the only one; the pane adds none.
+      final tint = find.byKey(const ValueKey<String>('nowPlayingSurfaceTint'));
+      expect(tint, findsOneWidget);
+      expect(find.descendant(of: backdrop, matching: tint), findsOneWidget);
+      final art = find.byKey(
+        const ValueKey<String>('nowPlayingArtworkBackground'),
+      );
+      expect(
+        find.descendant(of: backdrop, matching: art),
+        findsNWidgets(tester.widgetList(art).length),
+      );
+      expect(tester.widgetList(art).length, lessThanOrEqualTo(1));
+      // Only the shell layer paints the backdrop, at full opacity.
+      final layer = tester.widget<Opacity>(
+        find.ancestor(of: backdrop, matching: find.byType(Opacity)).first,
+      );
+      expect(layer.opacity, 1);
+    });
+
+    _testApp('mid-drag: the rail colour is between solid and clear', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneLandscape);
+      final solid = railColor(tester)!;
+      final gesture = await tester.startGesture(const Offset(400, 380));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump(const Duration(milliseconds: 16));
+      final mid = railColor(tester)!;
+      expect(mid.a, lessThan(solid.a));
+      expect(mid.a, greaterThan(0));
+      await gesture.up();
+      await _settle(tester, 20);
+      expect(container, isNotNull);
+    });
   });
 
   // #758 P1: whatever owns the bottom screen edge consumes the bottom system

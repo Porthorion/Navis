@@ -131,6 +131,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   /// Whether the last build used the bottom-navigation layout.
   bool _bottomNavLayoutActive = false;
+  bool _compactWideLayoutActive = false;
   final AppNoticeController _appNoticeController = AppNoticeController();
   final Set<String> _queueCoverArtPrefetchedKeys = <String>{};
   final ListQueue<String> _queueCoverArtPrefetchedOrder = ListQueue<String>();
@@ -1088,6 +1089,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       _playerSheetProgress.value = showPlayer && isExpanded ? 1 : 0;
     }
     _bottomNavLayoutActive = bottomNavLayout;
+    if (useCompactWideLandscape && !_compactWideLayoutActive) {
+      // Same seed for the compact-wide pane: no one-frame opaque rail when
+      // the sheet mounts already expanded.
+      _playerSheetProgress.value = showPlayer && isExpanded ? 1 : 0;
+    }
+    _compactWideLayoutActive = useCompactWideLandscape;
     final isMiniPlayerMode =
         desktopRuntime &&
         ref.watch(
@@ -2581,7 +2588,7 @@ class _HiddenWorkspaceLayer extends StatelessWidget {
 /// The side rail's background. In compact wide it fades to transparent as the
 /// player opens, so the full-screen Now Playing backdrop shows behind it.
 class _RailSurface extends StatelessWidget {
-  const _RailSurface({required this.progress, required this.child});
+  const new({required this.progress, required this.child});
 
   final ValueNotifier<double>? progress;
   final Widget child;

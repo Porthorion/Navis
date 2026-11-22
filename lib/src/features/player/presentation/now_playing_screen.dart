@@ -442,6 +442,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           );
 
     final nowPlayingSurface = NowPlayingBackdrop(
+      // The shell paints one full-screen backdrop behind the compact-wide
+      // rail and pane, so the pane adds none (no seam at the rail edge).
+      drawsSurface: !widget.compactWideLandscapeMode,
       hasActivePlayback: playback.hasActivePlayback,
       coverArtId: playback.isRadioMode ? null : song?.coverArt,
       coverArtRevision: song?.coverArtRevision ?? 0,
