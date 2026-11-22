@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Search field above a filterable list (Queue, Downloaded and Playlists).
@@ -17,6 +19,7 @@ class ListFilterField extends StatelessWidget {
     required this.onClear,
     this.dense = false,
     this.alignWithContent = false,
+    this.fieldKey,
   });
 
   final TextEditingController controller;
@@ -28,6 +31,9 @@ class ListFilterField extends StatelessWidget {
   /// Insets by `ContentLayout.padding` (the Library grids' inset) instead of a
   /// fixed 12, so the field lines up with the chips and cards below it.
   final bool alignWithContent;
+
+  /// Keys the [TextField], so a parent that moves the field keeps its focus.
+  final Key? fieldKey;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +50,7 @@ class ListFilterField extends StatelessWidget {
           ? EdgeInsets.zero
           : EdgeInsets.fromLTRB(inset, 8, inset, 4),
       child: TextField(
+        key: fieldKey,
         controller: controller,
         onChanged: onChanged,
         onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
@@ -78,6 +85,99 @@ class ListFilterField extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A Library tab's [ListFilterField]. On a short window
+/// ([AdaptiveContext.useShortHeightChrome], a landscape phone) it becomes the
+/// tab's one pinned control row instead: a dense field, then [shortControls]
+/// (the tab's chips and sort) in a strip that scrolls sideways, so the
+/// controls never stack and never cost a second row of height.
+class LibraryFilterField extends StatefulWidget {
+  const new({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+    required this.onClear,
+    this.alignWithContent = false,
+    this.shortControls = const <Widget>[],
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  final bool alignWithContent;
+
+  /// The tab's other controls; shown only in the short row.
+  final List<Widget> shortControls;
+
+  @override
+  State<LibraryFilterField> createState() => _LibraryFilterFieldState();
+}
+
+class _LibraryFilterFieldState extends State<LibraryFilterField> {
+  // Moves the TextField between the plain and the short tree, so a rotation
+  // across the short-height breakpoint keeps its focus and the keyboard open.
+  final _fieldKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final w = widget;
+    if (!resolveAdaptiveContextFor(context).useShortHeightChrome) {
+      return ListFilterField(
+        controller: w.controller,
+        hint: w.hint,
+        onChanged: w.onChanged,
+        onClear: w.onClear,
+        alignWithContent: w.alignWithContent,
+        fieldKey: _fieldKey,
+      );
+    }
+    final shortControls = w.shortControls;
+    final field = ListFilterField(
+      controller: w.controller,
+      hint: w.hint,
+      onChanged: w.onChanged,
+      onClear: w.onClear,
+      dense: true,
+      fieldKey: _fieldKey,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final inset = ContentLayout.padding(constraints.maxWidth);
+        final width = constraints.maxWidth - inset * 2;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(inset, 6, inset, 6),
+          // 40 dp, not the 48 dp a field or a chip takes by default: with the
+          // 6 dp above and below, the row is 52 dp.
+          child: SizedBox(
+            height: 40,
+            child: shortControls.isEmpty
+                ? field
+                : Row(
+                    children: <Widget>[
+                      SizedBox(
+                        width: math.min(
+                          width,
+                          (constraints.maxWidth * 0.4).clamp(200.0, 360.0),
+                        ),
+                        child: field,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(spacing: 8, children: shortControls),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 }

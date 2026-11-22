@@ -244,7 +244,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
     if (!showFilterField) return content;
     return Column(
       children: [
-        ListFilterField(
+        LibraryFilterField(
           controller: _filterController,
           alignWithContent: true,
           hint: l10n.radioFilterHint,

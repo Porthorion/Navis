@@ -201,6 +201,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Library on a landscape phone drops its title and keeps search, '
+        'filters and sort in one row, leaving more room for your music',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'More albums and artists are matched automatically after the server '
         'renames or re-tags them',
         type: ChangelogEntryType.fix,
