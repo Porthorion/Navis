@@ -1941,7 +1941,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                               // pane shows the
                                                               // shell backdrop;
                                                               // hide the opaque
-                                                              // page but keep
+                                                              // page (and its
+                                                              // focus) but keep
                                                               // its state alive.
                                                               child: ValueListenableBuilder<double>(
                                                                 valueListenable:
@@ -1963,8 +1964,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                               1
                                                                           ? 0
                                                                           : 1,
-                                                                      child:
-                                                                          child,
+                                                                      child: ExcludeFocus(
+                                                                        excluding:
+                                                                            progress >=
+                                                                            1,
+                                                                        child:
+                                                                            child!,
+                                                                      ),
                                                                     ),
                                                                 child:
                                                                     navigationShell,
