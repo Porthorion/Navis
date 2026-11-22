@@ -342,12 +342,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   /// Gives an empty, filtered Library result a direct path back to content.
   /// A filter should never strand people on an otherwise indistinguishable
   /// empty state.
-  Widget? _buildClearFiltersAction({bool includesLikedOnly = false}) {
+  /// Each tab owns its search text, so the caller says which one it may clear.
+  Widget? _buildClearFiltersAction({
+    bool includesLikedOnly = false,
+    bool includesAlbumsText = false,
+    bool includesArtistsText = false,
+  }) {
     final hasActiveFilters =
         _downloadedOnly ||
         typeFilterQuery.isNotEmpty ||
-        _albumsQuery.isNotEmpty ||
-        _artistsQuery.isNotEmpty ||
+        (includesAlbumsText && _albumsQuery.isNotEmpty) ||
+        (includesArtistsText && _artistsQuery.isNotEmpty) ||
         (includesLikedOnly && _artistsLikedOnly);
     if (!hasActiveFilters) {
       return null;
@@ -357,8 +362,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       style: NavisColorStyleData.tonalStyleOf(context),
       key: const ValueKey<String>('libraryClearFiltersAction'),
       onPressed: () {
-        _albumsFilter.clear();
-        _artistsFilter.clear();
+        if (includesAlbumsText) {
+          _albumsFilter.clear();
+        }
+        if (includesArtistsText) {
+          _artistsFilter.clear();
+        }
         clearTypeFilter();
         if (includesLikedOnly) {
           setState(() => _artistsLikedOnly = false);
@@ -1074,6 +1083,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             : Icons.person_outline,
                         action: _buildClearFiltersAction(
                           includesLikedOnly: true,
+                          includesArtistsText: true,
                         ),
                       ),
                     ],
@@ -1407,7 +1417,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               : _downloadedOnly
                               ? Icons.download_done_outlined
                               : Icons.album_outlined,
-                          action: _buildClearFiltersAction(),
+                          action: _buildClearFiltersAction(
+                            includesAlbumsText: true,
+                          ),
                         ),
                       )
                     else
@@ -1580,7 +1592,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         icon: _albumsQuery.isNotEmpty
                             ? Icons.search_off_rounded
                             : Icons.calendar_today_outlined,
-                        action: _buildClearFiltersAction(),
+                        action: _buildClearFiltersAction(
+                          includesAlbumsText: true,
+                        ),
                       ),
                     ],
                   )

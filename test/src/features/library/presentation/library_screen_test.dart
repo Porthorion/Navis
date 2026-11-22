@@ -3117,6 +3117,8 @@ void main() {
         _likedAlbum(id: 'a1', name: 'Café Sessions', artistName: 'Various'),
         _likedAlbum(id: 'a2', name: 'Lemonade', artistName: 'Beyoncé'),
         _likedAlbum(id: 'a3', name: 'Abbey Road', artistName: 'The Beatles'),
+        for (var i = 3; i < albumCount; i++)
+          _likedAlbum(id: 'g$i', name: 'Album $i'),
       ].take(albumCount).toList();
       const artists = <ArtistsTableData>[
         ArtistsTableData(
@@ -3157,7 +3159,7 @@ void main() {
           albumCountProvider.overrideWithValue(AsyncData(albums.length)),
           pagedAlbumsProvider.overrideWith((ref, request) {
             pageLimits.add(request.limit);
-            return Stream.value(albums);
+            return Stream.value(albums.take(request.limit).toList());
           }),
           sortedAlbumsProvider.overrideWith(
             (ref, request) => Stream.value(albums),
@@ -3186,13 +3188,9 @@ void main() {
     _testWidgetsWithCleanup(
       'Albums touch field narrows by name or artist, folds accents and clears',
       (tester) async {
-        final pageLimits = await pumpAlbumsArtists(
-          tester,
-          const Size(390, 900),
-        );
+        await pumpAlbumsArtists(tester, const Size(390, 900));
         expect(searchAlbums, findsOneWidget);
         expect(find.text('Abbey Road'), findsOneWidget);
-        final requestsBefore = pageLimits.length;
 
         await tester.enterText(searchAlbums, 'beyonce');
         await tester.pumpAndSettle();
@@ -3215,9 +3213,6 @@ void main() {
         expect(tester.widget<TextField>(searchAlbums).controller?.text, '');
         expect(find.text('Abbey Road'), findsOneWidget);
         expect(find.text('Lemonade'), findsOneWidget);
-        // Filtering reads the full list; it never asked for more pages.
-        expect(pageLimits.skip(requestsBefore).toSet().length, lessThan(2));
-
         await tester.enterText(searchAlbums, 'abbey');
         await tester.pumpAndSettle();
         await tester.tap(find.byIcon(Icons.close));
@@ -3279,16 +3274,84 @@ void main() {
         expect(find.text('Beyoncé'), findsOneWidget);
         expect(tester.widget<TextField>(searchArtists).controller?.text, '');
 
-        await tester.enterText(searchArtists, 'rih');
-        await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Albums'));
         await tester.tap(find.text('Albums'));
         await tester.pumpAndSettle();
         expect(
           tester.widget<TextField>(searchAlbums).controller?.text,
-          '',
-          reason: 'clear-all also clears the albums text',
+          'beyonce',
+          reason: 'clearing on Artists leaves the albums text alone',
         );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'Clear filters on the Liked and Artists empty states keeps Albums text',
+      (tester) async {
+        await pumpAlbumsArtists(tester, const Size(390, 900));
+        await tester.enterText(searchAlbums, 'abbey');
+        await tester.pumpAndSettle();
+
+        // Liked: downloaded-only empties it, the action must not touch Albums.
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilterChip, 'Downloaded'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Liked').first);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
+        await tester.enterText(searchArtists, 'zzz');
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextField>(searchArtists).controller?.text, '');
+
+        await tester.ensureVisible(find.text('Albums'));
+        await tester.tap(find.text('Albums'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(searchAlbums).controller?.text,
+          'abbey',
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'Albums paging pauses while filtering and resumes after clearing',
+      (tester) async {
+        final pageLimits = await pumpAlbumsArtists(
+          tester,
+          const Size(390, 900),
+          albumCount: 300,
+        );
+        final grid = find.byKey(const PageStorageKey<String>('library-albums'));
+        Future<void> scrollToBottom() async {
+          for (var i = 0; i < 4; i++) {
+            await tester.drag(grid, const Offset(0, -20000));
+            await tester.pumpAndSettle();
+          }
+        }
+
+        await tester.enterText(searchAlbums, 'Album');
+        await tester.pumpAndSettle();
+        await scrollToBottom();
+
+        // Filtering paused paging: clearing from the top starts at page one.
+        await tester.drag(grid, const Offset(0, 100000));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+        expect(pageLimits.any((l) => l > 60), isFalse);
+        await scrollToBottom();
+        expect(pageLimits.any((l) => l > 60), isTrue);
       },
     );
 
