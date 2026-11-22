@@ -2895,8 +2895,12 @@ the tracks. Phone and tablet layouts ignore the height band.
 - **All other cases** → bottom navigation bar
 
 Only short viewports get compact-wide; a 16:9 tablet, or a car display of the
-same size, uses the standard rail. The top-inset proxy for car bars that do not
-report a bottom inset applies only to compact-wide. The shell and
+same size, uses the standard rail. Compact-wide takes the bottom inset from
+`viewPadding.bottom` only (the old top-inset proxy for car bars was removed in
+#758: Android Auto projection never renders this shell and AAOS reports its bar
+as a bottom inset). While the mini player shows, the strip owns the bottom inset
+and `_ConsumedBottomInset` zeroes it for the pane above, so no page adds a
+second gap. The shell and
 `resolveAdaptiveContextFor` pass `viewPadding` (not `padding`) to the resolver,
 so an open keyboard, which zeroes the bottom padding, cannot flip the mode.
 In compact-wide the shell pads its pane by the left and right insets, so the
