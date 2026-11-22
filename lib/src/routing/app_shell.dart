@@ -1766,9 +1766,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                           else if (useRailNavigation)
                             Padding(
                               padding: useCompactWideLandscape
+                                  // The rail side's inset lives inside
+                                  // _RailSurface so its colour reaches the
+                                  // screen edge; only the page side pads here.
                                   ? EdgeInsets.only(
-                                      left: mediaPadding.left,
-                                      right: mediaPadding.right,
+                                      left: ltr ? 0 : mediaPadding.left,
+                                      right: ltr ? mediaPadding.right : 0,
                                     )
                                   : EdgeInsets.zero,
                               // Each side of the Row takes its own system inset
@@ -1789,8 +1792,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           ? _playerSheetProgress
                                           : null,
                                       child: SafeArea(
-                                        left: !useCompactWideLandscape && ltr,
-                                        right: !useCompactWideLandscape && !ltr,
+                                        left: ltr,
+                                        right: !ltr,
                                         minimum: EdgeInsets.only(
                                           bottom: mediaViewPadding.bottom,
                                         ),
@@ -1934,8 +1937,44 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                   isExpanded
                                                                   ? 0
                                                                   : compactBottomMiniPlayerHeight,
-                                                              child:
-                                                                  navigationShell,
+                                                              // Fully open, the
+                                                              // pane shows the
+                                                              // shell backdrop;
+                                                              // hide the opaque
+                                                              // page (and its
+                                                              // focus) but keep
+                                                              // its state alive.
+                                                              child: ValueListenableBuilder<double>(
+                                                                valueListenable:
+                                                                    _playerSheetProgress,
+                                                                builder:
+                                                                    (
+                                                                      context,
+                                                                      progress,
+                                                                      child,
+                                                                    ) => Opacity(
+                                                                      key:
+                                                                          const ValueKey<
+                                                                            String
+                                                                          >(
+                                                                            'compactWidePageOpacity',
+                                                                          ),
+                                                                      opacity:
+                                                                          progress >=
+                                                                              1
+                                                                          ? 0
+                                                                          : 1,
+                                                                      child: ExcludeFocus(
+                                                                        excluding:
+                                                                            progress >=
+                                                                            1,
+                                                                        child:
+                                                                            child!,
+                                                                      ),
+                                                                    ),
+                                                                child:
+                                                                    navigationShell,
+                                                              ),
                                                             ),
                                                           ),
                                                           Positioned.fill(

@@ -2565,6 +2565,66 @@ void main() {
       expect(layer.opacity, 1);
     });
 
+    final pageOpacity = find.byKey(
+      const ValueKey<String>('compactWidePageOpacity'),
+    );
+
+    _testApp('expanded: the page behind the pane is not painted, but alive', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneLandscape);
+      expect(tester.widget<Opacity>(pageOpacity).opacity, 1);
+      final page = find.byType(Scaffold, skipOffstage: false);
+      final state = tester.state(find.byType(Navigator).first);
+
+      await _openNowPlaying(tester, container);
+
+      expect(tester.widget<Opacity>(pageOpacity).opacity, 0);
+      expect(page, findsWidgets, reason: 'page state and route stay alive');
+      expect(tester.state(find.byType(Navigator).first), same(state));
+
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await _settle(tester, 20);
+      expect(tester.widget<Opacity>(pageOpacity).opacity, 1);
+    });
+
+    _testApp('mid-drag: the page still paints under the opaque pane', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _phoneLandscape);
+      final gesture = await tester.startGesture(const Offset(400, 380));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.widget<Opacity>(pageOpacity).opacity, 1);
+      await gesture.up();
+      await _settle(tester, 20);
+    });
+
+    for (final (label, left, right) in <(String, double, double)>[
+      ('left cutout', 40, 0),
+      ('left cutout and right bar', 40, 48),
+    ]) {
+      _testApp('rail colour runs to the screen edge: $label', (tester) async {
+        final viewport = (
+          size: const Size(891, 411),
+          padding: EdgeInsets.fromLTRB(left, 24, right, 0),
+        );
+        await _pumpApp(tester, viewport);
+
+        final railRect = tester.getRect(rail);
+        expect(railRect.left, 0);
+        final icon = find.descendant(of: rail, matching: find.byType(Icon));
+        expect(tester.getTopLeft(icon.first).dx, greaterThanOrEqualTo(left));
+        // The page starts where the rail ends and still stops at the right
+        // inset.
+        final page = tester.getRect(pageOpacity);
+        expect(page.left, railRect.right);
+        expect(page.right, viewport.size.width - right);
+      });
+    }
+
     _testApp('mid-drag: rail between solid and clear, pane keeps its surface', (
       tester,
     ) async {
