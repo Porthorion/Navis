@@ -35,6 +35,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -3098,6 +3099,262 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Halo'), findsOneWidget);
+      },
+    );
+
+    final searchAlbums = find.widgetWithText(TextField, 'Search albums...');
+    final searchArtists = find.widgetWithText(TextField, 'Search artists...');
+
+    Future<List<int>> pumpAlbumsArtists(
+      WidgetTester tester,
+      Size size, {
+      int albumCount = 3,
+      bool byYear = false,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final pageLimits = <int>[];
+      final albums = <AlbumsTableData>[
+        _likedAlbum(id: 'a1', name: 'Café Sessions', artistName: 'Various'),
+        _likedAlbum(id: 'a2', name: 'Lemonade', artistName: 'Beyoncé'),
+        _likedAlbum(id: 'a3', name: 'Abbey Road', artistName: 'The Beatles'),
+      ].take(albumCount).toList();
+      const artists = <ArtistsTableData>[
+        ArtistsTableData(
+          isProvisional: false,
+          isExternal: false,
+          id: 'r1',
+          name: 'Beyoncé',
+        ),
+        ArtistsTableData(
+          isProvisional: false,
+          isExternal: false,
+          id: 'r2',
+          name: 'Rihanna',
+        ),
+      ];
+      await _pumpLibraryScreen(
+        tester,
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: size.width > 900,
+          viewportSize: size,
+          safePadding: EdgeInsets.zero,
+        ),
+        overrides: [
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+          ),
+          artistsProvider.overrideWithValue(const AsyncData(artists)),
+          likedArtistsProvider.overrideWithValue(
+            const AsyncData(<ArtistsTableData>[
+              ArtistsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'r2',
+                name: 'Rihanna',
+              ),
+            ]),
+          ),
+          albumCountProvider.overrideWithValue(AsyncData(albums.length)),
+          pagedAlbumsProvider.overrideWith((ref, request) {
+            pageLimits.add(request.limit);
+            return Stream.value(albums);
+          }),
+          sortedAlbumsProvider.overrideWith(
+            (ref, request) => Stream.value(albums),
+          ),
+          albumYearSectionsProvider.overrideWith(
+            (ref, request) => Stream.value(<AlbumYearSection>[
+              AlbumYearSection(
+                title: '2016',
+                decadeStart: 2010,
+                year: 2016,
+                albums: albums,
+              ),
+            ]),
+          ),
+        ],
+      );
+      if (byYear) {
+        await tester.tap(find.text('Recently Added'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('By Year').last);
+        await tester.pumpAndSettle();
+      }
+      return pageLimits;
+    }
+
+    _testWidgetsWithCleanup(
+      'Albums touch field narrows by name or artist, folds accents and clears',
+      (tester) async {
+        final pageLimits = await pumpAlbumsArtists(
+          tester,
+          const Size(390, 900),
+        );
+        expect(searchAlbums, findsOneWidget);
+        expect(find.text('Abbey Road'), findsOneWidget);
+        final requestsBefore = pageLimits.length;
+
+        await tester.enterText(searchAlbums, 'beyonce');
+        await tester.pumpAndSettle();
+        expect(find.text('Lemonade'), findsOneWidget);
+        expect(find.text('Abbey Road'), findsNothing);
+        expect(find.text('Café Sessions'), findsNothing);
+
+        await tester.enterText(searchAlbums, 'CAFE');
+        await tester.pumpAndSettle();
+        expect(find.text('Café Sessions'), findsOneWidget);
+        expect(find.text('Lemonade'), findsNothing);
+
+        await tester.enterText(searchAlbums, 'zzz');
+        await tester.pumpAndSettle();
+        expect(find.text('No results for "zzz"'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextField>(searchAlbums).controller?.text, '');
+        expect(find.text('Abbey Road'), findsOneWidget);
+        expect(find.text('Lemonade'), findsOneWidget);
+        // Filtering reads the full list; it never asked for more pages.
+        expect(pageLimits.skip(requestsBefore).toSet().length, lessThan(2));
+
+        await tester.enterText(searchAlbums, 'abbey');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+        expect(find.text('Lemonade'), findsOneWidget);
+      },
+    );
+
+    _testWidgetsWithCleanup('Albums By year view filters with the same field', (
+      tester,
+    ) async {
+      await pumpAlbumsArtists(tester, const Size(390, 900), byYear: true);
+      expect(searchAlbums, findsOneWidget);
+      expect(find.text('Abbey Road'), findsOneWidget);
+
+      await tester.enterText(searchAlbums, 'beyonce');
+      await tester.pumpAndSettle();
+      expect(find.text('Lemonade'), findsOneWidget);
+      expect(find.text('Abbey Road'), findsNothing);
+
+      await tester.enterText(searchAlbums, 'zzz');
+      await tester.pumpAndSettle();
+      expect(find.text('No results for "zzz"'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(searchAlbums).controller?.text, '');
+      expect(find.text('Abbey Road'), findsOneWidget);
+    });
+
+    _testWidgetsWithCleanup(
+      'Artists touch field folds accents, combines with chips; tabs keep own text',
+      (tester) async {
+        await pumpAlbumsArtists(tester, const Size(390, 900));
+        await tester.enterText(searchAlbums, 'beyonce');
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
+        expect(searchArtists, findsOneWidget);
+        expect(tester.widget<TextField>(searchArtists).controller?.text, '');
+        expect(find.text('Rihanna'), findsOneWidget);
+
+        await tester.enterText(searchArtists, 'BEYONCE');
+        await tester.pumpAndSettle();
+        expect(find.text('Beyoncé'), findsOneWidget);
+        expect(find.text('Rihanna'), findsNothing);
+
+        // The Liked chip narrows further: only Rihanna is liked.
+        await tester.tap(find.widgetWithText(FilterChip, 'Liked'));
+        await tester.pumpAndSettle();
+        expect(find.text('No results for "BEYONCE"'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Rihanna'), findsOneWidget);
+        expect(find.text('Beyoncé'), findsOneWidget);
+        expect(tester.widget<TextField>(searchArtists).controller?.text, '');
+
+        await tester.enterText(searchArtists, 'rih');
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Albums'));
+        await tester.tap(find.text('Albums'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(searchAlbums).controller?.text,
+          '',
+          reason: 'clear-all also clears the albums text',
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup('Albums and Artists keep their own text per tab', (
+      tester,
+    ) async {
+      await pumpAlbumsArtists(tester, const Size(390, 900));
+      await tester.enterText(searchAlbums, 'abbey');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Artists'));
+      await tester.pumpAndSettle();
+      await tester.enterText(searchArtists, 'rih');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Albums'));
+      await tester.tap(find.text('Albums'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(searchAlbums).controller?.text, 'abbey');
+      expect(find.text('Abbey Road'), findsOneWidget);
+      expect(find.text('Lemonade'), findsNothing);
+      await tester.tap(find.text('Artists'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(searchArtists).controller?.text, 'rih');
+      expect(find.text('Rihanna'), findsOneWidget);
+      expect(find.text('Beyoncé'), findsNothing);
+    });
+
+    _testWidgetsWithCleanup('Albums and Artists show no field when empty', (
+      tester,
+    ) async {
+      await pumpAlbumsArtists(tester, const Size(390, 900), albumCount: 0);
+      expect(find.byType(TextField), findsNothing);
+    });
+
+    _testWidgetsWithCleanup(
+      'desktop Albums and Artists have no field; type-to-filter still filters',
+      (tester) async {
+        await pumpAlbumsArtists(tester, const Size(1280, 900));
+        expect(find.byType(TextField), findsNothing);
+
+        for (final char in 'abb'.split('')) {
+          await tester.sendKeyEvent(
+            LogicalKeyboardKey.findKeyByKeyId(char.codeUnitAt(0))!,
+            character: char,
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Filtering: "abb"'), findsOneWidget);
+        expect(find.text('Abbey Road'), findsOneWidget);
+        expect(find.text('Lemonade'), findsNothing);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('Lemonade'), findsOneWidget);
+
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
+        for (final char in 'rih'.split('')) {
+          await tester.sendKeyEvent(
+            LogicalKeyboardKey.findKeyByKeyId(char.codeUnitAt(0))!,
+            character: char,
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Rihanna'), findsOneWidget);
+        expect(find.text('Beyoncé'), findsNothing);
+        expect(find.byType(TextField), findsNothing);
       },
     );
 
