@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -5,6 +6,34 @@ import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
+  group('system overlay style', () {
+    test('keeps the navigation bar transparent and unscrimmed', () {
+      expect(kNavisOverlayStyle.systemNavigationBarColor, Colors.transparent);
+      expect(
+        kNavisOverlayStyle.systemNavigationBarDividerColor,
+        Colors.transparent,
+      );
+      expect(kNavisOverlayStyle.systemNavigationBarContrastEnforced, isFalse);
+      expect(kNavisOverlayStyle.statusBarColor, Colors.transparent);
+    });
+
+    test('navigation button icons follow the theme brightness', () {
+      final dark = navisSystemBarStyle(Brightness.dark);
+      final light = navisSystemBarStyle(Brightness.light);
+      expect(dark.systemNavigationBarIconBrightness, Brightness.light);
+      expect(light.systemNavigationBarIconBrightness, Brightness.dark);
+      expect(dark.statusBarIconBrightness, Brightness.light);
+      expect(light.statusBarIconBrightness, Brightness.dark);
+      expect(dark.statusBarBrightness, Brightness.dark);
+      expect(light.statusBarBrightness, Brightness.light);
+      for (final style in <SystemUiOverlayStyle>[dark, light]) {
+        expect(style.systemNavigationBarColor, Colors.transparent);
+        expect(style.systemNavigationBarContrastEnforced, isFalse);
+        expect(style.statusBarColor, Colors.transparent);
+      }
+    });
+  });
+
   group('Flat', () {
     test('every builder records flat in the colour style extension', () {
       for (final style in NavisColorStyle.values) {

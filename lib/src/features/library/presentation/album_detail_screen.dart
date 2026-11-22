@@ -6,6 +6,7 @@ import 'package:navis/src/common_widgets/navis_modal_sheet.dart';
 import 'package:navis/src/common_widgets/song_sheet_header.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter/services.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
@@ -1232,7 +1233,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                   mobileColors.surfaceContainerHighest,
                                   _headerProgress,
                                 ),
-                          systemOverlayStyle: SystemUiOverlayStyle.light,
+                          systemOverlayStyle: kNavisOverlayStyle,
                           leading: _searching
                               ? _buildAnimatedNavButton(
                                   icon: Icons.close,

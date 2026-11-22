@@ -425,7 +425,7 @@ class _ListenBrainzWeeklyDetailContentState
             colors.surfaceContainerHighest,
             _headerProgress,
           ),
-          systemOverlayStyle: SystemUiOverlayStyle.light,
+          systemOverlayStyle: kNavisOverlayStyle,
           leading: _buildAnimatedNavButton(
             icon: Icons.arrow_back,
             onPressed: () => NavService.back(context),

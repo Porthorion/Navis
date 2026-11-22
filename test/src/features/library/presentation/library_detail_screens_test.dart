@@ -2137,6 +2137,15 @@ void main() {
         );
       }
 
+      testWidgets('uses the shared transparent system overlay style', (
+        tester,
+      ) async {
+        await pump(tester, buildDarkTheme(Colors.teal));
+
+        final bar = tester.widget<SliverAppBar>(find.byKey(appBarKey));
+        expect(bar.systemOverlayStyle, same(kNavisOverlayStyle));
+      });
+
       testWidgets('keeps the art clear and moves the title below it', (
         tester,
       ) async {
