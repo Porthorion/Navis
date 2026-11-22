@@ -879,7 +879,7 @@ void main() {
       // The new queue holds none of the first batch: it was played and removed.
       await rig.refill();
 
-      expect(rig.queue.appendedSongBatches, hasLength(1));
+      expect(_ids(rig.queue.queuedSongs), hasLength(10));
       expect(rig.notifier.lastRefill?.parkedSeedId, isNotNull);
     });
 
@@ -1763,6 +1763,61 @@ void main() {
       });
     });
   });
+  test(
+    'Deezer mode appends each group while the rest still maps (#759)',
+    () async {
+      final rig = _Rig();
+      final gate = Completer<void>();
+      when(
+        () => rig.api.search3(
+          query: any(named: 'query'),
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).thenAnswer((invocation) async {
+        final parts = (invocation.namedArguments[#query] as String).split(' ');
+        if (const {
+          'SongF',
+          'SongG',
+          'SongH',
+          'SongI',
+          'SongJ',
+        }.contains(parts.last)) {
+          await gate.future;
+        }
+        return SearchResult3(
+          songs: <Song>[
+            Song(
+              id: '${parts.first}-${parts.last}',
+              title: parts.last,
+              artist: parts.first,
+            ),
+          ],
+        );
+      });
+      var done = false;
+      final run = rig.start().whenComplete(() => done = true);
+      await pumpEventQueue(times: 200);
+
+      expect(rig.queue.appendedSongBatches, hasLength(1));
+      expect(_ids(rig.queue.queuedSongs), [
+        for (final l in _letters.take(5)) 'Artist$l-Song$l',
+      ]);
+      expect(rig.queue.retainedSongIds, ['seed']);
+      expect(done, isFalse);
+
+      gate.complete();
+      await run;
+      expect(rig.queue.appendedSongBatches, hasLength(2));
+      expect(_ids(rig.queue.queuedSongs), hasLength(10));
+      expect(rig.state.pendingSnackbar, '10');
+      expect(rig.state.active, isTrue);
+    },
+  );
 }
 
 extension on DeezerTrack {
