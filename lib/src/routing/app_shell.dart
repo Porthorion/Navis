@@ -1747,7 +1747,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           bottom: mediaViewPadding.bottom,
                                         ),
                                         child: SideInsetsConsumed(
-                                          enabled: !useCompactWideLandscape,
                                           child: SizedBox(
                                             width: sideRailWidth,
                                             child: Padding(
@@ -1848,7 +1847,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               : mediaViewPadding.bottom,
                                         ),
                                         child: SideInsetsConsumed(
-                                          enabled: !useCompactWideLandscape,
                                           child: ShellOfflineBannerFrame(
                                             child: NotificationListener<NavigationNotification>(
                                               // Absorb branch-level NavigationNotification so

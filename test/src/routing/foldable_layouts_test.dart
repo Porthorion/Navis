@@ -1519,7 +1519,6 @@ void main() {
                     left: true,
                     right: false,
                     child: SideInsetsConsumed(
-                      enabled: true,
                       child: Builder(
                         builder: (context) {
                           panePadding = MediaQuery.paddingOf(context);
@@ -1535,7 +1534,6 @@ void main() {
                     left: false,
                     right: true,
                     child: SideInsetsConsumed(
-                      enabled: true,
                       child: Builder(
                         builder: (context) {
                           railPadding = MediaQuery.paddingOf(context);
@@ -2703,6 +2701,41 @@ void main() {
           tester.getRect(find.byType(TabBarView)).bottom,
           viewport.size.height - viewport.padding.bottom,
         );
+      });
+    }
+
+    // #758: the shell pads the row by the side insets itself, so the pane must
+    // not see them again (a horizontal shelf would add them in its scroll axis).
+    for (final (name, viewport) in <(String, _Viewport)>[
+      (
+        'left cutout',
+        (size: Size(832, 384), padding: EdgeInsets.fromLTRB(34, 24, 0, 16)),
+      ),
+      (
+        'left cutout, three-button bar on the right',
+        (size: Size(891, 411), padding: EdgeInsets.fromLTRB(40, 24, 48, 0)),
+      ),
+    ]) {
+      _testApp('#758 $name: Liked shelf adds no second side inset', (
+        tester,
+      ) async {
+        await _pumpApp(tester, viewport);
+        await _go(tester, AppRoutes.librarySection('liked'));
+        tester.takeException();
+        final shelf = find.byWidgetPredicate(
+          (w) => w is ListView && w.scrollDirection == Axis.horizontal,
+        );
+        final firstItem = find
+            .descendant(of: shelf.first, matching: find.byType(InkWell))
+            .first;
+        expect(
+          tester.getRect(firstItem).left,
+          closeTo(tester.getRect(shelf.first).left, 1),
+          reason: 'first shelf item sits at the shelf start',
+        );
+        final context = tester.element(find.byType(LibraryScreen));
+        expect(MediaQuery.paddingOf(context).left, 0, reason: 'pane left');
+        expect(MediaQuery.paddingOf(context).right, 0, reason: 'pane right');
       });
     }
 
