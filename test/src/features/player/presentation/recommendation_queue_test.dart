@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +17,9 @@ class _QueueHandler extends Mock implements NavisPlaybackHandler {
 
   final int insertCount;
   final List<String> ids = <String>['existing'];
+
+  /// Stands in for edits queued ahead of this append in the handler's lane.
+  Future<void>? laneWait;
 
   @override
   PlaybackSnapshot get snapshot => PlaybackSnapshot(
@@ -34,7 +39,10 @@ class _QueueHandler extends Mock implements NavisPlaybackHandler {
   Future<void> addToQueue(
     List<String> songIds, {
     bool expandMatchFlows = true,
+    void Function()? onQueueEditStart,
   }) async {
+    await laneWait;
+    onQueueEditStart?.call();
     ids.addAll(songIds.take(insertCount));
   }
 }
@@ -70,4 +78,34 @@ void main() {
       expect(result.insertedIds, <String>['one', 'two'].take(count).toList());
     });
   }
+
+  test('a user add during the lane wait is not a mix song', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final handler = _QueueHandler(1);
+    final gate = Completer<void>();
+    handler.laneWait = gate.future;
+    final container = ProviderContainer(
+      overrides: [
+        navisDatabaseProvider.overrideWithValue(database),
+        audioHandlerProvider.overrideWithValue(handler),
+        playbackSnapshotProvider.overrideWithValue(
+          const AsyncData(PlaybackSnapshot.idle()),
+        ),
+        lyricsPrewarmProvider.overrideWithValue((_) async {}),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final pending = container
+        .read(queueProvider.notifier)
+        .appendRecommendationTracks(const <Song>[
+          Song(id: 'mix', title: 'Mix'),
+        ]);
+    await Future<void>.delayed(Duration.zero);
+    handler.ids.add('user');
+    gate.complete();
+
+    expect((await pending).insertedIds, <String>['mix']);
+  });
 }

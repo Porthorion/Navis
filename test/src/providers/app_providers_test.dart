@@ -111,6 +111,7 @@ class _FakePlaybackHandler extends InertPlaybackHandler {
   Future<void> addToQueue(
     List<String> songIds, {
     bool expandMatchFlows = true,
+    void Function()? onQueueEditStart,
   }) async {
     addToQueueCalls.add(List<String>.from(songIds));
     addToQueueExpandFlags.add(expandMatchFlows);

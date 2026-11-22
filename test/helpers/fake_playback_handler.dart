@@ -105,6 +105,7 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   Future<void> addToQueue(
     List<String> songIds, {
     bool expandMatchFlows = true,
+    void Function()? onQueueEditStart,
   }) async {}
   @override
   Future<void> playNext(

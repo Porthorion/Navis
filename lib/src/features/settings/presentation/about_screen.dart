@@ -22,6 +22,7 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
+import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -42,10 +43,6 @@ class AboutScreen extends ConsumerStatefulWidget {
 }
 
 class _AboutScreenState extends ConsumerState<AboutScreen> {
-  /// True while the user has explicitly triggered an update check so we know
-  /// whether to show the "up to date" snackbar when the result arrives.
-  bool _userTriggeredCheck = false;
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -60,38 +57,15 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     );
     final packageInfo = ref.watch(packageInfoProvider).asData?.value;
     final version = packageInfo?.version ?? '';
+    // Dev builds are stamped `--build-name=X --build-number=N` and tagged
+    // `vX-dev.N` (tool/dev_release.sh); the updater compares the same number.
+    final buildNumber = packageInfo?.buildNumber ?? '';
+    final versionLabel =
+        ref.watch(devChannelBuildProvider) && buildNumber.isNotEmpty
+        ? '$version-dev.$buildNumber'
+        : version;
     final showUpdateControls = updateUiAvailable;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
-
-    // Show a snackbar when a user-triggered check resolves as up to date,
-    // or auto-show the update dialog when an update is found.
-    ref.listen<AsyncValue<UpdateInfo?>>(updateProvider, (prev, next) {
-      if (!mounted || !_userTriggeredCheck) return;
-      if (next.isLoading) return;
-      setState(() => _userTriggeredCheck = false);
-      final info = next.asData?.value;
-      if (!next.hasError && info == null) {
-        showAppNotice(
-          context,
-          message: l10n.updateUpToDate,
-          level: AppNoticeLevel.info,
-        );
-      } else if (next.hasError) {
-        showAppNotice(
-          context,
-          message: l10n.updateCheckFailed,
-          level: AppNoticeLevel.error,
-        );
-      } else if (info != null) {
-        unawaited(
-          showUpdateDialog(
-            context,
-            info,
-            updateService: ref.read(updateServiceProvider),
-          ),
-        );
-      }
-    });
 
     return Scaffold(
       appBar: AppBar(
@@ -110,7 +84,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
         builder: (context, constraints) {
           final useDesktopColumns = desktopMode && constraints.maxWidth >= 1100;
           final identity = _AboutIdentity(
-            version: version,
+            version: versionLabel,
             onCopyDetails: () async {
               final l10n = AppLocalizations.of(context)!;
               try {
@@ -148,11 +122,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             checksAllowed: checksAllowed,
             update: updateAsync,
             version: version,
-            onCheckNow: () {
-              setState(() => _userTriggeredCheck = true);
-              ref.read(updateForceCheckProvider.notifier).requestForceCheck();
-              ref.invalidate(updateProvider);
-            },
+            onCheckNow: () => checkForUpdatesNow(ref),
             onInstall: updateAsync.asData?.value == null
                 ? null
                 : () => unawaited(
@@ -446,6 +416,14 @@ class _AboutIdentity extends StatelessWidget {
     final title = Text('Navis', style: theme.textTheme.headlineMedium);
     final versionLabel = GestureDetector(
       key: const ValueKey<String>('about-startup-details'),
+      onTap: () async {
+        await Clipboard.setData(ClipboardData(text: version));
+        if (!context.mounted) return;
+        showAppNotice(
+          context,
+          message: AppLocalizations.of(context)!.albumDetailTitleCopied,
+        );
+      },
       onLongPress: onCopyDetails,
       child: Text(
         '${AppLocalizations.of(context)!.aboutVersion} $version',

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/settings/presentation/check_for_updates_button.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -202,6 +203,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ],
     );
+    // Wide + short has no scrolling and a tall right column, so there the
+    // action sits under the URL field instead.
+    const updateAction = Center(child: CheckForUpdatesButton());
 
     Form buildForm(Widget child) => Form(
       key: _formKey,
@@ -211,104 +215,174 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       child: child,
     );
 
-    return Scaffold(
-      // Prevent Scaffold from shrinking the body when the keyboard appears.
-      // Without this, LayoutBuilder sees smaller constraints when the keyboard
-      // opens — which can flip the isShort/isWide branch and dispose the
-      // focused TextFormField, causing a show→focus→dismiss→show keyboard loop
-      // (observed on Android Auto). Instead we manually add viewInsets.bottom
-      // as bottom padding on each scroll view so fields still scroll into view.
-      resizeToAvoidBottomInset: false,
-      body: Stack(
-        children: <Widget>[
-          Positioned.fill(
-            child: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= kAdaptiveMediumWidth;
-                  final isShort = constraints.maxHeight < 600;
+    return AppNoticeScope(
+      notifier: _noticeController,
+      child: Scaffold(
+        // Prevent Scaffold from shrinking the body when the keyboard appears.
+        // Without this, LayoutBuilder sees smaller constraints when the keyboard
+        // opens — which can flip the isShort/isWide branch and dispose the
+        // focused TextFormField, causing a show→focus→dismiss→show keyboard loop
+        // (observed on Android Auto). Instead we manually add viewInsets.bottom
+        // as bottom padding on each scroll view so fields still scroll into view.
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= kAdaptiveMediumWidth;
+                    final isShort = constraints.maxHeight < 600;
 
-                  // Wide + short: side-by-side layout (landscape phones,
-                  // short desktop windows). URL field moves to left column
-                  // under the hero so only username/password/button are on
-                  // the right — they fit without scrolling.
-                  if (isWide && isShort) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
+                    // Wide + short: side-by-side layout (landscape phones,
+                    // short desktop windows). URL field moves to left column
+                    // under the hero so only username/password/button are on
+                    // the right. Scrolls when large text or the update action
+                    // outgrow the viewport.
+                    if (isWide && isShort) {
+                      return SingleChildScrollView(
                         child: ConstrainedBox(
-                          // No maxHeight — let the card be its natural size so
-                          // Center can truly center it vertically.
-                          constraints: const BoxConstraints(maxWidth: 800),
-                          child: Card(
-                            margin: EdgeInsets.zero,
-                            clipBehavior: Clip.antiAlias,
-                            child: buildForm(
-                              IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: <Widget>[
-                                            // Compact hero: smaller icon,
-                                            // no subtitle — saves ~70dp vs
-                                            // the full hero section.
-                                            const _LoginHeroSection(
-                                              compact: true,
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 16,
+                              ),
+                              child: ConstrainedBox(
+                                // No maxHeight — let the card be its natural size so
+                                // Center can truly center it vertically.
+                                constraints: const BoxConstraints(
+                                  maxWidth: 800,
+                                ),
+                                child: Card(
+                                  margin: EdgeInsets.zero,
+                                  clipBehavior: Clip.antiAlias,
+                                  child: buildForm(
+                                    IntrinsicHeight(
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: <Widget>[
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(20),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: <Widget>[
+                                                  // Compact hero: smaller icon,
+                                                  // no subtitle — saves ~70dp vs
+                                                  // the full hero section.
+                                                  const _LoginHeroSection(
+                                                    compact: true,
+                                                  ),
+                                                  const SizedBox(height: 16),
+                                                  urlField,
+                                                  const SizedBox(height: 8),
+                                                  updateAction,
+                                                ],
+                                              ),
                                             ),
-                                            const SizedBox(height: 16),
-                                            urlField,
-                                          ],
-                                        ),
+                                          ),
+                                          VerticalDivider(
+                                            width: 1,
+                                            thickness: 1,
+                                            indent: 12,
+                                            endIndent: 12,
+                                            color: theme
+                                                .colorScheme
+                                                .outlineVariant,
+                                          ),
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(20),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: <Widget>[
+                                                  credentialsFields,
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    VerticalDivider(
-                                      width: 1,
-                                      thickness: 1,
-                                      indent: 12,
-                                      endIndent: 12,
-                                      color: theme.colorScheme.outlineVariant,
-                                    ),
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: <Widget>[credentialsFields],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  }
+                      );
+                    }
 
-                  // Wide + tall: centered Card with full vertical layout.
-                  // Use ScrollView → ConstrainedBox(minHeight) → Center, NOT
-                  // Center → ScrollView. The minHeight ensures Center always has
-                  // a bounded space at least as tall as the viewport so the card
-                  // lands at the true visual midpoint. Symmetric vertical padding
-                  // (40dp each side) guarantees no asymmetric offset.
-                  if (isWide) {
+                    // Wide + tall: centered Card with full vertical layout.
+                    // Use ScrollView → ConstrainedBox(minHeight) → Center, NOT
+                    // Center → ScrollView. The minHeight ensures Center always has
+                    // a bounded space at least as tall as the viewport so the card
+                    // lands at the true visual midpoint. Symmetric vertical padding
+                    // (40dp each side) guarantees no asymmetric offset.
+                    if (isWide) {
+                      return SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Center(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                24,
+                                40,
+                                24,
+                                // Grow bottom padding when keyboard is open so
+                                // the focused field can scroll above the keyboard.
+                                40 + bottomInset,
+                              ),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 480,
+                                ),
+                                child: Card(
+                                  margin: EdgeInsets.zero,
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32),
+                                    child: buildForm(
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          heroSection,
+                                          const SizedBox(height: 32),
+                                          urlField,
+                                          const SizedBox(height: 16),
+                                          credentialsFields,
+                                          const SizedBox(height: 8),
+                                          updateAction,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Narrow (mobile portrait): scrollable with vertical centering.
+                    // ScrollView → ConstrainedBox(minHeight) → Center ensures the
+                    // form is centred when it fits and scrolls when it doesn't.
                     return SingleChildScrollView(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
@@ -318,81 +392,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Padding(
                             padding: EdgeInsets.fromLTRB(
                               24,
-                              40,
                               24,
-                              // Grow bottom padding when keyboard is open so
-                              // the focused field can scroll above the keyboard.
+                              24,
                               40 + bottomInset,
                             ),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 480),
-                              child: Card(
-                                margin: EdgeInsets.zero,
-                                clipBehavior: Clip.antiAlias,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(32),
-                                  child: buildForm(
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: <Widget>[
-                                        heroSection,
-                                        const SizedBox(height: 32),
-                                        urlField,
-                                        const SizedBox(height: 16),
-                                        credentialsFields,
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                            child: buildForm(
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  heroSection,
+                                  const SizedBox(height: 32),
+                                  urlField,
+                                  const SizedBox(height: 16),
+                                  credentialsFields,
+                                  const SizedBox(height: 8),
+                                  updateAction,
+                                ],
                               ),
                             ),
                           ),
                         ),
                       ),
                     );
-                  }
-
-                  // Narrow (mobile portrait): scrollable with vertical centering.
-                  // ScrollView → ConstrainedBox(minHeight) → Center ensures the
-                  // form is centred when it fits and scrolls when it doesn't.
-                  return SingleChildScrollView(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: Center(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            24,
-                            24,
-                            24,
-                            40 + bottomInset,
-                          ),
-                          child: buildForm(
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                heroSection,
-                                const SizedBox(height: 32),
-                                urlField,
-                                const SizedBox(height: 16),
-                                credentialsFields,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                  },
+                ),
               ),
             ),
-          ),
-          AppNoticeHost(controller: _noticeController),
-        ],
+            AppNoticeHost(controller: _noticeController),
+          ],
+        ),
       ),
     );
   }

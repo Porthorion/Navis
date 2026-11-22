@@ -23,6 +23,7 @@ extension _NavisAndroidAuto on NavisAudioHandler {
     List<String>? originalOrder,
   }) async {
     if (songs.isEmpty) return false;
+    _onAndroidAutoQueueReplace?.call();
     try {
       await replaceQueueWithData(
         songs,
@@ -160,6 +161,7 @@ extension _NavisAndroidAuto on NavisAudioHandler {
             );
           }
         }
+        _onAndroidAutoQueueReplace?.call();
         try {
           await replaceQueue([parsed.entityId!], autoPlay: autoPlay);
         } on PlaybackSelectionDroppedException catch (error) {

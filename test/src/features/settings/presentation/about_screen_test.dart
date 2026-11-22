@@ -243,6 +243,40 @@ void main() {
       ),
     ];
 
+    for (final (dev, expected) in [(true, '1.0.0-dev.1'), (false, '1.0.0')]) {
+      testWidgets('version label is $expected and tap copies it', (
+        tester,
+      ) async {
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        await pumpAbout(
+          tester,
+          updateInfo: null,
+          extraOverrides: [devChannelBuildProvider.overrideWithValue(dev)],
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Version $expected'), findsOneWidget);
+        await tester.tap(find.text('Version $expected'));
+        await tester.pump();
+        expect(copied, expected);
+        await tester.pumpAndSettle(const Duration(seconds: 5));
+      });
+    }
+
     testWidgets(
       'hidden version long-press copies startup details and shows an app notice',
       (tester) async {

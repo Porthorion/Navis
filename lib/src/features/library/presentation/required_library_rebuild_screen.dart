@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/settings/presentation/check_for_updates_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/presentation/sign_out_phase_text.dart';
@@ -34,6 +36,13 @@ class RequiredLibraryRebuildScreen extends ConsumerStatefulWidget {
 class _RequiredLibraryRebuildScreenState
     extends ConsumerState<RequiredLibraryRebuildScreen> {
   bool _navigatedHome = false;
+  final AppNoticeController _noticeController = AppNoticeController();
+
+  @override
+  void dispose() {
+    _noticeController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -101,110 +110,124 @@ class _RequiredLibraryRebuildScreenState
 
     return PopScope<void>(
       canPop: false,
-      child: Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Semantics(
-                    key: const ValueKey<String>(
-                      'requiredSyncProgressSemantics',
-                    ),
-                    liveRegion: true,
-                    label: status,
-                    value: total != null && processed != null
-                        ? '$processed / $total'
-                        : null,
-                    child: SizedBox.square(
-                      dimension: 144,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: <Widget>[
-                          SizedBox.square(
-                            key: const ValueKey<String>(
-                              'requiredSyncProgressRing',
-                            ),
-                            dimension: 128,
-                            child: CircularProgressIndicator(
-                              value: progress,
-                              strokeWidth: 7,
+      // The update check's notices (up to date / failed) need a scope here:
+      // this screen sits outside the app shell's.
+      child: AppNoticeScope(
+        notifier: _noticeController,
+        child: Scaffold(
+          body: Stack(
+            children: <Widget>[
+              SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Semantics(
+                          key: const ValueKey<String>(
+                            'requiredSyncProgressSemantics',
+                          ),
+                          liveRegion: true,
+                          label: status,
+                          value: total != null && processed != null
+                              ? '$processed / $total'
+                              : null,
+                          child: SizedBox.square(
+                            dimension: 144,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: <Widget>[
+                                SizedBox.square(
+                                  key: const ValueKey<String>(
+                                    'requiredSyncProgressRing',
+                                  ),
+                                  dimension: 128,
+                                  child: CircularProgressIndicator(
+                                    value: progress,
+                                    strokeWidth: 7,
+                                  ),
+                                ),
+                                const NavisIcon(size: 132),
+                              ],
                             ),
                           ),
-                          const NavisIcon(size: 132),
+                        ),
+                        const SizedBox(height: 32),
+                        Text(
+                          isInitial
+                              ? l10n.requiredSyncInitialTitle
+                              : l10n.requiredSyncRebuildTitle,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          isInitial
+                              ? l10n.requiredSyncInitialBody
+                              : l10n.requiredSyncRebuildBody,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 32),
+                        Text(
+                          status,
+                          key: const ValueKey<String>('requiredSyncStatusText'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        if (_failureDetail(l10n, rebuild)
+                            case final error?) ...<Widget>[
+                          const SizedBox(height: 12),
+                          Text(
+                            error,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
                         ],
-                      ),
+                        const SizedBox(height: 32),
+                        if (rebuild.status ==
+                            RequiredLibraryRebuildStatus
+                                .waitingForMobileConsent)
+                          FilledButton(
+                            key: const ValueKey<String>(
+                              'requiredSyncUseMobileData',
+                            ),
+                            onPressed: controller.startUsingMobileData,
+                            child: Text(l10n.initialSyncUseMobileData),
+                          )
+                        else if (rebuild.status ==
+                                RequiredLibraryRebuildStatus.failed ||
+                            rebuild.status ==
+                                RequiredLibraryRebuildStatus.waitingForNetwork)
+                          FilledButton(
+                            key: const ValueKey<String>('requiredSyncRetry'),
+                            onPressed: controller.retry,
+                            child: Text(l10n.commonRetry),
+                          ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          key: const ValueKey<String>('requiredSyncSignOut'),
+                          onPressed:
+                              rebuild.status ==
+                                  RequiredLibraryRebuildStatus.cancelling
+                              ? null
+                              : controller.cancelAndSignOut,
+                          child: Text(
+                            isInitial
+                                ? l10n.requiredSyncCancelAndSignOut
+                                : l10n.requiredSyncSignOut,
+                          ),
+                        ),
+                        const CheckForUpdatesButton(),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  Text(
-                    isInitial
-                        ? l10n.requiredSyncInitialTitle
-                        : l10n.requiredSyncRebuildTitle,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    isInitial
-                        ? l10n.requiredSyncInitialBody
-                        : l10n.requiredSyncRebuildBody,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    status,
-                    key: const ValueKey<String>('requiredSyncStatusText'),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (_failureDetail(l10n, rebuild)
-                      case final error?) ...<Widget>[
-                    const SizedBox(height: 12),
-                    Text(
-                      error,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 32),
-                  if (rebuild.status ==
-                      RequiredLibraryRebuildStatus.waitingForMobileConsent)
-                    FilledButton(
-                      key: const ValueKey<String>('requiredSyncUseMobileData'),
-                      onPressed: controller.startUsingMobileData,
-                      child: Text(l10n.initialSyncUseMobileData),
-                    )
-                  else if (rebuild.status ==
-                          RequiredLibraryRebuildStatus.failed ||
-                      rebuild.status ==
-                          RequiredLibraryRebuildStatus.waitingForNetwork)
-                    FilledButton(
-                      key: const ValueKey<String>('requiredSyncRetry'),
-                      onPressed: controller.retry,
-                      child: Text(l10n.commonRetry),
-                    ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    key: const ValueKey<String>('requiredSyncSignOut'),
-                    onPressed:
-                        rebuild.status ==
-                            RequiredLibraryRebuildStatus.cancelling
-                        ? null
-                        : controller.cancelAndSignOut,
-                    child: Text(
-                      isInitial
-                          ? l10n.requiredSyncCancelAndSignOut
-                          : l10n.requiredSyncSignOut,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              AppNoticeHost(controller: _noticeController),
+            ],
           ),
         ),
       ),

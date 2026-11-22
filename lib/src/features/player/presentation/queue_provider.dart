@@ -446,9 +446,15 @@ class QueueController extends Notifier<List<String>> {
         return const RecommendationQueueResult(<String>[]);
       }
       final handler = _requireHandler();
-      final before = handler.snapshot.queueSongIds;
+      // Read the queue once the handler's edit lane reaches this append: a
+      // user add queued ahead of it is not a mix song.
+      var before = handler.snapshot.queueSongIds;
       try {
-        await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
+        await handler.addToQueue(
+          ids,
+          expandMatchFlows: expandMatchFlows,
+          onQueueEditStart: () => before = handler.snapshot.queueSongIds,
+        );
       } on OperationCancelledException {
         // A queue replacement discarded the append: nothing was inserted.
         return const RecommendationQueueResult(<String>[]);

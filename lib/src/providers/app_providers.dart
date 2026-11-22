@@ -1570,6 +1570,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           radio.requestSkipAfterRefill(skip.index, skip.songId);
         }
       },
+      onAndroidAutoQueueReplace: () {
+        if (!ref.mounted) return;
+        ref.read(regularQueueReplacementEpochProvider.notifier).bump();
+      },
       playbackArtworkFileService: createPlaybackArtworkFileService(ref),
       fetchWindowsArtwork: windowsArtwork.fetch,
       readWindowsArtworkAllowed: windowsArtwork.isAllowed,
