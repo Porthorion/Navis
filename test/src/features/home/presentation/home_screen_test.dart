@@ -1082,6 +1082,15 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('uses the shared transparent system overlay style', (
+      tester,
+    ) async {
+      await pump(tester, buildDarkTheme(Colors.teal));
+
+      final bar = tester.widget<SliverAppBar>(find.byKey(appBarKey));
+      expect(bar.systemOverlayStyle, same(kNavisOverlayStyle));
+    });
+
     testWidgets('keeps the art clear under Flat text over artwork', (
       tester,
     ) async {

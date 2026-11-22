@@ -2505,6 +2505,88 @@ void main() {
     }
   });
 
+  group('Now Playing backdrop behind the compact wide rail', () {
+    final rail = find.byKey(const ValueKey<String>('compactWideRailSurface'));
+    final backdrop = find.byKey(
+      const ValueKey<String>('compactWideNowPlayingBackdrop'),
+    );
+    Color? railColor(WidgetTester tester) =>
+        tester.widget<Material>(rail).color;
+
+    _testApp('expanded: the rail is clear and the backdrop covers every edge', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneLandscape);
+      final collapsed = railColor(tester);
+      expect(
+        collapsed,
+        Theme.of(tester.element(rail)).colorScheme.surfaceContainerLow,
+      );
+      expect(backdrop, findsNothing);
+
+      await _openNowPlaying(tester, container);
+
+      expect(railColor(tester)!.a, 0);
+      expect(
+        tester.getRect(backdrop),
+        Offset.zero & _phoneLandscape.size,
+        reason: 'under the left cutout strip, the rail and the right strip',
+      );
+
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await _settle(tester, 20);
+
+      expect(railColor(tester), collapsed);
+      expect(backdrop, findsNothing);
+    });
+
+    _testApp('expanded: the pane paints no backdrop of its own', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneLandscape);
+      await _openNowPlaying(tester, container);
+
+      // The shell layer's tint is the only one; the pane adds none.
+      final tint = find.byKey(const ValueKey<String>('nowPlayingSurfaceTint'));
+      expect(tint, findsOneWidget);
+      expect(find.descendant(of: backdrop, matching: tint), findsOneWidget);
+      final art = find.byKey(
+        const ValueKey<String>('nowPlayingArtworkBackground'),
+      );
+      expect(
+        find.descendant(of: backdrop, matching: art),
+        findsNWidgets(tester.widgetList(art).length),
+      );
+      expect(tester.widgetList(art).length, lessThanOrEqualTo(1));
+      // Only the shell layer paints the backdrop, at full opacity.
+      final layer = tester.widget<Opacity>(
+        find.ancestor(of: backdrop, matching: find.byType(Opacity)).first,
+      );
+      expect(layer.opacity, 1);
+    });
+
+    _testApp('mid-drag: rail between solid and clear, pane keeps its surface', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneLandscape);
+      final solid = railColor(tester)!;
+      final gesture = await tester.startGesture(const Offset(400, 380));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump(const Duration(milliseconds: 16));
+      final mid = railColor(tester)!;
+      expect(mid.a, lessThan(solid.a));
+      expect(mid.a, greaterThan(0));
+      // The pane still paints its own surface (plus the shell layer's).
+      final tints = find.byKey(const ValueKey<String>('nowPlayingSurfaceTint'));
+      expect(tints, findsNWidgets(2));
+      await gesture.up();
+      await _settle(tester, 20);
+      expect(container, isNotNull);
+    });
+  });
+
   // #758 P1: whatever owns the bottom screen edge consumes the bottom system
   // inset; nothing above it sees that inset a second time.
   group('#758 compact wide pane below the mini player strip', () {

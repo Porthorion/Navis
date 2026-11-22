@@ -131,6 +131,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   /// Whether the last build used the bottom-navigation layout.
   bool _bottomNavLayoutActive = false;
+  bool _compactWideLayoutActive = false;
   final AppNoticeController _appNoticeController = AppNoticeController();
   final Set<String> _queueCoverArtPrefetchedKeys = <String>{};
   final ListQueue<String> _queueCoverArtPrefetchedOrder = ListQueue<String>();
@@ -196,6 +197,18 @@ class _AppShellState extends ConsumerState<AppShell> {
           },
           fireImmediately: true,
         );
+  }
+
+  void _handleSheetProgress(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    // Skip sub-pixel steps, but always take the end values: a settle ends
+    // within 0.001 of 0, and dropping that last step left the nav bar hidden
+    // after the sheet closed.
+    if ((_playerSheetProgress.value - clamped).abs() > 0.001 ||
+        clamped == 0 ||
+        clamped == 1) {
+      _playerSheetProgress.value = clamped;
+    }
   }
 
   @override
@@ -1076,6 +1089,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       _playerSheetProgress.value = showPlayer && isExpanded ? 1 : 0;
     }
     _bottomNavLayoutActive = bottomNavLayout;
+    if (useCompactWideLandscape && !_compactWideLayoutActive) {
+      // Same seed for the compact-wide pane: no one-frame opaque rail when
+      // the sheet mounts already expanded.
+      _playerSheetProgress.value = showPlayer && isExpanded ? 1 : 0;
+    }
+    _compactWideLayoutActive = useCompactWideLandscape;
     final isMiniPlayerMode =
         desktopRuntime &&
         ref.watch(
@@ -1695,6 +1714,35 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 },
                               ),
                             ),
+                          if (useCompactWideLandscape && showPlayer)
+                            // The Now Playing backdrop runs to every edge
+                            // behind the rail and the inset strips while the
+                            // player opens; the rail's own colour fades out.
+                            Positioned.fill(
+                              child: ValueListenableBuilder<double>(
+                                valueListenable: _playerSheetProgress,
+                                builder: (context, progress, _) => progress == 0
+                                    ? const SizedBox.shrink()
+                                    : Opacity(
+                                        opacity: progress,
+                                        child: NowPlayingBackdrop(
+                                          key: const ValueKey<String>(
+                                            'compactWideNowPlayingBackdrop',
+                                          ),
+                                          hasActivePlayback: showPlayer,
+                                          coverArtId: coverArtId,
+                                          coverArtRevision:
+                                              currentSongAsync
+                                                  .asData
+                                                  ?.value
+                                                  ?.coverArtRevision ??
+                                              0,
+                                          artUrl: nowPlayingArtUrl,
+                                          child: const SizedBox.expand(),
+                                        ),
+                                      ),
+                              ),
+                            ),
                           if (desktopRuntime && isMiniPlayerMode)
                             if (miniPlayerBelowMinimum)
                               const _DesktopMiniPlayerUndersizedSurface()
@@ -1736,10 +1784,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     : mediaPadding.left,
                                 child: Row(
                                   children: <Widget>[
-                                    Material(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerLow,
+                                    _RailSurface(
+                                      progress: useCompactWideLandscape
+                                          ? _playerSheetProgress
+                                          : null,
                                       child: SafeArea(
                                         left: !useCompactWideLandscape && ltr,
                                         right: !useCompactWideLandscape && !ltr,
@@ -1911,6 +1959,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                         .notifier,
                                                                   )
                                                                   .collapse(),
+                                                              onProgressChanged:
+                                                                  _handleSheetProgress,
                                                               dragEnabled:
                                                                   !_compactWideInternalOverlayActive,
                                                               onSwipeUp: () =>
@@ -1973,6 +2023,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                     true,
                                                                 compactWideLandscapeMode:
                                                                     useCompactWideLandscape,
+                                                                sheetProgress:
+                                                                    _playerSheetProgress,
                                                                 onShowQueue: () =>
                                                                     _compactWideQueueRequestHandler
                                                                         ?.call(),
@@ -2037,6 +2089,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                           true,
                                                                       compactWideLandscapeMode:
                                                                           useCompactWideLandscape,
+                                                                      sheetProgress:
+                                                                          _playerSheetProgress,
                                                                       onShowQueue: () =>
                                                                           NavService.showQueue(
                                                                             context,
@@ -2149,23 +2203,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         // to move, so the page does not resize mid-drag.
                                         onDragStart: () =>
                                             NavService.dismissKeyboard(context),
-                                        onProgressChanged: (value) {
-                                          final clamped = value.clamp(0.0, 1.0);
-                                          // Skip sub-pixel steps, but always
-                                          // take the end values: a settle ends
-                                          // within 0.001 of 0, and dropping
-                                          // that last step left the nav bar
-                                          // hidden after the sheet closed.
-                                          if ((_playerSheetProgress.value -
-                                                          clamped)
-                                                      .abs() >
-                                                  0.001 ||
-                                              clamped == 0 ||
-                                              clamped == 1) {
-                                            _playerSheetProgress.value =
-                                                clamped;
-                                          }
-                                        },
+                                        onProgressChanged: _handleSheetProgress,
                                         onExpand: () {
                                           // Dismiss the keyboard (e.g. search bar) before expanding
                                           // so the Now Playing screen isn't squished.
@@ -2546,6 +2584,31 @@ class _HiddenWorkspaceLayer extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The side rail's background. In compact wide it fades to transparent as the
+/// player opens, so the full-screen Now Playing backdrop shows behind it.
+class _RailSurface extends StatelessWidget {
+  const new({required this.progress, required this.child});
+
+  final ValueNotifier<double>? progress;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.surfaceContainerLow;
+    final progress = this.progress;
+    if (progress == null) return Material(color: color, child: child);
+    return ValueListenableBuilder<double>(
+      valueListenable: progress,
+      child: child,
+      builder: (context, value, child) => Material(
+        key: const ValueKey<String>('compactWideRailSurface'),
+        color: Color.lerp(color, color.withAlpha(0), value),
+        child: child,
       ),
     );
   }

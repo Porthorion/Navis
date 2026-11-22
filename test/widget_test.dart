@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -368,6 +369,58 @@ void main() {
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.themeMode, ThemeMode.dark);
   });
+
+  testWidgets(
+    'root region paints transparent bars with theme-following icons',
+    (tester) async {
+      for (final mode in <String>['light', 'dark']) {
+        await tester.pumpWidget(
+          ProviderScope(
+            key: ValueKey<String>(mode),
+            overrides: _noDbOverrides(
+              settings: const AppSettingsModel.defaults().copyWith(
+                themeMode: mode,
+              ),
+              extras: [
+                serverConfigStateProvider.overrideWithValue(
+                  const AsyncData(null),
+                ),
+              ],
+            ),
+            child: const NavisApp(splashFactory: NoSplash.splashFactory),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        final icons = mode == 'light' ? Brightness.dark : Brightness.light;
+        final styles = tester
+            .widgetList<AnnotatedRegion<SystemUiOverlayStyle>>(
+              find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+            )
+            .map((r) => r.value);
+        expect(
+          styles,
+          contains(
+            isA<SystemUiOverlayStyle>()
+                .having((v) => v.statusBarColor, 'status', Colors.transparent)
+                .having((v) => v.statusBarIconBrightness, 'status icons', icons)
+                .having(
+                  (v) => v.systemNavigationBarColor,
+                  'nav',
+                  Colors.transparent,
+                )
+                .having(
+                  (v) => v.systemNavigationBarIconBrightness,
+                  'nav icons',
+                  icons,
+                ),
+          ),
+          reason: mode,
+        );
+      }
+    },
+  );
 
   testWidgets('shows playback bootstrap loading gate when required', (
     tester,
