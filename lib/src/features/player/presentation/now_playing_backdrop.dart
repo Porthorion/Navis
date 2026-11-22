@@ -33,6 +33,7 @@ class NowPlayingBackdrop extends ConsumerStatefulWidget {
     required this.artUrl,
     required this.child,
     this.textAcrossCover = false,
+    this.drawsSurface = true,
     super.key,
   });
 
@@ -49,6 +50,11 @@ class NowPlayingBackdrop extends ConsumerStatefulWidget {
   /// Artwork veil keeps a higher floor than on Now Playing, where text sits
   /// below the cover art.
   final bool textAcrossCover;
+
+  /// False when another layer (the compact-wide shell backdrop) already draws
+  /// the background behind this one: no surface, tint or artwork is painted,
+  /// but the artwork scope still tells the content which colours to use.
+  final bool drawsSurface;
   final Widget child;
 
   @override
@@ -181,7 +187,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
       fit: StackFit.expand,
       children: <Widget>[
         Positioned.fill(
-          child: showArtworkLayer
+          child: showArtworkLayer && widget.drawsSurface
               ? NowPlayingArtworkBackground(
                   key: const ValueKey<String>('nowPlayingArtworkBackground'),
                   imageKey: _artworkBackdropKey,
@@ -321,6 +327,19 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
               (hasActivePlayback ? _lastStableTintColor : null))
         : null;
 
+    if (!widget.drawsSurface) {
+      return Material(
+        type: MaterialType.transparency,
+        child: _withArtworkBackground(
+          showArtworkLayer: showArtworkLayer,
+          image: artworkImage,
+          colorStyle: colorStyle,
+          colors: colors,
+          fadeDuration: motion.surface,
+          child: widget.child,
+        ),
+      );
+    }
     return Material(
       color: surfaceColor,
       child: AnimatedContainer(

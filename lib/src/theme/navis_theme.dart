@@ -1,5 +1,6 @@
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
@@ -191,6 +192,41 @@ ThemeMode resolveThemeMode(String mode) {
     'system' => ThemeMode.system,
     _ => ThemeMode.dark,
   };
+}
+
+/// The one system-bar style: transparent bars so the app draws behind them.
+///
+/// [SystemUiOverlayStyle.light] alone paints the Android navigation bar solid
+/// black, and Android adds a contrast scrim behind 3-button navigation unless
+/// [SystemUiOverlayStyle.systemNavigationBarContrastEnforced] is false. The
+/// light icons suit the dark artwork headers that use this as an AppBar style.
+const SystemUiOverlayStyle kNavisOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.transparent,
+  systemNavigationBarDividerColor: Colors.transparent,
+  systemNavigationBarIconBrightness: Brightness.light,
+  systemNavigationBarContrastEnforced: false,
+);
+
+/// App-wide system-bar style: [kNavisOverlayStyle]'s transparent bars with
+/// icons that follow the theme (dark icons in light themes), since the bars sit
+/// over the page surface or the Now Playing backdrop. Pages with their own app
+/// bar override the status half at the top.
+SystemUiOverlayStyle navisSystemBarStyle(Brightness brightness) {
+  final light = brightness == Brightness.light;
+  final icons = light ? Brightness.dark : Brightness.light;
+  return SystemUiOverlayStyle(
+    statusBarColor: kNavisOverlayStyle.statusBarColor,
+    statusBarIconBrightness: icons,
+    statusBarBrightness: brightness,
+    systemNavigationBarColor: kNavisOverlayStyle.systemNavigationBarColor,
+    systemNavigationBarDividerColor:
+        kNavisOverlayStyle.systemNavigationBarDividerColor,
+    systemNavigationBarContrastEnforced: false,
+    systemNavigationBarIconBrightness: icons,
+  );
 }
 
 /// Build the light [ThemeData] from a seed color.
