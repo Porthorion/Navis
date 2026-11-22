@@ -377,6 +377,7 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
     this.onShowQueue,
     this.wideEmbeddedMode = false,
     this.compactWideLandscapeMode = false,
+    this.sheetProgress,
     this.showEmbeddedVolumeBelowActions = false,
     this.onBackInterceptorChanged,
     this.onCompactWideOverlayActiveChanged,
@@ -387,6 +388,11 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
   final VoidCallback? onShowQueue;
   final bool wideEmbeddedMode;
   final bool compactWideLandscapeMode;
+
+  /// The sheet's open progress (the shell's notifier). In compact wide the
+  /// pane paints its own backdrop until this reaches 1, then hands over to the
+  /// shell's full-screen layer; null keeps the pane's own backdrop.
+  final ValueNotifier<double>? sheetProgress;
   final bool showEmbeddedVolumeBelowActions;
   final BackInterceptorSetter? onBackInterceptorChanged;
   final ValueChanged<bool>? onCompactWideOverlayActiveChanged;
@@ -397,6 +403,44 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 }
 
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
+  bool _shellDrawsBackdrop = false;
+
+  void _syncShellBackdrop() {
+    final handedOff =
+        widget.compactWideLandscapeMode &&
+        (widget.sheetProgress?.value ?? 0) >= 1;
+    if (handedOff != _shellDrawsBackdrop) {
+      setState(() => _shellDrawsBackdrop = handedOff);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.sheetProgress?.addListener(_syncShellBackdrop);
+    _shellDrawsBackdrop =
+        widget.compactWideLandscapeMode &&
+        (widget.sheetProgress?.value ?? 0) >= 1;
+  }
+
+  @override
+  void didUpdateWidget(NowPlayingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sheetProgress != widget.sheetProgress) {
+      oldWidget.sheetProgress?.removeListener(_syncShellBackdrop);
+      widget.sheetProgress?.addListener(_syncShellBackdrop);
+    }
+    _shellDrawsBackdrop =
+        widget.compactWideLandscapeMode &&
+        (widget.sheetProgress?.value ?? 0) >= 1;
+  }
+
+  @override
+  void dispose() {
+    widget.sheetProgress?.removeListener(_syncShellBackdrop);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final adaptiveContext = resolveAdaptiveContextFor(context);
@@ -442,9 +486,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           );
 
     final nowPlayingSurface = NowPlayingBackdrop(
-      // The shell paints one full-screen backdrop behind the compact-wide
-      // rail and pane, so the pane adds none (no seam at the rail edge).
-      drawsSurface: !widget.compactWideLandscapeMode,
+      // Fully expanded in compact wide, the shell's full-screen backdrop sits
+      // behind the rail and pane, so the pane adds none (no seam at the rail
+      // edge). While the sheet moves the pane stays opaque.
+      drawsSurface: !_shellDrawsBackdrop,
       hasActivePlayback: playback.hasActivePlayback,
       coverArtId: playback.isRadioMode ? null : song?.coverArt,
       coverArtRevision: song?.coverArtRevision ?? 0,

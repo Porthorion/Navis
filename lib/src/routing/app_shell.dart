@@ -2023,6 +2023,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                     true,
                                                                 compactWideLandscapeMode:
                                                                     useCompactWideLandscape,
+                                                                sheetProgress:
+                                                                    _playerSheetProgress,
                                                                 onShowQueue: () =>
                                                                     _compactWideQueueRequestHandler
                                                                         ?.call(),
@@ -2087,6 +2089,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                           true,
                                                                       compactWideLandscapeMode:
                                                                           useCompactWideLandscape,
+                                                                      sheetProgress:
+                                                                          _playerSheetProgress,
                                                                       onShowQueue: () =>
                                                                           NavService.showQueue(
                                                                             context,

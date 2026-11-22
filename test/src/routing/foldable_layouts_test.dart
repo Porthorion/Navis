@@ -2565,7 +2565,7 @@ void main() {
       expect(layer.opacity, 1);
     });
 
-    _testApp('mid-drag: the rail colour is between solid and clear', (
+    _testApp('mid-drag: rail between solid and clear, pane keeps its surface', (
       tester,
     ) async {
       final container = await _pumpApp(tester, _phoneLandscape);
@@ -2578,6 +2578,9 @@ void main() {
       final mid = railColor(tester)!;
       expect(mid.a, lessThan(solid.a));
       expect(mid.a, greaterThan(0));
+      // The pane still paints its own surface (plus the shell layer's).
+      final tints = find.byKey(const ValueKey<String>('nowPlayingSurfaceTint'));
+      expect(tints, findsNWidgets(2));
       await gesture.up();
       await _settle(tester, 20);
       expect(container, isNotNull);
