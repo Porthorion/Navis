@@ -1147,7 +1147,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     final compactMiniPlayerBottomInset = useCompactWideLandscape
         ? mediaViewPadding.bottom
         : 0.0;
-    // On AAOS (compactWideLandscape) increase to ~15% of height for a
+    // In compactWideLandscape (landscape phones and short car displays) increase
+    // to ~15% of height for a
     // car-friendly strip that is easy to read and tap while driving.
     // The strip renders inside a SizedBox of this height so all internal
     // components must fit comfortably within it; the inset above is added.
