@@ -60,6 +60,13 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     );
     final packageInfo = ref.watch(packageInfoProvider).asData?.value;
     final version = packageInfo?.version ?? '';
+    // Dev builds are stamped `--build-name=X --build-number=N` and tagged
+    // `vX-dev.N` (tool/dev_release.sh); the updater compares the same number.
+    final buildNumber = packageInfo?.buildNumber ?? '';
+    final versionLabel =
+        ref.watch(devChannelBuildProvider) && buildNumber.isNotEmpty
+        ? '$version-dev.$buildNumber'
+        : version;
     final showUpdateControls = updateUiAvailable;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
@@ -110,7 +117,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
         builder: (context, constraints) {
           final useDesktopColumns = desktopMode && constraints.maxWidth >= 1100;
           final identity = _AboutIdentity(
-            version: version,
+            version: versionLabel,
             onCopyDetails: () async {
               final l10n = AppLocalizations.of(context)!;
               try {
@@ -446,6 +453,14 @@ class _AboutIdentity extends StatelessWidget {
     final title = Text('Navis', style: theme.textTheme.headlineMedium);
     final versionLabel = GestureDetector(
       key: const ValueKey<String>('about-startup-details'),
+      onTap: () async {
+        await Clipboard.setData(ClipboardData(text: version));
+        if (!context.mounted) return;
+        showAppNotice(
+          context,
+          message: AppLocalizations.of(context)!.albumDetailTitleCopied,
+        );
+      },
       onLongPress: onCopyDetails,
       child: Text(
         '${AppLocalizations.of(context)!.aboutVersion} $version',
