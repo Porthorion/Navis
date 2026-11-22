@@ -704,6 +704,7 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
     this.compactWideLandscapeMode = false,
     this.showSkipButtons = false,
     this.bottomInset = 0,
+    this.shortHeight = false,
     this.enableVerticalExpandGesture = true,
     this.songTitle,
     this.songArtist,
@@ -726,6 +727,9 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
   /// A system inset (home indicator, status strip) below the compact wide
   /// strip; its content stays above it and the background runs through it.
   final double bottomInset;
+
+  /// Landscape phone: the compact-wide strip is only [kMiniPlayerHeight] tall.
+  final bool shortHeight;
   final bool enableVerticalExpandGesture;
   final String? songTitle;
   final String? songArtist;
@@ -893,9 +897,9 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                   ? Padding(
                       padding: EdgeInsets.fromLTRB(
                         16,
+                        widget.shortHeight ? 4 : 10,
                         10,
-                        10,
-                        10 + widget.bottomInset,
+                        (widget.shortHeight ? 4 : 10) + widget.bottomInset,
                       ),
                       child: Row(
                         children: <Widget>[
@@ -905,21 +909,21 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             coverArtId: coverArtId,
                             coverArtUrl: coverArtUrl,
                             isExternalSource: widget.isExternalSource,
-                            size: 64,
-                            placeholderSize: 48,
+                            size: widget.shortHeight ? 48 : 64,
+                            placeholderSize: widget.shortHeight ? 36 : 48,
                             colorScheme: cs,
                           ),
                           const SizedBox(width: 14),
                           Expanded(
-                            // ponytail: the 90 dp strip holds two lines up to
-                            // about 1.5x text; above that they overflow.
+                            // ponytail: the strip holds two lines up to about
+                            // 1.5x text; above that they overflow.
                             child: MediaQuery.withClampedTextScaling(
                               maxScaleFactor: 1.5,
                               child: _miniPlayerTrackText(
                                 context,
                                 title: songTitle,
                                 artist: songArtist,
-                                large: true,
+                                large: !widget.shortHeight,
                               ),
                             ),
                           ),

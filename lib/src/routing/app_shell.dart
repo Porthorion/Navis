@@ -1152,8 +1152,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     // car-friendly strip that is easy to read and tap while driving.
     // The strip renders inside a SizedBox of this height so all internal
     // components must fit comfortably within it; the inset above is added.
+    // A landscape phone keeps the normal bar height (#758); car displays that
+    // do not match keep the taller strip.
+    final compactShortMiniPlayer =
+        useCompactWideLandscape &&
+        adaptiveContext.useShortHeightChrome &&
+        isPhoneFormFactor;
     final compactBottomMiniPlayerHeight = useCompactWideLandscape
-        ? (screenHeight * 0.15).clamp(90.0, 112.0) +
+        ? (compactShortMiniPlayer
+                  ? kMiniPlayerHeight
+                  : (screenHeight * 0.15).clamp(90.0, 112.0)) +
               compactMiniPlayerBottomInset
         : (screenHeight * 0.18).clamp(80.0, 140.0);
     if (!adaptiveInputPolicy.enableDesktopCommandShortcuts &&
@@ -1941,6 +1949,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                       true,
                                                                   bottomInset:
                                                                       compactMiniPlayerBottomInset,
+                                                                  shortHeight:
+                                                                      compactShortMiniPlayer,
                                                                   enableVerticalExpandGesture:
                                                                       false,
                                                                   songTitle:

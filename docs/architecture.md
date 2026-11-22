@@ -2906,7 +2906,10 @@ same size, uses the standard rail. Compact-wide takes the bottom inset from
 #758: Android Auto projection never renders this shell and AAOS reports its bar
 as a bottom inset). While the mini player shows, the strip owns the bottom inset
 and `_ConsumedBottomInset` zeroes it for the pane above, so no page adds a
-second gap. The shell and
+second gap. The compact-wide strip is `kMiniPlayerHeight` (64) plus that inset when
+`useShortHeightChrome && isPhoneFormFactor` (a landscape phone: 48 dp art, one
+line pair at the compact text size, 48 dp tap targets); otherwise it keeps the
+car-sized 15% of the height clamped to 90-112 dp plus the inset. The shell and
 `resolveAdaptiveContextFor` pass `viewPadding` (not `padding`) to the resolver,
 so an open keyboard, which zeroes the bottom padding, cannot flip the mode.
 In compact-wide the shell pads its pane by the left and right insets, so the
