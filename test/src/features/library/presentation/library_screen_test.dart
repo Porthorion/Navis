@@ -3619,6 +3619,60 @@ void main() {
       },
     );
 
+    _testWidgetsWithCleanup(
+      'rotating across the short-height breakpoint keeps the field focused',
+      (tester) async {
+        statusBar24(tester);
+        await pumpAlbumsArtists(tester, const Size(390, 844));
+        EditableText editable() => tester.widget<EditableText>(
+          find.descendant(
+            of: searchAlbums,
+            matching: find.byType(EditableText),
+          ),
+        );
+        await tester.tap(searchAlbums);
+        await tester.enterText(searchAlbums, 'abbey');
+        await tester.pumpAndSettle();
+        expect(editable().focusNode.hasFocus, isTrue);
+        for (final size in const <Size>[Size(832, 384), Size(390, 844)]) {
+          setAdaptiveTestViewport(tester, size);
+          await tester.pumpAndSettle();
+          expect(editable().focusNode.hasFocus, isTrue, reason: '$size');
+          expect(editable().controller.text, 'abbey', reason: '$size');
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'short window on the standard rail drops the Library header',
+      (tester) async {
+        statusBar24(tester);
+        setAdaptiveTestViewport(tester, const Size(1000, 400));
+        await _pumpLibraryScreen(
+          tester,
+          adaptiveFromViewport: true,
+          sidebarShowsSections: true,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+        expect(find.textContaining('Library -'), findsNothing);
+        setAdaptiveTestViewport(tester, const Size(1000, 700));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Library -'), findsOneWidget);
+      },
+    );
+
     _testWidgetsWithCleanup('short window: no results and empty states', (
       tester,
     ) async {

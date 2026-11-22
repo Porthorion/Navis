@@ -158,6 +158,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   bool _isYearRailScrubbing = false;
   bool _isGenreRailScrubbing = false;
   TabController? _tabController;
+  // Keeps the tabs (and a focused filter field) when a rotation swaps the
+  // phone and tablet scaffolds around them.
+  final _bodyKey = GlobalKey();
   bool _synchronizingTabControllerFromSection = false;
   LibrarySection? _pendingSectionSync;
   late final ProviderSubscription<int> _libraryScrollSubscription;
@@ -679,6 +682,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     final bodyContent = Stack(
+      key: _bodyKey,
       children: <Widget>[
         Column(
           children: <Widget>[
@@ -794,15 +798,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                child: Text(
-                  wideHeaderTitle,
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+              if (!shortChrome) ...<Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+                  child: Text(
+                    wideHeaderTitle,
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
-              ),
-              const Divider(height: 1),
+                const Divider(height: 1),
+              ],
               Expanded(child: bodyContent),
             ],
           ),

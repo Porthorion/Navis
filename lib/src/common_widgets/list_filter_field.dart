@@ -19,6 +19,7 @@ class ListFilterField extends StatelessWidget {
     required this.onClear,
     this.dense = false,
     this.alignWithContent = false,
+    this.fieldKey,
   });
 
   final TextEditingController controller;
@@ -30,6 +31,9 @@ class ListFilterField extends StatelessWidget {
   /// Insets by `ContentLayout.padding` (the Library grids' inset) instead of a
   /// fixed 12, so the field lines up with the chips and cards below it.
   final bool alignWithContent;
+
+  /// Keys the [TextField], so a parent that moves the field keeps its focus.
+  final Key? fieldKey;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +50,7 @@ class ListFilterField extends StatelessWidget {
           ? EdgeInsets.zero
           : EdgeInsets.fromLTRB(inset, 8, inset, 4),
       child: TextField(
+        key: fieldKey,
         controller: controller,
         onChanged: onChanged,
         onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
@@ -89,7 +94,7 @@ class ListFilterField extends StatelessWidget {
 /// tab's one pinned control row instead: a dense field, then [shortControls]
 /// (the tab's chips and sort) in a strip that scrolls sideways, so the
 /// controls never stack and never cost a second row of height.
-class LibraryFilterField extends StatelessWidget {
+class LibraryFilterField extends StatefulWidget {
   const new({
     super.key,
     required this.controller,
@@ -110,22 +115,35 @@ class LibraryFilterField extends StatelessWidget {
   final List<Widget> shortControls;
 
   @override
+  State<LibraryFilterField> createState() => _LibraryFilterFieldState();
+}
+
+class _LibraryFilterFieldState extends State<LibraryFilterField> {
+  // Moves the TextField between the plain and the short tree, so a rotation
+  // across the short-height breakpoint keeps its focus and the keyboard open.
+  final _fieldKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
+    final w = widget;
     if (!resolveAdaptiveContextFor(context).useShortHeightChrome) {
       return ListFilterField(
-        controller: controller,
-        hint: hint,
-        onChanged: onChanged,
-        onClear: onClear,
-        alignWithContent: alignWithContent,
+        controller: w.controller,
+        hint: w.hint,
+        onChanged: w.onChanged,
+        onClear: w.onClear,
+        alignWithContent: w.alignWithContent,
+        fieldKey: _fieldKey,
       );
     }
+    final shortControls = w.shortControls;
     final field = ListFilterField(
-      controller: controller,
-      hint: hint,
-      onChanged: onChanged,
-      onClear: onClear,
+      controller: w.controller,
+      hint: w.hint,
+      onChanged: w.onChanged,
+      onClear: w.onClear,
       dense: true,
+      fieldKey: _fieldKey,
     );
     return LayoutBuilder(
       builder: (context, constraints) {
