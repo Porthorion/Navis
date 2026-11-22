@@ -1,5 +1,6 @@
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
@@ -192,6 +193,37 @@ ThemeMode resolveThemeMode(String mode) {
     _ => ThemeMode.dark,
   };
 }
+
+/// The one system-bar style: transparent bars so the app draws behind them.
+///
+/// [SystemUiOverlayStyle.light] alone paints the Android navigation bar solid
+/// black, and Android adds a contrast scrim behind 3-button navigation unless
+/// [SystemUiOverlayStyle.systemNavigationBarContrastEnforced] is false. The
+/// light icons suit the dark artwork headers that use this as an AppBar style.
+const SystemUiOverlayStyle kNavisOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.transparent,
+  systemNavigationBarDividerColor: Colors.transparent,
+  systemNavigationBarIconBrightness: Brightness.light,
+  systemNavigationBarContrastEnforced: false,
+);
+
+/// Navigation-bar half of [kNavisOverlayStyle] for the whole app, with button
+/// icons that follow the theme: the bar sits over the page surface or the Now
+/// Playing backdrop, which is light in light themes. No status-bar fields, so
+/// each page's own app bar keeps deciding those.
+SystemUiOverlayStyle navisNavigationBarStyle(Brightness brightness) =>
+    SystemUiOverlayStyle(
+      systemNavigationBarColor: kNavisOverlayStyle.systemNavigationBarColor,
+      systemNavigationBarDividerColor:
+          kNavisOverlayStyle.systemNavigationBarDividerColor,
+      systemNavigationBarContrastEnforced: false,
+      systemNavigationBarIconBrightness: brightness == Brightness.light
+          ? Brightness.dark
+          : Brightness.light,
+    );
 
 /// Build the light [ThemeData] from a seed color.
 ThemeData buildLightTheme(

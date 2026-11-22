@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
@@ -131,6 +132,7 @@ Future<void> _runNavis() async {
   Future<void> startUi() async {
     await _unlockMobileOrientations();
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setSystemUIOverlayStyle(kNavisOverlayStyle);
     AppLogger.info('Edge-to-edge mode enabled.');
 
     await NotificationBootstrap.initialize(
