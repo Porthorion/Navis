@@ -1947,6 +1947,7 @@ createHandler(
   startPersonalRadio,
   void Function(({int index, String songId})? queueEndSkip)?
   onPersonalRadioQueueEnd,
+  void Function()? onAndroidAutoQueueReplace,
 }) async {
   final database = sharedDatabase ?? createTestDatabase();
   final apiClient = sidecarStreams
@@ -2021,6 +2022,7 @@ createHandler(
         ) ??
         false,
     onPersonalRadioQueueEnd: onPersonalRadioQueueEnd,
+    onAndroidAutoQueueReplace: onAndroidAutoQueueReplace,
     startPreferredMix: (_) async {},
     togglePreferredMix: (_) async {},
     artworkFileService: artworkFileService,

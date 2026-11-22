@@ -124,7 +124,13 @@ abstract class NavisPlaybackHandler {
     List<String>? originalOrder,
   });
 
-  Future<void> addToQueue(List<String> songIds, {bool expandMatchFlows});
+  /// [onQueueEditStart] runs once the queue edit lane reaches this add, before
+  /// it changes anything, so a caller can read the queue as it was then.
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows,
+    void Function()? onQueueEditStart,
+  });
   Future<void> playNext(List<String> songIds, {bool expandMatchFlows});
   Future<void> retainCurrentSongAsQueue(String songId);
   Future<void> playFromIndex(int index);

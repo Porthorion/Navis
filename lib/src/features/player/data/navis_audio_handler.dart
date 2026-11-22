@@ -128,6 +128,7 @@ class NavisAudioHandler extends BaseAudioHandler
     this._reportRollingCacheActivity,
     required this._startPersonalRadio,
     this._onPersonalRadioQueueEnd,
+    this._onAndroidAutoQueueReplace,
     required Future<void> Function(String) startPreferredMix,
     required Future<void> Function(String) togglePreferredMix,
     this._readRadioMetadataAllowed,
@@ -351,6 +352,10 @@ class NavisAudioHandler extends BaseAudioHandler
   _startPersonalRadio;
   final void Function(({int index, String songId})? queueEndSkip)?
   _onPersonalRadioQueueEnd;
+
+  /// Tells the app layer an Android Auto load is replacing the queue, like
+  /// an in-app replacement does, so a running mix session ends.
+  final void Function()? _onAndroidAutoQueueReplace;
   late final AutoMediaTreeService _autoMediaTreeService;
   final AndroidAutoBrowseNotifier _androidAutoBrowseNotifier =
       AndroidAutoBrowseNotifier();
@@ -1860,12 +1865,14 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> addToQueue(
     List<String> songIds, {
     bool expandMatchFlows = true,
+    void Function()? onQueueEditStart,
   }) {
     _transportTrace.record(
       'userAction',
       () => <String, Object?>{'action': 'addToQueue', 'count': songIds.length},
     );
     return _enqueueQueueEdit((token) async {
+      onQueueEditStart?.call();
       songIds = (await _expandMatchFlowIds(
         songIds,
         startIndex: 0,
