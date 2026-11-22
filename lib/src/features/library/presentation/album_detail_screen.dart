@@ -17,6 +17,9 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/genre_chips.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
+import 'package:navis/src/common_widgets/type_to_filter.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
@@ -83,7 +86,49 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<AlbumDetailScreen> createState() => _AlbumDetailScreenState();
 }
 
-class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
+class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
+    with TypeToFilter<AlbumDetailScreen>, DebouncedSearch<AlbumDetailScreen> {
+  /// The active text filter: the typed query on desktop, else the touch field.
+  String get _filterQuery => activeFilterQuery(query);
+
+  void _clearFilter() {
+    clearSearch();
+    clearTypeFilter();
+  }
+
+  /// Phone and compact-wide: the field is hidden until the search icon opens
+  /// it, so it costs no height unless used.
+  bool _searching = false;
+
+  void _openSearch() {
+    setState(() => _searching = true);
+    // Phone: collapse the hero so the matches show under the field.
+    final collapsed = _heroExtent - kToolbarHeight;
+    if (_scrollController.hasClients && _scrollController.offset < collapsed) {
+      unawaited(
+        _scrollController.animateTo(
+          collapsed,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        ),
+      );
+    }
+  }
+
+  void _closeSearch() {
+    _clearFilter();
+    setState(() => _searching = false);
+  }
+
+  Widget _searchField(AppLocalizations l10n) => ListFilterField(
+    controller: search,
+    hint: l10n.albumDetailFilterHint,
+    onChanged: onSearchChanged,
+    onClear: _clearFilter,
+    dense: true,
+    autofocus: true,
+  );
+
   /// The like just tapped, shown until the album row reports it (or the write
   /// fails); afterwards the row alone decides, so a later unlike from sync
   /// clears the heart.
@@ -325,639 +370,948 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               ],
             )
           : null,
-      body: Stack(
-        children: <Widget>[
-          album.when(
-            data: (data) {
-              if (data == null || !showsAlbum) {
-                return _buildPendingBody(context, data?.album);
-              }
-              final details = data.album;
-              final songs = data.songs;
-              final filteredSongs = songs
-                  .where((song) {
-                    if (_showLikedOnly && song.starred == null) {
-                      return false;
-                    }
-                    if (_showDownloadedOnly &&
-                        !downloadedSongIds.contains(song.id)) {
-                      return false;
-                    }
-                    return true;
-                  })
-                  .toList(growable: false);
-              _currentFilteredSongs = filteredSongs;
-              final storedStarred = details.starred != null;
-              if (_pendingStarred == storedStarred) _pendingStarred = null;
-              final isStarred = _pendingStarred ?? storedStarred;
-              final albumInfoAsync = ref.watch(
-                albumInfoProvider(widget.albumId),
-              );
-              final albumRating =
-                  ref
-                      .watch(albumRatingProvider(widget.albumId))
-                      .asData
-                      ?.value ??
-                  details.userRating;
-              final coverArtHeroTag =
-                  widget.openingHeroTag?.trim().isNotEmpty == true
-                  ? widget.openingHeroTag!.trim()
-                  : buildCoverArtHeroTag(
-                      coverArtId: details.coverArt,
-                      // Keep desktop detail/viewer artwork distinct from the
-                      // Library card even when no opening Hero was supplied.
-                      context: desktopMode ? 'album_detail' : 'album',
-                      entityId: widget.albumId,
-                    );
-              // ── Build render items with disc headers for multi-disc ──
-              final renderItems = _buildRenderItems(filteredSongs);
-              final tracksSliver = renderItems.isEmpty
-                  ? SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _showDownloadedOnly
-                          ? EmptyState(
-                              title: l10n.libraryDownloadedOnlyEmpty,
-                              subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
-                              icon: Icons.download_done_outlined,
-                            )
-                          : _showLikedOnly
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: <Widget>[
-                                EmptyState(
-                                  title: l10n.albumDetailLikedTracksEmptyTitle,
-                                  subtitle:
-                                      l10n.albumDetailLikedTracksEmptySubtitle,
-                                  icon: Icons.favorite_border_outlined,
-                                ),
-                                const SizedBox(height: 12),
-                                FilledButton.tonal(
-                                  style: NavisColorStyleData.tonalStyleOf(
-                                    context,
+      body: typeFilterFrame(
+        Stack(
+          children: <Widget>[
+            album.when(
+              data: (data) {
+                if (data == null || !showsAlbum) {
+                  return _buildPendingBody(context, data?.album);
+                }
+                final details = data.album;
+                final songs = data.songs;
+                final textFilter = normalizeSearchText(_filterQuery);
+                final filteredSongs = songs
+                    .where((song) {
+                      if (textFilter.isNotEmpty &&
+                          !searchTextMatches(textFilter, [
+                            song.title,
+                            song.artistName,
+                          ])) {
+                        return false;
+                      }
+                      if (_showLikedOnly && song.starred == null) {
+                        return false;
+                      }
+                      if (_showDownloadedOnly &&
+                          !downloadedSongIds.contains(song.id)) {
+                        return false;
+                      }
+                      return true;
+                    })
+                    .toList(growable: false);
+                _currentFilteredSongs = filteredSongs;
+                // Same rule as the playlist page's field.
+                final showSearch =
+                    !desktopMode &&
+                    (songs.isNotEmpty || _filterQuery.isNotEmpty);
+                final searchTooltip = MaterialLocalizations.of(context)
+                    .searchFieldLabel;
+                final storedStarred = details.starred != null;
+                if (_pendingStarred == storedStarred) _pendingStarred = null;
+                final isStarred = _pendingStarred ?? storedStarred;
+                final albumInfoAsync = ref.watch(
+                  albumInfoProvider(widget.albumId),
+                );
+                final albumRating =
+                    ref
+                        .watch(albumRatingProvider(widget.albumId))
+                        .asData
+                        ?.value ??
+                    details.userRating;
+                final coverArtHeroTag =
+                    widget.openingHeroTag?.trim().isNotEmpty == true
+                    ? widget.openingHeroTag!.trim()
+                    : buildCoverArtHeroTag(
+                        coverArtId: details.coverArt,
+                        // Keep desktop detail/viewer artwork distinct from the
+                        // Library card even when no opening Hero was supplied.
+                        context: desktopMode ? 'album_detail' : 'album',
+                        entityId: widget.albumId,
+                      );
+                // ── Build render items with disc headers for multi-disc ──
+                final renderItems = _buildRenderItems(filteredSongs, songs);
+                final tracksSliver = renderItems.isEmpty
+                    ? SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: textFilter.isNotEmpty
+                            ? FilterNoResults(
+                                query: _filterQuery,
+                                onClear: _clearFilter,
+                              )
+                            : _showDownloadedOnly
+                            ? EmptyState(
+                                title: l10n.libraryDownloadedOnlyEmpty,
+                                subtitle:
+                                    l10n.libraryDownloadedOnlyEmptySubtitle,
+                                icon: Icons.download_done_outlined,
+                              )
+                            : _showLikedOnly
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  EmptyState(
+                                    title:
+                                        l10n.albumDetailLikedTracksEmptyTitle,
+                                    subtitle: l10n
+                                        .albumDetailLikedTracksEmptySubtitle,
+                                    icon: Icons.favorite_border_outlined,
                                   ),
-                                  onPressed: () =>
-                                      setState(() => _showLikedOnly = false),
-                                  child: Text(
-                                    l10n.albumDetailShowAllTracksAction,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : EmptyState(
-                              title: l10n.albumDetailTracksEmptyTitle,
-                              subtitle: l10n.albumDetailTracksEmptySubtitle,
-                              icon: Icons.music_note_outlined,
-                            ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        if (index == 0) {
-                          return AdaptiveTrackHeader(
-                            showAlbumColumn: false,
-                            numberColumnExtent: 32,
-                            leadingExtent: 32,
-                            leadingGap: 6,
-                            actionExtent: desktopMode ? null : 96,
-                            padding: compactWideMode
-                                ? const EdgeInsetsDirectional.only(
-                                    start: 8,
-                                    end: 4,
-                                  )
-                                : const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                          );
-                        }
-                        final item = renderItems[index - 1];
-                        return switch (item) {
-                          _DiscHeader(:final discNumber, :final isFirst) =>
-                            _buildDiscHeader(
-                              context,
-                              l10n,
-                              discNumber,
-                              isFirst,
-                            ),
-                          _SongItem(:final song) => TrackListTile(
-                            song: song,
-                            showAlbumArt: false,
-                            showAlbumColumn: false,
-                            actionExtent: desktopMode ? null : 96,
-                            contentPadding: compactWideMode
-                                ? const EdgeInsetsDirectional.only(
-                                    start: 8,
-                                    end: 4,
-                                  )
-                                : null,
-                            horizontalTitleGap: 6,
-                            onTap: () => _playNow(song),
-                            onLongPress: () =>
-                                unawaited(_showSongActions(song)),
-                            onSecondaryTapDown: (details) => unawaited(
-                              _showSongActions(
-                                song,
-                                anchor: details.globalPosition,
-                              ),
-                            ),
-                            downloadStatus: desktopMode
-                                ? null
-                                : song.isExternal
-                                ? const SizedBox.shrink()
-                                : SongDownloadStatusGlyph(songId: song.id),
-                            trailing: desktopMode
-                                ? DesktopSongActions(
-                                    song: song,
-                                    keyPrefix: 'album-song',
-                                  )
-                                : _AlbumSongMoreButton(
-                                    onPressed: (anchor) => unawaited(
-                                      _showSongActions(song, anchor: anchor),
+                                  const SizedBox(height: 12),
+                                  FilledButton.tonal(
+                                    style: NavisColorStyleData.tonalStyleOf(
+                                      context,
+                                    ),
+                                    onPressed: () =>
+                                        setState(() => _showLikedOnly = false),
+                                    child: Text(
+                                      l10n.albumDetailShowAllTracksAction,
                                     ),
                                   ),
-                          ),
-                        };
-                      }, childCount: renderItems.length + 1),
-                    );
-
-              // ── Desktop layout: horizontal header + scrollable track panel ──
-              if (desktopMode) {
-                final desktopLayoutClass = resolveDesktopLayoutClass(
-                  MediaQuery.sizeOf(context).width,
-                );
-                final compactDesktop =
-                    desktopLayoutClass == DesktopLayoutClass.compactDesktop;
-                // Cover and spacing follow the window height band; tall keeps
-                // the original sizes.
-                final heightClass = desktopHeightClassOf(context);
-                final shortHeader = heightClass == DesktopHeightClass.short;
-                final artSize = heightClass.pick<double>(
-                  short: 140,
-                  regular: 200,
-                  tall: compactDesktop ? 208 : 260,
-                );
-                final colors = Theme.of(context).colorScheme;
-                final textTheme = Theme.of(context).textTheme;
-                final titleStyle = shortHeader
-                    ? (compactDesktop
-                          ? textTheme.headlineMedium
-                          : textTheme.headlineLarge)
-                    : (compactDesktop
-                          ? textTheme.headlineLarge
-                          : textTheme.displaySmall);
-                final albumInfoWidget = albumInfoAsync.when(
-                  data: (info) {
-                    if (info == null) return const SizedBox.shrink();
-                    final about = _aboutChildren(
-                      l10n,
-                      info,
-                      titleStyle: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      notesStyle: textTheme.bodyMedium?.copyWith(
-                        height: 1.6,
-                        color: colors.onSurface.withValues(alpha: 0.8),
-                      ),
-                    );
-                    if (about == null) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Divider(height: 1),
-                          const SizedBox(height: 14),
-                          ...about,
-                          const SizedBox(height: 12),
-                        ],
-                      ),
-                    );
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, _) => const SizedBox.shrink(),
-                );
-                final headerText = <Widget>[
-                  // Album title — large
-                  Text(
-                    details.name,
-                    style: titleStyle?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      height: 1.1,
-                    ),
-                    maxLines: shortHeader ? 2 : 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: shortHeader ? 4 : (compactDesktop ? 8 : 10)),
-                  // Artist, then Year · Count · Duration
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    runSpacing: 4,
-                    children: <Widget>[
-                      ..._buildArtistChips(
-                        context: context,
-                        artists: _resolveArtists(details),
-                        textStyle: textTheme.titleMedium?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        dimStyle: textTheme.titleMedium?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (details.isExternal) ...<Widget>[
-                        const SizedBox(width: 8),
-                        const RemoteSourceIndicator(
-                          variant: RemoteSourceIndicatorVariant.chip,
-                        ),
-                      ],
-                    ],
-                  ),
-                  // The summary gets its own line so a
-                  // wrapped artist list never leaves a
-                  // line starting with a separator.
-                  const SizedBox(height: 2),
-                  Text(
-                    entityCollectionSummary(
-                      l10n,
-                      year: details.year,
-                      songCount: songs.length,
-                      totalSeconds: _totalDurationSeconds(songs),
-                    ),
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  _genreChips(songs, top: 8),
-                ];
-                final actionBar = EntityActionBar(
-                  onPlay: filteredSongs.isEmpty
-                      ? null
-                      : () => _queueAlbum(filteredSongs, shuffle: false),
-                  onShuffle: filteredSongs.isEmpty
-                      ? null
-                      : () => _queueAlbum(filteredSongs, shuffle: true),
-                  secondary: <Widget>[
-                    if (!details.isExternal)
-                      StarButton(
-                        isStarred: isStarred,
-                        onPressed: _isStarring
-                            ? null
-                            : () => _toggleStar(isStarred: isStarred),
-                        compact: shortHeader,
-                        tooltip: isStarred ? l10n.actionLiked : l10n.actionLike,
-                        label: l10n.actionLike,
-                        starredLabel: l10n.actionLiked,
-                      ),
-                    if (!details.isExternal)
-                      EntitySecondaryAction(
-                        compact: compactDesktop || shortHeader,
-                        icon: const Icon(Icons.download_outlined),
-                        label: l10n.albumDetailDownloadAction,
-                        onPressed: () =>
-                            unawaited(_downloadAlbumSongs(context)),
-                      ),
-                    _RatingButton(
-                      rating: albumRating,
-                      loading: _isUpdatingRating,
-                      onChanged: (next) => unawaited(_updateAlbumRating(next)),
-                    ),
-                    _albumFilterButton(),
-                  ],
-                );
-                // Short and regular windows put the actions beside the title
-                // when the pane fits a one-row action bar and a readable text
-                // column; narrower panes stack them.
-                final headerDetails = LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (heightClass != DesktopHeightClass.tall &&
-                        constraints.maxWidth >= 900) {
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: <Widget>[
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: headerText,
+                                ],
+                              )
+                            : EmptyState(
+                                title: l10n.albumDetailTracksEmptyTitle,
+                                subtitle: l10n.albumDetailTracksEmptySubtitle,
+                                icon: Icons.music_note_outlined,
+                              ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          if (index == 0) {
+                            return AdaptiveTrackHeader(
+                              showAlbumColumn: false,
+                              numberColumnExtent: 32,
+                              leadingExtent: 32,
+                              leadingGap: 6,
+                              actionExtent: desktopMode ? null : 96,
+                              padding: compactWideMode
+                                  ? const EdgeInsetsDirectional.only(
+                                      start: 8,
+                                      end: 4,
+                                    )
+                                  : const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                            );
+                          }
+                          final item = renderItems[index - 1];
+                          return switch (item) {
+                            _DiscHeader(:final discNumber, :final isFirst) =>
+                              _buildDiscHeader(
+                                context,
+                                l10n,
+                                discNumber,
+                                isFirst,
+                              ),
+                            _SongItem(:final song) => TrackListTile(
+                              song: song,
+                              showAlbumArt: false,
+                              showAlbumColumn: false,
+                              actionExtent: desktopMode ? null : 96,
+                              contentPadding: compactWideMode
+                                  ? const EdgeInsetsDirectional.only(
+                                      start: 8,
+                                      end: 4,
+                                    )
+                                  : null,
+                              horizontalTitleGap: 6,
+                              onTap: () => _playNow(song),
+                              onLongPress: () =>
+                                  unawaited(_showSongActions(song)),
+                              onSecondaryTapDown: (details) => unawaited(
+                                _showSongActions(
+                                  song,
+                                  anchor: details.globalPosition,
+                                ),
+                              ),
+                              downloadStatus: desktopMode
+                                  ? null
+                                  : song.isExternal
+                                  ? const SizedBox.shrink()
+                                  : SongDownloadStatusGlyph(songId: song.id),
+                              trailing: desktopMode
+                                  ? DesktopSongActions(
+                                      song: song,
+                                      keyPrefix: 'album-song',
+                                    )
+                                  : _AlbumSongMoreButton(
+                                      onPressed: (anchor) => unawaited(
+                                        _showSongActions(song, anchor: anchor),
+                                      ),
+                                    ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 640),
-                            child: actionBar,
-                          ),
-                        ],
+                          };
+                        }, childCount: renderItems.length + 1),
                       );
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        ...headerText,
-                        SizedBox(
-                          height: shortHeader ? 8 : (compactDesktop ? 16 : 20),
-                        ),
-                        actionBar,
-                      ],
-                    );
-                  },
-                );
-                return SafeArea(
-                  bottom: false,
-                  child: DesktopFrame(
-                    layoutClass: desktopLayoutClass,
-                    padding: EdgeInsets.zero,
-                    // The header is the first sliver: it scrolls away with the
-                    // tracks, so a short window shows more of them.
-                    child: CustomScrollView(
-                      slivers: <Widget>[
-                        SliverToBoxAdapter(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: <Widget>[
-                              // ── Spotify-style header: tinted background ──
-                              ColoredBox(
-                                key: const ValueKey<String>(
-                                  'albumDetailDesktopHeader',
-                                ),
-                                color: colors.surfaceContainerHigh,
-                                child: Padding(
-                                  padding: shortHeader
-                                      ? const EdgeInsets.fromLTRB(
-                                          20,
-                                          12,
-                                          20,
-                                          12,
-                                        )
-                                      : EdgeInsets.fromLTRB(
-                                          compactDesktop ? 20 : 24,
-                                          compactDesktop ? 16 : 24,
-                                          compactDesktop ? 20 : 24,
-                                          compactDesktop ? 14 : 20,
-                                        ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: <Widget>[
-                                      InkWell(
-                                        borderRadius: coverRadius,
-                                        onTap: () => unawaited(
-                                          showCoverArtViewer(
-                                            context,
-                                            coverArtId: details.coverArt,
-                                            revision:
-                                                details.coverArtRevision ?? 0,
-                                            heroTag: coverArtHeroTag,
-                                            previewSize: 300,
-                                            isExternalSource:
-                                                details.isExternal,
-                                          ),
-                                        ),
-                                        child: HeroCoverArt(
-                                          coverArtId: details.coverArt,
-                                          revision:
-                                              details.coverArtRevision ?? 0,
-                                          heroTag: coverArtHeroTag,
-                                          // Keep the same cache key as album cards
-                                          // after the Hero lands. The logical layout
-                                          // is still [artSize]; requesting a smaller
-                                          // image here can otherwise swap in a cold
-                                          // 300 px placeholder at the end of flight.
-                                          size: kCoverArtStandardSize,
-                                          width: artSize,
-                                          height: artSize,
-                                          isExternalSource: details.isExternal,
-                                          remoteSourceIndicatorPolicy:
-                                              RemoteSourceIndicatorPolicy
-                                                  .hidden,
-                                          borderRadius: coverRadius,
-                                          placeholderIcon: Icons.album_outlined,
-                                          loadPriority:
-                                              CoverArtLoadPriority.critical,
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: shortHeader
-                                            ? 16
-                                            : (compactDesktop ? 20 : 28),
-                                      ),
-                                      Expanded(child: headerDetails),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              // ── Gradient fade from header into track list ──
-                              Container(
-                                height: 28,
-                                // Flat: a hard step to the solid end colour.
-                                decoration:
-                                    NavisColorStyleData.of(context).flatSurfaces
-                                    ? BoxDecoration(color: colors.surface)
-                                    : BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: <Color>[
-                                            colors.surfaceContainerHigh,
-                                            colors.surface,
-                                          ],
-                                        ),
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // ── Track list — flat, no card ──
-                        SliverToBoxAdapter(child: albumInfoWidget),
-                        tracksSliver,
-                        const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                      ],
-                    ),
-                  ),
-                );
-              }
 
-              if (compactWideMode) {
-                final colors = Theme.of(context).colorScheme;
-                final textTheme = Theme.of(context).textTheme;
-                final albumInfoSliver = albumInfoAsync.when<Widget>(
-                  data: (info) {
-                    if (info == null) return const SliverToBoxAdapter();
-                    final about = _aboutChildren(
-                      l10n,
-                      info,
-                      titleStyle: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                      notesStyle: textTheme.bodyMedium?.copyWith(
-                        height: 1.5,
-                        color: colors.onSurface.withValues(alpha: 0.82),
-                      ),
-                    );
-                    if (about == null) return const SliverToBoxAdapter();
-                    return SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                // ── Desktop layout: horizontal header + scrollable track panel ──
+                if (desktopMode) {
+                  final desktopLayoutClass = resolveDesktopLayoutClass(
+                    MediaQuery.sizeOf(context).width,
+                  );
+                  final compactDesktop =
+                      desktopLayoutClass == DesktopLayoutClass.compactDesktop;
+                  // Cover and spacing follow the window height band; tall keeps
+                  // the original sizes.
+                  final heightClass = desktopHeightClassOf(context);
+                  final shortHeader = heightClass == DesktopHeightClass.short;
+                  final artSize = heightClass.pick<double>(
+                    short: 140,
+                    regular: 200,
+                    tall: compactDesktop ? 208 : 260,
+                  );
+                  final colors = Theme.of(context).colorScheme;
+                  final textTheme = Theme.of(context).textTheme;
+                  final titleStyle = shortHeader
+                      ? (compactDesktop
+                            ? textTheme.headlineMedium
+                            : textTheme.headlineLarge)
+                      : (compactDesktop
+                            ? textTheme.headlineLarge
+                            : textTheme.displaySmall);
+                  final albumInfoWidget = albumInfoAsync.when(
+                    data: (info) {
+                      if (info == null) return const SizedBox.shrink();
+                      final about = _aboutChildren(
+                        l10n,
+                        info,
+                        titleStyle: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        notesStyle: textTheme.bodyMedium?.copyWith(
+                          height: 1.6,
+                          color: colors.onSurface.withValues(alpha: 0.8),
+                        ),
+                      );
+                      if (about == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             const Divider(height: 1),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                             ...about,
+                            const SizedBox(height: 12),
                           ],
                         ),
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => const SizedBox.shrink(),
+                  );
+                  final headerText = <Widget>[
+                    // Album title — large
+                    Text(
+                      details.name,
+                      style: titleStyle?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        height: 1.1,
                       ),
-                    );
-                  },
-                  loading: () => const SliverToBoxAdapter(),
-                  error: (_, _) => const SliverToBoxAdapter(),
-                );
-                final toolbarSliver = SliverToBoxAdapter(
-                  child: Material(
-                    key: const ValueKey<String>(
-                      'albumDetailCompactWideToolbar',
+                      maxLines: shortHeader ? 2 : 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    color: colors.surface,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(4, 6, 8, 2),
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: <Widget>[
-                          EntityActionBar(
-                            compact: true,
-                            onPlay: filteredSongs.isEmpty
-                                ? null
-                                : () => _queueAlbum(
-                                    filteredSongs,
-                                    shuffle: false,
-                                  ),
-                            onShuffle: filteredSongs.isEmpty
-                                ? null
-                                : () =>
-                                      _queueAlbum(filteredSongs, shuffle: true),
+                    SizedBox(
+                      height: shortHeader ? 4 : (compactDesktop ? 8 : 10),
+                    ),
+                    // Artist, then Year · Count · Duration
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      runSpacing: 4,
+                      children: <Widget>[
+                        ..._buildArtistChips(
+                          context: context,
+                          artists: _resolveArtists(details),
+                          textStyle: textTheme.titleMedium?.copyWith(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w600,
                           ),
-                          _RatingButton(
-                            rating: albumRating,
-                            loading: _isUpdatingRating,
-                            onChanged: (next) =>
-                                unawaited(_updateAlbumRating(next)),
+                          dimStyle: textTheme.titleMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
                           ),
-                          IconButton(
-                            tooltip: isStarred
-                                ? l10n.actionLiked
-                                : l10n.actionLike,
-                            icon: Icon(
-                              isStarred
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                            ),
-                            color: isStarred ? colors.primary : null,
-                            onPressed: _isStarring
-                                ? null
-                                : () => _toggleStar(isStarred: isStarred),
+                        ),
+                        if (details.isExternal) ...<Widget>[
+                          const SizedBox(width: 8),
+                          const RemoteSourceIndicator(
+                            variant: RemoteSourceIndicatorVariant.chip,
                           ),
-                          _albumFilterButton(outlined: false),
-                          IconButton(
-                            tooltip: MaterialLocalizations.of(context)
-                                .showMenuTooltip,
-                            icon: const Icon(Icons.more_vert),
-                            onPressed: () => unawaited(
-                              _showMobileAlbumContextMenu(
-                                details,
-                                filteredSongs,
-                                albumRating,
-                                coverArtHeroTag,
+                        ],
+                      ],
+                    ),
+                    // The summary gets its own line so a
+                    // wrapped artist list never leaves a
+                    // line starting with a separator.
+                    const SizedBox(height: 2),
+                    Text(
+                      entityCollectionSummary(
+                        l10n,
+                        year: details.year,
+                        songCount: songs.length,
+                        totalSeconds: _totalDurationSeconds(songs),
+                      ),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    _genreChips(songs, top: 8),
+                  ];
+                  final actionBar = EntityActionBar(
+                    onPlay: filteredSongs.isEmpty
+                        ? null
+                        : () => _queueAlbum(filteredSongs, shuffle: false),
+                    onShuffle: filteredSongs.isEmpty
+                        ? null
+                        : () => _queueAlbum(filteredSongs, shuffle: true),
+                    secondary: <Widget>[
+                      if (!details.isExternal)
+                        StarButton(
+                          isStarred: isStarred,
+                          onPressed: _isStarring
+                              ? null
+                              : () => _toggleStar(isStarred: isStarred),
+                          compact: shortHeader,
+                          tooltip: isStarred
+                              ? l10n.actionLiked
+                              : l10n.actionLike,
+                          label: l10n.actionLike,
+                          starredLabel: l10n.actionLiked,
+                        ),
+                      if (!details.isExternal)
+                        EntitySecondaryAction(
+                          compact: compactDesktop || shortHeader,
+                          icon: const Icon(Icons.download_outlined),
+                          label: l10n.albumDetailDownloadAction,
+                          onPressed: () =>
+                              unawaited(_downloadAlbumSongs(context)),
+                        ),
+                      _RatingButton(
+                        rating: albumRating,
+                        loading: _isUpdatingRating,
+                        onChanged: (next) =>
+                            unawaited(_updateAlbumRating(next)),
+                      ),
+                      _albumFilterButton(),
+                    ],
+                  );
+                  // Short and regular windows put the actions beside the title
+                  // when the pane fits a one-row action bar and a readable text
+                  // column; narrower panes stack them.
+                  final headerDetails = LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (heightClass != DesktopHeightClass.tall &&
+                          constraints.maxWidth >= 900) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: <Widget>[
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: headerText,
                               ),
                             ),
+                            const SizedBox(width: 16),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 640),
+                              child: actionBar,
+                            ),
+                          ],
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          ...headerText,
+                          SizedBox(
+                            height: shortHeader
+                                ? 8
+                                : (compactDesktop ? 16 : 20),
                           ),
+                          actionBar,
+                        ],
+                      );
+                    },
+                  );
+                  return SafeArea(
+                    bottom: false,
+                    child: DesktopFrame(
+                      layoutClass: desktopLayoutClass,
+                      padding: EdgeInsets.zero,
+                      // The header is the first sliver: it scrolls away with the
+                      // tracks, so a short window shows more of them.
+                      child: CustomScrollView(
+                        slivers: <Widget>[
+                          SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                // ── Spotify-style header: tinted background ──
+                                ColoredBox(
+                                  key: const ValueKey<String>(
+                                    'albumDetailDesktopHeader',
+                                  ),
+                                  color: colors.surfaceContainerHigh,
+                                  child: Padding(
+                                    padding: shortHeader
+                                        ? const EdgeInsets.fromLTRB(
+                                            20,
+                                            12,
+                                            20,
+                                            12,
+                                          )
+                                        : EdgeInsets.fromLTRB(
+                                            compactDesktop ? 20 : 24,
+                                            compactDesktop ? 16 : 24,
+                                            compactDesktop ? 20 : 24,
+                                            compactDesktop ? 14 : 20,
+                                          ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: <Widget>[
+                                        InkWell(
+                                          borderRadius: coverRadius,
+                                          onTap: () => unawaited(
+                                            showCoverArtViewer(
+                                              context,
+                                              coverArtId: details.coverArt,
+                                              revision:
+                                                  details.coverArtRevision ?? 0,
+                                              heroTag: coverArtHeroTag,
+                                              previewSize: 300,
+                                              isExternalSource:
+                                                  details.isExternal,
+                                            ),
+                                          ),
+                                          child: HeroCoverArt(
+                                            coverArtId: details.coverArt,
+                                            revision:
+                                                details.coverArtRevision ?? 0,
+                                            heroTag: coverArtHeroTag,
+                                            // Keep the same cache key as album cards
+                                            // after the Hero lands. The logical layout
+                                            // is still [artSize]; requesting a smaller
+                                            // image here can otherwise swap in a cold
+                                            // 300 px placeholder at the end of flight.
+                                            size: kCoverArtStandardSize,
+                                            width: artSize,
+                                            height: artSize,
+                                            isExternalSource:
+                                                details.isExternal,
+                                            remoteSourceIndicatorPolicy:
+                                                RemoteSourceIndicatorPolicy
+                                                    .hidden,
+                                            borderRadius: coverRadius,
+                                            placeholderIcon:
+                                                Icons.album_outlined,
+                                            loadPriority:
+                                                CoverArtLoadPriority.critical,
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: shortHeader
+                                              ? 16
+                                              : (compactDesktop ? 20 : 28),
+                                        ),
+                                        Expanded(child: headerDetails),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // ── Gradient fade from header into track list ──
+                                Container(
+                                  height: 28,
+                                  // Flat: a hard step to the solid end colour.
+                                  decoration:
+                                      NavisColorStyleData.of(context)
+                                          .flatSurfaces
+                                      ? BoxDecoration(color: colors.surface)
+                                      : BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: <Color>[
+                                              colors.surfaceContainerHigh,
+                                              colors.surface,
+                                            ],
+                                          ),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // ── Track list — flat, no card ──
+                          SliverToBoxAdapter(child: albumInfoWidget),
+                          tracksSliver,
+                          const SliverToBoxAdapter(child: SizedBox(height: 16)),
                         ],
                       ),
                     ),
-                  ),
-                );
-                return SafeArea(
-                  left: false,
-                  right: false,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final panelWidthValue = (constraints.maxWidth * 0.28)
-                          .clamp(208, 256);
-                      final panelWidth = panelWidthValue.toDouble();
-                      final artSize = min<double>(
-                        168,
-                        max<double>(148, panelWidth - 56),
-                      );
+                  );
+                }
 
-                      return Row(
-                        key: const ValueKey<String>(
-                          'albumDetailCompactWideSplitPane',
+                if (compactWideMode) {
+                  final colors = Theme.of(context).colorScheme;
+                  final textTheme = Theme.of(context).textTheme;
+                  final albumInfoSliver = albumInfoAsync.when<Widget>(
+                    data: (info) {
+                      if (info == null) return const SliverToBoxAdapter();
+                      final about = _aboutChildren(
+                        l10n,
+                        info,
+                        titleStyle: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          SizedBox(
-                            width: panelWidth,
-                            child: Material(
-                              color: colors.surfaceContainerHigh,
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(
-                                  10,
-                                  8,
-                                  10,
-                                  12,
+                        notesStyle: textTheme.bodyMedium?.copyWith(
+                          height: 1.5,
+                          color: colors.onSurface.withValues(alpha: 0.82),
+                        ),
+                      );
+                      if (about == null) return const SliverToBoxAdapter();
+                      return SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Divider(height: 1),
+                              const SizedBox(height: 12),
+                              ...about,
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    loading: () => const SliverToBoxAdapter(),
+                    error: (_, _) => const SliverToBoxAdapter(),
+                  );
+                  final toolbarSliver = SliverToBoxAdapter(
+                    child: Material(
+                      key: const ValueKey<String>(
+                        'albumDetailCompactWideToolbar',
+                      ),
+                      color: colors.surface,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 6, 8, 2),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: <Widget>[
+                            EntityActionBar(
+                              compact: true,
+                              onPlay: filteredSongs.isEmpty
+                                  ? null
+                                  : () => _queueAlbum(
+                                      filteredSongs,
+                                      shuffle: false,
+                                    ),
+                              onShuffle: filteredSongs.isEmpty
+                                  ? null
+                                  : () => _queueAlbum(
+                                      filteredSongs,
+                                      shuffle: true,
+                                    ),
+                            ),
+                            _RatingButton(
+                              rating: albumRating,
+                              loading: _isUpdatingRating,
+                              onChanged: (next) =>
+                                  unawaited(_updateAlbumRating(next)),
+                            ),
+                            IconButton(
+                              tooltip: isStarred
+                                  ? l10n.actionLiked
+                                  : l10n.actionLike,
+                              icon: Icon(
+                                isStarred
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                              ),
+                              color: isStarred ? colors.primary : null,
+                              onPressed: _isStarring
+                                  ? null
+                                  : () => _toggleStar(isStarred: isStarred),
+                            ),
+                            _albumFilterButton(outlined: false),
+                            IconButton(
+                              tooltip: MaterialLocalizations.of(context)
+                                  .showMenuTooltip,
+                              icon: const Icon(Icons.more_vert),
+                              onPressed: () => unawaited(
+                                _showMobileAlbumContextMenu(
+                                  details,
+                                  songs,
+                                  albumRating,
+                                  coverArtHeroTag,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Row(
-                                      children: <Widget>[
-                                        IconButton(
-                                          tooltip: MaterialLocalizations.of(
-                                            context,
-                                          ).backButtonTooltip,
-                                          onPressed: () => NavService.back(
-                                            context,
-                                            fallback: AppRoutes.library,
-                                          ),
-                                          icon: const Icon(Icons.arrow_back),
-                                        ),
-                                        const Spacer(),
-                                        IconButton(
-                                          tooltip: l10n.detailRefreshAction,
-                                          onPressed: _isRefreshingAlbum
-                                              ? null
-                                              : _refreshAlbum,
-                                          icon: AnimatedSwitcher(
-                                            duration: const Duration(
-                                              milliseconds: 180,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                  return SafeArea(
+                    left: false,
+                    right: false,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final panelWidthValue = (constraints.maxWidth * 0.28)
+                            .clamp(208, 256);
+                        final panelWidth = panelWidthValue.toDouble();
+                        final artSize = min<double>(
+                          168,
+                          max<double>(148, panelWidth - 56),
+                        );
+
+                        return Row(
+                          key: const ValueKey<String>(
+                            'albumDetailCompactWideSplitPane',
+                          ),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            SizedBox(
+                              width: panelWidth,
+                              child: Material(
+                                color: colors.surfaceContainerHigh,
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    10,
+                                    8,
+                                    10,
+                                    12,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Row(
+                                        children: <Widget>[
+                                          IconButton(
+                                            tooltip: MaterialLocalizations.of(
+                                              context,
+                                            ).backButtonTooltip,
+                                            onPressed: () => NavService.back(
+                                              context,
+                                              fallback: AppRoutes.library,
                                             ),
-                                            child: _isRefreshingAlbum
-                                                ? const SizedBox(
-                                                    key: ValueKey<String>(
-                                                      'album-refresh-loading',
-                                                    ),
-                                                    width: 20,
-                                                    height: 20,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2.2,
-                                                        ),
-                                                  )
-                                                : const Icon(
-                                                    Icons.refresh,
-                                                    key: ValueKey<String>(
-                                                      'album-refresh-idle',
-                                                    ),
-                                                  ),
+                                            icon: const Icon(Icons.arrow_back),
                                           ),
+                                          const Spacer(),
+                                          if (showSearch && !_searching)
+                                            IconButton(
+                                              tooltip: searchTooltip,
+                                              onPressed: _openSearch,
+                                              icon: const Icon(Icons.search),
+                                            ),
+                                          IconButton(
+                                            tooltip: l10n.detailRefreshAction,
+                                            onPressed: _isRefreshingAlbum
+                                                ? null
+                                                : _refreshAlbum,
+                                            icon: AnimatedSwitcher(
+                                              duration: const Duration(
+                                                milliseconds: 180,
+                                              ),
+                                              child: _isRefreshingAlbum
+                                                  ? const SizedBox(
+                                                      key: ValueKey<String>(
+                                                        'album-refresh-loading',
+                                                      ),
+                                                      width: 20,
+                                                      height: 20,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2.2,
+                                                          ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.refresh,
+                                                      key: ValueKey<String>(
+                                                        'album-refresh-idle',
+                                                      ),
+                                                    ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Center(
+                                        child: InkWell(
+                                          borderRadius: coverRadius,
+                                          onTap: () => unawaited(
+                                            showCoverArtViewer(
+                                              context,
+                                              coverArtId: details.coverArt,
+                                              revision:
+                                                  details.coverArtRevision ?? 0,
+                                              heroTag: coverArtHeroTag,
+                                              previewSize: 160,
+                                              isExternalSource:
+                                                  details.isExternal,
+                                            ),
+                                          ),
+                                          child: HeroCoverArt(
+                                            coverArtId: details.coverArt,
+                                            revision:
+                                                details.coverArtRevision ?? 0,
+                                            heroTag: coverArtHeroTag,
+                                            size: kCoverArtStandardSize,
+                                            width: artSize,
+                                            height: artSize,
+                                            isExternalSource:
+                                                details.isExternal,
+                                            remoteSourceIndicatorPolicy:
+                                                RemoteSourceIndicatorPolicy
+                                                    .hidden,
+                                            borderRadius: coverRadius,
+                                            placeholderIcon:
+                                                Icons.album_outlined,
+                                            loadPriority:
+                                                CoverArtLoadPriority.critical,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        details.name,
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.15,
+                                        ),
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        runSpacing: 2,
+                                        children: <Widget>[
+                                          ..._buildArtistChips(
+                                            context: context,
+                                            artists: _resolveArtists(details),
+                                            textStyle: textTheme.bodyMedium
+                                                ?.copyWith(
+                                                  color: colors.primary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                            dimStyle: textTheme.bodyMedium
+                                                ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                ),
+                                          ),
+                                          if (details.isExternal) ...<Widget>[
+                                            const SizedBox(width: 8),
+                                            const RemoteSourceIndicator(
+                                              variant:
+                                                  RemoteSourceIndicatorVariant
+                                                      .chip,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        entityCollectionSummary(
+                                          l10n,
+                                          year: details.year,
+                                          songCount: songs.length,
+                                          totalSeconds: _totalDurationSeconds(
+                                            songs,
+                                          ),
+                                        ),
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      _genreChips(songs, top: 6),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            VerticalDivider(
+                              width: 1,
+                              thickness: 1,
+                              color: colors.outlineVariant,
+                            ),
+                            Expanded(
+                              child: Column(
+                                children: <Widget>[
+                                  if (_searching)
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        4,
+                                        6,
+                                        12,
+                                        2,
+                                      ),
+                                      child: Row(
+                                        children: <Widget>[
+                                          IconButton(
+                                            tooltip: MaterialLocalizations.of(
+                                              context,
+                                            ).closeButtonTooltip,
+                                            onPressed: _closeSearch,
+                                            icon: const Icon(Icons.close),
+                                          ),
+                                          Expanded(child: _searchField(l10n)),
+                                        ],
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: CustomScrollView(
+                                      slivers: <Widget>[
+                                        toolbarSliver,
+                                        tracksSliver,
+                                        albumInfoSliver,
+                                        const SliverToBoxAdapter(
+                                          child: SizedBox(height: 16),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    Center(
-                                      child: InkWell(
-                                        borderRadius: coverRadius,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  );
+                }
+
+                final screenHeight = MediaQuery.sizeOf(context).height;
+                final theme = Theme.of(context);
+                final mobileColors = theme.colorScheme;
+                final mobileTextTheme = theme.textTheme;
+                final isLightTheme = theme.brightness == Brightness.light;
+                final flatArtworkText = NavisColorStyleData.of(context)
+                    .flatArtworkText;
+
+                // Album name opacity fades out as the header collapses (gone by 90% scroll).
+                final gradientScrollFade = ((0.9 - _headerProgress) / 0.3)
+                    .clamp(0.0, 1.0);
+                // Toolbar title fades in during the last 20% of the collapse.
+                final toolbarTitleOpacity = ((_headerProgress - 0.8) / 0.2)
+                    .clamp(0.0, 1.0);
+
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    // The page can be narrower than the screen: the shell keeps it
+                    // clear of a system strip, so size the hero from its own width.
+                    final heroExtent = adaptiveContext.isPhoneFormFactor
+                        ? constraints.maxWidth
+                        : min(constraints.maxWidth, screenHeight * 0.45);
+                    // Keep _heroExtent in sync so the scroll listener can compute progress.
+                    _heroExtent = heroExtent;
+                    return CustomScrollView(
+                      controller: _scrollController,
+                      slivers: <Widget>[
+                        // Full-bleed album art with scroll-driven collapsed toolbar.
+                        SliverAppBar(
+                          key: const ValueKey<String>(
+                            'albumDetailMobileExpandedArtAppBar',
+                          ),
+                          automaticallyImplyLeading: false,
+                          pinned: true,
+                          toolbarHeight: kToolbarHeight,
+                          expandedHeight: heroExtent,
+                          backgroundColor: _searching
+                              ? mobileColors.surfaceContainerHighest
+                              : Color.lerp(
+                                  Colors.transparent,
+                                  mobileColors.surfaceContainerHighest,
+                                  _headerProgress,
+                                ),
+                          systemOverlayStyle: SystemUiOverlayStyle.light,
+                          leading: _searching
+                              ? _buildAnimatedNavButton(
+                                  icon: Icons.close,
+                                  tooltip: MaterialLocalizations.of(context)
+                                      .closeButtonTooltip,
+                                  onPressed: _closeSearch,
+                                )
+                              : _buildAnimatedNavButton(
+                                  icon: Icons.arrow_back,
+                                  tooltip: MaterialLocalizations.of(context)
+                                      .backButtonTooltip,
+                                  onPressed: () => NavService.back(
+                                    context,
+                                    fallback: AppRoutes.library,
+                                  ),
+                                ),
+                          actions: <Widget>[
+                            if (showSearch && !_searching)
+                              _buildAnimatedNavButton(
+                                icon: Icons.search,
+                                tooltip: searchTooltip,
+                                onPressed: _openSearch,
+                              ),
+                            if (!_searching)
+                              _buildAnimatedNavButton(
+                                icon: Icons.refresh,
+                                tooltip: l10n.detailRefreshAction,
+                                isLoading: _isRefreshingAlbum,
+                                onPressed: _isRefreshingAlbum
+                                    ? null
+                                    : _refreshAlbum,
+                              ),
+                          ],
+                          title: _searching
+                              ? _searchField(l10n)
+                              : Opacity(
+                                  opacity: toolbarTitleOpacity,
+                                  child: Text(
+                                    details.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                          flexibleSpace: FlexibleSpaceBar(
+                            collapseMode: CollapseMode.pin,
+                            background: Stack(
+                              fit: StackFit.expand,
+                              children: <Widget>[
+                                // Phone album pages deliberately render the artwork
+                                // as ordinary, already-composed content. Keeping a
+                                // matching Hero here would still launch an artwork
+                                // flight independently of the fade-only route.
+                                CoverArtImage(
+                                  coverArtId: details.coverArt,
+                                  revision: details.coverArtRevision ?? 0,
+                                  size: kCoverArtStandardSize,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  isExternalSource: details.isExternal,
+                                  remoteSourceIndicatorPolicy:
+                                      RemoteSourceIndicatorPolicy.hidden,
+                                  fit: BoxFit.cover,
+                                  fadeInDuration: Duration.zero,
+                                ),
+                                // Centred tap target for the full-size art. It leaves
+                                // the back/refresh corners alone and, being tap-only,
+                                // does not claim vertical drags.
+                                Center(
+                                  child: FractionallySizedBox(
+                                    widthFactor: 0.6,
+                                    heightFactor: 0.6,
+                                    child: Semantics(
+                                      button: true,
+                                      label: l10n.albumDetailMenuShowAlbumArt,
+                                      child: GestureDetector(
+                                        key: const ValueKey<String>(
+                                          'albumDetailMobileArtTapTarget',
+                                        ),
+                                        behavior: HitTestBehavior.opaque,
                                         onTap: () => unawaited(
                                           showCoverArtViewer(
                                             context,
@@ -965,526 +1319,321 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                             revision:
                                                 details.coverArtRevision ?? 0,
                                             heroTag: coverArtHeroTag,
-                                            previewSize: 160,
+                                            previewSize: 200,
                                             isExternalSource:
                                                 details.isExternal,
                                           ),
                                         ),
-                                        child: HeroCoverArt(
-                                          coverArtId: details.coverArt,
-                                          revision:
-                                              details.coverArtRevision ?? 0,
-                                          heroTag: coverArtHeroTag,
-                                          size: kCoverArtStandardSize,
-                                          width: artSize,
-                                          height: artSize,
-                                          isExternalSource: details.isExternal,
-                                          remoteSourceIndicatorPolicy:
-                                              RemoteSourceIndicatorPolicy
-                                                  .hidden,
-                                          borderRadius: coverRadius,
-                                          placeholderIcon: Icons.album_outlined,
-                                          loadPriority:
-                                              CoverArtLoadPriority.critical,
-                                        ),
                                       ),
                                     ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      details.name,
-                                      style: textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        height: 1.15,
-                                      ),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      crossAxisAlignment:
-                                          WrapCrossAlignment.center,
-                                      runSpacing: 2,
-                                      children: <Widget>[
-                                        ..._buildArtistChips(
-                                          context: context,
-                                          artists: _resolveArtists(details),
-                                          textStyle: textTheme.bodyMedium
-                                              ?.copyWith(
-                                                color: colors.primary,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                          dimStyle: textTheme.bodyMedium
-                                              ?.copyWith(
-                                                color: colors.onSurfaceVariant,
-                                              ),
-                                        ),
-                                        if (details.isExternal) ...<Widget>[
-                                          const SizedBox(width: 8),
-                                          const RemoteSourceIndicator(
-                                            variant:
-                                                RemoteSourceIndicatorVariant
-                                                    .chip,
+                                  ),
+                                ),
+                                // Flat text over artwork keeps the art unobstructed:
+                                // no fade and no overlaid title; the title sits
+                                // under the art in the content below.
+                                if (!flatArtworkText) ...<Widget>[
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: <Color>[
+                                              Colors.transparent,
+                                              Colors.transparent,
+                                              Theme.of(context)
+                                                  .scaffoldBackgroundColor,
+                                            ],
+                                            stops: const <double>[
+                                              0,
+                                              0.60,
+                                              0.85,
+                                            ],
                                           ),
-                                        ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      entityCollectionSummary(
-                                        l10n,
-                                        year: details.year,
-                                        songCount: songs.length,
-                                        totalSeconds: _totalDurationSeconds(
-                                          songs,
                                         ),
                                       ),
-                                      style: textTheme.bodySmall?.copyWith(
-                                        color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  // The title scrolls out with the lower gradient.
+                                  Positioned(
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: Opacity(
+                                      opacity: gradientScrollFade,
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          16,
+                                          0,
+                                          16,
+                                          16,
+                                        ),
+                                        child: _buildMobileAlbumTitle(
+                                          title: details.name,
+                                          copyText: _copyText(details),
+                                          style: mobileTextTheme.displayMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: isLightTheme
+                                                    ? mobileColors.onSurface
+                                                    : Colors.white,
+                                                shadows: isLightTheme
+                                                    ? null
+                                                    : <Shadow>[
+                                                        Shadow(
+                                                          color:
+                                                              NavisColorStyleData.of(
+                                                                    context,
+                                                                  ).artworkScrim
+                                                                  .withValues(
+                                                                    alpha: 0.55,
+                                                                  ),
+                                                          blurRadius: 12,
+                                                          offset: const Offset(
+                                                            0,
+                                                            2,
+                                                          ),
+                                                        ),
+                                                      ],
+                                              ),
+                                        ),
                                       ),
                                     ),
-                                    _genreChips(songs, top: 6),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              if (flatArtworkText)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    16,
+                                    16,
+                                    0,
+                                  ),
+                                  child: _buildMobileAlbumTitle(
+                                    title: details.name,
+                                    copyText: _copyText(details),
+                                    style: mobileTextTheme.displayMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: mobileColors.onSurface,
+                                        ),
+                                  ),
+                                ),
+                              // Artist names (each individually clickable)
+                              Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  16,
+                                  flatArtworkText ? 8 : 16,
+                                  16,
+                                  2,
+                                ),
+                                child: Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  runSpacing: 2,
+                                  children: <Widget>[
+                                    ..._buildArtistChips(
+                                      context: context,
+                                      artists: _resolveArtists(details),
+                                      textStyle: mobileTextTheme.bodyLarge
+                                          ?.copyWith(
+                                            color: mobileColors.primary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                      dimStyle: mobileTextTheme.bodyLarge
+                                          ?.copyWith(
+                                            color:
+                                                mobileColors.onSurfaceVariant,
+                                          ),
+                                    ),
+                                    if (details.isExternal) ...<Widget>[
+                                      const SizedBox(width: 8),
+                                      const RemoteSourceIndicator(
+                                        variant:
+                                            RemoteSourceIndicatorVariant.chip,
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
-                            ),
-                          ),
-                          VerticalDivider(
-                            width: 1,
-                            thickness: 1,
-                            color: colors.outlineVariant,
-                          ),
-                          Expanded(
-                            child: CustomScrollView(
-                              slivers: <Widget>[
-                                toolbarSliver,
-                                tracksSliver,
-                                albumInfoSliver,
-                                const SliverToBoxAdapter(
-                                  child: SizedBox(height: 16),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                );
-              }
-
-              final screenHeight = MediaQuery.sizeOf(context).height;
-              final theme = Theme.of(context);
-              final mobileColors = theme.colorScheme;
-              final mobileTextTheme = theme.textTheme;
-              final isLightTheme = theme.brightness == Brightness.light;
-              final flatArtworkText = NavisColorStyleData.of(context)
-                  .flatArtworkText;
-
-              // Album name opacity fades out as the header collapses (gone by 90% scroll).
-              final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(
-                0.0,
-                1.0,
-              );
-              // Toolbar title fades in during the last 20% of the collapse.
-              final toolbarTitleOpacity = ((_headerProgress - 0.8) / 0.2).clamp(
-                0.0,
-                1.0,
-              );
-
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  // The page can be narrower than the screen: the shell keeps it
-                  // clear of a system strip, so size the hero from its own width.
-                  final heroExtent = adaptiveContext.isPhoneFormFactor
-                      ? constraints.maxWidth
-                      : min(constraints.maxWidth, screenHeight * 0.45);
-                  // Keep _heroExtent in sync so the scroll listener can compute progress.
-                  _heroExtent = heroExtent;
-                  return CustomScrollView(
-                    controller: _scrollController,
-                    slivers: <Widget>[
-                      // Full-bleed album art with scroll-driven collapsed toolbar.
-                      SliverAppBar(
-                        key: const ValueKey<String>(
-                          'albumDetailMobileExpandedArtAppBar',
-                        ),
-                        automaticallyImplyLeading: false,
-                        pinned: true,
-                        toolbarHeight: kToolbarHeight,
-                        expandedHeight: heroExtent,
-                        backgroundColor: Color.lerp(
-                          Colors.transparent,
-                          mobileColors.surfaceContainerHighest,
-                          _headerProgress,
-                        ),
-                        systemOverlayStyle: SystemUiOverlayStyle.light,
-                        leading: _buildAnimatedNavButton(
-                          icon: Icons.arrow_back,
-                          tooltip: MaterialLocalizations.of(context)
-                              .backButtonTooltip,
-                          onPressed: () => NavService.back(
-                            context,
-                            fallback: AppRoutes.library,
-                          ),
-                        ),
-                        actions: <Widget>[
-                          _buildAnimatedNavButton(
-                            icon: Icons.refresh,
-                            tooltip: l10n.detailRefreshAction,
-                            isLoading: _isRefreshingAlbum,
-                            onPressed: _isRefreshingAlbum
-                                ? null
-                                : _refreshAlbum,
-                          ),
-                        ],
-                        title: Opacity(
-                          opacity: toolbarTitleOpacity,
-                          child: Text(
-                            details.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        flexibleSpace: FlexibleSpaceBar(
-                          collapseMode: CollapseMode.pin,
-                          background: Stack(
-                            fit: StackFit.expand,
-                            children: <Widget>[
-                              // Phone album pages deliberately render the artwork
-                              // as ordinary, already-composed content. Keeping a
-                              // matching Hero here would still launch an artwork
-                              // flight independently of the fade-only route.
-                              CoverArtImage(
-                                coverArtId: details.coverArt,
-                                revision: details.coverArtRevision ?? 0,
-                                size: kCoverArtStandardSize,
-                                width: double.infinity,
-                                height: double.infinity,
-                                isExternalSource: details.isExternal,
-                                remoteSourceIndicatorPolicy:
-                                    RemoteSourceIndicatorPolicy.hidden,
-                                fit: BoxFit.cover,
-                                fadeInDuration: Duration.zero,
-                              ),
-                              // Centred tap target for the full-size art. It leaves
-                              // the back/refresh corners alone and, being tap-only,
-                              // does not claim vertical drags.
-                              Center(
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.6,
-                                  heightFactor: 0.6,
-                                  child: Semantics(
-                                    button: true,
-                                    label: l10n.albumDetailMenuShowAlbumArt,
-                                    child: GestureDetector(
-                                      key: const ValueKey<String>(
-                                        'albumDetailMobileArtTapTarget',
-                                      ),
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () => unawaited(
-                                        showCoverArtViewer(
-                                          context,
-                                          coverArtId: details.coverArt,
-                                          revision:
-                                              details.coverArtRevision ?? 0,
-                                          heroTag: coverArtHeroTag,
-                                          previewSize: 200,
-                                          isExternalSource: details.isExternal,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Flat text over artwork keeps the art unobstructed:
-                              // no fade and no overlaid title; the title sits
-                              // under the art in the content below.
-                              if (!flatArtworkText) ...<Widget>[
-                                Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: <Color>[
-                                            Colors.transparent,
-                                            Colors.transparent,
-                                            Theme.of(context)
-                                                .scaffoldBackgroundColor,
-                                          ],
-                                          stops: const <double>[0, 0.60, 0.85],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                // The title scrolls out with the lower gradient.
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Opacity(
-                                    opacity: gradientScrollFade,
-                                    child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        16,
-                                        0,
-                                        16,
-                                        16,
-                                      ),
-                                      child: _buildMobileAlbumTitle(
-                                        title: details.name,
-                                        copyText: _copyText(details),
-                                        style: mobileTextTheme.displayMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: isLightTheme
-                                                  ? mobileColors.onSurface
-                                                  : Colors.white,
-                                              shadows: isLightTheme
-                                                  ? null
-                                                  : <Shadow>[
-                                                      Shadow(
-                                                        color:
-                                                            NavisColorStyleData.of(
-                                                                  context,
-                                                                ).artworkScrim
-                                                                .withValues(
-                                                                  alpha: 0.55,
-                                                                ),
-                                                        blurRadius: 12,
-                                                        offset: const Offset(
-                                                          0,
-                                                          2,
-                                                        ),
-                                                      ),
-                                                    ],
-                                            ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            if (flatArtworkText)
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
                                   16,
-                                  16,
-                                  16,
                                   0,
+                                  16,
+                                  8,
                                 ),
-                                child: _buildMobileAlbumTitle(
-                                  title: details.name,
-                                  copyText: _copyText(details),
-                                  style: mobileTextTheme.displayMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: mobileColors.onSurface,
-                                      ),
-                                ),
-                              ),
-                            // Artist names (each individually clickable)
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                16,
-                                flatArtworkText ? 8 : 16,
-                                16,
-                                2,
-                              ),
-                              child: Wrap(
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                runSpacing: 2,
-                                children: <Widget>[
-                                  ..._buildArtistChips(
-                                    context: context,
-                                    artists: _resolveArtists(details),
-                                    textStyle: mobileTextTheme.bodyLarge
-                                        ?.copyWith(
-                                          color: mobileColors.primary,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                    dimStyle: mobileTextTheme.bodyLarge
-                                        ?.copyWith(
-                                          color: mobileColors.onSurfaceVariant,
-                                        ),
+                                child: Text(
+                                  entityCollectionSummary(
+                                    l10n,
+                                    year: details.year,
+                                    songCount: songs.length,
+                                    totalSeconds: _totalDurationSeconds(songs),
                                   ),
-                                  if (details.isExternal) ...<Widget>[
-                                    const SizedBox(width: 8),
-                                    const RemoteSourceIndicator(
-                                      variant:
-                                          RemoteSourceIndicatorVariant.chip,
+                                  style: mobileTextTheme.bodyMedium?.copyWith(
+                                    color: mobileColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              _genreChips(
+                                songs,
+                                left: 16,
+                                right: 16,
+                                bottom: 8,
+                              ),
+                              // Action buttons:
+                              //   Left  — play (icon), shuffle (icon), Rate (text)
+                              //   Right — like (icon), 3-dot context menu
+                              Padding(
+                                // 16 lines Play up with the text; narrower phones
+                                // keep 4 so the row fits.
+                                padding: EdgeInsetsDirectional.fromSTEB(
+                                  constraints.maxWidth >= 375 ? 16 : 4,
+                                  0,
+                                  4,
+                                  8,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: <Widget>[
+                                    EntityActionBar(
+                                      compact: true,
+                                      onPlay: filteredSongs.isEmpty
+                                          ? null
+                                          : () => _queueAlbum(
+                                              filteredSongs,
+                                              shuffle: false,
+                                            ),
+                                      onShuffle: filteredSongs.isEmpty
+                                          ? null
+                                          : () => _queueAlbum(
+                                              filteredSongs,
+                                              shuffle: true,
+                                            ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    _RatingButton(
+                                      rating: albumRating,
+                                      loading: _isUpdatingRating,
+                                      onChanged: (next) =>
+                                          unawaited(_updateAlbumRating(next)),
+                                    ),
+                                    const Spacer(),
+                                    IconButton(
+                                      tooltip: isStarred
+                                          ? l10n.actionLiked
+                                          : l10n.albumDetailStarAction,
+                                      icon: Icon(
+                                        isStarred
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                      ),
+                                      color: isStarred
+                                          ? mobileColors.primary
+                                          : null,
+                                      onPressed: _isStarring
+                                          ? null
+                                          : () => _toggleStar(
+                                              isStarred: isStarred,
+                                            ),
+                                    ),
+                                    _albumFilterButton(outlined: false),
+                                    IconButton(
+                                      tooltip: MaterialLocalizations.of(context)
+                                          .showMenuTooltip,
+                                      icon: const Icon(Icons.more_vert),
+                                      onPressed: () => unawaited(
+                                        _showMobileAlbumContextMenu(
+                                          details,
+                                          songs,
+                                          albumRating,
+                                          coverArtHeroTag,
+                                        ),
+                                      ),
                                     ),
                                   ],
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                              child: Text(
-                                entityCollectionSummary(
-                                  l10n,
-                                  year: details.year,
-                                  songCount: songs.length,
-                                  totalSeconds: _totalDurationSeconds(songs),
-                                ),
-                                style: mobileTextTheme.bodyMedium?.copyWith(
-                                  color: mobileColors.onSurfaceVariant,
                                 ),
                               ),
-                            ),
-                            _genreChips(songs, left: 16, right: 16, bottom: 8),
-                            // Action buttons:
-                            //   Left  — play (icon), shuffle (icon), Rate (text)
-                            //   Right — like (icon), 3-dot context menu
-                            Padding(
-                              // 16 lines Play up with the text; narrower phones
-                              // keep 4 so the row fits.
-                              padding: EdgeInsetsDirectional.fromSTEB(
-                                constraints.maxWidth >= 375 ? 16 : 4,
-                                0,
-                                4,
-                                8,
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: <Widget>[
-                                  EntityActionBar(
-                                    compact: true,
-                                    onPlay: filteredSongs.isEmpty
-                                        ? null
-                                        : () => _queueAlbum(
-                                            filteredSongs,
-                                            shuffle: false,
-                                          ),
-                                    onShuffle: filteredSongs.isEmpty
-                                        ? null
-                                        : () => _queueAlbum(
-                                            filteredSongs,
-                                            shuffle: true,
-                                          ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  _RatingButton(
-                                    rating: albumRating,
-                                    loading: _isUpdatingRating,
-                                    onChanged: (next) =>
-                                        unawaited(_updateAlbumRating(next)),
-                                  ),
-                                  const Spacer(),
-                                  IconButton(
-                                    tooltip: isStarred
-                                        ? l10n.actionLiked
-                                        : l10n.albumDetailStarAction,
-                                    icon: Icon(
-                                      isStarred
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
+                              albumInfoAsync.when(
+                                data: (info) {
+                                  if (info == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final about = _aboutChildren(
+                                    l10n,
+                                    info,
+                                    titleStyle: mobileTextTheme.titleSmall,
+                                    notesStyle: mobileTextTheme.bodyMedium,
+                                  );
+                                  if (about == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      0,
+                                      12,
+                                      12,
                                     ),
-                                    color: isStarred
-                                        ? mobileColors.primary
-                                        : null,
-                                    onPressed: _isStarring
-                                        ? null
-                                        : () =>
-                                              _toggleStar(isStarred: isStarred),
-                                  ),
-                                  _albumFilterButton(outlined: false),
-                                  IconButton(
-                                    tooltip: MaterialLocalizations.of(context)
-                                        .showMenuTooltip,
-                                    icon: const Icon(Icons.more_vert),
-                                    onPressed: () => unawaited(
-                                      _showMobileAlbumContextMenu(
-                                        details,
-                                        filteredSongs,
-                                        albumRating,
-                                        coverArtHeroTag,
+                                    child: Card(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: about,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  );
+                                },
+                                loading: () => const SizedBox.shrink(),
+                                error: (_, _) => const SizedBox.shrink(),
                               ),
-                            ),
-                            albumInfoAsync.when(
-                              data: (info) {
-                                if (info == null) {
-                                  return const SizedBox.shrink();
-                                }
-                                final about = _aboutChildren(
-                                  l10n,
-                                  info,
-                                  titleStyle: mobileTextTheme.titleSmall,
-                                  notesStyle: mobileTextTheme.bodyMedium,
-                                );
-                                if (about == null) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    0,
-                                    12,
-                                    12,
-                                  ),
-                                  child: Card(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: about,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                              loading: () => const SizedBox.shrink(),
-                              error: (_, _) => const SizedBox.shrink(),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      tracksSliver,
-                      const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                    ],
-                  );
-                },
-              );
-            },
-            // A remote album is fetched before it is stored, so its page says
-            // so from the start.
-            loading: () => _isRemote(null)
-                ? _buildPendingBody(context, null)
-                : const ShimmerListPage(
-                    count: 8,
-                    leadingSize: 56,
-                    songRows: true,
-                  ),
-            error: (error, _) =>
-                _buildPendingBody(context, null, libraryFailed: true),
-          ),
-          // Marks the page as showing the album, for diagnostics.
-          if (showsAlbum) const SizedBox.shrink(key: detailPageShownKey),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 160),
-              opacity: _isRefreshingAlbum ? 1 : 0,
-              child: const LinearProgressIndicator(minHeight: 2),
+                        tracksSliver,
+                        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                      ],
+                    );
+                  },
+                );
+              },
+              // A remote album is fetched before it is stored, so its page says
+              // so from the start.
+              loading: () => _isRemote(null)
+                  ? _buildPendingBody(context, null)
+                  : const ShimmerListPage(
+                      count: 8,
+                      leadingSize: 56,
+                      songRows: true,
+                    ),
+              error: (error, _) =>
+                  _buildPendingBody(context, null, libraryFailed: true),
             ),
-          ),
-        ],
+            // Marks the page as showing the album, for diagnostics.
+            if (showsAlbum) const SizedBox.shrink(key: detailPageShownKey),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 160),
+                opacity: _isRefreshingAlbum ? 1 : 0,
+                child: const LinearProgressIndicator(minHeight: 2),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2291,12 +2440,16 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   /// Pre-processes [songs] into a flat list of render items.
-  /// Inserts [_DiscHeader]s when there are multiple distinct disc numbers.
-  List<_AlbumRenderItem> _buildRenderItems(List<SongsTableData> songs) {
+  /// Inserts [_DiscHeader]s when the whole album ([allSongs], not just the
+  /// filtered [songs]) has multiple distinct disc numbers.
+  List<_AlbumRenderItem> _buildRenderItems(
+    List<SongsTableData> songs,
+    List<SongsTableData> allSongs,
+  ) {
     if (songs.isEmpty) return const <_AlbumRenderItem>[];
 
     final discNumbers = <int>{};
-    for (final song in songs) {
+    for (final song in allSongs) {
       discNumbers.add(song.discNumber ?? 1);
     }
     final isMultiDisc = discNumbers.length > 1;

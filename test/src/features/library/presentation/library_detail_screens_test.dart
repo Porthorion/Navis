@@ -1,4 +1,5 @@
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -2708,6 +2709,10 @@ void main() {
           );
 
           expect(find.text('Viewport Track 1'), findsOneWidget);
+          expect(
+            tester.getRect(find.text('Viewport Track 1')).bottom,
+            lessThanOrEqualTo(size.height),
+          );
           expect(tester.takeException(), isNull);
         }
 
@@ -2850,6 +2855,319 @@ void main() {
       // The star button should exist and show an unfilled heart.
       final favoriteBorderIcon = find.byIcon(Icons.favorite_border);
       expect(favoriteBorderIcon, findsOneWidget);
+      await _disposeApp(tester);
+    });
+  });
+
+  group('album page filter', () {
+    late NavisDatabase database;
+
+    setUp(() {
+      database = createTestDatabase();
+    });
+
+    tearDown(() async {
+      await database.close();
+    });
+
+    final songs = <SongsTableData>[
+      const SongsTableData(
+        isProvisional: false,
+        isExternal: false,
+        id: 's1',
+        title: 'Halo',
+        artistName: 'Beyoncé',
+        discNumber: 1,
+        track: 1,
+      ),
+      const SongsTableData(
+        isProvisional: false,
+        isExternal: false,
+        id: 's2',
+        title: 'Crazy in Love',
+        artistName: 'Beyoncé',
+        discNumber: 1,
+        track: 2,
+      ),
+      SongsTableData(
+        isProvisional: false,
+        isExternal: false,
+        id: 's3',
+        title: 'Lemonade Song',
+        artistName: 'Someone',
+        discNumber: 2,
+        track: 1,
+        starred: DateTime(2025),
+      ),
+      const SongsTableData(
+        isProvisional: false,
+        isExternal: false,
+        id: 's4',
+        title: 'Cafe Track',
+        artistName: 'Someone',
+        discNumber: 2,
+        track: 2,
+      ),
+    ];
+
+    Future<void> pumpAlbum(
+      WidgetTester tester, {
+      AdaptiveContext context = _mobileContext,
+      Size size = const Size(390, 1600),
+      List<dynamic> overrides = const <dynamic>[],
+      List<SongsTableData>? albumSongs,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: context,
+        album: _albumWithSongs(albumSongs ?? songs),
+        overrides: [
+          albumQueueEnabledProvider.overrideWithValue(true),
+          queueProvider.overrideWith(QueueReplaceSpy.new),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{'s1', 's3'}),
+          ),
+          ...overrides.cast(),
+        ],
+      );
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    final searchButton = find.byTooltip('Search');
+
+    Future<void> openSearch(WidgetTester tester) async {
+      await tester.tap(searchButton);
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    Future<void> filter(WidgetTester tester, String text) async {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+    }
+
+    QueueReplaceSpy queueOf(WidgetTester tester) => ProviderScope.containerOf(
+      tester.element(find.byType(AlbumDetailScreen)),
+    ).read(queueProvider.notifier) as QueueReplaceSpy;
+
+    testWidgets('phone field narrows, folds accents and clears', (
+      tester,
+    ) async {
+      await pumpAlbum(tester);
+      expect(find.byType(ListFilterField), findsNothing);
+      await openSearch(tester);
+      expect(find.byType(ListFilterField), findsOneWidget);
+      expect(
+        tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .widget
+            .focusNode
+            .hasFocus,
+        isTrue,
+      );
+      expect(find.text('Lemonade Song'), findsOneWidget);
+
+      await filter(tester, 'beyonce');
+      expect(find.text('Halo'), findsOneWidget);
+      expect(find.text('Crazy in Love'), findsOneWidget);
+      expect(find.text('Lemonade Song'), findsNothing);
+
+      await filter(tester, 'zzz');
+      expect(find.text('No results for "zzz"'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey<String>('filterClearAction')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Halo'), findsOneWidget);
+      expect(find.text('Lemonade Song'), findsOneWidget);
+      expect(find.text('Cafe Track'), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('search icon: phone and compact-wide, not desktop or empty', (
+      tester,
+    ) async {
+      await pumpAlbum(tester);
+      expect(searchButton, findsOneWidget);
+      await _disposeApp(tester);
+
+      await pumpAlbum(
+        tester,
+        context: _compactWideContext,
+        size: const Size(900, 420),
+      );
+      expect(searchButton, findsOneWidget);
+      await _disposeApp(tester);
+
+      await pumpAlbum(
+        tester,
+        context: _desktopContext,
+        size: const Size(1280, 900),
+      );
+      expect(searchButton, findsNothing);
+      await _disposeApp(tester);
+
+      await pumpAlbum(tester, albumSongs: const <SongsTableData>[]);
+      expect(searchButton, findsNothing);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('close clears the text and hides the field', (tester) async {
+      await pumpAlbum(tester);
+      await openSearch(tester);
+      await filter(tester, 'halo');
+      expect(find.text('Crazy in Love'), findsNothing);
+
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(ListFilterField), findsNothing);
+      expect(find.text('Crazy in Love'), findsOneWidget);
+      expect(searchButton, findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('compact-wide shows the field after the icon', (tester) async {
+      await pumpAlbum(
+        tester,
+        context: _compactWideContext,
+        size: const Size(900, 420),
+      );
+      expect(find.byType(ListFilterField), findsNothing);
+      await openSearch(tester);
+      expect(find.byType(ListFilterField), findsOneWidget);
+      await filter(tester, 'halo');
+      expect(find.text('Halo'), findsOneWidget);
+      expect(find.text('Crazy in Love'), findsNothing);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('desktop has no field; typing filters and Esc restores', (
+      tester,
+    ) async {
+      await pumpAlbum(
+        tester,
+        context: _desktopContext,
+        size: const Size(1280, 900),
+      );
+      expect(find.byType(ListFilterField), findsNothing);
+      for (final char in 'halo'.split('')) {
+        await tester.sendKeyEvent(
+          LogicalKeyboardKey.findKeyByKeyId(char.codeUnitAt(0))!,
+          character: char,
+        );
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Filtering: "halo"'), findsOneWidget);
+      expect(find.text('Halo'), findsOneWidget);
+      expect(find.text('Crazy in Love'), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Crazy in Love'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+      await _disposeApp(tester);
+    });
+
+    testWidgets('play, shuffle and row taps use only the matches', (
+      tester,
+    ) async {
+      await pumpAlbum(tester);
+      await openSearch(tester);
+      await filter(tester, 'beyonce');
+
+      await tester.tap(
+        find.widgetWithIcon(IconButton, Icons.play_arrow_rounded),
+      );
+      await tester.pump();
+      expect(queueOf(tester).lastReplaceIds, <String>['s1', 's2']);
+
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.shuffle_rounded));
+      await tester.pump();
+      expect(queueOf(tester).lastReplaceIds!.toSet(), <String>{'s1', 's2'});
+
+      await tester.tap(find.text('Crazy in Love'));
+      await tester.pump();
+      expect(queueOf(tester).lastReplaceIds, <String>['s1', 's2']);
+      expect(queueOf(tester).lastStartIndex, 1);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('combines with the Liked and Downloaded menu filters', (
+      tester,
+    ) async {
+      await pumpAlbum(tester);
+      Future<void> toggle(String key) async {
+        final item = find.byKey(ValueKey<String>(key));
+        if (item.evaluate().isEmpty) {
+          await tester.tap(
+            find.byKey(const ValueKey<String>('album-filter-button')),
+          );
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+        await tester.tap(item.first);
+        await tester.pump();
+        await tester.pump();
+      }
+
+      await toggle('album-filter-downloaded');
+      expect(find.text('Halo'), findsOneWidget);
+      expect(find.text('Crazy in Love'), findsNothing);
+
+      await openSearch(tester);
+      await filter(tester, 'someone');
+      expect(find.text('Lemonade Song'), findsOneWidget);
+      expect(find.text('Halo'), findsNothing);
+      expect(find.text('Cafe Track'), findsNothing);
+
+      await toggle('album-filter-liked');
+      await filter(tester, 'beyonce');
+      expect(find.text('No results for "beyonce"'), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('disc headers: matching discs stay, others hide', (
+      tester,
+    ) async {
+      await pumpAlbum(tester);
+      expect(find.text('Disc 1'), findsOneWidget);
+      expect(find.text('Disc 2'), findsOneWidget);
+
+      await openSearch(tester);
+      await filter(tester, 'lemonade');
+      expect(find.text('Lemonade Song'), findsOneWidget);
+      expect(find.text('Disc 2'), findsOneWidget);
+      expect(find.text('Disc 1'), findsNothing);
+
+      await filter(tester, 'o');
+      expect(find.text('Disc 1'), findsOneWidget);
+      expect(find.text('Disc 2'), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('album-level menu actions ignore the typed filter', (
+      tester,
+    ) async {
+      await pumpAlbum(
+        tester,
+        overrides: [
+          songDownloadStateProvider('s1').overrideWithValue(
+            const SongDownloadState(status: SongDownloadStatus.downloaded),
+          ),
+          for (final id in <String>['s2', 's3', 's4'])
+            songDownloadStateProvider(id)
+                .overrideWithValue(SongDownloadState.none),
+        ],
+      );
+      await openSearch(tester);
+      await filter(tester, 'halo');
+      expect(find.text('Crazy in Love'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.more_vert).first);
+      await tester.pump(const Duration(milliseconds: 500));
+      // Only the match is downloaded, but the album is not.
+      expect(find.text('Download Album'), findsOneWidget);
+      expect(find.text('Delete Download'), findsNothing);
       await _disposeApp(tester);
     });
   });
