@@ -96,6 +96,39 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
     clearTypeFilter();
   }
 
+  /// Phone and compact-wide: the field is hidden until the search icon opens
+  /// it, so it costs no height unless used.
+  bool _searching = false;
+
+  void _openSearch() {
+    setState(() => _searching = true);
+    // Phone: collapse the hero so the matches show under the field.
+    final collapsed = _heroExtent - kToolbarHeight;
+    if (_scrollController.hasClients && _scrollController.offset < collapsed) {
+      unawaited(
+        _scrollController.animateTo(
+          collapsed,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        ),
+      );
+    }
+  }
+
+  void _closeSearch() {
+    _clearFilter();
+    setState(() => _searching = false);
+  }
+
+  Widget _searchField(AppLocalizations l10n) => ListFilterField(
+    controller: search,
+    hint: l10n.albumDetailFilterHint,
+    onChanged: onSearchChanged,
+    onClear: _clearFilter,
+    dense: true,
+    autofocus: true,
+  );
+
   /// The like just tapped, shown until the album row reports it (or the write
   /// fails); afterwards the row alone decides, so a later unlike from sync
   /// clears the heart.
@@ -368,6 +401,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                     })
                     .toList(growable: false);
                 _currentFilteredSongs = filteredSongs;
+                // Same rule as the playlist page's field.
+                final showSearch =
+                    !desktopMode &&
+                    (songs.isNotEmpty || _filterQuery.isNotEmpty);
+                final searchTooltip = MaterialLocalizations.of(context)
+                    .searchFieldLabel;
                 final storedStarred = details.starred != null;
                 if (_pendingStarred == storedStarred) _pendingStarred = null;
                 final isStarred = _pendingStarred ?? storedStarred;
@@ -391,7 +430,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                         entityId: widget.albumId,
                       );
                 // ── Build render items with disc headers for multi-disc ──
-                final renderItems = _buildRenderItems(filteredSongs);
+                final renderItems = _buildRenderItems(filteredSongs, songs);
                 final tracksSliver = renderItems.isEmpty
                     ? SliverFillRemaining(
                         hasScrollBody: false,
@@ -907,7 +946,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                               onPressed: () => unawaited(
                                 _showMobileAlbumContextMenu(
                                   details,
-                                  filteredSongs,
+                                  songs,
                                   albumRating,
                                   coverArtHeroTag,
                                 ),
@@ -965,6 +1004,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                             icon: const Icon(Icons.arrow_back),
                                           ),
                                           const Spacer(),
+                                          if (showSearch && !_searching)
+                                            IconButton(
+                                              tooltip: searchTooltip,
+                                              onPressed: _openSearch,
+                                              icon: const Icon(Icons.search),
+                                            ),
                                           IconButton(
                                             tooltip: l10n.detailRefreshAction,
                                             onPressed: _isRefreshingAlbum
@@ -1099,21 +1144,40 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                               color: colors.outlineVariant,
                             ),
                             Expanded(
-                              child: CustomScrollView(
-                                slivers: <Widget>[
-                                  toolbarSliver,
-                                  SliverToBoxAdapter(
-                                    child: ListFilterField(
-                                      controller: search,
-                                      hint: l10n.albumDetailFilterHint,
-                                      onChanged: onSearchChanged,
-                                      onClear: _clearFilter,
+                              child: Column(
+                                children: <Widget>[
+                                  if (_searching)
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        4,
+                                        6,
+                                        12,
+                                        2,
+                                      ),
+                                      child: Row(
+                                        children: <Widget>[
+                                          IconButton(
+                                            tooltip: MaterialLocalizations.of(
+                                              context,
+                                            ).closeButtonTooltip,
+                                            onPressed: _closeSearch,
+                                            icon: const Icon(Icons.close),
+                                          ),
+                                          Expanded(child: _searchField(l10n)),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  tracksSliver,
-                                  albumInfoSliver,
-                                  const SliverToBoxAdapter(
-                                    child: SizedBox(height: 16),
+                                  Expanded(
+                                    child: CustomScrollView(
+                                      slivers: <Widget>[
+                                        toolbarSliver,
+                                        tracksSliver,
+                                        albumInfoSliver,
+                                        const SliverToBoxAdapter(
+                                          child: SizedBox(height: 16),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1161,39 +1225,57 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                           pinned: true,
                           toolbarHeight: kToolbarHeight,
                           expandedHeight: heroExtent,
-                          backgroundColor: Color.lerp(
-                            Colors.transparent,
-                            mobileColors.surfaceContainerHighest,
-                            _headerProgress,
-                          ),
+                          backgroundColor: _searching
+                              ? mobileColors.surfaceContainerHighest
+                              : Color.lerp(
+                                  Colors.transparent,
+                                  mobileColors.surfaceContainerHighest,
+                                  _headerProgress,
+                                ),
                           systemOverlayStyle: SystemUiOverlayStyle.light,
-                          leading: _buildAnimatedNavButton(
-                            icon: Icons.arrow_back,
-                            tooltip: MaterialLocalizations.of(context)
-                                .backButtonTooltip,
-                            onPressed: () => NavService.back(
-                              context,
-                              fallback: AppRoutes.library,
-                            ),
-                          ),
+                          leading: _searching
+                              ? _buildAnimatedNavButton(
+                                  icon: Icons.close,
+                                  tooltip: MaterialLocalizations.of(context)
+                                      .closeButtonTooltip,
+                                  onPressed: _closeSearch,
+                                )
+                              : _buildAnimatedNavButton(
+                                  icon: Icons.arrow_back,
+                                  tooltip: MaterialLocalizations.of(context)
+                                      .backButtonTooltip,
+                                  onPressed: () => NavService.back(
+                                    context,
+                                    fallback: AppRoutes.library,
+                                  ),
+                                ),
                           actions: <Widget>[
-                            _buildAnimatedNavButton(
-                              icon: Icons.refresh,
-                              tooltip: l10n.detailRefreshAction,
-                              isLoading: _isRefreshingAlbum,
-                              onPressed: _isRefreshingAlbum
-                                  ? null
-                                  : _refreshAlbum,
-                            ),
+                            if (showSearch && !_searching)
+                              _buildAnimatedNavButton(
+                                icon: Icons.search,
+                                tooltip: searchTooltip,
+                                onPressed: _openSearch,
+                              ),
+                            if (!_searching)
+                              _buildAnimatedNavButton(
+                                icon: Icons.refresh,
+                                tooltip: l10n.detailRefreshAction,
+                                isLoading: _isRefreshingAlbum,
+                                onPressed: _isRefreshingAlbum
+                                    ? null
+                                    : _refreshAlbum,
+                              ),
                           ],
-                          title: Opacity(
-                            opacity: toolbarTitleOpacity,
-                            child: Text(
-                              details.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                          title: _searching
+                              ? _searchField(l10n)
+                              : Opacity(
+                                  opacity: toolbarTitleOpacity,
+                                  child: Text(
+                                    details.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                           flexibleSpace: FlexibleSpaceBar(
                             collapseMode: CollapseMode.pin,
                             background: Stack(
@@ -1471,7 +1553,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                       onPressed: () => unawaited(
                                         _showMobileAlbumContextMenu(
                                           details,
-                                          filteredSongs,
+                                          songs,
                                           albumRating,
                                           coverArtHeroTag,
                                         ),
@@ -1515,12 +1597,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                 },
                                 loading: () => const SizedBox.shrink(),
                                 error: (_, _) => const SizedBox.shrink(),
-                              ),
-                              ListFilterField(
-                                controller: search,
-                                hint: l10n.albumDetailFilterHint,
-                                onChanged: onSearchChanged,
-                                onClear: _clearFilter,
                               ),
                             ],
                           ),
@@ -2364,12 +2440,16 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
   }
 
   /// Pre-processes [songs] into a flat list of render items.
-  /// Inserts [_DiscHeader]s when there are multiple distinct disc numbers.
-  List<_AlbumRenderItem> _buildRenderItems(List<SongsTableData> songs) {
+  /// Inserts [_DiscHeader]s when the whole album ([allSongs], not just the
+  /// filtered [songs]) has multiple distinct disc numbers.
+  List<_AlbumRenderItem> _buildRenderItems(
+    List<SongsTableData> songs,
+    List<SongsTableData> allSongs,
+  ) {
     if (songs.isEmpty) return const <_AlbumRenderItem>[];
 
     final discNumbers = <int>{};
-    for (final song in songs) {
+    for (final song in allSongs) {
       discNumbers.add(song.discNumber ?? 1);
     }
     final isMultiDisc = discNumbers.length > 1;

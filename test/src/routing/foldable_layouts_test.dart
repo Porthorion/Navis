@@ -2411,10 +2411,6 @@ void main() {
       ) async {
         await _pumpApp(tester, viewport);
         await _go(tester, AppRoutes.album('album-1'));
-        // The filter field sits above the songs; one short scroll brings the
-        // first row clear of the mini player.
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -100));
-        await tester.pump(const Duration(milliseconds: 500));
 
         // The mini player shows the same title, so look inside the page list.
         final row = find.descendant(
