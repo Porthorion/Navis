@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +27,7 @@ Future<int> _pump(
   UpdateInfo? info,
   AppNoticeController? notices,
   IntegrationPolicy? policy,
+  Duration delay = Duration.zero,
 }) async {
   var checks = 0;
   const button = Scaffold(body: Center(child: CheckForUpdatesButton()));
@@ -37,6 +40,7 @@ Future<int> _pump(
         ),
         updateProvider.overrideWith((ref) async {
           checks++;
+          if (delay > Duration.zero) await Future<void>.delayed(delay);
           return info;
         }),
       ],
@@ -103,6 +107,23 @@ void main() {
       await tester.pumpAndSettle();
       expect(notices.notice?.message, l10n.updateUpToDate);
       notices.dismiss();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('a second tap while a check is running opens one dialog', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await _pump(tester, info: _info, delay: const Duration(seconds: 1));
+      await tester.tap(find.text(l10n.updateCheckTitle));
+      await tester.pump();
+      await tester.tap(find.text(l10n.updateCheckTitle));
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }

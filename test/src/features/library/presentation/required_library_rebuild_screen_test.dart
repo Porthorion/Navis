@@ -17,6 +17,7 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -147,6 +148,31 @@ void main() {
         find.byKey(const ValueKey<String>('checkForUpdates')),
         findsOneWidget,
       );
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('Check for Updates shows the up-to-date notice', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await tester.pumpWidget(
+        _testApp(
+          setup: _StaticRequiredRebuildController(
+            const RequiredLibraryRebuildState(
+              status: RequiredLibraryRebuildStatus.syncing,
+            ),
+          ),
+          overrides: [updateProvider.overrideWith((ref) async => null)],
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey<String>('checkForUpdates')));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Navis is up to date.'), findsOneWidget);
+      expect(find.byType(AppNoticeHost), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
