@@ -2750,7 +2750,10 @@ well as the root) and the player overlay stack before moving.
   filtered playlist is a plain list (no reordering) and plays the matches.
   The Liked tab (touch field pinned above the list; its songs play the
   matches) and the Liked Albums / Liked Artists "all" pages (title and artist /
-  name) filter the same way.
+  name) filter the same way. The phone and compact-wide album page gets the
+  field above its song list and desktop types to filter: it matches song title
+  or artist, combines with the Liked / Downloaded menu, hides disc headers
+  without matches, and play, shuffle and row taps use only the matches.
   The Albums tab (grid and By Year) and the Artists tab get the same touch
   field above their chips and sort row (Albums by title or artist, Artists by
   name); each tab keeps its own text, desktop keeps the typed query, and the
