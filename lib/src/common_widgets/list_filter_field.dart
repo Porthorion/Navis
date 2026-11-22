@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Search field above a filterable list (Queue, Downloaded and Playlists).
@@ -78,6 +80,86 @@ class ListFilterField extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A Library tab's [ListFilterField]. On a short window
+/// ([AdaptiveContext.useShortHeightChrome], a landscape phone) it becomes the
+/// tab's one pinned control row instead: a dense field, then [shortControls]
+/// (the tab's chips and sort) in a strip that scrolls sideways, so the
+/// controls never stack and never cost a second row of height.
+class LibraryFilterField extends StatelessWidget {
+  const new({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+    required this.onClear,
+    this.alignWithContent = false,
+    this.shortControls = const <Widget>[],
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  final bool alignWithContent;
+
+  /// The tab's other controls; shown only in the short row.
+  final List<Widget> shortControls;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!resolveAdaptiveContextFor(context).useShortHeightChrome) {
+      return ListFilterField(
+        controller: controller,
+        hint: hint,
+        onChanged: onChanged,
+        onClear: onClear,
+        alignWithContent: alignWithContent,
+      );
+    }
+    final field = ListFilterField(
+      controller: controller,
+      hint: hint,
+      onChanged: onChanged,
+      onClear: onClear,
+      dense: true,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final inset = ContentLayout.padding(constraints.maxWidth);
+        final width = constraints.maxWidth - inset * 2;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(inset, 6, inset, 6),
+          // 40 dp, not the 48 dp a field or a chip takes by default: with the
+          // 6 dp above and below, the row is 52 dp.
+          child: SizedBox(
+            height: 40,
+            child: shortControls.isEmpty
+                ? field
+                : Row(
+                    children: <Widget>[
+                      SizedBox(
+                        width: math.min(
+                          width,
+                          (constraints.maxWidth * 0.4).clamp(200.0, 360.0),
+                        ),
+                        child: field,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(spacing: 8, children: shortControls),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 }

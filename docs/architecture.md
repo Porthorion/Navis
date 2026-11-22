@@ -2980,7 +2980,15 @@ there). The player sheet, the bottom bar and the compact-wide `Padding` path
 are outside it. The rail's own `SafeArea` takes no left or right inset. The
 rail-mode Now Playing overlay is clipped to the pane (`ClipRect`), because its
 collapsed slide is a paint transform. The Library tab bar fits or scrolls by
-the page's own width (the widest label times the tab count). Search Top Results
+the page's own width (the widest label times the tab count). On a short
+window (`AdaptiveContext.useShortHeightChrome`: height under 600 dp on a phone
+or tablet runtime, taken from the window so the mini player and keyboard do not
+flip it) the Library page drops its title (toolbar height 0, in the phone and
+tablet branches) and each tab pins one 52 dp control row,
+`LibraryFilterField`: a 40 dp search field, then that tab's chips and sort
+(`LibrarySortFilterRow.shortControls`, Artists' chips and view toggle) in a strip
+that scrolls sideways and never stacks. Liked, Playlists and Radio show the field
+alone. Outside short mode the layout is unchanged. Search Top Results
 use the three-across row only in a section at least 560 dp wide, and the album
 hero takes its width from the page, not the screen. `ExpandablePlayerSheet`
 sets an expanded start value before it listens, so mounting expanded reports
