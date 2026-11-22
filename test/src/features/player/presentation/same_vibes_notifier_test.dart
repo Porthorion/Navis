@@ -2120,119 +2120,114 @@ void main() {
     },
   );
 
-  test(
-    'batches mapped songs before fallback songs in one queue append',
-    () async {
-      final api = _MockSubsonicApiClient();
-      final lastFm = _MockLastFmApiClient();
-      when(
-        () => api.getSong(any(), cancelToken: any(named: 'cancelToken')),
-      ).thenAnswer(
-        (_) async =>
-            const Song(id: 'seed', title: 'Seed Song', artist: 'Seed Artist'),
-      );
+  test('queues mapped songs before fallback songs', () async {
+    final api = _MockSubsonicApiClient();
+    final lastFm = _MockLastFmApiClient();
+    when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+        .thenAnswer(
+          (_) async =>
+              const Song(id: 'seed', title: 'Seed Song', artist: 'Seed Artist'),
+        );
 
-      when(
-        () => lastFm.getSimilarTracksResult(
-          artist: any(named: 'artist'),
-          track: any(named: 'track'),
-          limit: any(named: 'limit'),
-        ),
-      ).thenAnswer(
-        (_) async => const LastFmTrackFetchResult(
-          outcome: LastFmFetchOutcome.success,
-          tracks: <LastFmTrackRecommendation>[
-            LastFmTrackRecommendation(
-              artist: 'Mapped Artist',
-              title: 'Mapped Song',
-              match: 1,
-            ),
-          ],
-        ),
-      );
-      when(
-        () => api.search3(
-          query: any(named: 'query'),
-          artistCount: any(named: 'artistCount'),
-          albumCount: any(named: 'albumCount'),
-          songCount: any(named: 'songCount'),
-          artistOffset: any(named: 'artistOffset'),
-          albumOffset: any(named: 'albumOffset'),
-          songOffset: any(named: 'songOffset'),
-        ),
-      ).thenAnswer(
-        (_) async => const SearchResult3(
-          songs: <Song>[
-            Song(id: 'mapped-1', title: 'Mapped Song', artist: 'Mapped Artist'),
-          ],
-        ),
-      );
-      when(
-        () => api.getSimilarSongs(
-          any(),
-          count: any(named: 'count'),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenAnswer(
-        (_) async => const <Song>[
+    when(
+      () => lastFm.getSimilarTracksResult(
+        artist: any(named: 'artist'),
+        track: any(named: 'track'),
+        limit: any(named: 'limit'),
+      ),
+    ).thenAnswer(
+      (_) async => const LastFmTrackFetchResult(
+        outcome: LastFmFetchOutcome.success,
+        tracks: <LastFmTrackRecommendation>[
+          LastFmTrackRecommendation(
+            artist: 'Mapped Artist',
+            title: 'Mapped Song',
+            match: 1,
+          ),
+        ],
+      ),
+    );
+    when(
+      () => api.search3(
+        query: any(named: 'query'),
+        artistCount: any(named: 'artistCount'),
+        albumCount: any(named: 'albumCount'),
+        songCount: any(named: 'songCount'),
+        artistOffset: any(named: 'artistOffset'),
+        albumOffset: any(named: 'albumOffset'),
+        songOffset: any(named: 'songOffset'),
+      ),
+    ).thenAnswer(
+      (_) async => const SearchResult3(
+        songs: <Song>[
           Song(id: 'mapped-1', title: 'Mapped Song', artist: 'Mapped Artist'),
-          Song(id: 'fallback-1', title: 'Fallback 1', artist: 'Artist 1'),
-          Song(id: 'fallback-2', title: 'Fallback 2', artist: 'Artist 2'),
         ],
-      );
+      ),
+    );
+    when(
+      () => api.getSimilarSongs(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer(
+      (_) async => const <Song>[
+        Song(id: 'mapped-1', title: 'Mapped Song', artist: 'Mapped Artist'),
+        Song(id: 'fallback-1', title: 'Fallback 1', artist: 'Artist 1'),
+        Song(id: 'fallback-2', title: 'Fallback 2', artist: 'Artist 2'),
+      ],
+    );
 
-      final container = createRecommendationContainer(
-        overrides: [
-          queueProvider.overrideWith(RecordingRecommendationQueue.new),
-          subsonicApiProvider.overrideWithValue(api),
-          lastFmApiClientProvider.overrideWithValue(lastFm),
-          integrationPolicyProvider.overrideWithValue(
-            const IntegrationPolicy(lastFmVerified: true),
-          ),
-          currentMediaItemProvider.overrideWith(
-            (ref) => Stream<MediaItem?>.value(
-              const MediaItem(
-                id: 'seed',
-                title: 'Seed Song',
-                artist: 'Seed Artist',
-              ),
+    final container = createRecommendationContainer(
+      overrides: [
+        queueProvider.overrideWith(RecordingRecommendationQueue.new),
+        subsonicApiProvider.overrideWithValue(api),
+        lastFmApiClientProvider.overrideWithValue(lastFm),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
+        currentMediaItemProvider.overrideWith(
+          (ref) => Stream<MediaItem?>.value(
+            const MediaItem(
+              id: 'seed',
+              title: 'Seed Song',
+              artist: 'Seed Artist',
             ),
           ),
-          downloadedSongIdsProvider.overrideWithValue(
-            const AsyncData(<String>{}),
-          ),
-          cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
-          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
-            (albumIds) async => const <String, int?>{},
-          ),
-          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
-            (songIds) async => const <String>{},
-          ),
-        ],
-      );
+        ),
+        downloadedSongIdsProvider.overrideWithValue(
+          const AsyncData(<String>{}),
+        ),
+        cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+        sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+          (albumIds) async => const <String, int?>{},
+        ),
+        sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+          (songIds) async => const <String>{},
+        ),
+      ],
+    );
 
-      container
-          .read(recommendationSnapshotProvider.notifier)
-          .emitSnapshot(
-            snapshot(
-              queueSongIds: const <String>['seed', 'a', 'b'],
-              currentSongId: 'seed',
-              currentIndex: 0,
-            ),
-          );
+    container
+        .read(recommendationSnapshotProvider.notifier)
+        .emitSnapshot(
+          snapshot(
+            queueSongIds: const <String>['seed', 'a', 'b'],
+            currentSongId: 'seed',
+            currentIndex: 0,
+          ),
+        );
 
-      await container.read(sameVibesProvider.notifier).activate('seed');
+    await container.read(sameVibesProvider.notifier).activate('seed');
 
-      final queued = container.read(
-        queueProvider.notifier,
-      ) as RecordingRecommendationQueue;
-      expect(queued.queuedSongs.map((song) => song.id), <String>[
-        'mapped-1',
-        'fallback-1',
-        'fallback-2',
-      ]);
-    },
-  );
+    final queued =
+        container.read(queueProvider.notifier) as RecordingRecommendationQueue;
+    expect(queued.queuedSongs.map((song) => song.id), <String>[
+      'mapped-1',
+      'fallback-1',
+      'fallback-2',
+    ]);
+  });
 
   group('language versions', () {
     Future<List<String>> mapRecommendation({
@@ -4763,8 +4758,27 @@ void main() {
         expect(rig.state.refilling, isFalse);
         expect(rig.state.active, isTrue);
         expect(rig.lastFmCalls, 1);
+        final record = rig.notifier.lastRefill!;
+        expect(record.chunks, 2);
+        expect(record.firstAppendMs, isNotNull);
       },
     );
+
+    test('a mapping failure after the first append ends the run as a '
+        'success', () async {
+      final rig = _LiveRig(gateFrom: 5);
+      final run = rig.start();
+      await rig.reachGate();
+      rig.gate.completeError(StateError('boom'));
+      await run;
+      expect(rig.queue.appendedSongBatches, hasLength(1));
+      expect(rig.queue.replaces, 0, reason: 'a live mix is never rolled back');
+      expect(rig.state.active, isTrue);
+      expect(rig.state.error, isNull);
+      expect(rig.state.refilling, isFalse);
+      expect(rig.state.pendingSnackbar, '5');
+      expect(rig.notifier.lastRefill!.chunks, 1);
+    });
 
     test('a mix switched off mid-run appends nothing more', () async {
       final rig = _LiveRig(gateFrom: 5);
