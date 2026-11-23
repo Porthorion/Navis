@@ -11,18 +11,18 @@ environment:
 dependencies:
   navis_android_storage:
     path: third_party/navis_android_storage
-  android_file_picker: ^2.2.0
+  android_file_picker: ^2.2.1
   audio_service: ^0.18.19
   audio_session: ^0.2.4
   cached_network_image: ^4.0.7
   cupertino_ui: ^1.1.7
   cupertino_icons: ^2.0.0
-  connectivity_plus: ^7.3.1
+  connectivity_plus: ^7.3.2
   convert: ^3.1.2
   crypto: ^3.0.8
   dio: ^5.11.1
   drift: ^2.35.4
-  file_picker: ^13.4.0
+  file_picker: ^13.4.1
   flutter:
     sdk: flutter
   flutter_cache_manager: ^3.5.0
@@ -53,11 +53,11 @@ dependencies:
   rxdart: ^0.28.0
   scrollable_positioned_list: ^0.3.8
   sqflite: ^2.4.6
-  sqlite3: ^3.9.1
+  sqlite3: ^3.9.2
   url_launcher: ^6.3.3
   uuid: ^4.6.0
   visibility_detector: ^0.4.0+2
-  dbus: ^0.7.15
+  dbus: ^0.8.1
   # Vendored: enables libmpv force-seekable for Subsonic progressive streams.
   just_audio_media_kit:
     path: third_party/just_audio_media_kit

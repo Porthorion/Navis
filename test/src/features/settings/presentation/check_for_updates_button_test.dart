@@ -14,6 +14,8 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/check_for_updates_button.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
+import '../../../../helpers/test_database.dart';
+
 const _info = UpdateInfo(
   sha256: null,
   size: null,
@@ -31,19 +33,25 @@ Future<int> _pump(
 }) async {
   var checks = 0;
   const button = Scaffold(body: Center(child: CheckForUpdatesButton()));
+  final database = createTestDatabase();
+  addTearDown(database.close);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        if (policy != null) integrationPolicyProvider.overrideWithValue(policy),
-        appSettingsProvider.overrideWith(
-          (ref) => Stream.value(const AppSettingsModel.defaults()),
-        ),
-        updateProvider.overrideWith((ref) async {
-          checks++;
-          if (delay > Duration.zero) await Future<void>.delayed(delay);
-          return info;
-        }),
-      ],
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          if (policy != null)
+            integrationPolicyProvider.overrideWithValue(policy),
+          appSettingsProvider.overrideWith(
+            (ref) => Stream.value(const AppSettingsModel.defaults()),
+          ),
+          updateProvider.overrideWith((ref) async {
+            checks++;
+            if (delay > Duration.zero) await Future<void>.delayed(delay);
+            return info;
+          }),
+        ],
+      ),
       child: MaterialApp(
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
