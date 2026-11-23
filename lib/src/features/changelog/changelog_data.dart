@@ -628,16 +628,15 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'The Albums and Artists tabs in Library and album pages can be '
-        'searched too: type in the field above the tab, or tap the search '
-        'icon on an album page',
+        'The Albums and Artists tabs in Library can be filtered too: use the '
+        'field on phones and tablets, or just start typing on desktop',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'On a landscape phone the mini player is the normal bar height, Now '
-        'Playing keeps its artwork backdrop behind the side rail, and the '
-        'navigation bar stays see-through under Now Playing, Library and '
-        'Settings',
+        'Playing keeps its artwork backdrop behind the side rail, and on '
+        'Android the navigation bar stays see-through under Now Playing, '
+        'Library and Settings',
         platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
       ),
@@ -654,8 +653,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Check for updates can now be reached from the sign-in and first-run '
-        'screens, so you can update Navis before signing in',
+        'Check for Updates is now on the sign-in and first-run screens, so you '
+        'can update Navis before signing in or while your library builds '
+        '(not on App Store and TestFlight builds, which do not check for '
+        'updates)',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
