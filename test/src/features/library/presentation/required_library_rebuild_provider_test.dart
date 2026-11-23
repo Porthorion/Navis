@@ -1372,7 +1372,7 @@ void main() {
       );
       firstVisit.close();
       await drainMicrotasks(turns: 8);
-      expect(container.exists(provider), isFalse);
+      expect(container.read(provider.exists), isFalse);
 
       _mount(container, reason);
       await drainMicrotasks(turns: 8);
@@ -1451,13 +1451,13 @@ void main() {
     // Signing out replaces the route while the sign-out is still running.
     visit.close();
     await drainMicrotasks(turns: 8);
-    expect(container.exists(provider), isTrue);
+    expect(container.read(provider.exists), isTrue);
     signOut.gate.complete();
     await cancelling;
     await drainMicrotasks(turns: 8);
     expect(signOut.calls, 1);
     expect(signOut.lastWipeLocalData, isFalse);
-    expect(container.exists(provider), isFalse);
+    expect(container.read(provider.exists), isFalse);
 
     _mount(container, reason);
     await drainMicrotasks(turns: 8);
@@ -1495,7 +1495,7 @@ void main() {
 
       visit.close();
       await drainMicrotasks(turns: 8);
-      expect(container.exists(provider), isTrue);
+      expect(container.read(provider.exists), isTrue);
       gate.complete();
       await drainMicrotasks(turns: 8);
 
@@ -1504,7 +1504,7 @@ void main() {
       );
       expect(persisted.initialCatalogUsableAt, isNotNull);
       await drainMicrotasks(turns: 8);
-      expect(container.exists(provider), isFalse);
+      expect(container.read(provider.exists), isFalse);
     },
     skip: !sqliteAvailable,
   );
