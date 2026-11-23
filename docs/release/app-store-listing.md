@@ -12,7 +12,7 @@ Character limits are Apple's, and every field below fits its limit.
 | Subtitle (30) | `Your music server, everywhere` |
 | Primary category | Music |
 | Secondary category | none |
-| Content rights | Does not contain, show or access third-party content it lacks rights to: it plays only the user's own server |
+| Content rights | Does not contain, show or access third-party content it lacks rights to: it plays the user's own library, plus metadata, artwork and lyrics from services the user leaves enabled |
 | Copyright | `2026 Porthorion` |
 | Price | Free, no in-app purchases |
 | Support URL | `https://github.com/Porthorion/Navis/issues` |
@@ -47,12 +47,12 @@ PLAYBACK DONE RIGHT
 • Lock Screen and Control Center controls
 
 OFFLINE FIRST
-• Download albums, playlists and artists to keep them on the device
+• Download albums and playlists to keep them on the device
 • A smart rolling cache keeps what you play ready for next time
 • With no connection, your library stays browsable and downloads keep playing
 
 DISCOVER MORE
-• Personal Radio and Instant Mix from any song, album or artist
+• Instant Mix from any song, and Personal Radio from Home
 • ListenBrainz Weekly Jams and Weekly Exploration
 • Deezer new releases and "This Is" playlists, matched to songs on your server
 • Internet radio stations from your server
@@ -134,8 +134,8 @@ match it.
 Navis is a client for self-hosted music servers that speak the Subsonic/OpenSubsonic API, such as Navidrome. It contains no music; it plays the library on the user's own server.
 
 To review:
-1. On the sign-in screen, enter the server address https://navis.porthorion.com/demo and the demo username and password above, then tap Sign in.
-2. Navis syncs the demo library, then offers optional setup screens (look, listening, online services). Tap Skip or keep the defaults.
+1. On the sign-in screen, enter the Server URL https://navis.porthorion.com/demo and the demo username and password above, then tap Connect.
+2. Navis syncs the demo library, then offers optional setup (Look, Listening, Queue and Downloads, Integrations). Tap Skip Setup to go straight to Integrations, which lists the optional online services; keep the defaults and continue.
 3. Browse Home or Library, open an album and tap a song. Playback continues in the background and from the Lock Screen and Control Center.
 4. Downloads: open an album and tap the download button. With Airplane Mode on, the library stays browsable and the downloaded album still plays.
 
