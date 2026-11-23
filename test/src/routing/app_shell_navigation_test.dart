@@ -670,12 +670,12 @@ void main() {
     );
     // The production provider starts recovery on creation, before any download
     // control is used. Keep this shell subscription even with an idle owner.
-    expect(container.exists(downloadServiceProvider), isFalse);
+    expect(container.read(downloadServiceProvider.exists), isFalse);
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
-    expect(container.exists(downloadServiceProvider), isTrue);
+    expect(container.read(downloadServiceProvider.exists), isTrue);
   });
 
   testWidgets('desktop player tooltip cycles keep semantics consistent', (
