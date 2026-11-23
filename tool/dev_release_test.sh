@@ -229,6 +229,18 @@ cmp "${tmp}/exported-sums" "${FAKE_STORE}/navis/releases/v1.5.0/SHA256SUMS" || f
 printf 'different envelope' > "${FAKE_STORE}/Porthorion/Navis/releases/download/v1.5.0/manifest.json"
 refused "${r2}" verify --channel=stable --github
 rg -q 'manifest bytes differ' "${tmp}/refused.log" || fail 'manifest mismatch was not detected'
+# The macOS DMG is uploaded and listed in SHA256SUMS, but never enters the signed manifest.
+seed
+printf 'zip bytes' > navis-v1.5.0-macos.zip
+printf 'dmg bytes' > navis-v1.5.0-macos.dmg
+"${r2}" publish --channel=stable --tag=v1.5.0 --checksums-out="${tmp}/dmg-sums" navis-v1.5.0-macos.zip navis-v1.5.0-macos.dmg > "${tmp}/dmg-publish"
+[[ -f "${FAKE_STORE}/navis/releases/v1.5.0/navis-v1.5.0-macos.dmg" ]] || fail 'macOS DMG was not uploaded'
+[[ -f "${FAKE_STORE}/navis/releases/v1.5.0/navis-v1.5.0-macos.zip" ]] || fail 'macOS zip was not uploaded'
+jq -r .payload "${FAKE_STORE}/navis/channels/stable/manifest.json" | base64 -d > "${tmp}/dmg-manifest"
+jq -e '.assets | keys == ["macosBundle"]' "${tmp}/dmg-manifest" >/dev/null || fail 'manifest must hold only the zip as macosBundle'
+rg -q 'dmg' "${tmp}/dmg-manifest" && fail 'DMG leaked into the signed manifest'
+rg -Fq "$(sha256sum navis-v1.5.0-macos.dmg | awk '{print $1}')  navis-v1.5.0-macos.dmg" "${FAKE_STORE}/navis/releases/v1.5.0/SHA256SUMS" || fail 'DMG missing from SHA256SUMS'
+rg -Fq "$(sha256sum navis-v1.5.0-macos.zip | awk '{print $1}')  navis-v1.5.0-macos.zip" "${FAKE_STORE}/navis/releases/v1.5.0/SHA256SUMS" || fail 'zip missing from SHA256SUMS'
 # An older manifest with no build retains the semver preflight behavior.
 seed
 jq 'del(.build)' "${tmp}/payload" > "${tmp}/legacy-payload"

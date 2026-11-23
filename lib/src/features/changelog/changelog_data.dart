@@ -418,6 +418,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'First installs now use a disk image: open it and drag Navis to '
+        'Applications',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Appearance settings are now two pages: Themes (Looks, colors, '
         'shapes) and Interface (Song Titles, Home sections, pages, '
         'navigation), with every option open instead of in dropdowns',
