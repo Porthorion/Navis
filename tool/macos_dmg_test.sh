@@ -2,11 +2,13 @@
 # Hermetic checks for the macOS DMG release wiring: the DMG is an accepted staged
 # asset but never gets a manifest key (helpers and allowlist only; no hdiutil, so
 # it runs on Linux CI). The upload, manifest and SHA256SUMS behavior is covered by
-# dev_release_test.sh. No build, signing or upload.
+# dev_release_test.sh. No build, signing or upload. The layout is written by a pinned
+# dmgbuild (no Finder scripting); the checks below read tool/macos_dmg.sh as text.
 # Optional env: R2_SCRIPT / DIST_LIB override the files under test.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fail() { echo "macos_dmg_test: $*" >&2; exit 1; }
+DMG_SCRIPT="${DMG_SCRIPT:-${SCRIPT_DIR}/macos_dmg.sh}"
 R2_SCRIPT="${R2_SCRIPT:-${SCRIPT_DIR}/r2_publish.sh}"
 DIST_LIB="${DIST_LIB:-${SCRIPT_DIR}/lib/release_dist.sh}"
 
@@ -36,3 +38,29 @@ ASSET_NAMES=() ASSET_FILES=()
 load_release_dist >/dev/null || fail "staged bundle with a macOS DMG was rejected"
 [[ "${ASSET_NAMES[*]}" == "navis-v1.5.2-macos.zip navis-v1.5.2-macos.dmg" ]] || fail "DMG missing from loaded assets"
 echo "macos dmg: allowlist accepts the DMG, manifest key stays zip-only OK"
+
+# The layout comes from dmgbuild (writes .DS_Store directly), never from Finder:
+# Finder scripting hangs without an Automation prompt on a background session.
+! grep -Eq 'osascript|tell application|hdiutil (attach|convert)' "${DMG_SCRIPT}" || fail "DMG script must not script Finder"
+grep -Eq 'uvx --from "dmgbuild==[0-9]+(\.[0-9]+)+"' "${DMG_SCRIPT}" || fail "DMG script must run a pinned dmgbuild via uvx"
+grep -q 'command -v uvx' "${DMG_SCRIPT}" || fail "DMG script must fail early when uvx is missing"
+# Render the generated settings file and check what dmgbuild will receive.
+command -v python3 >/dev/null || { echo "macos dmg: python3 missing, settings check skipped"; exit 0; }
+WIN_W=660 WIN_H=400 TITLEBAR=28 ICON_SIZE=128 APP_X=170 APP_Y=200 APPS_X=490 APPS_Y=200 APP_NAME=Navis.app
+eval "cat <<SETTINGS
+$(sed -n "/<<SETTINGS\$/,/^SETTINGS\$/{//!p;}" "${DMG_SCRIPT}")
+SETTINGS" > "${tmp}/settings.py"
+python3 - "${tmp}/settings.py" <<'PY' || fail "generated dmgbuild settings are wrong"
+import sys
+d = {"app": "/x/Navis.app", "icon": "/x/v.icns", "background": "/x/bg.png"}
+ns = {"defines": d}
+exec(open(sys.argv[1]).read(), ns)
+assert ns["format"] == "ULFO", ns["format"]
+assert ns["window_rect"] == ((200, 120), (660, 428)), ns["window_rect"]
+assert ns["icon_size"] == 128 and ns["text_size"] == 13
+assert ns["icon_locations"] == {"Navis.app": (170, 200), "Applications": (490, 200)}, ns["icon_locations"]
+assert ns["background"] == "/x/bg.png" and ns["icon"] == "/x/v.icns"
+assert ns["files"] == ["/x/Navis.app"] and ns["symlinks"] == {"Applications": "/Applications"}
+assert not ns["show_toolbar"] and not ns["show_status_bar"]
+PY
+echo "macos dmg: dmgbuild settings carry window, icon positions and background OK"

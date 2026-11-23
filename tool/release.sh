@@ -24,7 +24,7 @@
 #   --linux-remote-dir=<path>  Remote Linux work dir relative to remote HOME
 #   --windows-remote-dir=<path> Remote Windows work dir relative to remote HOME
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
-#   --no-macos-dmg             Skip the macOS DMG (it needs a logged-in desktop session for Finder)
+#   --no-macos-dmg             Skip the macOS DMG (it needs uv for dmgbuild)
 #   --ios-upload               Upload the built IPA to App Store Connect (TestFlight).
 #                              Needs ios in --targets, the stable channel, ASC_KEY_ID,
 #                              ASC_ISSUER_ID and the API key file; works with --build-only. See
