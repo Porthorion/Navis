@@ -802,7 +802,9 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
     echo "==> Notarizing macOS app..."
     "${SCRIPT_DIR}/macos_notarize.sh" \
       --app="${MACOS_APP_PATH}" \
-      --output="${MACOS_ASSET}"
+      --output="${MACOS_ASSET}" \
+      --identity="${MACOS_SIGN_IDENTITY:-}" \
+      --notary-profile="${MACOS_NOTARY_PROFILE:-}"
   else
     ditto -c -k --keepParent "${MACOS_APP_PATH}" "${MACOS_ASSET}"
   fi

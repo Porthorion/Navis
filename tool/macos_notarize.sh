@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./tool/macos_notarize.sh --app <path/to/App.app> --output <path/to/output.zip> [options]
+  ./tool/macos_notarize.sh --app=<path/to/App.app> --output=<path/to/output.zip> [options]
 
 Options:
   --identity=<name>         codesign identity (default: $MACOS_SIGN_IDENTITY)
