@@ -18,7 +18,7 @@ ART_DIR="${SCRIPT_DIR}/../assets/macos/dmg"
 ICONSET_SRC="${SCRIPT_DIR}/../macos/Runner/Assets.xcassets/AppIcon.appiconset"
 # Keep in sync with assets/macos/dmg/background.svg (points, 660x400 canvas).
 WIN_W=660 WIN_H=400 ICON_SIZE=128 APP_X=170 APP_Y=200 APPS_X=490 APPS_Y=200
-# Finder's window bounds include the title bar, the art is the content area.
+# The window bounds include the title bar, the art is the content area.
 TITLEBAR=28
 VOLNAME="Navis"
 
@@ -43,24 +43,9 @@ APP="$(cd "${APP}" && pwd)"
 OUT="$(cd "$(dirname "${OUT}")" && pwd)/$(basename "${OUT}")"
 APP_NAME="$(basename "${APP}")"
 
+command -v uvx >/dev/null || { echo "Error: uvx not found; install uv (https://docs.astral.sh/uv/ or: brew install uv)." >&2; exit 1; }
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/navis-dmg-XXXXXX")"
-MOUNT=""
-cleanup() {
-  if [[ -n "${MOUNT}" && -d "${MOUNT}" ]]; then hdiutil detach "${MOUNT}" -force >/dev/null 2>&1 || true; fi
-  rm -rf "${WORK}"
-}
-trap cleanup EXIT
-
-# Refuse a stale "Navis" volume: Finder scripting addresses the disk by name.
-[[ ! -e "/Volumes/${VOLNAME}" ]] || { echo "Error: /Volumes/${VOLNAME} is already mounted; eject it first." >&2; exit 1; }
-
-echo "==> Staging ${APP_NAME}"
-STAGE="${WORK}/stage"
-mkdir -p "${STAGE}/.background"
-ditto "${APP}" "${STAGE}/${APP_NAME}"
-ln -s /Applications "${STAGE}/Applications"
-tiffutil -cathidpicheck "${ART_DIR}/background.png" "${ART_DIR}/background@2x.png" \
-  -out "${STAGE}/.background/background.tiff"
+trap 'rm -rf "${WORK}"' EXIT
 
 echo "==> Building volume icon"
 ICONSET="${WORK}/vol.iconset"
@@ -73,65 +58,33 @@ cp "${ICONSET_SRC}/app_icon_64.png" "${ICONSET}/icon_32x32@2x.png"
 cp "${ICONSET_SRC}/app_icon_256.png" "${ICONSET}/icon_128x128@2x.png"
 cp "${ICONSET_SRC}/app_icon_512.png" "${ICONSET}/icon_256x256@2x.png"
 cp "${ICONSET_SRC}/app_icon_1024.png" "${ICONSET}/icon_512x512@2x.png"
-iconutil -c icns "${ICONSET}" -o "${STAGE}/.VolumeIcon.icns"
+iconutil -c icns "${ICONSET}" -o "${WORK}/vol.icns"
+
+# dmgbuild writes the window layout (.DS_Store) itself, so it needs no GUI session
+# and no Finder Automation permission. It builds the HiDPI background from
+# background.png + background@2x.png and copies the app with ditto.
+cat > "${WORK}/settings.py" <<SETTINGS
+files = [defines["app"]]
+symlinks = {"Applications": "/Applications"}
+icon = defines["icon"]
+background = defines["background"]
+format = "ULFO"
+show_toolbar = False
+show_status_bar = False
+window_rect = ((200, 120), (${WIN_W}, $((WIN_H + TITLEBAR))))
+icon_size = ${ICON_SIZE}
+text_size = 13
+icon_locations = {
+    "${APP_NAME}": (${APP_X}, ${APP_Y}),
+    "Applications": (${APPS_X}, ${APPS_Y}),
+}
+SETTINGS
 
 echo "==> Creating disk image"
-RW="${WORK}/rw.dmg"
-SIZE_MB=$(( $(du -sm "${STAGE}" | cut -f1) + 40 ))
-hdiutil create -srcfolder "${STAGE}" -volname "${VOLNAME}" -fs HFS+ -format UDRW -size "${SIZE_MB}m" "${RW}" >/dev/null
-ATTACH="$(hdiutil attach "${RW}" -readwrite -noverify -noautoopen)"
-MOUNT="$(printf '%s\n' "${ATTACH}" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)"
-if [[ -z "${MOUNT}" ]]; then
-  DEV="$(printf '%s\n' "${ATTACH}" | awk '/^\/dev\//{print $1; exit}')"
-  [[ -z "${DEV}" ]] || hdiutil detach "${DEV}" -force >/dev/null 2>&1 || true
-  echo "Error: could not parse the mount point from hdiutil attach." >&2; exit 1
-fi
-[[ "${MOUNT}" == "/Volumes/${VOLNAME}" ]] || { echo "Error: unexpected mount point '${MOUNT}'." >&2; exit 1; }
-SetFile -a C "${MOUNT}"
-
-echo "==> Laying out the Finder window"
-cat > "${WORK}/layout.applescript" <<OSA
-tell application "Finder"
-  tell disk "${VOLNAME}"
-    open
-    set current view of container window to icon view
-    set toolbar visible of container window to false
-    set statusbar visible of container window to false
-    set the bounds of container window to {200, 120, $((200 + WIN_W)), $((120 + WIN_H + TITLEBAR))}
-    set opts to the icon view options of container window
-    set arrangement of opts to not arranged
-    set icon size of opts to ${ICON_SIZE}
-    set text size of opts to 13
-    set background picture of opts to file ".background:background.tiff"
-    set position of item "${APP_NAME}" of container window to {${APP_X}, ${APP_Y}}
-    set position of item "Applications" of container window to {${APPS_X}, ${APPS_Y}}
-    close
-    open
-    update without registering applications
-    delay 2
-    close
-  end tell
-end tell
-OSA
-# Finder scripting hangs when no GUI session is available (SSH, locked screen),
-# so bound it instead of stalling the release.
-perl -e 'alarm shift; exec @ARGV' 180 osascript "${WORK}/layout.applescript" \
-  || { echo "Error: Finder layout failed or timed out (needs a logged-in GUI session)." >&2; exit 1; }
-[[ -f "${MOUNT}/.DS_Store" ]] || { echo "Error: Finder did not write .DS_Store." >&2; exit 1; }
-chmod -Rf go-w "${MOUNT}" || true
-sync
-
-detached=false
-for _ in 1 2 3 4 5; do
-  if hdiutil detach "${MOUNT}" >/dev/null 2>&1; then detached=true; break; fi
-  sleep 2
-done
-[[ "${detached}" == true ]] || { echo "Error: could not detach ${MOUNT}." >&2; exit 1; }
-MOUNT=""
-
-echo "==> Compressing"
 rm -f "${OUT}"
-hdiutil convert "${RW}" -format ULFO -o "${OUT}" >/dev/null
+uvx --from "dmgbuild==2.0.0" dmgbuild -s "${WORK}/settings.py" \
+  -D "app=${APP}" -D "icon=${WORK}/vol.icns" -D "background=${ART_DIR}/background.png" \
+  "${VOLNAME}" "${OUT}"
 
 if [[ -n "${IDENTITY}" ]]; then
   echo "==> Signing DMG"
