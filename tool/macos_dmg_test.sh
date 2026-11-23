@@ -47,9 +47,9 @@ grep -q 'command -v uvx' "${DMG_SCRIPT}" || fail "DMG script must fail early whe
 # Render the generated settings file and check what dmgbuild will receive.
 command -v python3 >/dev/null || fail "python3 is required for the settings check"
 # Take the layout constants from the script itself, so changing them there fails here.
-eval "$(grep -E '^(WIN_W|TITLEBAR|VOLNAME)=' "${DMG_SCRIPT}")"
+eval "$(grep -E '^(WIN_W|WIN_H|ICON_SIZE|APP_X|APP_Y|APPS_X|APPS_Y|TITLEBAR|VOLNAME)=' "${DMG_SCRIPT}")"
 [[ "${VOLNAME:-}" == Navis ]] || fail "volume name must stay Navis"
-grep -q -- '-D "background=${ART_DIR}/background.png"' "${DMG_SCRIPT}" || fail "background must be background.png (dmgbuild adds @2x)"
+grep -Fq -- '-D "background=${ART_DIR}/background.png"' "${DMG_SCRIPT}" || fail "background must be background.png (dmgbuild adds @2x)"
 [[ -f "${SCRIPT_DIR}/../assets/macos/dmg/background@2x.png" ]] || fail "background@2x.png missing"
 APP_NAME=Navis.app
 eval "cat <<SETTINGS
