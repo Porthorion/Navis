@@ -236,9 +236,47 @@ Asset naming: `navis-dev-v0.x.y-macos.zip`
 3. **With `--macos-notarize`:** calls `tool/macos_notarize.sh` which signs → notarizes →
    staples → packages with `ditto`.
 4. **Without `--macos-notarize`:** packages with `ditto -c -k --keepParent`.
-5. Bumps `pubspec.yaml`, commits, tags, pushes.
-6. Uploads `navis-v0.x.y-macos.zip` to R2 and publishes the signed channel manifest
-   (manifest key `macosBundle`). A Forgejo release is created only with `--forgejo`.
+5. Builds `navis-v0.x.y-macos.dmg` from the same app with `tool/macos_dmg.sh` (see
+   [DMG for first installs](#dmg-for-first-installs)).
+6. Bumps `pubspec.yaml`, commits, tags, pushes.
+7. Uploads `navis-v0.x.y-macos.zip` to R2 and publishes the signed channel manifest
+   (manifest key `macosBundle`). The DMG is uploaded next to it and listed in
+   `SHA256SUMS`, but is not in the manifest. A Forgejo release is created only with
+   `--forgejo`.
+
+---
+
+## DMG for first installs
+
+`navis-<tag>-macos.dmg` is the notarized download for a first install: a dark Navis-styled
+window with the app and an `Applications` shortcut. It is **not** an updater asset. The
+self-updater still installs `navis-<tag>-macos.zip` (manifest key `macosBundle`, see
+`lib/src/features/settings/data/update_install_mode.dart`); `tool/r2_publish.sh` uploads the
+DMG and adds it to `SHA256SUMS` but keeps it out of the signed manifest, so older apps are
+unaffected.
+
+- **Build:** `tool/macos_dmg.sh --app <Navis.app> --output <file.dmg>
+  [--sign-identity <id>] [--notary-profile <profile>]`. `release.sh` runs it after the zip,
+  from the same app (already stapled with `--macos-notarize`), and passes
+  `MACOS_SIGN_IDENTITY` / `MACOS_NOTARY_PROFILE` only with `--macos-notarize`. It stages the
+  app, an `Applications` symlink, `.background/background.tiff` and the volume icon, lays out
+  the Finder window with `osascript` (needs a logged-in GUI session; it times out after 3
+  minutes rather than hang), compresses to ULFO, then signs, notarizes and staples the DMG.
+  Without the two options the DMG is unsigned (internal builds).
+- **Art:** `assets/macos/dmg/background.svg` (660x400 pt: `#141313` base, soft glow in the
+  default white accent, the Navis mark, Inter text). The committed PNGs are rendered with
+  `FONTCONFIG_FILE=$PWD/assets/macos/dmg/fonts.conf` so Inter loads from `assets/fonts`; from
+  the repo root:
+  ```bash
+  cd assets/macos/dmg && export FONTCONFIG_FILE=$PWD/fonts.conf && \
+    rsvg-convert -w 660 -h 400 background.svg -o background.png && \
+    rsvg-convert -w 1320 -h 800 background.svg -o background@2x.png
+  ```
+  Icon slots (app x=170, Applications x=490, y=200) live in both the SVG and
+  `tool/macos_dmg.sh`; change them together.
+- **Install (users):** open the DMG, drag Navis onto Applications, eject the disk image, then
+  open Navis from Applications.
+- **Test:** `bash tool/macos_dmg_test.sh` (allowlist and manifest-key wiring).
 
 ---
 

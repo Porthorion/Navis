@@ -806,6 +806,21 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
   ASSET_FILES+=("${MACOS_ASSET}")
   ASSET_NAMES+=("${MACOS_ASSET_NAME}")
   echo "    macOS -> ${MACOS_ASSET_NAME}"
+
+  # First-install DMG from the same (stapled, when notarizing) app. The zip
+  # stays the updater asset; the DMG is download-only (see r2_publish.sh).
+  MACOS_DMG_NAME="${ASSET_PREFIX}-${VERSION}-macos.dmg"
+  MACOS_DMG="${SCRIPT_DIR}/../${MACOS_DMG_NAME}"
+  remove_release_asset "${MACOS_DMG}"
+  dmg_args=(--app "${MACOS_APP_PATH}" --output "${MACOS_DMG}")
+  if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
+    dmg_args+=(--sign-identity "${MACOS_SIGN_IDENTITY}" --notary-profile "${MACOS_NOTARY_PROFILE}")
+  fi
+  echo "==> Building macOS DMG..."
+  "${SCRIPT_DIR}/macos_dmg.sh" "${dmg_args[@]}"
+  ASSET_FILES+=("${MACOS_DMG}")
+  ASSET_NAMES+=("${MACOS_DMG_NAME}")
+  echo "    macOS DMG -> ${MACOS_DMG_NAME}"
 fi
 
 if [[ "${BUILD_LINUX}" == "true" ]]; then

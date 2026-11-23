@@ -89,17 +89,18 @@ Every online service has its own switch. Turn off *Online services* and Navis on
 | **Android** | [Website](https://navis.porthorion.com) · [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest) | Android 7.0+. One universal APK, or per-architecture APKs |
 | **Windows** | Installer from the [website](https://navis.porthorion.com) or [Releases](https://github.com/Porthorion/Navis/releases/latest) | Windows 10 / 11, x64 |
 | **Linux** | `.deb`, `.rpm`, portable `.tar.gz` or the [per-user install script](#linux-install-script) | x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora). AUR coming soon |
-| **macOS** | Not released yet; [build from source](#build-from-source) | macOS 12+, universal (Apple silicon and Intel). [Status](#macos-status) |
+| **macOS** | Notarized DMG (1.5.2) on [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest): open it and drag Navis to Applications; or [build from source](#build-from-source) | macOS 12+, universal (Apple silicon and Intel). [Status](#macos-status) |
 | **iOS** | Unsigned sideload IPA on [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest); TestFlight and the App Store are planned for 1.5.2 | iOS 16+, iPhone and iPad. [Status](#ios-status) |
 
 Official downloads are served from Porthorion's Cloudflare R2 storage (`downloads.porthorion.com`). Each GitHub release carries identical copies plus a `SHA256SUMS` file, so you can check any download with `sha256sum -c SHA256SUMS`. Navis updates itself from a signed release manifest.
 
 ### macOS status
 
-The macOS build is not released yet. It plays and caches like the other desktop builds, with Now Playing and media keys, a Dock menu and a Controls menu, a sign-in saved in the login keychain, and self-update that restores the previous app if the new one does not start. Release builds also have the equalizer and Fast Seeking. Known limits:
+The macOS build ships as a notarized DMG from 1.5.2 (the Mac App Store is planned for 1.6). It plays and caches like the other desktop builds, with Now Playing and media keys, a Dock menu and a Controls menu, a sign-in saved in the login keychain, and self-update that restores the previous app if the new one does not start. Release builds also have the equalizer and Fast Seeking. Known limits:
 
 - Streaming needs a server that allows TLS 1.2 or lower: the macOS player backend cannot connect to a TLS 1.3-only server (sign-in still works).
 - Now Playing and the media keys only include Navis after it has played audio once in a launch (a macOS rule).
+- It is a universal build, but Intel Macs are untested: no Intel hardware was available. Feedback is welcome through [GitHub issues](https://github.com/Porthorion/Navis/issues).
 - Debug builds use AVFoundation instead of libmpv (unless `NAVIS_ENABLE_MEDIA_KIT_DEBUG=true`), so they have no equalizer or Fast Seeking.
 
 Open work is tracked in the [macOS parity plan](docs/plans/macOS_Parity_Plan.md).
