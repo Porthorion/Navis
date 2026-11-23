@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Hermetic checks for the macOS DMG release wiring: the DMG is an accepted staged
-# asset but never an updater (manifest) asset. No build, signing or upload.
+# asset but never gets a manifest key (helpers and allowlist only; no hdiutil, so
+# it runs on Linux CI). The upload, manifest and SHA256SUMS behavior is covered by
+# dev_release_test.sh. No build, signing or upload.
 # Optional env: R2_SCRIPT / DIST_LIB override the files under test.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

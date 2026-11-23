@@ -237,7 +237,9 @@ Asset naming: `navis-dev-v0.x.y-macos.zip`
    staples → packages with `ditto`.
 4. **Without `--macos-notarize`:** packages with `ditto -c -k --keepParent`.
 5. Builds `navis-v0.x.y-macos.dmg` from the same app with `tool/macos_dmg.sh` (see
-   [DMG for first installs](#dmg-for-first-installs)).
+   [DMG for first installs](#dmg-for-first-installs)). This step scripts Finder, so it needs
+   a logged-in desktop session (and Automation permission for Finder); an SSH or
+   locked-screen release must pass `--no-macos-dmg`, which skips it with a notice.
 6. Bumps `pubspec.yaml`, commits, tags, pushes.
 7. Uploads `navis-v0.x.y-macos.zip` to R2 and publishes the signed channel manifest
    (manifest key `macosBundle`). The DMG is uploaded next to it and listed in
@@ -265,10 +267,12 @@ unaffected.
   Without the two options the DMG is unsigned (internal builds).
 - **Art:** `assets/macos/dmg/background.svg` (660x400 pt: `#141313` base, soft glow in the
   default white accent, the Navis mark, Inter text). The committed PNGs are rendered with
-  `FONTCONFIG_FILE=$PWD/assets/macos/dmg/fonts.conf` so Inter loads from `assets/fonts`; from
+  `FONTCONFIG_FILE=$PWD/assets/macos/dmg/fonts.conf` and `PANGOCAIRO_BACKEND=fc` so Inter loads
+  from `assets/fonts` (the default CoreText backend on macOS ignores fontconfig and silently
+  falls back to Helvetica); from
   the repo root:
   ```bash
-  cd assets/macos/dmg && export FONTCONFIG_FILE=$PWD/fonts.conf && \
+  cd assets/macos/dmg && export FONTCONFIG_FILE=$PWD/fonts.conf PANGOCAIRO_BACKEND=fc && \
     rsvg-convert -w 660 -h 400 background.svg -o background.png && \
     rsvg-convert -w 1320 -h 800 background.svg -o background@2x.png
   ```
@@ -276,7 +280,7 @@ unaffected.
   `tool/macos_dmg.sh`; change them together.
 - **Install (users):** open the DMG, drag Navis onto Applications, eject the disk image, then
   open Navis from Applications.
-- **Test:** `bash tool/macos_dmg_test.sh` (allowlist and manifest-key wiring).
+- **Test:** `bash tool/macos_dmg_test.sh` (staged-bundle allowlist and manifest-key helpers; no hdiutil needed). `bash tool/dev_release_test.sh` covers the DMG upload, its absence from the signed manifest and its `SHA256SUMS` line against a fake R2.
 
 ---
 

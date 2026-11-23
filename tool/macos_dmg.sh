@@ -81,6 +81,11 @@ SIZE_MB=$(( $(du -sm "${STAGE}" | cut -f1) + 40 ))
 hdiutil create -srcfolder "${STAGE}" -volname "${VOLNAME}" -fs HFS+ -format UDRW -size "${SIZE_MB}m" "${RW}" >/dev/null
 ATTACH="$(hdiutil attach "${RW}" -readwrite -noverify -noautoopen)"
 MOUNT="$(printf '%s\n' "${ATTACH}" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)"
+if [[ -z "${MOUNT}" ]]; then
+  DEV="$(printf '%s\n' "${ATTACH}" | awk '/^\/dev\//{print $1; exit}')"
+  [[ -z "${DEV}" ]] || hdiutil detach "${DEV}" -force >/dev/null 2>&1 || true
+  echo "Error: could not parse the mount point from hdiutil attach." >&2; exit 1
+fi
 [[ "${MOUNT}" == "/Volumes/${VOLNAME}" ]] || { echo "Error: unexpected mount point '${MOUNT}'." >&2; exit 1; }
 SetFile -a C "${MOUNT}"
 

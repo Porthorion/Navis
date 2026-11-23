@@ -204,7 +204,11 @@ dmg_sum_line() {
   [[ -n "${url}" ]] || return 0
   name="$(basename "${url%.zip}.dmg")"
   sha="$(remote_sha256 "releases/$(jq -r '.tag // empty' "$1")/${name}")" || return 1
-  [[ "${sha}" == none || "${sha}" == unknown ]] || printf '%s  %s\n' "${sha}" "${name}"
+  if [[ "${sha}" == none || "${sha}" == unknown ]]; then
+    echo "Warning: ${name} has no sha256 on R2; it is not listed in SHA256SUMS." >&2
+  else
+    printf '%s  %s\n' "${sha}" "${name}"
+  fi
 }
 
 semver_core() { local v="${1#v}"; v="${v%%[-+]*}"; echo "${v}"; }

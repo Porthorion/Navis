@@ -24,6 +24,7 @@
 #   --linux-remote-dir=<path>  Remote Linux work dir relative to remote HOME
 #   --windows-remote-dir=<path> Remote Windows work dir relative to remote HOME
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
+#   --no-macos-dmg             Skip the macOS DMG (it needs a logged-in desktop session for Finder)
 #   --ios-upload               Upload the built IPA to App Store Connect (TestFlight).
 #                              Needs ios in --targets, the stable channel, ASC_KEY_ID,
 #                              ASC_ISSUER_ID and the API key file; works with --build-only. See
@@ -85,6 +86,7 @@ LINUX_REMOTE_DIR=""
 WINDOWS_REMOTE_DIR=""
 WINDOWS_FLUTTER_DIR=""
 MACOS_NOTARIZE=false
+BUILD_MACOS_DMG=true
 IOS_UPLOAD=false
 UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
@@ -100,7 +102,7 @@ BUILD_OPTIONS_SET=false
 
 for arg in "$@"; do
   case "${arg}" in
-    --ipa|--targets=*|--all-platforms|--linux-*|--windows-*|--macos-notarize|--ios-upload) BUILD_OPTIONS_SET=true ;;
+    --ipa|--targets=*|--all-platforms|--linux-*|--windows-*|--macos-notarize|--no-macos-dmg|--ios-upload) BUILD_OPTIONS_SET=true ;;
   esac
   case "${arg}" in
     --build-only) BUILD_ONLY=true ;;
@@ -116,6 +118,7 @@ for arg in "$@"; do
     --linux-remote-dir=*) LINUX_REMOTE_DIR="${arg#--linux-remote-dir=}" ;;
     --windows-remote-dir=*) WINDOWS_REMOTE_DIR="${arg#--windows-remote-dir=}" ;;
     --macos-notarize) MACOS_NOTARIZE=true ;;
+    --no-macos-dmg) BUILD_MACOS_DMG=false ;;
     --ios-upload) IOS_UPLOAD=true ;;
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}"; CHANNEL_EXPLICIT=true ;;
     --prerelease) FORCE_PRERELEASE=true ;;
@@ -126,14 +129,14 @@ for arg in "$@"; do
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--ios-upload] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
+      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--no-macos-dmg] [--ios-upload] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
       exit 1
       ;;
   esac
 done
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--ios-upload] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
+  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--no-macos-dmg] [--ios-upload] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
@@ -809,18 +812,22 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
 
   # First-install DMG from the same (stapled, when notarizing) app. The zip
   # stays the updater asset; the DMG is download-only (see r2_publish.sh).
-  MACOS_DMG_NAME="${ASSET_PREFIX}-${VERSION}-macos.dmg"
-  MACOS_DMG="${SCRIPT_DIR}/../${MACOS_DMG_NAME}"
-  remove_release_asset "${MACOS_DMG}"
-  dmg_args=(--app "${MACOS_APP_PATH}" --output "${MACOS_DMG}")
-  if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
-    dmg_args+=(--sign-identity "${MACOS_SIGN_IDENTITY}" --notary-profile "${MACOS_NOTARY_PROFILE}")
+  if [[ "${BUILD_MACOS_DMG}" != "true" ]]; then
+    echo "==> Skipping the macOS DMG (--no-macos-dmg)."
+  else
+    MACOS_DMG_NAME="${ASSET_PREFIX}-${VERSION}-macos.dmg"
+    MACOS_DMG="${SCRIPT_DIR}/../${MACOS_DMG_NAME}"
+    remove_release_asset "${MACOS_DMG}"
+    dmg_args=(--app "${MACOS_APP_PATH}" --output "${MACOS_DMG}")
+    if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
+      dmg_args+=(--sign-identity "${MACOS_SIGN_IDENTITY}" --notary-profile "${MACOS_NOTARY_PROFILE}")
+    fi
+    echo "==> Building macOS DMG..."
+    "${SCRIPT_DIR}/macos_dmg.sh" "${dmg_args[@]}"
+    ASSET_FILES+=("${MACOS_DMG}")
+    ASSET_NAMES+=("${MACOS_DMG_NAME}")
+    echo "    macOS DMG -> ${MACOS_DMG_NAME}"
   fi
-  echo "==> Building macOS DMG..."
-  "${SCRIPT_DIR}/macos_dmg.sh" "${dmg_args[@]}"
-  ASSET_FILES+=("${MACOS_DMG}")
-  ASSET_NAMES+=("${MACOS_DMG_NAME}")
-  echo "    macOS DMG -> ${MACOS_DMG_NAME}"
 fi
 
 if [[ "${BUILD_LINUX}" == "true" ]]; then
