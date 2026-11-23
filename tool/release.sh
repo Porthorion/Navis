@@ -822,7 +822,7 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
     remove_release_asset "${MACOS_DMG}"
     dmg_args=(--app "${MACOS_APP_PATH}" --output "${MACOS_DMG}")
     if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
-      dmg_args+=(--sign-identity "${MACOS_SIGN_IDENTITY}" --notary-profile "${MACOS_NOTARY_PROFILE}")
+      dmg_args+=(--sign-identity "${MACOS_SIGN_IDENTITY:-}" --notary-profile "${MACOS_NOTARY_PROFILE:-}")
     fi
     echo "==> Building macOS DMG..."
     "${SCRIPT_DIR}/macos_dmg.sh" "${dmg_args[@]}"

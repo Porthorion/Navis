@@ -45,8 +45,13 @@ echo "macos dmg: allowlist accepts the DMG, manifest key stays zip-only OK"
 grep -Eq 'uvx --from "dmgbuild==[0-9]+(\.[0-9]+)+"' "${DMG_SCRIPT}" || fail "DMG script must run a pinned dmgbuild via uvx"
 grep -q 'command -v uvx' "${DMG_SCRIPT}" || fail "DMG script must fail early when uvx is missing"
 # Render the generated settings file and check what dmgbuild will receive.
-command -v python3 >/dev/null || { echo "macos dmg: python3 missing, settings check skipped"; exit 0; }
-WIN_W=660 WIN_H=400 TITLEBAR=28 ICON_SIZE=128 APP_X=170 APP_Y=200 APPS_X=490 APPS_Y=200 APP_NAME=Navis.app
+command -v python3 >/dev/null || fail "python3 is required for the settings check"
+# Take the layout constants from the script itself, so changing them there fails here.
+eval "$(grep -E '^(WIN_W|TITLEBAR|VOLNAME)=' "${DMG_SCRIPT}")"
+[[ "${VOLNAME:-}" == Navis ]] || fail "volume name must stay Navis"
+grep -q -- '-D "background=${ART_DIR}/background.png"' "${DMG_SCRIPT}" || fail "background must be background.png (dmgbuild adds @2x)"
+[[ -f "${SCRIPT_DIR}/../assets/macos/dmg/background@2x.png" ]] || fail "background@2x.png missing"
+APP_NAME=Navis.app
 eval "cat <<SETTINGS
 $(sed -n "/<<SETTINGS\$/,/^SETTINGS\$/{//!p;}" "${DMG_SCRIPT}")
 SETTINGS" > "${tmp}/settings.py"
