@@ -627,6 +627,43 @@ const List<ChangelogVersion> changelogs = [
         'the app now ignore accents, so "beyonce" finds "Beyoncé"',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'The Albums and Artists tabs in Library can be filtered too: use the '
+        'field on phones and tablets, or just start typing on desktop',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'On a landscape phone the mini player is the normal bar height, Now '
+        'Playing keeps its artwork backdrop behind the side rail, and on '
+        'Android the navigation bar stays see-through under Now Playing, '
+        'Library and Settings',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'You Might Like keeps moving on its own when system animations are '
+        'off, and scrolling Home no longer pauses it',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playing an album, playlist or song from Android Auto now ends a '
+        'running Same Vibes mix instead of adding more mix songs after it',
+        platforms: {ChangelogPlatform.android},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Check for Updates is now on the sign-in and first-run screens, so you '
+        'can update Navis before signing in or while your library builds '
+        '(not on App Store and TestFlight builds, which do not check for '
+        'updates)',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Settings > About shows the full build number on dev builds; tap it to '
+        'copy it for a bug report',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
