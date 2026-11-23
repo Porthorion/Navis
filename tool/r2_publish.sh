@@ -169,6 +169,7 @@ content_type_for() {
     *.apk) echo "application/vnd.android.package-archive" ;;
     *.exe) echo "application/vnd.microsoft.portable-executable" ;;
     *.zip) echo "application/zip" ;;
+    *.dmg) echo "application/x-apple-diskimage" ;;
     *.deb) echo "application/vnd.debian.binary-package" ;;
     *.tar.gz) echo "application/gzip" ;;
     *) echo "application/octet-stream" ;;
@@ -192,6 +193,22 @@ asset_key_for() {
     *-linux.tar.gz) echo "linuxPortable" ;;
     *) echo "" ;;
   esac
+}
+
+# The first-install DMG sits next to the macosBundle zip: uploaded and listed in
+# SHA256SUMS, never in the manifest (the updater installs the zip). Prints its
+# checksum line from the object already on R2; $1 is a manifest payload file.
+dmg_sum_line() {
+  local url name sha
+  url="$(jq -r '.assets.macosBundle.url // empty' "$1")"
+  [[ -n "${url}" ]] || return 0
+  name="$(basename "${url%.zip}.dmg")"
+  sha="$(remote_sha256 "releases/$(jq -r '.tag // empty' "$1")/${name}")" || return 1
+  if [[ "${sha}" == none || "${sha}" == unknown ]]; then
+    echo "Warning: ${name} has no sha256 on R2; it is not listed in SHA256SUMS." >&2
+  else
+    printf '%s  %s\n' "${sha}" "${name}"
+  fi
 }
 
 semver_core() { local v="${1#v}"; v="${v%%[-+]*}"; echo "${v}"; }
@@ -249,8 +266,9 @@ fi
 export_verified_metadata() {
   if [[ -n "${MANIFEST_OUT}" ]]; then cp "${WORK_DIR}/envelope.json" "${MANIFEST_OUT}"; fi
   if [[ -n "${CHECKSUMS_OUT}" ]]; then
-    jq -r '.assets | to_entries[] | "\(.value.sha256)  \(.value.url | split("/") | last)"' \
-      "${WORK_DIR}/verify-payload.json" | sort -k2 > "${CHECKSUMS_OUT}"
+    { jq -r '.assets | to_entries[] | "\(.value.sha256)  \(.value.url | split("/") | last)"' \
+        "${WORK_DIR}/verify-payload.json"; dmg_sum_line "${WORK_DIR}/verify-payload.json"; } \
+      | sort -k2 > "${CHECKSUMS_OUT}"
   fi
 }
 if [[ "${MODE}" == "verify" ]]; then
@@ -345,7 +363,7 @@ fi
 for file in "${FILES[@]}"; do
   name="$(basename "${file}")"
   key="$(asset_key_for "${name}")"
-  if [[ -z "${key}" ]]; then
+  if [[ -z "${key}" && "${name}" != *-macos.dmg ]]; then
     echo "==> Skipping ${name} (no updater install mode)"
     continue
   fi
@@ -362,14 +380,17 @@ for file in "${FILES[@]}"; do
     echo "Error: ${object} already exists with different content; release files are never overwritten." >&2
     exit 1
   fi
+  [[ -n "${key}" ]] || continue   # download-only DMG: uploaded, not in the manifest
   ASSETS_JSON="$(jq -c --arg k "${key}" --arg url "${PUBLIC_ROOT}/${object}" --arg sha "${sha}" --argjson size "${size}" \
     '. + {($k): {url: $url, sha256: $sha, size: $size}}' <<< "${ASSETS_JSON}")"
 done
 [[ "${ASSETS_JSON}" != '{}' ]] || { echo "Error: no updater assets among the given files." >&2; exit 1; }
 
 # SHA256SUMS lists every asset of the tag, so it changes as runs add assets.
-jq -r '.assets | to_entries[] | "\(.value.sha256)  \(.value.url | split("/") | last)"' \
-  <<< "{\"assets\": ${ASSETS_JSON}}" | sort -k2 > "${WORK_DIR}/SHA256SUMS"
+printf '{"tag": "%s", "assets": %s}\n' "${TAG}" "${ASSETS_JSON}" > "${WORK_DIR}/sums-input.json"
+{ jq -r '.assets | to_entries[] | "\(.value.sha256)  \(.value.url | split("/") | last)"' \
+    "${WORK_DIR}/sums-input.json"; dmg_sum_line "${WORK_DIR}/sums-input.json"; } \
+  | sort -k2 > "${WORK_DIR}/SHA256SUMS"
 SUMS_NAME="SHA256SUMS"
 [[ "${CHANNEL}" == "stable" ]] || SUMS_NAME="SHA256SUMS.${CHANNEL}"
 upload "${WORK_DIR}/SHA256SUMS" "releases/${TAG}/${SUMS_NAME}" "text/plain; charset=utf-8" "no-cache" \
