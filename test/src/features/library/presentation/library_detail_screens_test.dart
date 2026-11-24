@@ -708,6 +708,50 @@ void main() {
       await _disposeApp(tester);
     });
 
+    for (final width in [1376.0, 600.0]) {
+      testWidgets('artist bio is capped at the 720 px reading width: $width', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, Size(width, 1032));
+        final bio = List.filled(80, 'A long biography sentence.').join(' ');
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistDetailScreen(artistId: 'artist-1'),
+            database: database,
+            overrides: [
+              artistByIdProvider('artist-1').overrideWithValue(
+                const AsyncData(
+                  ArtistsTableData(
+                    isProvisional: false,
+                    isExternal: false,
+                    id: 'artist-1',
+                    name: 'Artist 1',
+                    albumCount: 1,
+                  ),
+                ),
+              ),
+              artistAlbumSectionsProvider('artist-1').overrideWithValue(
+                const AsyncData(ArtistAlbumSections(albums: [])),
+              ),
+              artistInfoProvider('artist-1')
+                  .overrideWithValue(AsyncData(ArtistInfo(biography: bio))),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final box = tester.getRect(find.text(bio));
+        expect(box.width, lessThanOrEqualTo(720));
+        if (width > 720) {
+          expect(box.width, 720);
+        } else {
+          // A narrower pane keeps its full text width (16 px page gutters).
+          expect(box.width, closeTo(width - 32, 1));
+        }
+        await _disposeApp(tester);
+      });
+    }
+
     testWidgets('the album count follows albums stored after the page opens', (
       tester,
     ) async {

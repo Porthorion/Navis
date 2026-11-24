@@ -1220,26 +1220,35 @@ class _ArtistInfoSection extends StatelessWidget {
         ? '${l10n.artistDetailBioSection} · ${l10n.artistDetailAlbumCount(albumCount!)}'
         : l10n.artistDetailBioSection;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 32, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          if (info.biography != null &&
-              info.biography!.trim().isNotEmpty) ...<Widget>[
-            NavisSectionHeader(title: bioTitle),
-            const SizedBox(height: 10),
-            Text(
-              info.biography!,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                height: 1.65,
-                color: Theme.of(context).colorScheme.onSurface
-                    .withValues(alpha: 0.85),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ],
+    // Start-aligned like the rest of the page, capped at the reading width.
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: ContentLayout.readingWidth + 32,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 32, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (info.biography != null &&
+                  info.biography!.trim().isNotEmpty) ...<Widget>[
+                NavisSectionHeader(title: bioTitle),
+                const SizedBox(height: 10),
+                Text(
+                  info.biography!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    height: 1.65,
+                    color: Theme.of(context).colorScheme.onSurface
+                        .withValues(alpha: 0.85),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

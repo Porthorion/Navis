@@ -5,6 +5,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 
+import '../../helpers/adaptive_test_harness.dart';
+
 void main() {
   for (final realLyrics in [false, true]) {
     testWidgets(
@@ -373,6 +375,146 @@ void main() {
         }
         expect(previous, closeTo(rest, 5), reason: 'line $line');
       }
+    });
+  });
+
+  group('reading width', () {
+    const longLine =
+        'A very long lyric line that keeps going and going and going so it '
+        'has to wrap at the reading width on any wide pane we put it in';
+
+    LyricsList synced() => LyricsList(
+      structuredLyrics: [
+        StructuredLyrics(
+          synced: true,
+          line: [LyricLine(start: 0, value: longLine)],
+        ),
+      ],
+    );
+
+    LyricsList plain() => const LyricsList(value: longLine);
+
+    Future<Rect> pumpLyrics(
+      WidgetTester tester,
+      Size size,
+      LyricsList lyrics, {
+      TextDirection direction = TextDirection.ltr,
+      double textScale = 1,
+      String text = longLine,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Directionality(
+            textDirection: direction,
+            child: MediaQuery(
+              data: MediaQueryData(
+                size: size,
+                textScaler: TextScaler.linear(textScale),
+              ),
+              child: Scaffold(
+                body: LyricsDisplayWidget(
+                  lyrics: lyrics,
+                  currentPosition: Duration.zero,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester.getRect(find.text(text));
+    }
+
+    for (final size in [const Size(1376, 1032), const Size(1440, 900)]) {
+      for (final isSynced in [true, false]) {
+        testWidgets('capped and centred at $size synced=$isSynced', (
+          tester,
+        ) async {
+          final box = await pumpLyrics(
+            tester,
+            size,
+            isSynced ? synced() : plain(),
+          );
+          expect(box.width, lessThanOrEqualTo(720));
+          expect(box.center.dx, closeTo(size.width / 2, 0.5));
+        });
+      }
+    }
+
+    for (final isSynced in [true, false]) {
+      testWidgets('a 600 px pane is not capped below its width: $isSynced', (
+        tester,
+      ) async {
+        final box = await pumpLyrics(
+          tester,
+          const Size(600, 900),
+          isSynced ? synced() : plain(),
+        );
+        // 6 % side padding (clamped to 20-56), the line fills the rest.
+        final padding = (600 * 0.06).clamp(20.0, isSynced ? 48.0 : 56.0);
+        expect(box.width, closeTo(600 - 2 * padding, 0.5));
+      });
+    }
+
+    testWidgets('rtl lyrics stay capped and centred', (tester) async {
+      const rtl =
+          'سطر طويل من كلمات الأغنية يتكرر ويتكرر ويتكرر حتى يلتف '
+          'عند عرض القراءة على أي لوحة عريضة نضع فيها هذا السطر الطويل جدا';
+      final box = await pumpLyrics(
+        tester,
+        const Size(1376, 1032),
+        const LyricsList(value: rtl),
+        direction: TextDirection.rtl,
+        text: rtl,
+      );
+      expect(box.width, lessThanOrEqualTo(720));
+      expect(box.center.dx, closeTo(1376 / 2, 0.5));
+    });
+
+    testWidgets('200% text scale stays capped and centred', (tester) async {
+      final box = await pumpLyrics(
+        tester,
+        const Size(1376, 1032),
+        synced(),
+        textScale: 2,
+      );
+      expect(box.width, lessThanOrEqualTo(720));
+      expect(box.center.dx, closeTo(1376 / 2, 0.5));
+    });
+
+    testWidgets('no lyrics state still renders on a wide pane', (tester) async {
+      await pumpLyrics(
+        tester,
+        const Size(1376, 1032),
+        const LyricsList(),
+        text: 'No Lyrics Available',
+      );
+      expect(find.text('No Lyrics Available'), findsOneWidget);
+    });
+
+    testWidgets('the side margins still tap to seek on a wide pane', (
+      tester,
+    ) async {
+      final seeks = <Duration>[];
+      setAdaptiveTestViewport(tester, const Size(1376, 1032));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LyricsDisplayWidget(
+              lyrics: synced(),
+              currentPosition: Duration.zero,
+              onSeek: seeks.add,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final box = tester.getRect(find.text(longLine));
+      await tester.tapAt(Offset(box.left - 100, box.center.dy));
+      expect(seeks, [Duration.zero]);
     });
   });
 }
