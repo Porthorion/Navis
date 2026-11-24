@@ -314,12 +314,27 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
     // Layout follows this page's own pane width, scaled like
     // ContentLayout.trackMode so the header row and track rows switch together.
     final textScale = max(1, MediaQuery.textScalerOf(context).scale(14) / 14);
+    // The page is one stable widget; only a threshold crossing (720, 960)
+    // rebuilds it, so height-only changes (keyboard) leave it alone.
+    final page = Builder(
+      builder: (context) => _buildPage(context, _PaneWidthScope.of(context)),
+    );
     return LayoutBuilder(
-      builder: (context, constraints) =>
-          _buildPage(context, constraints.maxWidth / textScale),
+      builder: (context, constraints) {
+        final width = constraints.maxWidth / textScale;
+        return _PaneWidthScope(
+          floor: width >= 960
+              ? 960
+              : ContentLayout.wideDetail(width)
+              ? 720
+              : 0,
+          child: page,
+        );
+      },
     );
   }
 
+  /// [paneWidth] is the scaled pane width floored to its layout threshold.
   Widget _buildPage(BuildContext context, double paneWidth) {
     final l10n = AppLocalizations.of(context)!;
     final album = ref.watch(albumProvider(widget.albumId));
@@ -335,6 +350,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
     final desktopMode = adaptiveContext.useDesktopShell;
     final compactWideMode = adaptiveContext.useCompactWideLandscape;
     final showsAlbum = _showsAlbum(album.value);
+    // Same rule as the playlist page's field. Hoisted so the header-row app bar
+    // and the hero share one search affordance.
+    final showSearch =
+        !desktopMode &&
+        ((album.value?.songs.isNotEmpty ?? false) || _filterQuery.isNotEmpty);
+    final searchTooltip = MaterialLocalizations.of(context).searchFieldLabel;
+    final searchingBar = showsAlbum && !desktopMode && _searching;
     // Layout (pane width): the cover-left header row. Platform (desktopMode):
     // DesktopFrame, height bands, row actions.
     final headerRow =
@@ -350,14 +372,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
           ? AppBar(
               // The page always offers a way back, even when it was opened
               // without history while the album loads.
-              leading: showsAlbum && desktopMode
+              leading: searchingBar
+                  ? IconButton(
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
+                      onPressed: _closeSearch,
+                      icon: const Icon(Icons.close),
+                    )
+                  : showsAlbum && desktopMode
                   ? null
                   : BackButton(
                       onPressed: () =>
                           NavService.back(context, fallback: AppRoutes.library),
                     ),
               // Once loaded, the header's large album title names the page.
-              title: showsAlbum
+              title: searchingBar
+                  ? _searchField(l10n)
+                  : showsAlbum
                   ? null
                   : Text(
                       album.value?.album.name ??
@@ -368,24 +399,33 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                   ? Theme.of(context).colorScheme.surfaceContainerHigh
                   : null,
               actions: <Widget>[
-                IconButton(
-                  tooltip: l10n.detailRefreshAction,
-                  onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: _isRefreshingAlbum
-                        ? const SizedBox(
-                            key: ValueKey<String>('album-refresh-loading'),
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2.2),
-                          )
-                        : const Icon(
-                            Icons.refresh,
-                            key: ValueKey<String>('album-refresh-idle'),
-                          ),
+                if (showsAlbum && showSearch && !_searching)
+                  IconButton(
+                    tooltip: searchTooltip,
+                    onPressed: _openSearch,
+                    icon: const Icon(Icons.search),
                   ),
-                ),
+                if (!searchingBar)
+                  IconButton(
+                    tooltip: l10n.detailRefreshAction,
+                    onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _isRefreshingAlbum
+                          ? const SizedBox(
+                              key: ValueKey<String>('album-refresh-loading'),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.refresh,
+                              key: ValueKey<String>('album-refresh-idle'),
+                            ),
+                    ),
+                  ),
               ],
             )
           : null,
@@ -420,12 +460,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                     })
                     .toList(growable: false);
                 _currentFilteredSongs = filteredSongs;
-                // Same rule as the playlist page's field.
-                final showSearch =
-                    !desktopMode &&
-                    (songs.isNotEmpty || _filterQuery.isNotEmpty);
-                final searchTooltip = MaterialLocalizations.of(context)
-                    .searchFieldLabel;
                 final storedStarred = details.starred != null;
                 if (_pendingStarred == storedStarred) _pendingStarred = null;
                 final isStarred = _pendingStarred ?? storedStarred;
@@ -3221,4 +3255,18 @@ final class _SongItem extends _AlbumRenderItem {
 String? _nonBlank(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
+/// The page's pane width, floored to the layout thresholds so dependents
+/// rebuild only when a threshold is crossed.
+class _PaneWidthScope extends InheritedWidget {
+  const _PaneWidthScope({required this.floor, required super.child});
+
+  final double floor;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PaneWidthScope>()!.floor;
+
+  @override
+  bool updateShouldNotify(_PaneWidthScope old) => floor != old.floor;
 }

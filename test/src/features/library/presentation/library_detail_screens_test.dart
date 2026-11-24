@@ -1553,6 +1553,75 @@ void main() {
         await _disposeApp(tester);
       });
 
+      group('text filter', () {
+        final searchIcon = find.byTooltip('Search');
+        final field = find.byType(ListFilterField);
+
+        Future<void> typeFilter(WidgetTester tester, String text) async {
+          await tester.enterText(find.byType(TextField), text);
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pump();
+        }
+
+        Future<void> resize(WidgetTester tester, Size size) async {
+          setAdaptiveTestViewport(tester, size);
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+
+        testWidgets('wide touch row: icon opens the field and filters', (
+          tester,
+        ) async {
+          await pumpWide(tester, const Size(762, 1376));
+          expect(find.byKey(header), findsOneWidget);
+          expect(searchIcon, findsOneWidget);
+          expect(field, findsNothing);
+          await tester.tap(searchIcon);
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(field, findsOneWidget);
+          await typeFilter(tester, 'Track 3');
+          expect(find.text('Wide Track 3'), findsOneWidget);
+          expect(find.text('Wide Track 1'), findsNothing);
+          await _disposeApp(tester);
+        });
+
+        testWidgets('filter from the hero survives widening to the row', (
+          tester,
+        ) async {
+          await pumpWide(tester, const Size(700, 1000));
+          await tester.tap(searchIcon);
+          await tester.pump(const Duration(milliseconds: 500));
+          await typeFilter(tester, 'Track 3');
+          await resize(tester, const Size(762, 1000));
+          expect(find.byKey(header), findsOneWidget);
+          expect(field, findsOneWidget);
+          expect(find.text('Track 3'), findsOneWidget);
+          expect(find.text('Wide Track 1'), findsNothing);
+          await tester.tap(find.byTooltip('Clear text'));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.text('Wide Track 1'), findsOneWidget);
+          expect(find.text('Wide Track 3'), findsOneWidget);
+          await _disposeApp(tester);
+        });
+
+        testWidgets('filter from the row survives narrowing to the hero', (
+          tester,
+        ) async {
+          await pumpWide(tester, const Size(762, 1000));
+          await tester.tap(searchIcon);
+          await tester.pump(const Duration(milliseconds: 500));
+          await typeFilter(tester, 'Track 3');
+          await resize(tester, const Size(700, 1000));
+          expect(find.byKey(header), findsNothing);
+          expect(field, findsOneWidget);
+          expect(find.text('Track 3'), findsOneWidget);
+          expect(find.text('Wide Track 1'), findsNothing);
+          await tester.tap(find.byTooltip('Clear text'));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.text('Wide Track 1'), findsOneWidget);
+          await _disposeApp(tester);
+        });
+      });
+
       testWidgets('phone keeps the hero', (tester) async {
         await pumpWide(tester, const Size(390, 844), context: _mobileContext);
         expect(find.byType(FlexibleSpaceBar), findsOneWidget);
