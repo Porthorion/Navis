@@ -5012,7 +5012,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get interfaceSongTitlesHeading => 'Song Titles';
 
   @override
-  String get desktopNavbarSectionLabel => 'Desktop Navigation';
+  String get desktopNavbarSectionLabel => 'Sidebar';
 
   @override
   String get desktopNavbarStyleLabel => 'Navigation Style';

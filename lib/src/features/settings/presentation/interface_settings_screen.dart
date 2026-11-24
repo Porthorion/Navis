@@ -82,7 +82,12 @@ class _InterfaceSettingsScreenState
       persistedOrder: persistedOrder,
     );
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
-    final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final isDesktop = adaptiveContext.useDesktopShell;
+    // Devices that can show the tablet rail (not a phone form factor) get the
+    // style selector; auto-hide needs a pointer, so it stays desktop-only.
+    final showTabletRailStyle =
+        !isDesktop && !adaptiveContext.isPhoneFormFactor;
     // Quick Actions are now always-visible below the home logo; remove from
     // the section reorder list on all platforms.
     final displayOrder = sanitizedOrder
@@ -275,7 +280,7 @@ class _InterfaceSettingsScreenState
                     }
                   },
                 ),
-                if (isDesktop) ...[
+                if (isDesktop || showTabletRailStyle) ...[
                   AppearanceHeading(
                     title: l10n.desktopNavbarSectionLabel,
                     level: AppearanceHeadingLevel.section,
@@ -283,6 +288,7 @@ class _InterfaceSettingsScreenState
                   _DesktopNavbarSettings(
                     currentStyle: ref.watch(desktopNavbarStyleProvider),
                     autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
+                    showAutohide: isDesktop,
                     onStyleChanged: (style) async {
                       final db = ref.read(navisDatabaseProvider);
                       await db.appSettingsDao.updateDesktopNavbarStyle(style);
@@ -598,12 +604,14 @@ class _DesktopNavbarSettings extends StatelessWidget {
   const new({
     required this.currentStyle,
     required this.autohideEnabled,
+    required this.showAutohide,
     required this.onStyleChanged,
     required this.onAutohideChanged,
   });
 
   final String currentStyle;
   final bool autohideEnabled;
+  final bool showAutohide;
   final ValueChanged<String> onStyleChanged;
   final ValueChanged<bool> onAutohideChanged;
 
@@ -681,12 +689,13 @@ class _DesktopNavbarSettings extends StatelessWidget {
             ],
           ),
         ),
-        NavisSwitchListTile(
-          title: Text(l10n.desktopNavbarAutohideLabel),
-          subtitle: Text(l10n.desktopNavbarAutohideSub),
-          value: autohideEnabled,
-          onChanged: onAutohideChanged,
-        ),
+        if (showAutohide)
+          NavisSwitchListTile(
+            title: Text(l10n.desktopNavbarAutohideLabel),
+            subtitle: Text(l10n.desktopNavbarAutohideSub),
+            value: autohideEnabled,
+            onChanged: onAutohideChanged,
+          ),
       ],
     );
   }

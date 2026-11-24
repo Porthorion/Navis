@@ -7914,7 +7914,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopNavbarSectionLabel.
   ///
   /// In en, this message translates to:
-  /// **'Desktop Navigation'**
+  /// **'Sidebar'**
   String get desktopNavbarSectionLabel;
 
   /// No description provided for @desktopNavbarStyleLabel.

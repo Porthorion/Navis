@@ -3052,6 +3052,16 @@ as Default, 220 px, the default), `comfortable` (Large, a fixed 260 px with
 18 sp labels and 52 px tiles) and `icons`; schema 109 moved profiles still on
 the old `comfortable` default to `compact` once.
 
+The tablet rail (touch, standard rail, shortest side >= 600 dp) uses the same
+style setting, tiles and widths (220 / 260 / 64 px, default 220) instead of a
+width proportional to the window, so a stored style from a desktop install is
+honoured. The narrow-window icons rule is desktop-only: a tablet in Split View
+below 1008 px keeps its chosen style. Icons style hides the inline Library
+sections as on desktop. Tablets get no auto-hide, peek strip or history
+controls, and the Interface settings "Sidebar" section shows the style
+selector on them (auto-hide stays desktop-only). Phone-form-factor and
+compact-wide rails keep their own widths.
+
 With auto-hide the layout always reserves the 64 px icon strip and
 `DesktopNavigationPresentationScope.iconsOnly` stays true. The rail is laid out
 expanded and clipped to the strip while closed (icons, lock and tiles never
