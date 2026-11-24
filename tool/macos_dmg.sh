@@ -23,7 +23,7 @@ ICONSET_SRC="${SCRIPT_DIR}/../macos/Runner/Assets.xcassets/AppIcon.appiconset"
 WIN_W=660 WIN_H=400 ICON_SIZE=128 APP_X=170 APP_Y=190 APPS_X=490 APPS_Y=190
 # The window bounds include the title bar, the art is the content area.
 TITLEBAR=28
-VOLNAME="Navis"
+VOLNAME="Install Navis"
 
 APP="" OUT="" IDENTITY="" PROFILE="" NKEY="" NKEY_ID="" NISSUER=""
 while (( $# )); do
