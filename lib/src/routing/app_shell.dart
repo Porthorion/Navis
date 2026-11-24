@@ -2231,13 +2231,25 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                           ),
                                                           if (showQueueOverlay)
                                                             Positioned.fill(
-                                                              child: _QueueOverlay(
-                                                                key:
-                                                                    _queueOverlayKey,
-                                                                fullscreen:
-                                                                    true,
-                                                                onDismiss:
-                                                                    _handleQueueOverlayDismissed,
+                                                              // A wide pane gets the desktop floating panel; the
+                                                              // strip is faded under Now Playing, so no inset.
+                                                              child: LayoutBuilder(
+                                                                builder: (context, pane) {
+                                                                  final floating =
+                                                                      !useCompactWideLandscape &&
+                                                                      pane.maxWidth >=
+                                                                          kAdaptiveMediumWidth;
+                                                                  return _QueueOverlay(
+                                                                    key:
+                                                                        _queueOverlayKey,
+                                                                    fullscreen:
+                                                                        !floating,
+                                                                    floatingWindow:
+                                                                        floating,
+                                                                    onDismiss:
+                                                                        _handleQueueOverlayDismissed,
+                                                                  );
+                                                                },
                                                               ),
                                                             ),
                                                         ],

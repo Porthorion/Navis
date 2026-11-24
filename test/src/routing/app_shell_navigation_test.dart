@@ -58,6 +58,7 @@ import 'package:navis/src/features/player/presentation/now_playing_artwork_backg
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -3026,6 +3027,195 @@ void main() {
         pageRect.bottom,
         lessThanOrEqualTo(tester.getRect(find.byKey(strip)).top),
       );
+    });
+  });
+
+  group('tablet rail queue panel (P2.5)', () {
+    const panelKey = ValueKey<String>('queueOverlayTranslation');
+    const strip = ValueKey<String>('railBottomMiniPlayer');
+    const fade = ValueKey<String>('railBottomMiniPlayerFade');
+
+    Future<ProviderContainer> openQueue(
+      WidgetTester tester,
+      Size size, {
+      double bottomInset = 0,
+      List<Override> extra = const <Override>[],
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      if (bottomInset > 0) {
+        tester.view.padding = FakeViewPadding(bottom: bottomInset);
+        tester.view.viewPadding = FakeViewPadding(bottom: bottomInset);
+        addTearDown(tester.view.resetPadding);
+        addTearDown(tester.view.resetViewPadding);
+      }
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[..._authenticatedShellOverrides(), ...extra],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+      return container;
+    }
+
+    void expectFloatingPanel(
+      WidgetTester tester,
+      Size size, {
+      double bottomInset = 0,
+    }) {
+      final panel = tester.getRect(find.byKey(panelKey));
+      final railTile = tester.getRect(
+        find.byKey(const ValueKey('railNavTile-0')),
+      );
+      expect(panel.width, inInclusiveRange(320, 560));
+      expect(panel.right, size.width - 12, reason: 'right-aligned in pane');
+      expect(panel.left, greaterThanOrEqualTo(railTile.right));
+      expect(panel.bottom, lessThanOrEqualTo(size.height - bottomInset - 12));
+      // The strip is faded and inert under Now Playing, which the queue
+      // opens over, so the panel never covers a live strip.
+      expect(tester.widget<AnimatedOpacity>(find.byKey(fade)).opacity, 0);
+      expect(
+        tester.getRect(find.byKey(strip)).bottom,
+        lessThanOrEqualTo(size.height - bottomInset),
+      );
+      // The rail stays clear of the scrim and the panel.
+      expect(
+        find.byKey(const ValueKey('railNavTile-0')).hitTestable(),
+        findsOneWidget,
+      );
+    }
+
+    for (final size in const <Size>[Size(1032, 1376), Size(1376, 1032)]) {
+      testWidgets(
+        '${size.width.toInt()}x${size.height.toInt()} iOS: a floating panel '
+        'right-aligned in the pane, above the safe area',
+        (tester) async {
+          await openQueue(tester, size, bottomInset: 34);
+          expectFloatingPanel(tester, size, bottomInset: 34);
+          expect(
+            tester.getSize(find.byType(QueueSheet)).height,
+            lessThan(size.height * 0.8),
+          );
+          expect(tester.takeException(), isNull);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+      );
+    }
+
+    testWidgets('1032x1376 Android: the same floating panel', (tester) async {
+      await openQueue(tester, const Size(1032, 1376));
+      expectFloatingPanel(tester, const Size(1032, 1376));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    testWidgets('834x1194 bottom navigation keeps the full-width sheet', (
+      tester,
+    ) async {
+      await openQueue(tester, const Size(834, 1194));
+      expect(find.byType(NavigationRail), findsNothing);
+      expect(tester.getRect(find.byKey(panelKey)).width, 834);
+    });
+
+    testWidgets('a rail pane under 600 keeps the fullscreen queue', (
+      tester,
+    ) async {
+      // The Large rail is 260 wide, leaving a 581 pane.
+      await openQueue(
+        tester,
+        const Size(841, 701),
+        extra: <Override>[
+          desktopNavbarStyleProvider.overrideWithValue('comfortable'),
+        ],
+      );
+      expect(find.byKey(const ValueKey('railNavTile-0')), findsOneWidget);
+      final sheet = tester.getRect(find.byKey(panelKey));
+      expect(sheet.width, lessThan(600), reason: 'the whole narrow pane');
+      expect(sheet.top, 0);
+      expect(sheet.bottom, 701, reason: 'fullscreen, not a floating panel');
+    });
+
+    testWidgets('tapping the scrim outside the panel closes the queue', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      final panel = tester.getRect(find.byKey(panelKey));
+      await tester.tapAt(Offset(panel.left - 40, panel.top + 20));
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('Escape closes the queue and leaves Now Playing open', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('the panel sits above Now Playing opened from the rail', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      expect(find.byType(NowPlayingScreen), findsOneWidget);
+      expect(find.byType(QueueSheet).hitTestable(), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(NowPlayingScreen), findsOneWidget);
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets(
+      'long-press reorder inside the panel moves the item and keeps it open',
+      (tester) async {
+        final calls = <(int, int)>[];
+        final container = await openQueue(
+          tester,
+          const Size(1032, 1376),
+          extra: <Override>[
+            reorderQueueProvider.overrideWithValue((a, b) async {
+              calls.add((a, b));
+            }),
+          ],
+        );
+        final rows = find.descendant(
+          of: find.byType(QueueSheet),
+          matching: find.byType(ReorderableDelayedDragStartListener),
+        );
+        expect(rows, findsNWidgets(2));
+        final start = tester.getCenter(rows.at(0));
+        final g = await tester.startGesture(start);
+        await tester.pump(const Duration(milliseconds: 700));
+        for (var i = 1; i <= 10; i++) {
+          await g.moveTo(start + Offset(0, 90.0 * i / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await g.up();
+        await tester.pumpAndSettle();
+        expect(calls, isNotEmpty);
+        expect(container.read(queueOverlayVisibleProvider), isTrue);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    testWidgets('a downward drag at the list top dismisses the panel', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      final panel = tester.getRect(find.byKey(panelKey));
+      await tester.flingFrom(
+        panel.topCenter + const Offset(0, 24),
+        const Offset(0, 400),
+        1500,
+      );
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
     });
   });
 
