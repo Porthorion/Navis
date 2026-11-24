@@ -250,8 +250,8 @@ Risky (hot file `app_shell.dart`, shell geometry).
   goldens.
 - Edge cases: radio mode (no skip, radio art); external/remote source
   indicator; RTL (strip under the pane, rail on the right); keyboard open on
-  Search (strip must not ride above the keyboard, same as the bottom-nav
-  shell); Split View resize across 840 (rail <-> bottom nav swap keeps one
+  Search (the strip behaves like the bottom-nav shell and rides above the
+  keyboard); Split View resize across 840 (rail <-> bottom nav swap keeps one
   strip, no double strip for a frame); Escape closes Now Playing and the
   strip returns. Desktop workspace untouched (`useDesktopShell` path).
 - Size: M (one Sonnet phase, about 40 tool calls).

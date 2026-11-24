@@ -27,7 +27,6 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.selectedLibrarySection,
     required this.visibleLibrarySections,
     required this.onLibrarySectionSelected,
-    required this.onOpenPlayer,
     required this.onToggleQueue,
     required this.onDismissQueue,
     required this.queueToggleFocusNode,
@@ -63,7 +62,6 @@ class _DesktopWorkspace extends StatefulWidget {
   final LibrarySection? selectedLibrarySection;
   final List<LibrarySection> visibleLibrarySections;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
-  final VoidCallback onOpenPlayer;
   final VoidCallback onToggleQueue;
   final VoidCallback onDismissQueue;
   final FocusNode queueToggleFocusNode;

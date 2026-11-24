@@ -1680,7 +1680,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 onLibrarySectionSelected:
                                     onLibrarySectionSelected,
                                 allowScrollableRail: allowScrollableRail,
-                                onOpenPlayer: _toggleDesktopLyricsOverlay,
                                 onToggleQueue: () {
                                   if (showQueueOverlay) {
                                     _hideQueueWithAnimation();
@@ -2096,15 +2095,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                       child: ExcludeSemantics(
                                                                         excluding:
                                                                             isExpanded,
-                                                                        child: SizedBox(
+                                                                        // Grows past 64 px at large text scale (the page above is
+                                                                        // Expanded, so it shrinks).
+                                                                        child: ConstrainedBox(
                                                                           key:
                                                                               const ValueKey<
                                                                                 String
                                                                               >(
                                                                                 'railBottomMiniPlayer',
                                                                               ),
-                                                                          height:
-                                                                              kMiniPlayerHeight,
+                                                                          constraints: const BoxConstraints(
+                                                                            minHeight:
+                                                                                kMiniPlayerHeight,
+                                                                          ),
                                                                           child: _MiniPlayerStrip(
                                                                             playback:
                                                                                 playback,

@@ -2748,8 +2748,8 @@ void main() {
       expect(inStrip('Stop Radio'), findsOneWidget);
     });
 
-    testWidgets('the page ends above the strip', (tester) async {
-      await pump(tester, const Size(1032, 1376));
+    /// Opens Library, scrolls its page to the end and returns the page rect.
+    Future<Rect> scrolledPageRect(WidgetTester tester) async {
       await tester.tap(find.byKey(const ValueKey('railNavTile-3')));
       await tester.pumpAndSettle();
       ScrollableState? page;
@@ -2765,9 +2765,33 @@ void main() {
       }
       page!.position.jumpTo(page.position.maxScrollExtent);
       await tester.pumpAndSettle();
-      final pageRect = tester.getRect(
-        find.byElementPredicate((e) => e == page!.context),
-      );
+      return tester.getRect(find.byElementPredicate((e) => e == page!.context));
+    }
+
+    for (final size in const <Size>[Size(1032, 1376), Size(1194, 834)]) {
+      for (final scale in const <double>[1.6, 2]) {
+        testWidgets('${size.width.toInt()}x${size.height.toInt()} at '
+            '${scale}x text: the strip grows and the page stays above it', (
+          tester,
+        ) async {
+          tester.platformDispatcher.textScaleFactorTestValue = scale;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await pump(tester, size);
+
+          expect(tester.takeException(), isNull);
+          final rect = tester.getRect(find.byKey(strip));
+          expect(rect.bottom, size.height);
+          expect(rect.height, greaterThanOrEqualTo(64));
+          final pageRect = await scrolledPageRect(tester);
+          expect(pageRect.bottom, lessThanOrEqualTo(rect.top));
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    testWidgets('the page ends above the strip', (tester) async {
+      await pump(tester, const Size(1032, 1376));
+      final pageRect = await scrolledPageRect(tester);
       expect(
         pageRect.bottom,
         lessThanOrEqualTo(tester.getRect(find.byKey(strip)).top),
@@ -5224,8 +5248,10 @@ void main() {
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1024, 600);
-    // The player left the rail, so only large text makes the rail this tight
-    // (no playback: the 64 px strip itself overflows at 2x text).
+    // The player left the rail, so the Library sections now fit inline even at
+    // the old 1024x640 (the rail gained the player's 170 px); only large text
+    // makes the rail this tight. Playback stays active: the strip grows with
+    // the text instead of overflowing.
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -5235,9 +5261,7 @@ void main() {
 
     final container = _createContainerWithDatabase(
       overrides: <Override>[
-        ..._authenticatedShellOverrides(
-          playback: const PlaybackSnapshot.idle(),
-        ),
+        ..._authenticatedShellOverrides(),
         showLikedPageProvider.overrideWithValue(true),
         showArtistsPageProvider.overrideWithValue(true),
         showPlaylistsPageProvider.overrideWithValue(true),

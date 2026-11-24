@@ -1555,18 +1555,15 @@ void main() {
   });
 
   group('I27b tabs, search and album', () {
+    void expectOneLine(RenderParagraph paragraph, String? label) {
+      expect(_lineCount(paragraph), 1, reason: '$label wraps');
+      expect(paragraph.didExceedMaxLines, isFalse, reason: '$label');
+    }
+
     /// Every tab label of the Library is on one line, not squeezed.
     void expectTabsUnclipped(WidgetTester tester) {
       final tabs = find.byType(Tab);
-      if (tabs.evaluate().isEmpty) {
-        // The player no longer sits in the rail, so there is room for the
-        // Library sections inline; the page then shows no tab bar of its own.
-        expect(
-          find.byKey(const ValueKey<String>('railLibrarySection-albums')),
-          findsOneWidget,
-        );
-        return;
-      }
+      expect(tabs, findsWidgets);
       for (final element in tabs.evaluate()) {
         final text = find.descendant(
           of: find.byElementPredicate((e) => e == element),
@@ -1574,8 +1571,7 @@ void main() {
         );
         final paragraph = tester.renderObject<RenderParagraph>(text.first);
         final label = (text.evaluate().first.widget as Text).data;
-        expect(_lineCount(paragraph), 1, reason: '$label wraps');
-        expect(paragraph.didExceedMaxLines, isFalse, reason: '$label');
+        expectOneLine(paragraph, label);
         // A label that does not fit is faded out, not wrapped.
         expect(
           paragraph.getMaxIntrinsicWidth(double.infinity),
@@ -1585,29 +1581,45 @@ void main() {
       }
     }
 
-    bool? scrollable(WidgetTester tester) =>
-        find.byType(TabBar).evaluate().isEmpty
-        ? true
-        : tester.widget<TabBar>(find.byType(TabBar).first).isScrollable;
+    /// The rail has room for the Library sections: they show inline, the page
+    /// has no tab bar, and every section label is on one line.
+    void expectSectionsInline(WidgetTester tester) {
+      expect(find.byType(TabBar), findsNothing);
+      final sections = find.byWidgetPredicate(
+        (w) =>
+            w.key is ValueKey<String> &&
+            (w.key! as ValueKey<String>).value.startsWith(
+              'railLibrarySection-',
+            ),
+      );
+      expect(sections, findsWidgets);
+      for (final element in sections.evaluate()) {
+        final text = find.descendant(
+          of: find.byElementPredicate((e) => e == element),
+          matching: find.byType(Text),
+        );
+        expectOneLine(
+          tester.renderObject<RenderParagraph>(text.first),
+          (text.evaluate().first.widget as Text).data,
+        );
+      }
+    }
 
-    _testApp('D4 Library tab labels fit beside the rail', (tester) async {
+    bool scrollable(WidgetTester tester) =>
+        tester.widget<TabBar>(find.byType(TabBar).first).isScrollable;
+
+    _testApp('D4 Library sections fit beside the rail', (tester) async {
       await _pumpApp(tester, _duoLandscapeStrip);
       await _go(tester, AppRoutes.librarySection('albums'));
 
       expect(tester.takeException(), isNull);
-      expectTabsUnclipped(tester);
+      expectSectionsInline(tester);
     });
 
     _testApp('D4 larger text scrolls the tabs (regression guard)', (
       tester,
     ) async {
-      // No playback: the 64 px strip itself overflows at 1.6x text (as on a phone).
-      await _pumpApp(
-        tester,
-        _duoLandscapeStrip,
-        playback: null,
-        textScale: 1.6,
-      );
+      await _pumpApp(tester, _duoLandscapeStrip, textScale: 1.6);
       await _go(tester, AppRoutes.librarySection('albums'));
 
       expect(tester.takeException(), isNull);
@@ -1618,11 +1630,11 @@ void main() {
     // The bar fits or scrolls by the page's own width, so no size clips a
     // label. (The test font is wider than a real one: only the absence of
     // clipping is asserted, not which mode a size picks.)
-    for (final (name, viewport) in <(String, _Viewport)>[
-      ('phone 393x852', _phone),
-      ('Duo folded', _duoFolded),
-      ('Duo portrait 669', _duoPortrait),
-      ('iPad landscape 1024', _ipadLandscape),
+    for (final (name, viewport, inline) in <(String, _Viewport, bool)>[
+      ('phone 393x852', _phone, false),
+      ('Duo folded', _duoFolded, false),
+      ('Duo portrait 669', _duoPortrait, false),
+      ('iPad landscape 1024', _ipadLandscape, true),
     ]) {
       _testApp('D4 tabs are not clipped (regression guard): $name', (
         tester,
@@ -1631,7 +1643,7 @@ void main() {
         await _go(tester, AppRoutes.librarySection('albums'));
 
         expect(tester.takeException(), isNull);
-        expectTabsUnclipped(tester);
+        inline ? expectSectionsInline(tester) : expectTabsUnclipped(tester);
       });
     }
 
