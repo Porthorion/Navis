@@ -1558,7 +1558,15 @@ void main() {
     /// Every tab label of the Library is on one line, not squeezed.
     void expectTabsUnclipped(WidgetTester tester) {
       final tabs = find.byType(Tab);
-      expect(tabs, findsWidgets);
+      if (tabs.evaluate().isEmpty) {
+        // The player no longer sits in the rail, so there is room for the
+        // Library sections inline; the page then shows no tab bar of its own.
+        expect(
+          find.byKey(const ValueKey<String>('railLibrarySection-albums')),
+          findsOneWidget,
+        );
+        return;
+      }
       for (final element in tabs.evaluate()) {
         final text = find.descendant(
           of: find.byElementPredicate((e) => e == element),
@@ -1578,7 +1586,9 @@ void main() {
     }
 
     bool? scrollable(WidgetTester tester) =>
-        tester.widget<TabBar>(find.byType(TabBar).first).isScrollable;
+        find.byType(TabBar).evaluate().isEmpty
+        ? true
+        : tester.widget<TabBar>(find.byType(TabBar).first).isScrollable;
 
     _testApp('D4 Library tab labels fit beside the rail', (tester) async {
       await _pumpApp(tester, _duoLandscapeStrip);
@@ -1591,7 +1601,13 @@ void main() {
     _testApp('D4 larger text scrolls the tabs (regression guard)', (
       tester,
     ) async {
-      await _pumpApp(tester, _duoLandscapeStrip, textScale: 1.6);
+      // No playback: the 64 px strip itself overflows at 1.6x text (as on a phone).
+      await _pumpApp(
+        tester,
+        _duoLandscapeStrip,
+        playback: null,
+        textScale: 1.6,
+      );
       await _go(tester, AppRoutes.librarySection('albums'));
 
       expect(tester.takeException(), isNull);

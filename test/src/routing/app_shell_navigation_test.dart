@@ -71,6 +71,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/fake_eq_controller.dart';
 import '../../helpers/haptics_spy.dart';
 import '../../helpers/fake_playback_handler.dart';
@@ -513,15 +514,13 @@ void main() {
     },
   );
 
-  for (final bar in ['desktop', 'compact', 'rail', 'nowPlaying']) {
+  for (final bar in ['desktop', 'compact', 'nowPlaying']) {
     testWidgets(
       '$bar seek drag rests, moves, releases and cancels occurrences',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = bar == 'compact'
             ? const Size(560, 360)
-            : bar == 'rail'
-            ? const Size(1440, 900)
             : const Size(800, 900);
         addTearDown(tester.view.reset);
         final handler = _RecordingLikePlaybackHandler();
@@ -551,10 +550,6 @@ void main() {
           'desktop' => find.byKey(const ValueKey('desktopPlayerSeekSlider')),
           'compact' => find.byKey(
             const ValueKey('desktopMiniPlayerSeekSlider'),
-          ),
-          'rail' => find.descendant(
-            of: find.byKey(const ValueKey('railMiniPlayer')),
-            matching: find.byType(Slider),
           ),
           _ => find.byKey(const ValueKey('nowPlayingSeekSlider')),
         };
@@ -631,31 +626,6 @@ void main() {
     expectAheadRange(
       tester,
       find.byKey(const ValueKey('desktopPlayerSeekSlider')),
-    );
-  });
-
-  testWidgets('the rail mini player draws the ahead range', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1440, 900);
-    addTearDown(tester.view.reset);
-    final container = _createContainerWithDatabase(
-      overrides: [
-        ..._authenticatedShellOverrides(),
-        playbackBufferStateProvider.overrideWithValue(
-          const AsyncData(detachedBuffer),
-        ),
-      ],
-    );
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: testNavisApp),
-    );
-    await tester.pumpAndSettle();
-    expectAheadRange(
-      tester,
-      find.descendant(
-        of: find.byKey(const ValueKey('railMiniPlayer')),
-        matching: find.byType(Slider),
-      ),
     );
   });
 
@@ -2607,6 +2577,202 @@ void main() {
       () => Future<void>.delayed(const Duration(seconds: 2)),
     );
     await tester.pump();
+  });
+
+  group('tablet rail bottom mini player (P1.1)', () {
+    const strip = ValueKey<String>('railBottomMiniPlayer');
+    const fade = ValueKey<String>('railBottomMiniPlayerFade');
+    const swipeSemantics = ValueKey<String>('miniPlayerSwipeSemantics');
+    const radioPlayback = PlaybackSnapshot(
+      queueSongIds: <String>[],
+      currentSongId: null,
+      currentIndex: null,
+      playing: true,
+      processingState: AudioProcessingState.ready,
+      position: Duration.zero,
+      duration: Duration.zero,
+      bufferedPosition: Duration.zero,
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+      radioStation: RadioStationMetadata(
+        stationId: 'radio-1',
+        stationName: 'Test Radio',
+        streamUrl: 'https://example.com/radio',
+      ),
+    );
+
+    Future<ProviderContainer> pump(
+      WidgetTester tester,
+      Size size, {
+      PlaybackSnapshot playback = _activePlayback,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(playback: playback),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    for (final size in const <Size>[
+      Size(1032, 1376),
+      Size(1376, 1032),
+      Size(1194, 834),
+      Size(1133, 744),
+      Size(981, 1032),
+    ]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}: the strip '
+          'sits at the bottom of the content pane, not in the rail', (
+        tester,
+      ) async {
+        await pump(tester, size);
+
+        expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+        expect(find.byKey(strip), findsOneWidget);
+        final rect = tester.getRect(find.byKey(strip));
+        final railTile = tester.getRect(
+          find.byKey(const ValueKey('railNavTile-0')),
+        );
+        expect(rect.left, greaterThanOrEqualTo(railTile.right));
+        expect(rect.right, size.width);
+        expect(rect.bottom, size.height);
+        expect(rect.height, 64);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('tapping the title opens Now Playing', (tester) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      final rect = tester.getRect(find.byKey(strip));
+      await tester.tapAt(rect.centerLeft + const Offset(120, 0));
+      await tester.pumpAndSettle();
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('a swipe up on the strip opens Now Playing', (tester) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      final rect = tester.getRect(find.byKey(strip));
+      await tester.dragFrom(
+        rect.centerLeft + const Offset(120, 0),
+        const Offset(0, -90),
+      );
+      await tester.pumpAndSettle();
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('the strip is hidden and inert while Now Playing is open', (
+      tester,
+    ) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      double opacity() =>
+          tester.widget<AnimatedOpacity>(find.byKey(fade)).opacity;
+      bool ignoring() => tester
+          .widget<IgnorePointer>(
+            find
+                .ancestor(
+                  of: find.byKey(strip),
+                  matching: find.byType(IgnorePointer),
+                )
+                .first,
+          )
+          .ignoring;
+      expect(opacity(), 1);
+      expect(ignoring(), isFalse);
+
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      expect(opacity(), 0);
+      expect(ignoring(), isTrue);
+
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await tester.pumpAndSettle();
+      expect(opacity(), 1);
+      expect(ignoring(), isFalse);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+    });
+
+    testWidgets('Escape closes Now Playing and the strip returns', (
+      tester,
+    ) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      expect(tester.widget<AnimatedOpacity>(find.byKey(fade)).opacity, 1);
+    });
+
+    // The full app only has an English locale, so a right-to-left shell cannot
+    // be pumped (same limit as foldable_layouts_test); the strip is a plain
+    // Column child of the pane, which the Row places by text direction.
+
+    testWidgets('resizing across 840 keeps exactly one strip', (tester) async {
+      await pump(tester, const Size(900, 1000));
+      expect(find.byKey(swipeSemantics), findsOneWidget);
+      for (final size in const <Size>[Size(800, 1000), Size(900, 1000)]) {
+        tester.view.physicalSize = size;
+        await tester.pump();
+        expect(find.byKey(swipeSemantics), findsOneWidget, reason: '$size');
+        await tester.pumpAndSettle();
+        expect(find.byKey(swipeSemantics), findsOneWidget, reason: '$size');
+      }
+      expect(find.byKey(strip), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('without playback there is no strip and no reserve', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const Size(1032, 1376),
+        playback: const PlaybackSnapshot.idle(),
+      );
+      expect(find.byKey(strip), findsNothing);
+      expect(find.byKey(swipeSemantics), findsNothing);
+      expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+    });
+
+    testWidgets('radio shows the strip without skip buttons', (tester) async {
+      await pump(tester, const Size(1032, 1376), playback: radioPlayback);
+      expect(find.byKey(strip), findsOneWidget);
+      // Now Playing is mounted below the fold; look inside the strip only.
+      Finder inStrip(String tip) =>
+          find.descendant(of: find.byKey(strip), matching: find.byTooltip(tip));
+      expect(inStrip('Previous'), findsNothing);
+      expect(inStrip('Skip to Next'), findsNothing);
+      expect(inStrip('Stop Radio'), findsOneWidget);
+    });
+
+    testWidgets('the page ends above the strip', (tester) async {
+      await pump(tester, const Size(1032, 1376));
+      await tester.tap(find.byKey(const ValueKey('railNavTile-3')));
+      await tester.pumpAndSettle();
+      ScrollableState? page;
+      for (final state in tester.stateList<ScrollableState>(
+        find.byType(Scrollable),
+      )) {
+        if (state.position.axis == Axis.vertical &&
+            (page == null ||
+                state.position.maxScrollExtent >
+                    page.position.maxScrollExtent)) {
+          page = state;
+        }
+      }
+      page!.position.jumpTo(page.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      final pageRect = tester.getRect(
+        find.byElementPredicate((e) => e == page!.context),
+      );
+      expect(
+        pageRect.bottom,
+        lessThanOrEqualTo(tester.getRect(find.byKey(strip)).top),
+      );
+    });
   });
 
   group('mobile mini player (#559)', () {
@@ -5057,15 +5223,21 @@ void main() {
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1024, 640);
+    tester.view.physicalSize = const Size(1024, 600);
+    // The player left the rail, so only large text makes the rail this tight
+    // (no playback: the 64 px strip itself overflows at 2x text).
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
     });
 
     final container = _createContainerWithDatabase(
       overrides: <Override>[
-        ..._authenticatedShellOverrides(),
+        ..._authenticatedShellOverrides(
+          playback: const PlaybackSnapshot.idle(),
+        ),
         showLikedPageProvider.overrideWithValue(true),
         showArtistsPageProvider.overrideWithValue(true),
         showPlaylistsPageProvider.overrideWithValue(true),

@@ -1840,7 +1840,7 @@ wide artist and album cells only while hovered; the compact secondary
 "Artist · Album" line and subtitles stay single-line ellipsis. Player
 surfaces always scroll a truncated title a few times per track, then rest in
 the still form: 2 passes on the phone mini player, the desktop player bar, the
-desktop Mini Player, the rail mini player, the lyrics headers and the wide
+desktop Mini Player, the tablet bottom strip, the lyrics headers and the wide
 panel header, 3 on the Now Playing single artist and album lines, while the
 Now Playing title repeats (`passes` null: rest, travel, rest) for as long as
 Now Playing is visible, still muted by `TickerMode`, `VisibilityDetector` and
@@ -2720,7 +2720,12 @@ The app uses `StatefulShellRoute.indexedStack` for persistent navigation. On
 non-desktop platforms, shell composition is selected by `resolveAdaptiveShellMode`.
 Desktop runtime has only Desktop View and the dedicated same-window Mini Player;
 it never renders the phone bottom navigation, expandable player sheet, or tablet
-rail mini-player. Desktop View always reserves its bottom player bar, including
+bottom player strip. In the touch `standardRail` shell the rail is navigation only:
+the player is the phone `_MiniPlayerStrip` (key `railBottomMiniPlayer`, 64 px,
+skip buttons, swipe up expands) pinned at the bottom of the content pane. Now
+Playing slides over the whole pane, strip included, and the strip fades out and
+goes inert meanwhile; the page keeps its 64 px reserve throughout. The pane
+resizes for the keyboard like the bottom-nav shell, so the strip rides above it. Desktop View always reserves its bottom player bar, including
 when playback is empty. Its right-side action region is stable from the 800 px
 minimum upward: Favorite, Lyrics, Queue, and Mini Player remain directly
 visible in a 44 px-target row, with mute and the full volume slider on the row
