@@ -2403,6 +2403,19 @@ void main() {
       expect(find.byKey(twoColumns), findsNothing);
     });
 
+    testWidgets('a phone-sized standard-rail window keeps the narrow Home', (
+      tester,
+    ) async {
+      // Shortest side 520 < 600: a phone form factor, even on the rail.
+      setAdaptiveTestViewport(tester, const Size(900, 520));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(900),
+      );
+      expect(find.byKey(compactHeader), findsNothing);
+    });
+
     testWidgets('the gate switches at a 720 pane, scaled by text size', (
       tester,
     ) async {
