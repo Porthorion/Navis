@@ -296,7 +296,7 @@ unaffected.
   ```
   Icon slots (app x=170, Applications x=490, y=190) live in both the SVG and
   `tool/macos_dmg.sh`; change them together.
-- **Install (users):** open the DMG, drag Navis onto Applications, eject the disk image, then
+- **Install (users):** open the DMG (it mounts as "Install Navis"), drag Navis onto Applications, eject the disk image, then
   open Navis from Applications.
 - **Test:** `bash tool/macos_dmg_test.sh` (staged-bundle allowlist, manifest-key helpers and the rendered dmgbuild settings; no hdiutil needed). `bash tool/dev_release_test.sh` covers the DMG upload, its absence from the signed manifest and its `SHA256SUMS` line against a fake R2.
 
