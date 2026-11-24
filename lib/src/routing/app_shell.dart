@@ -1680,7 +1680,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 onLibrarySectionSelected:
                                     onLibrarySectionSelected,
                                 allowScrollableRail: allowScrollableRail,
-                                onOpenPlayer: _toggleDesktopLyricsOverlay,
                                 onToggleQueue: () {
                                   if (showQueueOverlay) {
                                     _hideQueueWithAnimation();
@@ -1842,32 +1841,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                           onLibrarySectionSelected,
                                                       allowScrollableRail:
                                                           allowScrollableRail,
-                                                      showPlayer: showPlayer,
-                                                      playback: playback,
-                                                      songTitle: songTitle,
-                                                      songArtist: songArtist,
-                                                      artistId: artistId,
-                                                      albumId: albumId,
-                                                      coverArtId: coverArtId,
-                                                      coverArtUrl: coverArtUrl,
-                                                      isExternalSource:
-                                                          isExternalSource,
-                                                      isRadio:
-                                                          playback.isRadioMode,
-                                                      radioArtUrl: playback
-                                                          .radioStation
-                                                          ?.nowPlayingArtUrl,
-                                                      onOpenPlayer: () {
-                                                        NavService.dismissKeyboard(
-                                                          context,
-                                                        );
-                                                        ref
-                                                            .read(
-                                                              playerOverlayStackProvider
-                                                                  .notifier,
-                                                            )
-                                                            .expand();
-                                                      },
                                                     ),
                                             ),
                                           ),
@@ -2088,8 +2061,88 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                     ? Stack(
                                                         children: <Widget>[
                                                           Positioned.fill(
-                                                            child:
-                                                                navigationShell,
+                                                            // The player lives in a strip pinned under the page,
+                                                            // not in the rail. Now Playing slides over both, so the
+                                                            // page keeps its 64 px reserve while it is open.
+                                                            child: Column(
+                                                              children: <Widget>[
+                                                                Expanded(
+                                                                  child:
+                                                                      navigationShell,
+                                                                ),
+                                                                AnimatedOpacity(
+                                                                  key:
+                                                                      const ValueKey<
+                                                                        String
+                                                                      >(
+                                                                        'railBottomMiniPlayerFade',
+                                                                      ),
+                                                                  duration:
+                                                                      const Duration(
+                                                                        milliseconds:
+                                                                            200,
+                                                                      ),
+                                                                  opacity:
+                                                                      isExpanded
+                                                                      ? 0
+                                                                      : 1,
+                                                                  child: IgnorePointer(
+                                                                    ignoring:
+                                                                        isExpanded,
+                                                                    child: ExcludeFocus(
+                                                                      excluding:
+                                                                          isExpanded,
+                                                                      child: ExcludeSemantics(
+                                                                        excluding:
+                                                                            isExpanded,
+                                                                        // Grows past 64 px at large text scale (the page above is
+                                                                        // Expanded, so it shrinks).
+                                                                        child: ConstrainedBox(
+                                                                          key:
+                                                                              const ValueKey<
+                                                                                String
+                                                                              >(
+                                                                                'railBottomMiniPlayer',
+                                                                              ),
+                                                                          constraints: const BoxConstraints(
+                                                                            minHeight:
+                                                                                kMiniPlayerHeight,
+                                                                          ),
+                                                                          child: _MiniPlayerStrip(
+                                                                            playback:
+                                                                                playback,
+                                                                            flattenWideStyle:
+                                                                                true,
+                                                                            showSkipButtons:
+                                                                                true,
+                                                                            songTitle:
+                                                                                songTitle,
+                                                                            songArtist:
+                                                                                songArtist,
+                                                                            coverArtId:
+                                                                                coverArtId,
+                                                                            coverArtUrl:
+                                                                                coverArtUrl,
+                                                                            isExternalSource:
+                                                                                isExternalSource,
+                                                                            isRadio:
+                                                                                playback.isRadioMode,
+                                                                            radioArtUrl:
+                                                                                playback.radioStation?.nowPlayingArtUrl,
+                                                                            onTap: () {
+                                                                              NavService.dismissKeyboard(
+                                                                                context,
+                                                                              );
+                                                                              ref.read(playerOverlayStackProvider.notifier).expand();
+                                                                            },
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
                                                           ),
                                                           Positioned.fill(
                                                             // The collapsed player

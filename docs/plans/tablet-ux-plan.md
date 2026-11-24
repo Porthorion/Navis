@@ -222,6 +222,7 @@ if it reproduces. Size: S (Flash runtime pass).
 ### P1: player placement and rail (target 1.5.x; owner decisions in section 8)
 
 **P1.1 Bottom player strip in the rail shell (option B; F2, F3, F4).**
+**Status (2026-11-24): built, in review** (branch `feat/tablet-p1.1-rail-strip`).
 Risky (hot file `app_shell.dart`, shell geometry).
 - Change: in the `standardRail` branch of `app_shell.dart` (rail built at
   `:1835-1872`, content pane `:1876+`, embedded Now Playing `:2087-2146`)
@@ -249,8 +250,8 @@ Risky (hot file `app_shell.dart`, shell geometry).
   goldens.
 - Edge cases: radio mode (no skip, radio art); external/remote source
   indicator; RTL (strip under the pane, rail on the right); keyboard open on
-  Search (strip must not ride above the keyboard, same as the bottom-nav
-  shell); Split View resize across 840 (rail <-> bottom nav swap keeps one
+  Search (the strip behaves like the bottom-nav shell and rides above the
+  keyboard); Split View resize across 840 (rail <-> bottom nav swap keeps one
   strip, no double strip for a frame); Escape closes Now Playing and the
   strip returns. Desktop workspace untouched (`useDesktopShell` path).
 - Size: M (one Sonnet phase, about 40 tool calls).

@@ -36,8 +36,5 @@
   "lib/src/features/settings/presentation/themes_settings_screen.dart": {
     "colorLiteral": 1,
     "paletteColor": 8
-  },
-  "lib/src/routing/app_shell_mini_player.dart": {
-    "fontSize": 2
   }
 }

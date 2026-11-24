@@ -91,19 +91,7 @@ class _RailSidebar extends ConsumerWidget {
     required this.selectedLibrarySection,
     required this.visibleLibrarySections,
     required this.onLibrarySectionSelected,
-    required this.showPlayer,
-    required this.playback,
-    required this.onOpenPlayer,
     this.navbarStyle = 'comfortable',
-    this.songTitle,
-    this.songArtist,
-    this.artistId,
-    this.albumId,
-    this.coverArtId,
-    this.coverArtUrl,
-    this.isExternalSource = false,
-    this.isRadio = false,
-    this.radioArtUrl,
     this.navbarAutohide = false,
     this.onToggleAutohide,
     this.librarySectionsFit,
@@ -124,18 +112,6 @@ class _RailSidebar extends ConsumerWidget {
   final LibrarySection? selectedLibrarySection;
   final List<LibrarySection> visibleLibrarySections;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
-  final bool showPlayer;
-  final PlaybackSnapshot playback;
-  final String? songTitle;
-  final String? songArtist;
-  final String? artistId;
-  final String? albumId;
-  final String? coverArtId;
-  final String? coverArtUrl;
-  final bool isExternalSource;
-  final bool isRadio;
-  final String? radioArtUrl;
-  final VoidCallback onOpenPlayer;
   final String navbarStyle;
   final bool navbarAutohide;
   final VoidCallback? onToggleAutohide;
@@ -265,16 +241,12 @@ class _RailSidebar extends ConsumerWidget {
                     navTextGrowth;
                 final subNavTileEstimatedHeight = 44.0 + subTextGrowth;
                 const subNavTrailingGap = 6.0;
-                const reservedMiniPlayerHeight = 170.0;
-                const railMiniPlayerGap = 6.0;
                 const railCutoffSlack = 4.0;
                 final librarySubSectionCount = visibleLibrarySections.length;
-                final navViewportHeight =
-                    (constraints.maxHeight -
-                            (showPlayer
-                                ? (reservedMiniPlayerHeight + railMiniPlayerGap)
-                                : 0.0))
-                        .clamp(0.0, double.infinity);
+                final navViewportHeight = constraints.maxHeight.clamp(
+                  0.0,
+                  double.infinity,
+                );
                 final baseNavHeight =
                     destinations.length * navTileEstimatedHeight;
                 final inlineLibraryNavHeight =
@@ -338,22 +310,6 @@ class _RailSidebar extends ConsumerWidget {
                   ],
                 ];
 
-                final player = showPlayer
-                    ? _RailMiniPlayer(
-                        playback: playback,
-                        songTitle: songTitle,
-                        songArtist: songArtist,
-                        artistId: artistId,
-                        albumId: albumId,
-                        coverArtId: coverArtId,
-                        coverArtUrl: coverArtUrl,
-                        isExternalSource: isExternalSource,
-                        isRadio: isRadio,
-                        radioArtUrl: radioArtUrl,
-                        onOpenPlayer: onOpenPlayer,
-                      )
-                    : const SizedBox.shrink();
-
                 final navRegion = useScrollableRail
                     ? SingleChildScrollView(
                         child: Column(
@@ -366,18 +322,7 @@ class _RailSidebar extends ConsumerWidget {
                         children: <Widget>[...navTiles, const Spacer()],
                       );
 
-                if (!showPlayer) {
-                  return navRegion;
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Expanded(child: navRegion),
-                    const SizedBox(height: 6),
-                    player,
-                  ],
-                );
+                return navRegion;
               },
             ),
           ),
