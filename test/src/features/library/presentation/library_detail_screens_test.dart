@@ -36,6 +36,7 @@ import 'package:navis/src/features/library/presentation/artist_top_tracks_sectio
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -1481,6 +1482,161 @@ void main() {
       await _disposeApp(tester);
     });
 
+    group('album header row on wide panes', () {
+      const header = ValueKey<String>('albumDetailDesktopHeader');
+      final tracks = <SongsTableData>[
+        for (var i = 1; i <= 6; i++)
+          SongsTableData(
+            isProvisional: false,
+            isExternal: false,
+            id: 'wide-$i',
+            title: 'Wide Track $i',
+            track: i,
+            discNumber: 1,
+          ),
+      ];
+
+      Future<void> pumpWide(
+        WidgetTester tester,
+        Size size, {
+        AdaptiveContext context = _tabletContext,
+        TextScaler? textScaler,
+        TextDirection? textDirection,
+        String name = 'Album 1',
+        List<SongsTableData>? songs,
+      }) async {
+        setAdaptiveTestViewport(tester, size);
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: context,
+          textScaler: textScaler,
+          textDirection: textDirection,
+          album: _albumWithSongs(songs ?? tracks, name: name),
+        );
+        await tester.pump(const Duration(seconds: 1));
+      }
+
+      Finder title(String name) =>
+          find.descendant(of: find.byKey(header), matching: find.text(name));
+
+      for (final (size, cover) in const <(Size, double)>[
+        (Size(762, 1376), 240),
+        (Size(1032, 1032), 280),
+      ]) {
+        testWidgets('touch ${size.width.toInt()} wide: cover left of title, '
+            'tracks above the fold', (tester) async {
+          await pumpWide(tester, size);
+          expect(find.byKey(header), findsOneWidget);
+          expect(find.byType(FlexibleSpaceBar), findsNothing);
+          expect(find.byType(DesktopFrame), findsNothing);
+          final coverRect = tester.getRect(find.byType(HeroCoverArt));
+          expect(coverRect.height, cover);
+          expect(
+            coverRect.right,
+            lessThanOrEqualTo(tester.getRect(title('Album 1')).left),
+          );
+          // 420 at 762 (measured 408); the 280 cover at 1032 puts it at 462.
+          expect(
+            tester.getTopLeft(find.text('Wide Track 1')).dy,
+            lessThan(size.width < 960 ? 420 : 480),
+          );
+          expect(tester.takeException(), isNull);
+          await _disposeApp(tester);
+        });
+      }
+
+      testWidgets('touch 700 wide keeps the hero', (tester) async {
+        await pumpWide(tester, const Size(700, 1000));
+        expect(find.byType(FlexibleSpaceBar), findsOneWidget);
+        expect(find.byKey(header), findsNothing);
+        await _disposeApp(tester);
+      });
+
+      testWidgets('phone keeps the hero', (tester) async {
+        await pumpWide(tester, const Size(390, 844), context: _mobileContext);
+        expect(find.byType(FlexibleSpaceBar), findsOneWidget);
+        expect(find.byKey(header), findsNothing);
+        await _disposeApp(tester);
+      });
+
+      testWidgets('desktop 760 pane has the header row', (tester) async {
+        await pumpWide(tester, const Size(760, 900), context: _desktopContext);
+        expect(find.byKey(header), findsOneWidget);
+        expect(
+          tester.getRect(find.byType(HeroCoverArt)).right,
+          lessThanOrEqualTo(tester.getRect(title('Album 1')).left),
+        );
+        await _disposeApp(tester);
+      });
+
+      testWidgets('RTL puts the cover on the right', (tester) async {
+        await pumpWide(
+          tester,
+          const Size(762, 1376),
+          textDirection: TextDirection.rtl,
+        );
+        expect(
+          tester.getRect(find.byType(HeroCoverArt)).left,
+          greaterThanOrEqualTo(tester.getRect(title('Album 1')).right),
+        );
+        await _disposeApp(tester);
+      });
+
+      testWidgets('large text scale follows the scaled width', (tester) async {
+        // 1032 / 2 = 516 scaled: hero, like the medium track row.
+        await pumpWide(
+          tester,
+          const Size(1032, 1032),
+          textScaler: const TextScaler.linear(2),
+        );
+        expect(find.byType(FlexibleSpaceBar), findsOneWidget);
+        // 1032 / 1.2 = 860 scaled: row, nothing overflows.
+        await pumpWide(
+          tester,
+          const Size(1032, 1032),
+          textScaler: const TextScaler.linear(1.2),
+        );
+        expect(find.byKey(header), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await _disposeApp(tester);
+      });
+
+      testWidgets('very long title holds two lines; no tracks, no cover', (
+        tester,
+      ) async {
+        final long = List.filled(30, 'Extraordinarily').join(' ');
+        await pumpWide(
+          tester,
+          const Size(762, 1376),
+          name: long,
+          songs: const <SongsTableData>[],
+        );
+        final text = tester.widget<Text>(title(long));
+        expect(text.maxLines, 2);
+        expect(text.overflow, TextOverflow.ellipsis);
+        expect(tester.takeException(), isNull);
+        await _disposeApp(tester);
+      });
+
+      testWidgets('multi-disc headers render beside the row header', (
+        tester,
+      ) async {
+        await pumpWide(
+          tester,
+          const Size(762, 1376),
+          songs: <SongsTableData>[
+            for (final t in tracks)
+              t.copyWith(discNumber: Value(t.track! > 3 ? 2 : 1)),
+          ],
+        );
+        expect(find.text('Wide Track 4'), findsOneWidget);
+        expect(find.textContaining('Disc 2'), findsAtLeastNWidgets(1));
+        expect(tester.takeException(), isNull);
+        await _disposeApp(tester);
+      });
+    });
+
     for (final (direction, leading) in <(TextDirection, bool)>[
       (TextDirection.ltr, true),
       (TextDirection.rtl, false),
@@ -1488,7 +1644,7 @@ void main() {
       testWidgets('tablet album Play keeps its 16 dp start inset: $direction', (
         tester,
       ) async {
-        setAdaptiveTestViewport(tester, const Size(951, 669));
+        setAdaptiveTestViewport(tester, const Size(700, 900));
         await _pumpAlbumDetail(
           tester,
           database: database,

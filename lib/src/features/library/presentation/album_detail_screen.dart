@@ -40,6 +40,7 @@ import 'package:navis/src/features/library/presentation/detail_load_states.dart'
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
@@ -310,6 +311,16 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Layout follows this page's own pane width, scaled like
+    // ContentLayout.trackMode so the header row and track rows switch together.
+    final textScale = max(1, MediaQuery.textScalerOf(context).scale(14) / 14);
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          _buildPage(context, constraints.maxWidth / textScale),
+    );
+  }
+
+  Widget _buildPage(BuildContext context, double paneWidth) {
     final l10n = AppLocalizations.of(context)!;
     final album = ref.watch(albumProvider(widget.albumId));
     final downloadedSongIds = _showDownloadedOnly
@@ -324,15 +335,22 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
     final desktopMode = adaptiveContext.useDesktopShell;
     final compactWideMode = adaptiveContext.useCompactWideLandscape;
     final showsAlbum = _showsAlbum(album.value);
+    // Layout (pane width): the cover-left header row. Platform (desktopMode):
+    // DesktopFrame, height bands, row actions.
+    final headerRow =
+        desktopMode ||
+        (!compactWideMode &&
+            !adaptiveContext.isPhoneFormFactor &&
+            ContentLayout.wideDetail(paneWidth));
 
     return Scaffold(
-      // AppBar is only shown on desktop or until the album can show.
+      // AppBar is only shown with the header row or until the album can show.
       // The mobile data state uses a custom SliverAppBar with overlay nav buttons.
-      appBar: (desktopMode || !showsAlbum)
+      appBar: (headerRow || !showsAlbum)
           ? AppBar(
               // The page always offers a way back, even when it was opened
               // without history while the album loads.
-              leading: showsAlbum
+              leading: showsAlbum && desktopMode
                   ? null
                   : BackButton(
                       onPressed: () =>
@@ -346,7 +364,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                           _nonBlank(widget.nameHint) ??
                           l10n.albumDetailTitle,
                     ),
-              backgroundColor: desktopMode
+              backgroundColor: headerRow
                   ? Theme.of(context).colorScheme.surfaceContainerHigh
                   : null,
               actions: <Widget>[
@@ -548,21 +566,28 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                       );
 
                 // ── Desktop layout: horizontal header + scrollable track panel ──
-                if (desktopMode) {
+                if (headerRow) {
                   final desktopLayoutClass = resolveDesktopLayoutClass(
                     MediaQuery.sizeOf(context).width,
                   );
-                  final compactDesktop =
-                      desktopLayoutClass == DesktopLayoutClass.compactDesktop;
+                  // Touch has no window height bands: the compact header below
+                  // 960, the roomy one from 960 (cover 240 / 280).
+                  final compactDesktop = desktopMode
+                      ? desktopLayoutClass == DesktopLayoutClass.compactDesktop
+                      : paneWidth < 960;
                   // Cover and spacing follow the window height band; tall keeps
                   // the original sizes.
-                  final heightClass = desktopHeightClassOf(context);
+                  final heightClass = desktopMode
+                      ? desktopHeightClassOf(context)
+                      : DesktopHeightClass.tall;
                   final shortHeader = heightClass == DesktopHeightClass.short;
-                  final artSize = heightClass.pick<double>(
-                    short: 140,
-                    regular: 200,
-                    tall: compactDesktop ? 208 : 260,
-                  );
+                  final artSize = desktopMode
+                      ? heightClass.pick<double>(
+                          short: 140,
+                          regular: 200,
+                          tall: compactDesktop ? 208 : 260,
+                        )
+                      : (compactDesktop ? 240.0 : 280.0);
                   final colors = Theme.of(context).colorScheme;
                   final textTheme = Theme.of(context).textTheme;
                   final titleStyle = shortHeader
@@ -612,7 +637,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                         letterSpacing: -0.5,
                         height: 1.1,
                       ),
-                      maxLines: shortHeader ? 2 : 3,
+                      maxLines: shortHeader || !desktopMode ? 2 : 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                     SizedBox(
@@ -696,6 +721,21 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                             unawaited(_updateAlbumRating(next)),
                       ),
                       _albumFilterButton(),
+                      // Touch has no row context menu: keep the mobile one.
+                      if (!desktopMode)
+                        IconButton(
+                          tooltip: MaterialLocalizations.of(context)
+                              .showMenuTooltip,
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: () => unawaited(
+                            _showMobileAlbumContextMenu(
+                              details,
+                              songs,
+                              albumRating,
+                              coverArtHeroTag,
+                            ),
+                          ),
+                        ),
                     ],
                   );
                   // Short and regular windows put the actions beside the title
@@ -703,7 +743,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                   // column; narrower panes stack them.
                   final headerDetails = LayoutBuilder(
                     builder: (context, constraints) {
-                      if (heightClass != DesktopHeightClass.tall &&
+                      if (desktopMode &&
+                          heightClass != DesktopHeightClass.tall &&
                           constraints.maxWidth >= 900) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -738,14 +779,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                       );
                     },
                   );
+                  Widget frame(Widget child) => desktopMode
+                      ? DesktopFrame(
+                          layoutClass: desktopLayoutClass,
+                          padding: EdgeInsets.zero,
+                          child: child,
+                        )
+                      : child;
                   return SafeArea(
                     bottom: false,
-                    child: DesktopFrame(
-                      layoutClass: desktopLayoutClass,
-                      padding: EdgeInsets.zero,
-                      // The header is the first sliver: it scrolls away with the
-                      // tracks, so a short window shows more of them.
-                      child: CustomScrollView(
+                    child: frame(
+                      CustomScrollView(
                         slivers: <Widget>[
                           SliverToBoxAdapter(
                             child: Column(
