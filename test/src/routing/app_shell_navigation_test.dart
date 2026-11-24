@@ -3204,6 +3204,54 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
+    testWidgets('Now Playing keeps its tickers behind the floating panel', (
+      tester,
+    ) async {
+      await openQueue(tester, const Size(1032, 1376));
+      expect(
+        TickerMode.of(tester.element(find.byType(NowPlayingScreen))),
+        isTrue,
+      );
+    });
+
+    testWidgets(
+      'a pane resize during a reorder keeps drag-to-dismiss working',
+      (tester) async {
+        final container = await openQueue(
+          tester,
+          const Size(1032, 1376),
+          extra: <Override>[
+            reorderQueueProvider.overrideWithValue((a, b) async {}),
+            desktopNavbarStyleProvider.overrideWithValue('comfortable'),
+          ],
+        );
+        final rows = find.descendant(
+          of: find.byType(QueueSheet),
+          matching: find.byType(ReorderableDelayedDragStartListener),
+        );
+        final start = tester.getCenter(rows.at(0));
+        final g = await tester.startGesture(start);
+        await tester.pump(const Duration(milliseconds: 700));
+        await g.moveTo(start + const Offset(0, 30));
+        await tester.pump(const Duration(milliseconds: 16));
+        // The 581 pane switches the floating panel to the fullscreen queue.
+        setAdaptiveTestViewport(tester, const Size(841, 701));
+        await tester.pumpAndSettle();
+        await g.up();
+        await tester.pumpAndSettle();
+        expect(container.read(queueOverlayVisibleProvider), isTrue);
+        final sheet = tester.getRect(find.byKey(panelKey));
+        await tester.flingFrom(
+          sheet.topCenter + const Offset(0, 24),
+          const Offset(0, 400),
+          1500,
+        );
+        await tester.pumpAndSettle();
+        expect(container.read(queueOverlayVisibleProvider), isFalse);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
     testWidgets('a downward drag at the list top dismisses the panel', (
       tester,
     ) async {

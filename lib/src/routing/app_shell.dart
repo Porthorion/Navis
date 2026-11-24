@@ -2201,28 +2201,32 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                         ),
                                                                   // The fullscreen queue covers Now Playing; stop its
                                                                   // endless title marquee and other tickers meanwhile.
-                                                                  child: TickerMode(
-                                                                    enabled:
-                                                                        !showQueueOverlay,
-                                                                    child: NowPlayingScreen(
-                                                                      wideEmbeddedMode:
-                                                                          true,
-                                                                      compactWideLandscapeMode:
-                                                                          useCompactWideLandscape,
-                                                                      sheetProgress:
-                                                                          _playerSheetProgress,
-                                                                      onShowQueue: () =>
-                                                                          NavService.showQueue(
-                                                                            context,
-                                                                            ref,
-                                                                          ),
-                                                                      onCollapse: () => ref
-                                                                          .read(
-                                                                            playerOverlayStackProvider.notifier,
-                                                                          )
-                                                                          .collapse(),
-                                                                      onBackInterceptorChanged:
-                                                                          _setNowPlayingBackInterceptor,
+                                                                  // The floating panel (pane >= 600) leaves it visible.
+                                                                  child: LayoutBuilder(
+                                                                    builder: (context, pane) => TickerMode(
+                                                                      enabled:
+                                                                          !showQueueOverlay ||
+                                                                          pane.maxWidth >=
+                                                                              kAdaptiveMediumWidth,
+                                                                      child: NowPlayingScreen(
+                                                                        wideEmbeddedMode:
+                                                                            true,
+                                                                        compactWideLandscapeMode:
+                                                                            useCompactWideLandscape,
+                                                                        sheetProgress:
+                                                                            _playerSheetProgress,
+                                                                        onShowQueue: () => NavService.showQueue(
+                                                                          context,
+                                                                          ref,
+                                                                        ),
+                                                                        onCollapse: () => ref
+                                                                            .read(
+                                                                              playerOverlayStackProvider.notifier,
+                                                                            )
+                                                                            .collapse(),
+                                                                        onBackInterceptorChanged:
+                                                                            _setNowPlayingBackInterceptor,
+                                                                      ),
                                                                     ),
                                                                   ),
                                                                 ),
@@ -2236,9 +2240,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                               child: LayoutBuilder(
                                                                 builder: (context, pane) {
                                                                   final floating =
-                                                                      !useCompactWideLandscape &&
                                                                       pane.maxWidth >=
-                                                                          kAdaptiveMediumWidth;
+                                                                      kAdaptiveMediumWidth;
                                                                   return _QueueOverlay(
                                                                     key:
                                                                         _queueOverlayKey,
