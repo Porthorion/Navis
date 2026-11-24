@@ -2199,15 +2199,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                           0,
                                                                           1,
                                                                         ),
-                                                                  // The fullscreen queue covers Now Playing; stop its
-                                                                  // endless title marquee and other tickers meanwhile.
-                                                                  // The floating panel (pane >= 600) leaves it visible.
+                                                                  // Stop its tickers (title marquee) while collapsed off
+                                                                  // screen or covered by the fullscreen queue; the floating
+                                                                  // panel (pane >= 600) leaves it visible.
                                                                   child: LayoutBuilder(
                                                                     builder: (context, pane) => TickerMode(
                                                                       enabled:
-                                                                          !showQueueOverlay ||
-                                                                          pane.maxWidth >=
-                                                                              kAdaptiveMediumWidth,
+                                                                          isExpanded &&
+                                                                          (!showQueueOverlay ||
+                                                                              pane.maxWidth >= kAdaptiveMediumWidth),
                                                                       child: NowPlayingScreen(
                                                                         wideEmbeddedMode:
                                                                             true,
