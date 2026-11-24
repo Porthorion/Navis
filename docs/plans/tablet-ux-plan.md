@@ -362,6 +362,10 @@ button), flat sections at the compact-wide inset and two-column song lists.
 - Size: M.
 
 **P2.3 Library and artist (F8).** Low risk.
+**Status (2026-11-24): PR open.** Playlists tab is a cover grid from a 600 pane:
+`AlbumCardContent` gained an optional `artwork` slot (unchanged when null)
+filled with the existing playlist artwork; desktop cells keep the More button
+in the card's badge slot.
 - Playlists tab: `ResponsiveContentSliverGrid` with `ContentLayout.albums`
   on panes >= 600 (cover grid like Albums), list below. Artist top tracks in two columns is new layout (there is no desktop
   branch to re-gate), so it moves to section 9 under the scope rule.
