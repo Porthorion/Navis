@@ -75,37 +75,6 @@ class _FullscreenLyricsPage extends ConsumerWidget {
   }
 }
 
-class _EmbeddedFullscreenLyricsPanel extends ConsumerWidget {
-  const new({required this.songId, required this.playback});
-
-  final String songId;
-  final PlaybackSnapshot playback;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final song = ref.watch(songByIdProvider(songId)).asData?.value;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-      child: Column(
-        children: <Widget>[
-          Expanded(child: PlaybackLyricsContent(songId: songId)),
-          if (!playback.isRadioMode) ...<Widget>[
-            const SizedBox(height: 8),
-            _SeekBar(playback: playback),
-          ],
-          const SizedBox(height: 8),
-          _TransportControls(
-            playback: playback,
-            isExternalSource: song?.isExternal ?? false,
-            isRadio: playback.isRadioMode,
-            compact: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 String _formatPreferenceSummary(AppLocalizations l10n, SongsTableData? song) {
   if (song == null) return '-';
   final likedText = song.starred == null

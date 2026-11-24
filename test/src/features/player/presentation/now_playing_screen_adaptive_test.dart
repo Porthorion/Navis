@@ -23,6 +23,7 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/features/player/presentation/playback_lyrics_content.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -455,6 +456,105 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Lyrics'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  for (final size in <Size>[Size(762, 1376), Size(868, 756), Size(711, 1032)]) {
+    testWidgets(
+      'embedded lyrics action shows inline lyrics at ${size.width.toInt()}x'
+      '${size.height.toInt()}',
+      (tester) async {
+        setAdaptiveTestViewport(tester, size);
+        final container = _createContainer();
+        container.read(nowPlayingTestPlaybackProvider.notifier).state =
+            _songPlayback;
+        await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+        expect(find.byType(PlaybackLyricsContent), findsNothing);
+        await tester.tap(find.byTooltip('Lyrics').first);
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.byType(PlaybackLyricsContent), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Lyrics').first);
+        await tester.pumpAndSettle();
+        expect(find.byType(PlaybackLyricsContent), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  testWidgets('embedded radio has no lyrics action and keeps the cover', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(868, 756));
+    final container = _createContainer();
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      radioStation: const RadioStationMetadata(
+        stationId: 'radio-1',
+        stationName: 'Fixture FM',
+        streamUrl: 'https://example.com/radio',
+      ),
+    );
+    await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+    expect(find.byTooltip('Lyrics'), findsNothing);
+    expect(find.byType(PlaybackLyricsContent), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('embedded without a song never shows lyrics', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(868, 756));
+    final container = _createContainer();
+    await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+    final lyrics = find.byTooltip('Lyrics');
+    if (lyrics.evaluate().isNotEmpty) {
+      await tester.tap(lyrics.first, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+    expect(find.byType(PlaybackLyricsContent), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets(
+    'embedded fullscreen-lyrics setting still opens the lyrics page',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(868, 756));
+      final container = _createContainer(
+        overrides: [fullscreenModeLyricsProvider.overrideWithValue(true)],
+      );
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+      await tester.tap(find.byTooltip('Lyrics').first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppBar), findsOneWidget);
+      expect(find.byType(PlaybackLyricsContent), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  testWidgets('split embedded lyrics action shows lyrics in the split pane', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1200, 1000));
+    final container = _createContainer();
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+    await tester.tap(find.byTooltip('Lyrics').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaybackLyricsContent), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('nowPlayingArtLyricsSwitcher')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
 
