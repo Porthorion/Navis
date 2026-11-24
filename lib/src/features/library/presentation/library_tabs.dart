@@ -375,7 +375,15 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     required String Function(PlaylistLibrarySection section) sectionTitle,
     required Widget? loadError,
   }) {
-    final inset = ContentLayout.padding(width);
+    // Headers line up with the first cover column: the grid centres its
+    // columns, so add the same remainder it does.
+    final padding = ContentLayout.padding(width);
+    final gridWidth = math.max(0.0, width - padding * 2);
+    final grid = ContentLayout.albums(
+      gridWidth,
+      ref.watch(gridArtworkSizeProvider),
+    );
+    final inset = padding + (gridWidth - grid.occupiedWidth) / 2;
     final slivers = <Widget>[];
     var run = <PlaylistLibraryItem>[];
     void flush() {
@@ -514,8 +522,29 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               size: kCoverArtStandardSize,
               fit: BoxFit.cover,
               placeholderIcon: Icons.queue_music_outlined,
-              semanticLabel: playlist.name,
             ),
+      // The list's More button, so keyboard and screen-reader users still
+      // reach rename and delete on desktop.
+      badge: desktopMode && canEdit
+          ? Builder(
+              builder: (buttonContext) => IconButton.filledTonal(
+                key: ValueKey<String>('library-playlist-more-${playlist.id}'),
+                icon: const Icon(Icons.more_vert),
+                tooltip: l10n.nowPlayingMore,
+                onPressed: () {
+                  final renderObject = buttonContext.findRenderObject();
+                  if (renderObject is! RenderBox) return;
+                  _showPlaylistActions(
+                    context,
+                    playlist,
+                    anchor: renderObject.localToGlobal(
+                      renderObject.size.center(Offset.zero),
+                    ),
+                  );
+                },
+              ),
+            )
+          : null,
       onTap: () => NavService.openPlaylistDetail(context, ref, playlist.id),
       onLongPress: desktopMode || !canEdit
           ? null

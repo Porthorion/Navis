@@ -2559,6 +2559,18 @@ void main() {
 
         expect(find.text('Edit Playlist'), findsOneWidget);
         expect(find.byType(BottomSheet), findsNothing);
+
+        // Keyboard and screen-reader path: the grid cell keeps the list's
+        // focusable More button.
+        await tester.tapAt(Offset.zero);
+        await tester.pumpAndSettle();
+        final more = find.byKey(
+          const ValueKey<String>('library-playlist-more-server-mix'),
+        );
+        expect(more, findsOneWidget);
+        await tester.tap(more);
+        await tester.pumpAndSettle();
+        expect(find.text('Edit Playlist'), findsOneWidget);
       },
     );
 
@@ -3090,6 +3102,31 @@ void main() {
                 find.byKey(const ValueKey('library-playlist-yours-0')),
               )
               .dx,
+        );
+      });
+
+      _testWidgetsWithCleanup('lines headers up with the first column', (
+        tester,
+      ) async {
+        // 762 leaves a centring remainder in the grid (1032 does not).
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 1400),
+          items: <PlaylistLibraryItem>[
+            ..._playlistCards(2),
+            ..._playlistCards(2, section: PlaylistLibrarySection.other),
+          ],
+        );
+        expect(
+          tester.getTopLeft(find.text('Other Playlists')).dx,
+          moreOrLessEquals(
+            tester
+                .getTopLeft(
+                  find.byKey(const ValueKey('library-playlist-other-0')),
+                )
+                .dx,
+            epsilon: 1,
+          ),
         );
       });
 
