@@ -220,12 +220,14 @@ condition in a hot file).
 if it reproduces. Size: S (Flash runtime pass).
 
 **P0.3 Now Playing has no close in embedded portrait (#803).**
-**Status (2026-11-24): in progress** (separate branch; `now_playing_screen.dart`).
+**Status (2026-11-24): merged in #804.** The collapse button shows whenever Now
+Playing is embedded without a sheet, and the standard embedded layout closes on a
+swipe down. Runtime: `build/ipad-ux/batch-p12-803/`.
 
 ### P1: player placement and rail (target 1.5.x; owner decisions in section 8)
 
 **P1.1 Bottom player strip in the rail shell (option B; F2, F3, F4).**
-**Status (2026-11-24): merged in #802.**
+**Status (2026-11-24): merged in #802.** Runtime: `build/ipad-ux/p1.1/runtime/`.
 Risky (hot file `app_shell.dart`, shell geometry).
 - Change: in the `standardRail` branch of `app_shell.dart` (rail built at
   `:1835-1872`, content pane `:1876+`, embedded Now Playing `:2087-2146`)
@@ -261,7 +263,9 @@ Risky (hot file `app_shell.dart`, shell geometry).
 
 **P1.2 Narrower tablet rail that honours the navbar style (F5).** Risky
 (shell geometry), after P1.1.
-**Status (2026-11-24): built, in review** (branch `feat/tablet-p1.2-rail-style`).
+**Status (2026-11-24): merged in #806.** Desktop keeps the "Desktop Navigation"
+heading (Linux golden); tablets title the section "Sidebar". Icons-style tiles
+now have tooltips and semantics labels. Runtime: `build/ipad-ux/batch-p12-803/`.
 - Change: tablet rail width = the desktop sidebar widths by the existing
   navbar style setting (`'compact'` 220, `'comfortable'` 260 (the provider normalizes any other value to `'compact'`), `'icons'` 64;
   `app_shell.dart:1114-1120`) instead of `0.25 * width` clamp 270-360
