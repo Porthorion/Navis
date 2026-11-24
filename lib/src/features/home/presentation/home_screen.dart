@@ -1184,10 +1184,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final desktopMode = adaptiveContext.useDesktopShell;
     // Touch panes from 720 up (rail panes, bottom-nav tablets, foldables) use
     // the compact-wide header, flat sections and two-column song lists.
+    // Scaled by text size like album and playlist detail, so the screens
+    // switch together.
+    final textScale = math.max(
+      1,
+      MediaQuery.textScalerOf(context).scale(14) / 14,
+    );
     final wideHome =
         !desktopMode &&
         !compactWideLandscapeMode &&
-        ContentLayout.wideDetail(paneWidth);
+        !adaptiveContext.isPhoneFormFactor &&
+        ContentLayout.wideDetail(paneWidth / textScale);
     // Home's sections add NavisSpace.md themselves; desktop tops it up to the
     // page gutter.
     final compactHorizontalInset = _homePageInset(
@@ -1271,8 +1278,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ],
             ),
-          )
-        else ...<Widget>[
+          ),
+        // ponytail: two spacers keep the child count of the centred header
+        // below, so a resize across 720 doesn't shift every section's element
+        // (carousel page, shelf offsets); give the list keyed children if the
+        // header ever changes shape again.
+        if (wideHome) ...const <Widget>[SizedBox.shrink(), SizedBox.shrink()],
+        if (!desktopMode && !compactWideLandscapeMode && !wideHome) ...<Widget>[
           Padding(
             key: const ValueKey<String>('homeCenteredLogoHeader'),
             padding: phoneHeader

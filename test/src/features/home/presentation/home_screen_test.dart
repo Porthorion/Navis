@@ -2403,15 +2403,43 @@ void main() {
       expect(find.byKey(twoColumns), findsNothing);
     });
 
-    testWidgets('RTL pane and 200 % text keep the wide header intact', (
+    testWidgets('the gate switches at a 720 pane, scaled by text size', (
       tester,
     ) async {
-      setAdaptiveTestViewport(tester, const Size(834, 1194));
+      setAdaptiveTestViewport(tester, const Size(1032, 1376));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(719),
+      );
+      expect(find.byKey(compactHeader), findsNothing);
+
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(720),
+      );
+      expect(find.byKey(compactHeader), findsOneWidget);
+
       await _pumpHomeWithAppSettings(
         tester,
         database: database,
         textScaler: const TextScaler.linear(2),
-        wrapHome: pane(834, direction: TextDirection.rtl),
+        wrapHome: pane(1000),
+      );
+      expect(find.byKey(compactHeader), findsNothing);
+    });
+
+    testWidgets('RTL pane and 200 % text keep the wide header intact', (
+      tester,
+    ) async {
+      // The gate divides the pane by the text scale, like album detail.
+      setAdaptiveTestViewport(tester, const Size(1500, 1000));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        textScaler: const TextScaler.linear(2),
+        wrapHome: pane(1500, direction: TextDirection.rtl),
       );
 
       expect(find.byKey(compactHeader), findsOneWidget);
