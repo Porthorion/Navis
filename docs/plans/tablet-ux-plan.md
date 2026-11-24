@@ -366,6 +366,9 @@ logic change on desktop).
 - Size: S-M.
 
 **P2.4 Lyrics width and placement (F9).** Low risk.
+**Status (2026-11-24): PR open.** `ContentLayout.readingWidth` (720) caps the
+lyric column (centred) and the artist bio (start-aligned); panes up to about
+816 are unchanged.
 - Cap the lyric column at 720 px, centred, in `lyrics_display_widget.dart`
   (helps desktop too); keep the font scale (`:416-423`). Apply the same
   720 cap to the artist bio text (`artist_detail_screen.dart`).
