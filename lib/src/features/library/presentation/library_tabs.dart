@@ -310,42 +310,223 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       rows.add(item);
     }
 
-    return ListView.builder(
-      key: const PageStorageKey<String>('library-playlists'),
-      controller: widget.scrollController,
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: rows.length + (serverPlaylistsFailed ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == rows.length) {
-          return ErrorState(
-            key: const ValueKey<String>('library-playlists-load-error'),
-            title: l10n.playlistsLoadError,
-            onRetry: _retryServerPlaylists,
+    final loadError = ErrorState(
+      key: const ValueKey<String>('library-playlists-load-error'),
+      title: l10n.playlistsLoadError,
+      onRetry: _retryServerPlaylists,
+    );
+    String sectionTitle(PlaylistLibrarySection section) => switch (section) {
+      PlaylistLibrarySection.yours => l10n.playlistsSectionYours,
+      PlaylistLibrarySection.madeForYou => l10n.playlistsSectionMadeForYou,
+      PlaylistLibrarySection.other => l10n.playlistsSectionOther,
+    };
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= kAdaptiveMediumWidth) {
+          return _buildPlaylistGrid(
+            rows,
+            width: constraints.maxWidth,
+            canEditFor: (playlist) => canEditPlaylist(playlist, me),
+            desktopMode: desktopMode,
+            sectionTitle: sectionTitle,
+            loadError: serverPlaylistsFailed ? loadError : null,
           );
         }
-        return switch (rows[index]) {
-          final PlaylistLibrarySection section => NavisSectionHeader(
-            title: switch (section) {
-              PlaylistLibrarySection.yours => l10n.playlistsSectionYours,
-              PlaylistLibrarySection.madeForYou =>
-                l10n.playlistsSectionMadeForYou,
-              PlaylistLibrarySection.other => l10n.playlistsSectionOther,
-            },
-            compact: true,
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          ),
-          final PlaylistLibraryItem item when item.virtualPlaylist != null =>
-            _buildVirtualPlaylistTile(item, item.virtualPlaylist!),
-          final PlaylistLibraryItem item when item.isTrending =>
-            _buildTrendingTile(item),
-          final PlaylistLibraryItem item => _buildPlaylistTile(
-            item.playlist!,
-            canEdit: canEditPlaylist(item.playlist!, me),
-            desktopMode: desktopMode,
-          ),
-          _ => const SizedBox.shrink(),
-        };
+        return ListView.builder(
+          key: const PageStorageKey<String>('library-playlists'),
+          controller: widget.scrollController,
+          padding: const EdgeInsets.only(bottom: 80),
+          itemCount: rows.length + (serverPlaylistsFailed ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == rows.length) return loadError;
+            return switch (rows[index]) {
+              final PlaylistLibrarySection section => NavisSectionHeader(
+                title: sectionTitle(section),
+                compact: true,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              ),
+              final PlaylistLibraryItem item
+                  when item.virtualPlaylist != null =>
+                _buildVirtualPlaylistTile(item, item.virtualPlaylist!),
+              final PlaylistLibraryItem item when item.isTrending =>
+                _buildTrendingTile(item),
+              final PlaylistLibraryItem item => _buildPlaylistTile(
+                item.playlist!,
+                canEdit: canEditPlaylist(item.playlist!, me),
+                desktopMode: desktopMode,
+              ),
+              _ => const SizedBox.shrink(),
+            };
+          },
+        );
       },
+    );
+  }
+
+  /// The wide-pane Playlists tab: a cover grid per section (like Albums),
+  /// with the section headers and the load-error row full width between and
+  /// after them.
+  Widget _buildPlaylistGrid(
+    List<Object> rows, {
+    required double width,
+    required bool Function(PlaylistsTableData playlist) canEditFor,
+    required bool desktopMode,
+    required String Function(PlaylistLibrarySection section) sectionTitle,
+    required Widget? loadError,
+  }) {
+    final inset = ContentLayout.padding(width);
+    final slivers = <Widget>[];
+    var run = <PlaylistLibraryItem>[];
+    void flush() {
+      if (run.isEmpty) return;
+      final group = run;
+      run = <PlaylistLibraryItem>[];
+      slivers.add(
+        ResponsiveContentSliverGrid(
+          itemCount: group.length,
+          itemBuilder: (context, index) => RepaintBoundary(
+            child: _buildPlaylistCard(
+              group[index],
+              canEditFor: canEditFor,
+              desktopMode: desktopMode,
+            ),
+          ),
+        ),
+      );
+    }
+
+    for (final row in rows) {
+      if (row case final PlaylistLibrarySection section) {
+        flush();
+        slivers.add(
+          SliverToBoxAdapter(
+            child: NavisSectionHeader(
+              title: sectionTitle(section),
+              compact: true,
+              padding: EdgeInsets.fromLTRB(inset, 16, inset, 8),
+            ),
+          ),
+        );
+      } else if (row case final PlaylistLibraryItem item) {
+        run.add(item);
+      }
+    }
+    flush();
+    if (loadError != null) slivers.add(SliverToBoxAdapter(child: loadError));
+    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 80)));
+    return CustomScrollView(
+      key: const PageStorageKey<String>('library-playlists'),
+      controller: widget.scrollController,
+      slivers: slivers,
+    );
+  }
+
+  /// One playlist grid cell: [AlbumCardContent] with the row's cover in its
+  /// artwork slot and the row's own count or service text as the subtitle.
+  /// No `albumId`, so no hover Play button.
+  Widget _buildPlaylistCard(
+    PlaylistLibraryItem item, {
+    required bool Function(PlaylistsTableData playlist) canEditFor,
+    required bool desktopMode,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    final virtual = item.virtualPlaylist;
+    final playlist = item.playlist;
+    if (virtual != null) {
+      final availability = virtual.matchingComplete
+          ? l10n.weeklyPlaylistAvailableCount(
+              virtual.matchedCount,
+              virtual.totalCount,
+            )
+          : l10n.weeklyPlaylistAvailableMatching(virtual.matchedCount);
+      return AlbumCardContent(
+        key: ValueKey<String>('library-playlist-${item.id}'),
+        name: item.name,
+        artist: <String>[
+          availability,
+          l10n.weeklyPlaylistServiceName,
+        ].join(' • '),
+        artwork: LayoutBuilder(
+          builder: (context, box) => ListenBrainzPlaylistArtwork(
+            playlist: virtual,
+            size: box.maxWidth,
+          ),
+        ),
+        onTap: () => NavService.openListenBrainzWeeklyDetail(
+          context,
+          ref,
+          virtual.playlist.sourcePatch ?? '',
+        ),
+      );
+    }
+    if (item.isTrending) {
+      final tracks = item.trendingTracks;
+      return AlbumCardContent(
+        key: const ValueKey<String>('library-playlist-trending'),
+        name: l10n.homeTrendingTitle,
+        artist: <String>[
+          if (tracks != null && tracks.isNotEmpty)
+            trendingAvailability(l10n, tracks),
+          l10n.trendingServiceName,
+        ].join(' • '),
+        artwork: LayoutBuilder(
+          builder: (context, box) => PlaylistCoverMosaic(
+            coverArtIds: <String>[
+              ...?tracks?.map((track) => track.resolvedSong?.coverArt).nonNulls,
+            ],
+            size: box.maxWidth,
+            fallbackIcon: Icons.trending_up_rounded,
+          ),
+        ),
+        onTap: () => NavService.openPlaylistDetail(context, ref, item.id),
+      );
+    }
+    final canEdit = canEditFor(playlist!);
+    // As in the list: a device playlist tiles its songs' covers; a server one
+    // keeps the server's own.
+    final deviceCovers =
+        (playlist.isLocal
+            ? ref.watch(devicePlaylistCoverArtIdsProvider).value
+            : null)?[playlist.id] ??
+        const <String>[];
+    return AlbumCardContent(
+      key: ValueKey<String>('library-playlist-${playlist.id}'),
+      name: playlist.name,
+      artist: playlist.isLocal
+          ? l10n.playlistDetailMeta(
+              l10n.playlistsOnDevice,
+              playlist.songCount ?? 0,
+            )
+          : playlist.songCount != null
+          ? l10n.playlistsSongCount(playlist.songCount!)
+          : '',
+      coverArtId: deviceCovers.isEmpty ? playlist.coverArt : null,
+      artwork: deviceCovers.isNotEmpty
+          ? LayoutBuilder(
+              builder: (context, box) => PlaylistCoverMosaic(
+                coverArtIds: deviceCovers,
+                size: box.maxWidth,
+              ),
+            )
+          : CoverArtImage(
+              coverArtId: playlist.coverArt,
+              size: kCoverArtStandardSize,
+              fit: BoxFit.cover,
+              placeholderIcon: Icons.queue_music_outlined,
+              semanticLabel: playlist.name,
+            ),
+      onTap: () => NavService.openPlaylistDetail(context, ref, playlist.id),
+      onLongPress: desktopMode || !canEdit
+          ? null
+          : () => _showPlaylistActions(context, playlist),
+      onSecondaryTapDown: desktopMode && canEdit
+          ? (details) => _showPlaylistActions(
+              context,
+              playlist,
+              anchor: details.globalPosition,
+            )
+          : null,
     );
   }
 

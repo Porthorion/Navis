@@ -102,6 +102,7 @@ class AlbumCardContent extends ConsumerWidget {
     this.size = AlbumCardSize.library,
     this.heroTag,
     this.extent,
+    this.artwork,
     this.badge,
     this.onTap,
     this.onLongPress,
@@ -116,6 +117,11 @@ class AlbumCardContent extends ConsumerWidget {
   final String? albumId;
   final AlbumCardSize size;
   final double? extent;
+
+  /// Replaces the album cover (and its [heroTag]) with another widget that
+  /// fills the card, such as a playlist's cover mosaic. Null keeps the album
+  /// cover. Pass no [albumId] with it to leave the hover Play button off.
+  final Widget? artwork;
 
   /// Optional hero tag for cover-art transition animations.
   final String? heroTag;
@@ -152,7 +158,9 @@ class AlbumCardContent extends ConsumerWidget {
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                if (heroTag != null)
+                if (artwork != null)
+                  artwork!
+                else if (heroTag != null)
                   HeroCoverArt(
                     coverArtId: coverArtId,
                     revision: coverArtRevision ?? 0,

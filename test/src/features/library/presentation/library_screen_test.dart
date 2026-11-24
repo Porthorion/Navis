@@ -18,6 +18,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -307,6 +308,7 @@ Widget _buildLibraryScreenRouter({
   bool showRadioPage = false,
   bool showArtistsPage = true,
   AppNoticeController? notices,
+  TextDirection? direction,
 }) {
   final router = GoRouter(
     routes: <RouteBase>[
@@ -362,14 +364,43 @@ Widget _buildLibraryScreenRouter({
       theme: testTheme(),
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      builder: notices == null
+      builder: notices == null && direction == null
           ? null
-          : (context, child) =>
-                AppNoticeScope(notifier: notices, child: child!),
+          : (context, child) {
+              var result = child!;
+              if (notices != null) {
+                result = AppNoticeScope(notifier: notices, child: result);
+              }
+              return direction == null
+                  ? result
+                  : Directionality(textDirection: direction, child: result);
+            },
       routerConfig: router,
     ),
   );
 }
+
+List<PlaylistLibraryItem> _playlistCards(
+  int count, {
+  PlaylistLibrarySection section = PlaylistLibrarySection.yours,
+}) => <PlaylistLibraryItem>[
+  for (var i = 0; i < count; i++)
+    PlaylistLibraryItem.normal(
+      PlaylistsTableData(
+        isLocal: false,
+        id: '${section.name}-$i',
+        name: '${section.name} mix $i',
+        songCount: i + 1,
+      ),
+      section: section,
+    ),
+];
+
+/// The distinct x positions of the grid cells: the column count.
+int _playlistGridColumns(WidgetTester tester) => <double>{
+  for (final card in find.byType(AlbumCardContent).evaluate())
+    tester.getTopLeft(find.byWidget(card.widget)).dx.roundToDouble(),
+}.length;
 
 late NavisDatabase _testDatabase;
 
@@ -412,12 +443,14 @@ Future<void> _pumpPlaylistsTab(
   String? viewer,
   AppNoticeController? notices,
   Size viewport = const Size(400, 900),
+  TextDirection? direction,
 }) async {
   setAdaptiveTestViewport(tester, viewport);
   await tester.pumpWidget(
     _buildLibraryScreenRouter(
       showPlaylistsPage: true,
       notices: notices,
+      direction: direction,
       overrides: [
         librarySyncControllerProvider.overrideWith(
           () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
@@ -2192,6 +2225,8 @@ void main() {
     _testWidgetsWithCleanup(
       'playlists tab lists Trending Now under the weekly playlists',
       (tester) async {
+        // Just below the grid breakpoint, wide enough for the whole tab strip.
+        setAdaptiveTestViewport(tester, const Size(599, 900));
         await tester.pumpWidget(
           _buildLibraryScreenRouter(
             showPlaylistsPage: true,
@@ -2339,6 +2374,8 @@ void main() {
     _testWidgetsWithCleanup(
       'playlists tab shows no section headers when only one section has rows',
       (tester) async {
+        // Just below the grid breakpoint, wide enough for the whole tab strip.
+        setAdaptiveTestViewport(tester, const Size(599, 900));
         await tester.pumpWidget(
           _buildLibraryScreenRouter(
             showPlaylistsPage: true,
@@ -2389,6 +2426,8 @@ void main() {
     _testWidgetsWithCleanup(
       'device playlist rows tile their covers; server and empty ones do not',
       (tester) async {
+        // Just below the grid breakpoint, wide enough for the whole tab strip.
+        setAdaptiveTestViewport(tester, const Size(599, 900));
         await tester.pumpWidget(
           _buildLibraryScreenRouter(
             showPlaylistsPage: true,
@@ -2473,7 +2512,7 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
-      'desktop playlist More opens the anchored owner-action menu',
+      'desktop playlist right-click opens the anchored owner-action menu',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(1366, 900));
         await tester.pumpWidget(
@@ -2512,7 +2551,10 @@ void main() {
 
         await tester.tap(find.text('Playlists'));
         await tester.pumpAndSettle();
-        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.tap(
+          find.text('Server Mix'),
+          buttons: kSecondaryMouseButton,
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('Edit Playlist'), findsOneWidget);
@@ -2835,7 +2877,8 @@ void main() {
           ]),
         );
         addTearDown(() => _testDatabase.playlistDao.deletePlaylist('theirs'));
-        setAdaptiveTestViewport(tester, const Size(400, 900));
+        // Just below the grid breakpoint, wide enough for the whole tab strip.
+        setAdaptiveTestViewport(tester, const Size(599, 900));
         await tester.pumpWidget(
           _buildLibraryScreenRouter(
             showPlaylistsPage: true,
@@ -2981,6 +3024,234 @@ void main() {
         expect(find.text('Edit Playlist'), findsNothing);
       },
     );
+
+    group('playlists cover grid on wide panes', () {
+      for (final width in <double>[762, 1032]) {
+        _testWidgetsWithCleanup(
+          'shows covers in the albums column count at $width',
+          (tester) async {
+            await _pumpPlaylistsTab(
+              tester,
+              viewport: Size(width, 900),
+              items: _playlistCards(8),
+            );
+            final padding = ContentLayout.padding(width);
+            final expected = ContentLayout.albums(
+              width - padding * 2,
+              GridArtworkSize.auto,
+            ).columns;
+            expect(expected, greaterThan(1));
+            expect(find.byType(AlbumCardContent), findsNWidgets(8));
+            expect(_playlistGridColumns(tester), expected);
+            expect(find.byType(ListTile), findsNothing);
+            expect(find.text('1 song'), findsOneWidget);
+          },
+        );
+      }
+
+      _testWidgetsWithCleanup('keeps the list on a 500 pane', (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(500, 900),
+          items: _playlistCards(4),
+        );
+        expect(find.byType(AlbumCardContent), findsNothing);
+        expect(find.byType(ListTile), findsNWidgets(4));
+      });
+
+      _testWidgetsWithCleanup('keeps headers between sections', (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(1032, 1400),
+          items: <PlaylistLibraryItem>[
+            ..._playlistCards(2),
+            ..._playlistCards(2, section: PlaylistLibrarySection.other),
+          ],
+        );
+        final headerY = tester.getTopLeft(find.text('Other Playlists')).dy;
+        expect(find.text('Your Playlists'), findsOneWidget);
+        expect(
+          tester.getBottomLeft(find.text('yours mix 1')).dy,
+          lessThan(headerY),
+        );
+        expect(
+          tester.getTopLeft(find.text('other mix 0')).dy,
+          greaterThan(headerY),
+        );
+        // Each section starts its own grid at the first column.
+        expect(
+          tester
+              .getTopLeft(
+                find.byKey(const ValueKey('library-playlist-other-0')),
+              )
+              .dx,
+          tester
+              .getTopLeft(
+                find.byKey(const ValueKey('library-playlist-yours-0')),
+              )
+              .dx,
+        );
+      });
+
+      _testWidgetsWithCleanup('shows no header for a single section', (
+        tester,
+      ) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          items: _playlistCards(3),
+        );
+        expect(find.text('Your Playlists'), findsNothing);
+        expect(find.byType(AlbumCardContent), findsNWidgets(3));
+      });
+
+      _testWidgetsWithCleanup('an empty library keeps the empty state', (
+        tester,
+      ) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          items: const <PlaylistLibraryItem>[],
+        );
+        expect(find.byType(EmptyState), findsOneWidget);
+        expect(find.byType(AlbumCardContent), findsNothing);
+      });
+
+      _testWidgetsWithCleanup('puts the load-error row last, full width', (
+        tester,
+      ) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          items: _playlistCards(3),
+          overrides: [
+            playlistListProvider.overrideWith(
+              (ref) => Stream<List<PlaylistsTableData>>.error(
+                StateError('database'),
+              ),
+            ),
+          ],
+        );
+        final error = find.byKey(
+          const ValueKey<String>('library-playlists-load-error'),
+        );
+        expect(error, findsOneWidget);
+        expect(
+          tester.getTopLeft(error).dy,
+          greaterThan(tester.getBottomLeft(find.text('yours mix 2')).dy),
+        );
+        expect(tester.getSize(error).width, 762);
+      });
+
+      _testWidgetsWithCleanup('tapping a cell opens the playlist', (
+        tester,
+      ) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(_roadTrip),
+          ],
+        );
+        await tester.tap(find.text('Road Trip'));
+        await tester.pumpAndSettle();
+        expect(find.text('Playlist detail road-trip'), findsOneWidget);
+      });
+
+      _testWidgetsWithCleanup('virtual and trending cells open their pages', (
+        tester,
+      ) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          items: <PlaylistLibraryItem>[
+            PlaylistLibraryItem.virtual(
+              _virtualPlaylist(
+                identifier: 'jams',
+                title: 'Weekly Jams',
+                sourcePatch: 'weekly-jams',
+                coverArts: const <String>['c1', 'c2'],
+              ),
+            ),
+            const PlaylistLibraryItem.trending(null),
+          ],
+        );
+        expect(find.byType(ListenBrainzPlaylistArtwork), findsOneWidget);
+        expect(find.byType(AlbumCardContent), findsNWidgets(2));
+        expect(find.textContaining('ListenBrainz'), findsOneWidget);
+        await tester.tap(find.text('Trending Now'));
+        await tester.pumpAndSettle();
+        expect(find.text('Trending detail'), findsOneWidget);
+        tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Weekly Jams'));
+        await tester.pumpAndSettle();
+        expect(find.text('ListenBrainz detail weekly-jams'), findsOneWidget);
+      });
+
+      _testWidgetsWithCleanup('lays out right to left', (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          direction: TextDirection.rtl,
+          items: _playlistCards(2),
+        );
+        expect(
+          tester
+              .getTopLeft(
+                find.byKey(const ValueKey('library-playlist-yours-0')),
+              )
+              .dx,
+          greaterThan(
+            tester
+                .getTopLeft(
+                  find.byKey(const ValueKey('library-playlist-yours-1')),
+                )
+                .dx,
+          ),
+        );
+      });
+
+      _testWidgetsWithCleanup('fits 200 % text without overflow', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          // Short titles: a title that overflows scrolls forever and the
+          // tab never settles.
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(
+              PlaylistsTableData(isLocal: false, id: 'a', name: 'A'),
+            ),
+            PlaylistLibraryItem.normal(
+              PlaylistsTableData(isLocal: false, id: 'b', name: 'B'),
+              section: PlaylistLibrarySection.other,
+            ),
+          ],
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byType(AlbumCardContent), findsWidgets);
+      });
+
+      _testWidgetsWithCleanup('long-press opens the owner actions', (
+        tester,
+      ) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(762, 900),
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(_roadTrip),
+          ],
+        );
+        await tester.longPress(find.text('Road Trip'));
+        await tester.pumpAndSettle();
+        expect(find.text('Edit Playlist'), findsOneWidget);
+        expect(find.byType(BottomSheet), findsOneWidget);
+      });
+    });
 
     _testWidgetsWithCleanup('playlists tab shows all three sections in order', (
       tester,
