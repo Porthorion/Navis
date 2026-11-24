@@ -369,7 +369,9 @@ fi
 # complete, else the notarytool keychain profile. Only the key's path reaches argv.
 NOTARY_EQ_ARGS=() NOTARY_DMG_ARGS=()
 if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
-  if [[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]] && resolve_asc_key_file 2>/dev/null; then
+  : "${MACOS_SIGN_IDENTITY:?--macos-notarize needs MACOS_SIGN_IDENTITY (a Developer ID Application identity)}"
+  # --ios-upload may have resolved the key already, before the cd to the repo root.
+  if [[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]] && { [[ -n "${IOS_KEY_FILE:-}" ]] || resolve_asc_key_file 2>/dev/null; }; then
     NOTARY_EQ_ARGS=("--notary-key=${IOS_KEY_FILE}" "--notary-key-id=${ASC_KEY_ID}" "--notary-issuer=${ASC_ISSUER_ID}")
     NOTARY_DMG_ARGS=(--notary-key "${IOS_KEY_FILE}" --notary-key-id "${ASC_KEY_ID}" --notary-issuer "${ASC_ISSUER_ID}")
   elif [[ -n "${MACOS_NOTARY_PROFILE:-}" ]]; then
