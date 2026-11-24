@@ -469,7 +469,7 @@ class EqGraphEditorState extends State<EqGraphEditor> {
 
   Widget _toolbar(BuildContext context, AppLocalizations l10n, double width) {
     // Text buttons for Fit and Output only when the preamp label and slider
-    // keep their full width beside them (the desktop graph is about 590 px
+    // keep their full width beside them (the desktop graph is about 623 px
     // wide in a 1000 px window and about 675 px in a 1440 px one). The text
     // parts grow with the text scale: measured with Inter, the row needs 620
     // px at 1.0x, 670 at 1.3x, 694 at 1.4x and 834 at 2.0x, so the threshold
