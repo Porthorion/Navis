@@ -340,6 +340,9 @@ logic change on desktop).
 - Size: M.
 
 **P2.2 Home density (F7).** Low risk.
+**Status (2026-11-24): PR open.** Touch panes >= 720 (text-scaled, not phone
+form factor) get the compact-wide header row (Instant Radio as an icon
+button), flat sections at the compact-wide inset and two-column song lists.
 - Change: `home_screen.dart`: on panes >= 720 (touch), use the compact
   header row (`_HomeActionRowVariant.compactWide`, `:1243`) instead of the
   centred logo block; drop the nested section Card margins on wide panes
