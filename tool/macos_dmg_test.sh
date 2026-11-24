@@ -48,7 +48,7 @@ grep -q 'command -v uvx' "${DMG_SCRIPT}" || fail "DMG script must fail early whe
 command -v python3 >/dev/null || fail "python3 is required for the settings check"
 # Take the layout constants from the script itself, so changing them there fails here.
 eval "$(grep -E '^(WIN_W|WIN_H|ICON_SIZE|APP_X|APP_Y|APPS_X|APPS_Y|TITLEBAR|VOLNAME)=' "${DMG_SCRIPT}")"
-[[ "${VOLNAME:-}" == Navis ]] || fail "volume name must stay Navis"
+[[ "${VOLNAME:-}" == "Install Navis" ]] || fail "volume name must stay Install Navis"
 grep -Fq -- '-D "background=${ART_DIR}/background.png"' "${DMG_SCRIPT}" || fail "background must be background.png (dmgbuild adds @2x)"
 [[ -f "${SCRIPT_DIR}/../assets/macos/dmg/background@2x.png" ]] || fail "background@2x.png missing"
 APP_NAME=Navis.app
@@ -63,7 +63,7 @@ exec(open(sys.argv[1]).read(), ns)
 assert ns["format"] == "ULFO", ns["format"]
 assert ns["window_rect"] == ((200, 120), (660, 428)), ns["window_rect"]
 assert ns["icon_size"] == 128 and ns["text_size"] == 13
-assert ns["icon_locations"] == {"Navis.app": (170, 200), "Applications": (490, 200)}, ns["icon_locations"]
+assert ns["icon_locations"] == {"Navis.app": (170, 190), "Applications": (490, 190)}, ns["icon_locations"]
 assert ns["background"] == "/x/bg.png" and ns["icon"] == "/x/v.icns"
 assert ns["files"] == ["/x/Navis.app"] and ns["symlinks"] == {"Applications": "/Applications"}
 assert not ns["show_toolbar"] and not ns["show_status_bar"]

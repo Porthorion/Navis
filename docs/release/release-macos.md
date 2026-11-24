@@ -264,7 +264,7 @@ Asset naming: `navis-dev-v0.x.y-macos.zip`
 
 ## DMG for first installs
 
-`navis-<tag>-macos.dmg` is the notarized download for a first install: a dark Navis-styled
+`navis-<tag>-macos.dmg` is the notarized download for a first install: a light Navis-styled
 window with the app and an `Applications` shortcut. It is **not** an updater asset. The
 self-updater still installs `navis-<tag>-macos.zip` (manifest key `macosBundle`, see
 `lib/src/features/settings/data/update_install_mode.dart`); `tool/r2_publish.sh` uploads the
@@ -281,8 +281,10 @@ unaffected.
   as `uvx --from dmgbuild==<version> dmgbuild`, which writes `.DS_Store` directly: no Finder
   scripting), then signs, notarizes and staples the DMG. Without the two options the DMG is
   unsigned (internal builds).
-- **Art:** `assets/macos/dmg/background.svg` (660x400 pt: `#141313` base, soft glow in the
-  default white accent, the Navis mark, Inter text). The committed PNGs are rendered with
+- **Art:** `assets/macos/dmg/background.svg` (660x400 pt: light `#F9F7F4`..`#EDEAE5` field,
+  one Inter instruction line, an arrow and faint wave lines at the foot; no logo, since the app
+  icon already carries it). Finder draws icon labels in black on a background picture, so the
+  area under the labels must stay light. The committed PNGs are rendered with
   `FONTCONFIG_FILE=$PWD/assets/macos/dmg/fonts.conf` and `PANGOCAIRO_BACKEND=fc` so Inter loads
   from `assets/fonts` (the default CoreText backend on macOS ignores fontconfig and silently
   falls back to Helvetica); from
@@ -292,9 +294,9 @@ unaffected.
     rsvg-convert -w 660 -h 400 background.svg -o background.png && \
     rsvg-convert -w 1320 -h 800 background.svg -o background@2x.png
   ```
-  Icon slots (app x=170, Applications x=490, y=200) live in both the SVG and
+  Icon slots (app x=170, Applications x=490, y=190) live in both the SVG and
   `tool/macos_dmg.sh`; change them together.
-- **Install (users):** open the DMG, drag Navis onto Applications, eject the disk image, then
+- **Install (users):** open the DMG (it mounts as "Install Navis"), drag Navis onto Applications, eject the disk image, then
   open Navis from Applications.
 - **Test:** `bash tool/macos_dmg_test.sh` (staged-bundle allowlist, manifest-key helpers and the rendered dmgbuild settings; no hdiutil needed). `bash tool/dev_release_test.sh` covers the DMG upload, its absence from the signed manifest and its `SHA256SUMS` line against a fake R2.
 
