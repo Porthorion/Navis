@@ -384,6 +384,11 @@ logic change on desktop).
 - Size: M.
 
 **P2.6 Downloads and EQ (F14).** Low risk.
+**Status (2026-11-24): PR open.** Downloads body (filter, banner, tabs) caps at
+1040 centred; the desktop command strip stays full width. EQ `_wide` (graph
+and inspector side by side, wrapped band chips) from any 760 pane; the presets
+panel stays desktop >= 1200, so 13" portrait gains the side-by-side layout,
+not presets. Pre-existing: EQ header overflows 19 px at a 700 touch pane.
 - Downloads bodies: cap at 1040 like settings pages; use `trackMode` rows.
 - EQ: allow `_wide` on any pane >= 760 (drop the layout-class requirement,
   `eq_screen.dart:284-288`) so 13" portrait gets the presets panel.
