@@ -2650,6 +2650,62 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('Icons: every nav tile has a label, a tooltip and a '
+        'long-press bubble', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, const Size(1032, 1376), style: 'icons');
+      for (final label in const <String>['Home', 'Library']) {
+        expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+        final tip = find.descendant(
+          of: region,
+          matching: find.byWidgetPredicate(
+            (w) => w is NavisTooltip && w.message == label,
+          ),
+        );
+        expect(tip, findsOneWidget, reason: label);
+      }
+      await tester.longPress(find.byKey(const ValueKey('railNavTile-0')));
+      await tester.pump();
+      expect(find.byKey(NavisTooltip.defaultBubbleKey), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(NavisTooltip.defaultBubbleKey),
+          matching: find.text('Home'),
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+      handle.dispose();
+    });
+
+    testWidgets('the labelled styles add no tooltip to the nav tiles', (
+      tester,
+    ) async {
+      await pump(tester, const Size(1032, 1376));
+      expect(
+        find.descendant(of: region, matching: find.byType(NavisTooltip)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('desktop icons sidebar: nav tiles carry the same tooltip', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        const Size(1280, 1000),
+        style: 'icons',
+        desktopRuntime: true,
+      );
+      expect(find.bySemanticsLabel('Home'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is NavisTooltip && w.message == 'Home'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
     testWidgets('a stored icons style is honoured below 1008 px too', (
       tester,
     ) async {
@@ -2779,8 +2835,9 @@ void main() {
       if (settle) {
         await tester.pumpAndSettle();
       } else {
-        // The 974 px pane at 1.6x+ text keeps a loading spinner animating in
-        // the stubbed-network test app, so pumpAndSettle never settles.
+        // The collapsed, off-screen Now Playing split layout holds a
+        // _MarqueeScroller (long title) whose ticker never stops, so
+        // pumpAndSettle never settles.
         for (var i = 0; i < 20; i++) {
           await tester.pump(const Duration(milliseconds: 100));
         }
@@ -2922,7 +2979,8 @@ void main() {
     /// Opens Library, scrolls its page to the end and returns the page rect.
     Future<Rect> scrolledPageRect(WidgetTester tester) async {
       await tester.tap(find.byKey(const ValueKey('railNavTile-3')));
-      // Not pumpAndSettle: a loading spinner keeps animating in this app.
+      // Not pumpAndSettle: the collapsed, off-screen Now Playing layout holds a
+      // _MarqueeScroller (long title) whose ticker never stops.
       await tester.pump(const Duration(seconds: 1));
       ScrollableState? page;
       for (final state in tester.stateList<ScrollableState>(

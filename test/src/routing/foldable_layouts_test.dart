@@ -944,7 +944,6 @@ void main() {
       ('iPad split view 678 pt', _ipadSplitWide),
       ('Duo folded 466x678', _duoFolded),
       ('iPad landscape 1024x768', _ipadLandscape),
-      ('iPad landscape 1180x820 (standard width pane)', _ipadLandscapeLarge),
     ]) {
       _testApp('controls stay on screen: $name', (tester) async {
         final container = await _pumpApp(tester, viewport);
@@ -954,6 +953,26 @@ void main() {
         _expectNowPlayingControlsFit(tester, viewport);
       });
     }
+
+    _testApp('iPad landscape 1180x820 (standard width pane): the transport and '
+        'the info-grid queue cell are on screen', (tester) async {
+      final container = await _pumpApp(tester, _ipadLandscapeLarge);
+      await _openNowPlaying(tester, container);
+
+      expect(tester.takeException(), isNull);
+      final screen = Offset.zero & _ipadLandscapeLarge.size;
+      final pause = find.byIcon(Icons.pause);
+      expect(pause, findsOneWidget);
+      expect(screen.contains(tester.getCenter(pause)), isTrue);
+      expect(pause.hitTestable(), findsOneWidget);
+      // The 24 px queue action (y ~ 832) lives in the collapsed queue panel
+      // (Opacity / IgnorePointer) below the screen and is excluded on purpose:
+      // the queue control that must work here is the info-grid cell (y ~ 20).
+      final queueCell = find.byIcon(Icons.queue_music_outlined).hitTestable();
+      expect(queueCell, findsOneWidget);
+      expect(screen.contains(tester.getCenter(queueCell)), isTrue);
+      expect(tester.getCenter(queueCell).dy, lessThan(100));
+    });
 
     _testApp('compact wide landscape phone still shows its transport', (
       tester,

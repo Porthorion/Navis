@@ -122,7 +122,6 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  static const double _sideRailWidth = 270;
   static const int _kQueueCoverArtPrefetchAheadCount = 6;
   bool _playbackRecoverySheetOpen = false;
   static const int _kQueueCoverArtPrefetchSizePx = kCoverArtStandardSize;
@@ -1162,9 +1161,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               .clamp(57.2, 75.4)
         : (isPhoneFormFactor
               ? (screenWidth * 0.22).clamp(188.0, 236.0)
-              : useTabletRailStyle
-              ? desktopSidebarWidth
-              : (screenWidth * 0.25).clamp(_sideRailWidth, 360.0));
+              : desktopSidebarWidth);
     final showLibrarySubNavigation =
         (useDesktopShell || useStandardRailNavigation) &&
         screenWidth >= kAdaptiveExpandedWidth &&
