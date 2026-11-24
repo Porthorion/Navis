@@ -2824,7 +2824,6 @@ void main() {
       WidgetTester tester,
       Size size, {
       PlaybackSnapshot playback = _activePlayback,
-      bool settle = true,
     }) async {
       setAdaptiveTestViewport(tester, size);
       final container = _createContainerWithDatabase(
@@ -2833,16 +2832,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: testNavisApp),
       );
-      if (settle) {
-        await tester.pumpAndSettle();
-      } else {
-        // The collapsed, off-screen Now Playing split layout holds a
-        // _MarqueeScroller (long title) whose ticker never stops, so
-        // pumpAndSettle never settles.
-        for (var i = 0; i < 20; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-        }
-      }
+      await tester.pumpAndSettle();
       return container;
     }
 
@@ -2872,6 +2862,29 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    testWidgets(
+      'the collapsed Now Playing is off screen with its tickers stopped',
+      (tester) async {
+        final container = await pump(tester, const Size(1194, 834));
+        bool tickers() =>
+            TickerMode.of(tester.element(find.byType(NowPlayingScreen)));
+        Offset slide() =>
+            tester.widget<AnimatedSlide>(find.byType(AnimatedSlide)).offset;
+        expect(tickers(), isFalse);
+        expect(slide(), const Offset(0, 1));
+
+        container.read(playerOverlayStackProvider.notifier).expand();
+        await tester.pumpAndSettle();
+        expect(tickers(), isTrue);
+        expect(slide(), Offset.zero);
+
+        container.read(playerOverlayStackProvider.notifier).collapse();
+        await tester.pumpAndSettle();
+        expect(tickers(), isFalse);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
 
     testWidgets('tapping the title opens Now Playing', (tester) async {
       final container = await pump(tester, const Size(1032, 1376));
@@ -2980,9 +2993,7 @@ void main() {
     /// Opens Library, scrolls its page to the end and returns the page rect.
     Future<Rect> scrolledPageRect(WidgetTester tester) async {
       await tester.tap(find.byKey(const ValueKey('railNavTile-3')));
-      // Not pumpAndSettle: the collapsed, off-screen Now Playing layout holds a
-      // _MarqueeScroller (long title) whose ticker never stops.
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
       ScrollableState? page;
       for (final state in tester.stateList<ScrollableState>(
         find.byType(Scrollable),
@@ -3007,7 +3018,7 @@ void main() {
         ) async {
           tester.platformDispatcher.textScaleFactorTestValue = scale;
           addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-          await pump(tester, size, settle: size.width < 1100);
+          await pump(tester, size);
 
           expect(tester.takeException(), isNull);
           final rect = tester.getRect(find.byKey(strip));
