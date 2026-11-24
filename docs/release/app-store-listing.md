@@ -87,7 +87,7 @@ smaller phones.
 | iPad 13" | 2064 x 2752 | iPad Pro 13-inch (M5) |
 
 Order (three to eight per set): Home, Now Playing, Album, Library, Lyrics,
-Equalizer, Downloads, Settings › Integrations. Taken against the demo server
+Equalizer, Downloads, Settings › Integrations. Taken against the live server (`sub.porthorion.com`)
 with a clean status bar (9:41, full battery and signal).
 
 ## App privacy

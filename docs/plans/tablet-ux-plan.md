@@ -362,7 +362,7 @@ button), flat sections at the compact-wide inset and two-column song lists.
 - Size: M.
 
 **P2.3 Library and artist (F8).** Low risk.
-**Status (2026-11-24): PR open.** Playlists tab is a cover grid from a 600 pane:
+**Status (2026-11-25): merged in #812.** Playlists tab is a cover grid from a 600 pane:
 `AlbumCardContent` gained an optional `artwork` slot (unchanged when null)
 filled with the existing playlist artwork; desktop cells keep the More button
 in the card's badge slot.
@@ -385,6 +385,11 @@ lyric column (centred) and the artist bio (start-aligned); panes up to about
 - Size: S.
 
 **P2.5 Queue as a side panel on wide windows (F10).** Medium risk.
+**Status (2026-11-25): merged in #814.** Rail panes >= 600 open the queue as the
+desktop floating panel (bottom right, 320..560, scrim tap closes it); narrower
+rail panes, bottom-nav shells and compact-wide phones are unchanged. Now Playing
+keeps its tickers behind the panel. In landscape (split Now Playing) the queue
+button still opens the split layout's own queue column, which is by design.
 - Use the desktop floating queue panel (`app_shell_queue_overlay.dart:387-397`)
   on `standardRail` windows, gated by width instead of desktop runtime;
   bottom-nav tablets keep the sheet.
@@ -483,6 +488,14 @@ density with no shell change.
 
 Rough total: P0 S; P1 M + S-M; P2 about 3 x M + 3 x S; P3 S + S-M + M. About 8-10
 Sonnet phases plus reviews.
+
+Batched runtime pass after P2.2-P2.6 (2026-11-25, release/1.5 at 107f3ca45, iPad
+Pro 13" portrait/landscape, iPad mini portrait, iPhone 17): all checks pass, no
+overflow in logs. Evidence: `build/ipad-ux/batch-p2/NOTES.md` (local). Two notes:
+Home on the test server has no song-list sections, so the two-column lists were
+not observable at runtime (widget tests cover them); playlist titles sit on the
+cover like album cards (F17, owner taste). Follow-ups #805 and #811 are PRs #815
+and #816.
 
 Runtime check per PR (diagnostics API screenshots, run by Flash): 13"
 portrait/landscape, mini landscape, 11"-size Split View, Pixel Tablet
