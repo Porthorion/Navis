@@ -86,6 +86,7 @@ run_step "dev release and R2 publishing" ./tool/dev_release_test.sh
 run_step "GitHub update publication" ./tool/github_release_test.sh
 run_step "iOS release path" ./tool/ios_release_test.sh
 run_step "macOS DMG wiring" ./tool/macos_dmg_test.sh
+run_step "macOS notarization auth" ./tool/macos_notarize_test.sh
 run_step "release notes failure guard" ./tool/release_notes_test.sh
 run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "Android repeat runner contract" ./tool/android_repeat_runner_test.sh

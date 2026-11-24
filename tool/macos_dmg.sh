@@ -6,10 +6,13 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  ./tool/macos_dmg.sh --app <Navis.app> --output <file.dmg> [--sign-identity <id>] [--notary-profile <profile>]
+  ./tool/macos_dmg.sh --app <Navis.app> --output <file.dmg> [--sign-identity <id>] [notary auth]
 
 --sign-identity   codesign the DMG (default: unsigned)
---notary-profile  notarize and staple the DMG (needs --sign-identity)
+--notary-key <AuthKey.p8> --notary-key-id <id> --notary-issuer <id>
+                  notarize and staple with an App Store Connect API key (needs --sign-identity)
+--notary-profile  notarize and staple with a notarytool keychain profile instead
+                  (needs --sign-identity; an API key wins when both are given)
 USAGE
 }
 
@@ -22,14 +25,15 @@ WIN_W=660 WIN_H=400 ICON_SIZE=128 APP_X=170 APP_Y=200 APPS_X=490 APPS_Y=200
 TITLEBAR=28
 VOLNAME="Navis"
 
-APP="" OUT="" IDENTITY="" PROFILE=""
+APP="" OUT="" IDENTITY="" PROFILE="" NKEY="" NKEY_ID="" NISSUER=""
 while (( $# )); do
   case "$1" in
-    --app|--output|--sign-identity|--notary-profile)
+    --app|--output|--sign-identity|--notary-profile|--notary-key|--notary-key-id|--notary-issuer)
       [[ $# -ge 2 ]] || { echo "Error: $1 needs a value." >&2; exit 2; }
       case "$1" in
         --app) APP="$2" ;; --output) OUT="$2" ;;
         --sign-identity) IDENTITY="$2" ;; --notary-profile) PROFILE="$2" ;;
+        --notary-key) NKEY="$2" ;; --notary-key-id) NKEY_ID="$2" ;; --notary-issuer) NISSUER="$2" ;;
       esac
       shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -38,7 +42,16 @@ while (( $# )); do
 done
 [[ -d "${APP}" && -f "${APP}/Contents/Info.plist" ]] || { echo "Error: --app must be a .app bundle." >&2; exit 2; }
 [[ -n "${OUT}" ]] || { echo "Error: --output is required." >&2; exit 2; }
-[[ -z "${PROFILE}" || -n "${IDENTITY}" ]] || { echo "Error: --notary-profile needs --sign-identity." >&2; exit 2; }
+# The API key wins over a profile; messages name options, never values.
+NOTARY_AUTH=()
+if [[ -n "${NKEY}${NKEY_ID}${NISSUER}" ]]; then
+  [[ -n "${NKEY}" && -n "${NKEY_ID}" && -n "${NISSUER}" ]] || { echo "Error: --notary-key, --notary-key-id and --notary-issuer go together." >&2; exit 2; }
+  [[ -f "${NKEY}" && -r "${NKEY}" ]] || { echo "Error: --notary-key does not point to a readable file." >&2; exit 2; }
+  NOTARY_AUTH=(--key "${NKEY}" --key-id "${NKEY_ID}" --issuer "${NISSUER}")
+elif [[ -n "${PROFILE}" ]]; then
+  NOTARY_AUTH=(--keychain-profile "${PROFILE}")
+fi
+[[ ${#NOTARY_AUTH[@]} -eq 0 || -n "${IDENTITY}" ]] || { echo "Error: notarization (--notary-key or --notary-profile) needs --sign-identity." >&2; exit 2; }
 APP="$(cd "${APP}" && pwd)"
 OUT="$(cd "$(dirname "${OUT}")" && pwd)/$(basename "${OUT}")"
 APP_NAME="$(basename "${APP}")"
@@ -91,9 +104,9 @@ if [[ -n "${IDENTITY}" ]]; then
   codesign --force --sign "${IDENTITY}" --timestamp "${OUT}"
   codesign --verify --verbose=2 "${OUT}"
 fi
-if [[ -n "${PROFILE}" ]]; then
+if [[ ${#NOTARY_AUTH[@]} -gt 0 ]]; then
   echo "==> Notarizing DMG"
-  xcrun notarytool submit "${OUT}" --keychain-profile "${PROFILE}" --wait
+  xcrun notarytool submit "${OUT}" "${NOTARY_AUTH[@]}" --wait
   xcrun stapler staple "${OUT}"
   xcrun stapler validate "${OUT}"
 fi
