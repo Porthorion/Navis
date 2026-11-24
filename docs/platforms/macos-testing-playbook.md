@@ -71,12 +71,14 @@ For signed + notarized artifact flow:
 
 ```bash
 export MACOS_SIGN_IDENTITY="Developer ID Application: <Team Name> (<TEAMID>)"
-export MACOS_NOTARY_PROFILE="navis-notary-profile"
+# Notarization uses the App Store Connect API key from tool/release.env (ASC_KEY_ID,
+# ASC_ISSUER_ID, ~/.appstoreconnect/private_keys/AuthKey_<ID>.p8). Only without it:
+# export MACOS_NOTARY_PROFILE="navis-notary-profile"
 
 ./tool/release.sh v0.x.y --targets=macos --macos-notarize --skip-checks
 ```
 
-Store notary credentials once:
+Fallback only, when no API key is set up: store a notary profile once:
 
 ```bash
 xcrun notarytool store-credentials navis-notary-profile \

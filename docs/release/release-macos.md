@@ -174,16 +174,17 @@ macOS 10.15+ requires any app distributed outside the App Store to be notarized 
 Without notarization, Gatekeeper shows a hard block ("can't be opened because Apple cannot
 check it for malicious software") with no safe override for standard users.
 
-### Steps
+### Authentication
 
-#### 1. Create an app-specific password
+**Recommended: the App Store Connect API key.** `release.sh --macos-notarize` reuses the key
+that `--ios-upload` already uses (`ASC_KEY_ID`, `ASC_ISSUER_ID` and the `.p8` at
+`ASC_KEY_PATH` or `~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8`, see
+[release-ios.md](release-ios.md)) and hands it to `notarytool` as `--key`, `--key-id` and
+`--issuer`. No `store-credentials` step and no keychain item are needed.
 
-Go to [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security →
-App-Specific Passwords → Generate a password for "Navis-notarize".
-
-#### 2. Store credentials in Keychain
-
-Run once on the release machine:
+**Fallback: a keychain profile**, used only when the key variables or file are missing.
+`xcrun notarytool store-credentials` needs an app-specific password from
+[appleid.apple.com](https://appleid.apple.com) (Sign-In and Security):
 
 ```bash
 xcrun notarytool store-credentials navis-notary-profile \
@@ -192,13 +193,18 @@ xcrun notarytool store-credentials navis-notary-profile \
   --password "xxxx-xxxx-xxxx-xxxx"
 ```
 
-#### 3. Add to `tool/release.env`
+Then add to `tool/release.env`:
 
 ```bash
 MACOS_NOTARY_PROFILE="navis-notary-profile"
 ```
 
-#### 4. Verify after notarization
+The standalone scripts take the same choice: `macos_notarize.sh --notary-key=<p8>
+--notary-key-id=<id> --notary-issuer=<id>` or `--notary-profile=<name>`; `macos_dmg.sh` takes
+`--notary-key <p8> --notary-key-id <id> --notary-issuer <id>` or `--notary-profile <name>`.
+The key wins when both are given; with neither, the script fails.
+
+### Verify after notarization
 
 ```bash
 spctl --assess --type execute --verbose=4 Navis.app
@@ -266,9 +272,10 @@ DMG and adds it to `SHA256SUMS` but keeps it out of the signed manifest, so olde
 unaffected.
 
 - **Build:** `tool/macos_dmg.sh --app <Navis.app> --output <file.dmg>
-  [--sign-identity <id>] [--notary-profile <profile>]`. `release.sh` runs it after the zip,
+  [--sign-identity <id>] [--notary-key <p8> --notary-key-id <id> --notary-issuer <id> |
+  --notary-profile <profile>]`. `release.sh` runs it after the zip,
   from the same app (already stapled with `--macos-notarize`), and passes
-  `MACOS_SIGN_IDENTITY` / `MACOS_NOTARY_PROFILE` only with `--macos-notarize`. It stages the
+  `MACOS_SIGN_IDENTITY` and the notary auth only with `--macos-notarize`. It stages the
   app, an `Applications` symlink, the HiDPI background (`.background.tiff`) and the volume
   icon into a ULFO image and lays out the window with `dmgbuild` (pinned in the script and run
   as `uvx --from dmgbuild==<version> dmgbuild`, which writes `.DS_Store` directly: no Finder
@@ -420,9 +427,11 @@ The `MACOS_SIGN_IDENTITY` string must exactly match the certificate in Keychain,
 the team ID in parentheses. Run `security find-identity -v -p codesigning` to see the
 exact string.
 
-### Notarization fails: `Unable to find keychain profile`
+### Notarization fails: `No Keychain password item found for profile`
 
-The profile name must match exactly what was stored:
+On some Macs a stored profile vanishes right after `store-credentials` reports success. Use
+the App Store Connect API key instead (see [Authentication](#authentication)). If you rely on
+the profile, its name must match exactly what was stored:
 
 ```bash
 xcrun notarytool history --keychain-profile navis-notary-profile
