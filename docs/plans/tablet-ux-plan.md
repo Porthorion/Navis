@@ -311,8 +311,9 @@ logic change on desktop).
   title/meta/actions right, `:704-722`, action bar maxWidth 640). On touch,
   drop `DesktopFrame` and the desktop height bands (cover 240 at 720-959,
   280 from 960). The desktop branch's own `constraints.maxWidth >= 900`
-  check (`:707`) also moves to `wideDetail`, so one threshold serves both:
-  a deliberate desktop change (desktop panes 720-899 gain the row).
+  check (`:707`) stays on desktop: it only places the actions beside or below
+  the title, and lowering it would squeeze the 640 action bar next to a ~440
+  text column. Desktop panes 720-899 are unchanged.
   Playlist's desktop Row header gets the same single threshold. `playlist_detail_screen.dart`: same with its desktop Row header
   (`:260-330`, cover 200/220). Track rows already switch to medium/wide by
   `trackMode`.
@@ -320,7 +321,7 @@ logic change on desktop).
   `ContentLayout.padding`.
 - Tests first: at `Size(762, 1376)` and `Size(1032, 1032)` touch (no
   desktop runtime): cover's rect is left of the title's rect; first track
-  row's top < 420; at `Size(700, 1000)` the hero layout remains. Desktop:
+  row's top < 420 at 762 wide and < 480 at 1032; at `Size(700, 1000)` the hero layout remains. Desktop:
   new test at a ~760 pane (window ~980 with the 220 sidebar) expects the
   header row; existing desktop header tests stay green.
 - Edge cases: missing cover, very long titles (two lines then ellipsis),
@@ -437,8 +438,8 @@ density with no shell change.
   762 px iPad pane and a 762 px desktop pane get the same album, playlist
   and Home layouts. Desktop-only chrome (`DesktopFrame`, height bands,
   window controls) stays on `desktopRuntime`. The desktop album header's
-  own 900 px check moves to the same `wideDetail` (P2.1), a deliberate
-  desktop change: desktop panes 720-899 gain the header row.
+  own 900 px check (action placement) stays on desktop (P2.1); desktop panes
+  720-899 are unchanged.
 - Input: P3 makes pointer and keyboard follow the policy object, which
   desktop already enables; behaviour on desktop does not change.
 - Tests that pin desktop: `app_shell_navigation_test.dart:956+` (workspace),

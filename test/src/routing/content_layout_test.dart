@@ -125,4 +125,9 @@ void main() {
     expect(grid.columns, 2);
     expect(grid.extent, closeTo(335.5, 0.001));
   });
+
+  test('wideDetail switches at 720, with the medium track row', () {
+    expect(ContentLayout.wideDetail(719), isFalse);
+    expect(ContentLayout.wideDetail(720), isTrue);
+  });
 }

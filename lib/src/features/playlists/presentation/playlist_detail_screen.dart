@@ -33,6 +33,7 @@ import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
@@ -232,13 +233,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen>
     final visibleSongs = visibleEntries
         .map((entry) => entry.song)
         .toList(growable: false);
-    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final desktopMode = adaptiveContext.useDesktopShell;
+    // Scaled like ContentLayout.trackMode, so header and rows switch together.
+    final textScale = max(1, MediaQuery.textScalerOf(context).scale(14) / 14);
     // A filtered list is a plain list: no reordering while a filter is on.
     final filtering = _filterQuery.isNotEmpty;
     final plainList = downloadedOnly || filtering;
     const desktopTrackPadding = EdgeInsets.fromLTRB(24, 0, 24, 0);
     // The desktop header follows the window height band; tall is the original.
-    final heightClass = desktopHeightClassOf(context);
+    final heightClass = desktopMode
+        ? desktopHeightClassOf(context)
+        : DesktopHeightClass.tall;
     final shortHeader = heightClass == DesktopHeightClass.short;
 
     // Reorder row keys name the song and which copy of it the row is, not
@@ -257,126 +263,148 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen>
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
-            child: desktopMode
-                ? ColoredBox(
-                    key: const ValueKey<String>(
-                      'playlist-detail-desktop-header',
-                    ),
-                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                    child: Padding(
-                      padding: shortHeader
-                          ? const EdgeInsets.fromLTRB(24, 12, 24, 12)
-                          : const EdgeInsets.fromLTRB(24, 24, 24, 20),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          _headerCover(
-                            playlist,
-                            songs,
-                            heightClass.pick<double>(
-                              short: 140,
-                              regular: 200,
-                              tall: 220,
-                            ),
-                          ),
-                          SizedBox(width: shortHeader ? 16 : 24),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  playlist.name,
-                                  style: shortHeader
-                                      ? Theme.of(context)
-                                            .textTheme
-                                            .headlineSmall
-                                      : Theme.of(context)
-                                            .textTheme
-                                            .headlineMedium,
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  l10n.playlistDetailMeta(
-                                    playlist.isLocal
-                                        ? l10n.playlistsOnDevice
-                                        : playlist.owner ?? '',
-                                    visibleSongs.length,
-                                  ),
-                                ),
-                                if (downloadedOnly) ...<Widget>[
-                                  const SizedBox(height: 8),
-                                  Chip(
-                                    label: Text(
-                                      l10n.libraryDownloadedOnlyFilter,
-                                    ),
-                                    avatar: const Icon(
-                                      Icons.download_done,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ],
-                                SizedBox(height: shortHeader ? 8 : 16),
-                                _playlistActions(
-                                  playlist,
-                                  visibleSongs,
-                                  compact: false,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
+            // Layout (this pane's width): the cover-left header row. Platform
+            // (desktopMode): window height bands, filter field, row actions.
+            child: LayoutBuilder(
+              builder: (context, paneConstraints) {
+                final paneWidth = paneConstraints.maxWidth / textScale;
+                return desktopMode ||
+                        (!adaptiveContext.isPhoneFormFactor &&
+                            !adaptiveContext.useCompactWideLandscape &&
+                            ContentLayout.wideDetail(paneWidth))
+                    ? ColoredBox(
+                        key: const ValueKey<String>(
+                          'playlist-detail-desktop-header',
+                        ),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHigh,
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                          child: _headerCover(playlist, songs, 180),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                        child: Text(
-                          playlist.name,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: Text(
-                          l10n.playlistDetailMeta(
-                            playlist.isLocal
-                                ? l10n.playlistsOnDevice
-                                : playlist.owner ?? '',
-                            visibleSongs.length,
+                          padding: shortHeader
+                              ? const EdgeInsets.fromLTRB(24, 12, 24, 12)
+                              : const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              _headerCover(
+                                playlist,
+                                songs,
+                                desktopMode
+                                    ? heightClass.pick<double>(
+                                        short: 140,
+                                        regular: 200,
+                                        tall: 220,
+                                      )
+                                    : (paneWidth < 960 ? 200 : 220),
+                              ),
+                              SizedBox(width: shortHeader ? 16 : 24),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      playlist.name,
+                                      style: shortHeader
+                                          ? Theme.of(context)
+                                                .textTheme
+                                                .headlineSmall
+                                          : Theme.of(context)
+                                                .textTheme
+                                                .headlineMedium,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      l10n.playlistDetailMeta(
+                                        playlist.isLocal
+                                            ? l10n.playlistsOnDevice
+                                            : playlist.owner ?? '',
+                                        visibleSongs.length,
+                                      ),
+                                    ),
+                                    if (downloadedOnly) ...<Widget>[
+                                      const SizedBox(height: 8),
+                                      Chip(
+                                        label: Text(
+                                          l10n.libraryDownloadedOnlyFilter,
+                                        ),
+                                        avatar: const Icon(
+                                          Icons.download_done,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ],
+                                    SizedBox(height: shortHeader ? 8 : 16),
+                                    _playlistActions(
+                                      playlist,
+                                      visibleSongs,
+                                      compact: false,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      if (downloadedOnly)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Chip(
-                              label: Text(l10n.libraryDownloadedOnlyFilter),
-                              avatar: const Icon(Icons.download_done, size: 18),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                10,
+                              ),
+                              child: _headerCover(playlist, songs, 180),
                             ),
                           ),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: _playlistActions(
-                          playlist,
-                          visibleSongs,
-                          compact: true,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                  ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                            child: Text(
+                              playlist.name,
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                            child: Text(
+                              l10n.playlistDetailMeta(
+                                playlist.isLocal
+                                    ? l10n.playlistsOnDevice
+                                    : playlist.owner ?? '',
+                                visibleSongs.length,
+                              ),
+                            ),
+                          ),
+                          if (downloadedOnly)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Chip(
+                                  label: Text(l10n.libraryDownloadedOnlyFilter),
+                                  avatar: const Icon(
+                                    Icons.download_done,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: _playlistActions(
+                              playlist,
+                              visibleSongs,
+                              compact: true,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      );
+              },
+            ),
           ),
           // Desktop filters by typing; touch gets the field (kept while a
           // query is set so it can always be cleared).
