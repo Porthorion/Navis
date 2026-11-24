@@ -538,10 +538,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 );
 
           final platform = Theme.of(context).platform;
+          // Touch platforms normally close via the sheet's drag handle, but an
+          // embedded pane (rail shell) has no sheet, so it needs the button.
+          final embeddedWithoutSheet =
+              widget.wideEmbeddedMode && !widget.compactWideLandscapeMode;
           final showCollapseButton =
               widget.onCollapse != null &&
-              platform != TargetPlatform.android &&
-              platform != TargetPlatform.iOS;
+              (embeddedWithoutSheet ||
+                  (platform != TargetPlatform.android &&
+                      platform != TargetPlatform.iOS));
 
           if (!showCollapseButton) {
             return surface;
@@ -2554,7 +2559,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         }
 
         if (!isSplitNowPlaying) {
-          return Padding(
+          Widget standardLayout = Padding(
             padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Column(
               children: <Widget>[
@@ -2574,6 +2579,19 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               ],
             ),
           );
+          if (widget.wideEmbeddedMode) {
+            standardLayout = GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragStart: _handleWideVerticalDragStart,
+              onVerticalDragUpdate: (details) =>
+                  _handleWideVerticalDragUpdate(details, splitLayout: false),
+              onVerticalDragEnd: (details) =>
+                  _handleWideVerticalDragEnd(details, splitLayout: false),
+              onVerticalDragCancel: _handleWideVerticalDragCancel,
+              child: standardLayout,
+            );
+          }
+          return standardLayout;
         }
 
         final colorScheme = Theme.of(context).colorScheme;
