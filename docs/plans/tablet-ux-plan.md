@@ -340,7 +340,7 @@ logic change on desktop).
 - Size: M.
 
 **P2.2 Home density (F7).** Low risk.
-**Status (2026-11-24): PR open.** Touch panes >= 720 (text-scaled, not phone
+**Status (2026-11-24): merged in #809.** Touch panes >= 720 (text-scaled, not phone
 form factor) get the compact-wide header row (Instant Radio as an icon
 button), flat sections at the compact-wide inset and two-column song lists.
 - Change: `home_screen.dart`: on panes >= 720 (touch), use the compact
@@ -369,7 +369,7 @@ button), flat sections at the compact-wide inset and two-column song lists.
 - Size: S-M.
 
 **P2.4 Lyrics width and placement (F9).** Low risk.
-**Status (2026-11-24): PR open.** `ContentLayout.readingWidth` (720) caps the
+**Status (2026-11-24): merged in #808.** `ContentLayout.readingWidth` (720) caps the
 lyric column (centred) and the artist bio (start-aligned); panes up to about
 816 are unchanged.
 - Cap the lyric column at 720 px, centred, in `lyrics_display_widget.dart`
@@ -390,11 +390,11 @@ lyric column (centred) and the artist bio (start-aligned); panes up to about
 - Size: M.
 
 **P2.6 Downloads and EQ (F14).** Low risk.
-**Status (2026-11-24): PR open.** Downloads body (filter, banner, tabs) caps at
+**Status (2026-11-24): merged in #810.** Downloads body (filter, banner, tabs) caps at
 1040 centred; the desktop command strip stays full width. EQ `_wide` (graph
 and inspector side by side, wrapped band chips) from any 760 pane; the presets
 panel stays desktop >= 1200, so 13" portrait gains the side-by-side layout,
-not presets. Pre-existing: EQ header overflows 19 px at a 700 touch pane.
+not presets. Pre-existing: EQ header overflows 19 px at a 700 touch pane (#811).
 - Downloads bodies: cap at 1040 like settings pages; use `trackMode` rows.
 - EQ: allow `_wide` on any pane >= 760 (drop the layout-class requirement,
   `eq_screen.dart:284-288`) so 13" portrait gets the presets panel.
