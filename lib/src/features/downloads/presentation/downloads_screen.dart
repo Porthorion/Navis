@@ -114,33 +114,49 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
                   : l10n.downloadsSearchHint,
               onSearchChanged: (value) => setState(() => _query = value),
               onClearSearch: _clearSearch,
-            )
-          else if (showSearch)
-            ListFilterField(
-              controller: _searchController,
-              hint: _tabController.index == 0
-                  ? l10n.downloadsQueueSearchHint
-                  : l10n.downloadsSearchHint,
-              onChanged: (value) => setState(() => _query = value),
-              onClear: _clearSearch,
             ),
-          ref
-              .watch(downloadFolderProblemProvider)
-              .when(
-                data: (problem) => problem == null
-                    ? const SizedBox.shrink()
-                    : _DownloadFolderHoldBanner(problem: problem),
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: <Widget>[
-                _QueueTab(query: _query, onClearQuery: _clearSearch),
-                _DownloadedTab(query: _query, onClearQuery: _clearSearch),
-                const _DownloadSettingsTab(),
-              ],
+            // Same 1040 cap as the settings pages (interface_settings_screen).
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: Column(
+                  children: <Widget>[
+                    if (!desktopMode && showSearch)
+                      ListFilterField(
+                        controller: _searchController,
+                        hint: _tabController.index == 0
+                            ? l10n.downloadsQueueSearchHint
+                            : l10n.downloadsSearchHint,
+                        onChanged: (value) => setState(() => _query = value),
+                        onClear: _clearSearch,
+                      ),
+                    ref
+                        .watch(downloadFolderProblemProvider)
+                        .when(
+                          data: (problem) => problem == null
+                              ? const SizedBox.shrink()
+                              : _DownloadFolderHoldBanner(problem: problem),
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
+                        ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: <Widget>[
+                          _QueueTab(query: _query, onClearQuery: _clearSearch),
+                          _DownloadedTab(
+                            query: _query,
+                            onClearQuery: _clearSearch,
+                          ),
+                          const _DownloadSettingsTab(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
