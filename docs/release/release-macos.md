@@ -264,7 +264,7 @@ Asset naming: `navis-dev-v0.x.y-macos.zip`
 
 ## DMG for first installs
 
-`navis-<tag>-macos.dmg` is the notarized download for a first install: a dark Navis-styled
+`navis-<tag>-macos.dmg` is the notarized download for a first install: a light Navis-styled
 window with the app and an `Applications` shortcut. It is **not** an updater asset. The
 self-updater still installs `navis-<tag>-macos.zip` (manifest key `macosBundle`, see
 `lib/src/features/settings/data/update_install_mode.dart`); `tool/r2_publish.sh` uploads the
