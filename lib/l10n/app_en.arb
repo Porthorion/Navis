@@ -2376,7 +2376,8 @@
   "appearanceKeepTitleVersionSub": "Long titles keep tags like (Remastered) or (Radio Edit) whole and shorten the name instead.",
   "interfaceSongTitlesHeading": "Song Titles",
 
-  "desktopNavbarSectionLabel": "Sidebar",
+  "desktopNavbarSectionLabel": "Desktop Navigation",
+  "tabletNavbarSectionLabel": "Sidebar",
   "desktopNavbarStyleLabel": "Navigation Style",
   "desktopNavbarStyleLarge": "Large",
   "desktopNavbarStyleDefault": "Default",

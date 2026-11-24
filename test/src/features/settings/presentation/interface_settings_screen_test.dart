@@ -205,7 +205,8 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text(l10n.desktopNavbarSectionLabel), findsOneWidget);
+    expect(find.text(l10n.tabletNavbarSectionLabel), findsOneWidget);
+    expect(find.text(l10n.desktopNavbarSectionLabel), findsNothing);
     expect(find.text(l10n.desktopNavbarAutohideLabel), findsNothing);
     await tester.tap(find.text(l10n.desktopNavbarStyleLarge));
     await tester.pump();
@@ -226,6 +227,7 @@ void main() {
       ),
     );
     expect(find.text(l10n.desktopNavbarSectionLabel), findsNothing);
+    expect(find.text(l10n.tabletNavbarSectionLabel), findsNothing);
   });
 
   testWidgets('desktop keeps both the style selector and auto-hide', (

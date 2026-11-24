@@ -1636,8 +1636,9 @@ target-selection rules.
     the scheduled style when the app resumes.
   - Settings › Interface (`interface_settings_screen.dart`) holds everything
     else: Language (when the language control is enabled), then Song Titles (Keep
-    Song Versions Visible), Home Sections, Page Visibility and, on desktop
-    only, Desktop Navigation. Each is an always-open section under an
+    Song Versions Visible), Home Sections, Page Visibility and the navigation
+    style: Desktop Navigation on desktop (style and auto-hide), Sidebar on
+    tablets (style only; phones have none). Each is an always-open section under an
     `AppearanceHeading`; the page has no dropdowns
     (`SettingsCollapsibleGroup` remains for setup only).
     Page rule: Themes = `AppearanceSnapshot` fields + Looks + Auto

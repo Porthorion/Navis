@@ -282,7 +282,9 @@ class _InterfaceSettingsScreenState
                 ),
                 if (isDesktop || showTabletRailStyle) ...[
                   AppearanceHeading(
-                    title: l10n.desktopNavbarSectionLabel,
+                    title: isDesktop
+                        ? l10n.desktopNavbarSectionLabel
+                        : l10n.tabletNavbarSectionLabel,
                     level: AppearanceHeadingLevel.section,
                   ),
                   _DesktopNavbarSettings(
