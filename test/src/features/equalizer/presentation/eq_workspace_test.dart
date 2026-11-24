@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_band_inspector.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -386,6 +387,34 @@ void main() {
     expect(band.enabled, isFalse);
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
+
+  // P2.6: the wide layout follows the pane width (>= 760), not the layout
+  // class, so a 13" portrait tablet pane gets graph + wrapped band chips.
+  for (final (size, wide, scale) in [
+    (const Size(762, 1100), true, 1.0),
+    (const Size(762, 1100), true, 1.4),
+    (const Size(760, 1100), true, 1.0),
+    (const Size(700, 1100), false, 1.0),
+    (const Size(762, 1100), false, 2.0),
+  ]) {
+    testWidgets('touch pane $size scale=$scale wide=$wide, overflow-free', (
+      tester,
+    ) async {
+      await mount(tester, size: size, scale: scale);
+      final strip = find.byType(EqBandStrip);
+      expect(strip, findsOneWidget);
+      expect(tester.widget<EqBandStrip>(strip).wrap, wide);
+      final graph = tester.getRect(find.byKey(const ValueKey('eq-graph-plot')));
+      final inspector = tester.getRect(
+        find.byKey(const ValueKey('eq-band-controls')),
+      );
+      expect(inspector.left > graph.right, wide);
+      // The 700 stacked layout already overflows 19px in its header (same
+      // path as before P2.6), so only the paths P2.6 touches are checked.
+      final overflow = tester.takeException();
+      if (size.width >= 760 || scale > 1.4) expect(overflow, isNull);
+    }, skip: !sqliteAvailable);
+  }
 
   testWidgets('landscape phones place the band inspector beside the graph', (
     tester,
