@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ART_DIR="${SCRIPT_DIR}/../assets/macos/dmg"
 ICONSET_SRC="${SCRIPT_DIR}/../macos/Runner/Assets.xcassets/AppIcon.appiconset"
 # Keep in sync with assets/macos/dmg/background.svg (points, 660x400 canvas).
-WIN_W=660 WIN_H=400 ICON_SIZE=128 APP_X=170 APP_Y=200 APPS_X=490 APPS_Y=200
+WIN_W=660 WIN_H=400 ICON_SIZE=128 APP_X=170 APP_Y=190 APPS_X=490 APPS_Y=190
 # The window bounds include the title bar, the art is the content area.
 TITLEBAR=28
 VOLNAME="Navis"

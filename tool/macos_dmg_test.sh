@@ -63,7 +63,7 @@ exec(open(sys.argv[1]).read(), ns)
 assert ns["format"] == "ULFO", ns["format"]
 assert ns["window_rect"] == ((200, 120), (660, 428)), ns["window_rect"]
 assert ns["icon_size"] == 128 and ns["text_size"] == 13
-assert ns["icon_locations"] == {"Navis.app": (170, 200), "Applications": (490, 200)}, ns["icon_locations"]
+assert ns["icon_locations"] == {"Navis.app": (170, 190), "Applications": (490, 190)}, ns["icon_locations"]
 assert ns["background"] == "/x/bg.png" and ns["icon"] == "/x/v.icns"
 assert ns["files"] == ["/x/Navis.app"] and ns["symlinks"] == {"Applications": "/Applications"}
 assert not ns["show_toolbar"] and not ns["show_status_bar"]

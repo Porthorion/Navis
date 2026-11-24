@@ -281,8 +281,10 @@ unaffected.
   as `uvx --from dmgbuild==<version> dmgbuild`, which writes `.DS_Store` directly: no Finder
   scripting), then signs, notarizes and staples the DMG. Without the two options the DMG is
   unsigned (internal builds).
-- **Art:** `assets/macos/dmg/background.svg` (660x400 pt: `#141313` base, soft glow in the
-  default white accent, the Navis mark, Inter text). The committed PNGs are rendered with
+- **Art:** `assets/macos/dmg/background.svg` (660x400 pt: light `#F9F7F4`..`#EDEAE5` field,
+  one Inter instruction line, an arrow and faint wave lines at the foot; no logo, since the app
+  icon already carries it). Finder draws icon labels in black on a background picture, so the
+  area under the labels must stay light. The committed PNGs are rendered with
   `FONTCONFIG_FILE=$PWD/assets/macos/dmg/fonts.conf` and `PANGOCAIRO_BACKEND=fc` so Inter loads
   from `assets/fonts` (the default CoreText backend on macOS ignores fontconfig and silently
   falls back to Helvetica); from
@@ -292,7 +294,7 @@ unaffected.
     rsvg-convert -w 660 -h 400 background.svg -o background.png && \
     rsvg-convert -w 1320 -h 800 background.svg -o background@2x.png
   ```
-  Icon slots (app x=170, Applications x=490, y=200) live in both the SVG and
+  Icon slots (app x=170, Applications x=490, y=190) live in both the SVG and
   `tool/macos_dmg.sh`; change them together.
 - **Install (users):** open the DMG, drag Navis onto Applications, eject the disk image, then
   open Navis from Applications.
