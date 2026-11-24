@@ -469,15 +469,20 @@ void _expectNowPlayingControlsFit(WidgetTester tester, _Viewport viewport) {
   final bottom = viewport.size.height - viewport.padding.bottom;
   for (final icon in <IconData>[Icons.pause, Icons.queue_music_outlined]) {
     final finder = find.byIcon(icon);
-    expect(finder, findsOneWidget, reason: '$icon');
-    final rect = tester.getRect(finder);
-    expect(rect.bottom, lessThanOrEqualTo(bottom), reason: '$icon $rect');
-    expect(rect.top, greaterThanOrEqualTo(0), reason: '$icon $rect');
-    expect(
-      rect.right,
-      lessThanOrEqualTo(viewport.size.width - viewport.padding.right),
-      reason: '$icon $rect',
-    );
+    // The split layout (a 220 px rail leaves 11" landscape 960 px) also holds
+    // a collapsed queue panel below the screen; the control itself must fit.
+    expect(finder, findsWidgets, reason: '$icon');
+    final fits =
+        <Rect>[
+          for (var i = 0; i < finder.evaluate().length; i++)
+            tester.getRect(finder.at(i)),
+        ].any(
+          (r) =>
+              r.bottom <= bottom &&
+              r.top >= 0 &&
+              r.right <= viewport.size.width - viewport.padding.right,
+        );
+    expect(fits, isTrue, reason: '$icon is on screen');
   }
 }
 
@@ -939,7 +944,6 @@ void main() {
       ('iPad split view 678 pt', _ipadSplitWide),
       ('Duo folded 466x678', _duoFolded),
       ('iPad landscape 1024x768', _ipadLandscape),
-      ('iPad landscape 1180x820 (standard width pane)', _ipadLandscapeLarge),
     ]) {
       _testApp('controls stay on screen: $name', (tester) async {
         final container = await _pumpApp(tester, viewport);
@@ -949,6 +953,26 @@ void main() {
         _expectNowPlayingControlsFit(tester, viewport);
       });
     }
+
+    _testApp('iPad landscape 1180x820 (standard width pane): the transport and '
+        'the info-grid queue cell are on screen', (tester) async {
+      final container = await _pumpApp(tester, _ipadLandscapeLarge);
+      await _openNowPlaying(tester, container);
+
+      expect(tester.takeException(), isNull);
+      final screen = Offset.zero & _ipadLandscapeLarge.size;
+      final pause = find.byIcon(Icons.pause);
+      expect(pause, findsOneWidget);
+      expect(screen.contains(tester.getCenter(pause)), isTrue);
+      expect(pause.hitTestable(), findsOneWidget);
+      // The 24 px queue action (y ~ 832) lives in the collapsed queue panel
+      // (Opacity / IgnorePointer) below the screen and is excluded on purpose:
+      // the queue control that must work here is the info-grid cell (y ~ 20).
+      final queueCell = find.byIcon(Icons.queue_music_outlined).hitTestable();
+      expect(queueCell, findsOneWidget);
+      expect(screen.contains(tester.getCenter(queueCell)), isTrue);
+      expect(tester.getCenter(queueCell).dy, lessThan(100));
+    });
 
     _testApp('compact wide landscape phone still shows its transport', (
       tester,
@@ -1191,7 +1215,7 @@ void main() {
     });
 
     // D2: the rail no longer takes the right strip as its own left padding.
-    _testApp('D2 rail is 270 wide beside a right strip', (tester) async {
+    _testApp('D2 rail is 220 wide beside a right strip', (tester) async {
       await _pumpApp(tester, _duoLandscapeStrip);
 
       final railColor = Theme.of(tester.element(find.byType(Scaffold).first))
@@ -1208,7 +1232,7 @@ void main() {
             .first,
       );
       expect(rail.left, 0);
-      expect(rail.width, 270);
+      expect(rail.width, 220);
     });
 
     // D3: a collapsed Now Playing overlay is clipped to the pane.
@@ -1271,7 +1295,7 @@ void main() {
 
       final rail = railBox(tester);
       expect(rail.left, 0);
-      expect(rail.width, 270);
+      expect(rail.width, 220);
       expect(
         tester.getRect(find.byType(TabBarView)).right,
         lessThanOrEqualTo(951 - 84),
@@ -2451,7 +2475,6 @@ void main() {
 
     for (final (name, viewport) in <(String, _Viewport)>[
       ('unfolded portrait', _duoPortrait),
-      ('unfolded landscape', _duoLandscape),
       ('iPad split view 678 pt', _ipadSplitWide),
     ]) {
       _testApp('hero is at most 45 percent of the height: $name', (
@@ -2464,6 +2487,16 @@ void main() {
         expect(hero.height, lessThanOrEqualTo(viewport.size.height * 0.45 + 1));
       });
     }
+
+    // The 220 px rail leaves the unfolded Duo landscape a 731 px pane, over
+    // the 720 threshold: the wide header replaces the collapsing hero.
+    _testApp('unfolded landscape pane gets the wide album header', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoLandscape);
+      await _go(tester, AppRoutes.album('album-1'));
+      expect(find.byType(FlexibleSpaceBar), findsNothing);
+    });
 
     _testApp('desktop runtime keeps its own album header', (tester) async {
       await _pumpApp(tester, (

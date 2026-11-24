@@ -391,7 +391,7 @@ class _RailNavTile extends StatelessWidget {
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
 
-    return Material(
+    final tile = Material(
       color: selected
           ? colorStyle.tonalControlFill(colorScheme)
           : Colors.transparent,
@@ -411,6 +411,8 @@ class _RailNavTile extends StatelessWidget {
                 child: Icon(
                   selected ? destination.selectedIcon : destination.icon,
                   size: 24,
+                  // Icons style has no text: the icon names the destination.
+                  semanticLabel: iconsOnly ? destination.label : null,
                   color: selected ? selectedInk : colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -431,6 +433,9 @@ class _RailNavTile extends StatelessWidget {
         ),
       ),
     );
+    return iconsOnly
+        ? NavisTooltip(message: destination.label, child: tile)
+        : tile;
   }
 }
 

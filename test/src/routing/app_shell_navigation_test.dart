@@ -2579,6 +2579,224 @@ void main() {
     await tester.pump();
   });
 
+  group('tablet rail follows the navbar style (P1.2)', () {
+    final region = find.byKey(const ValueKey<String>('touchRailRegion'));
+    final allSections = <Override>[
+      showLikedPageProvider.overrideWithValue(true),
+      showArtistsPageProvider.overrideWithValue(true),
+      showGenresPageProvider.overrideWithValue(true),
+      showPlaylistsPageProvider.overrideWithValue(true),
+      showRadioPageProvider.overrideWithValue(true),
+    ];
+
+    Future<ProviderContainer> pump(
+      WidgetTester tester,
+      Size size, {
+      String? style,
+      bool desktopRuntime = false,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: desktopRuntime),
+          if (style != null)
+            desktopNavbarStyleProvider.overrideWithValue(style),
+          ...allSections,
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    for (final size in const <Size>[
+      Size(1032, 1376),
+      Size(1376, 1032),
+      Size(1194, 834),
+      Size(981, 1032),
+      Size(841, 701),
+    ]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}: the default '
+          'style is a 220 px labelled rail', (tester) async {
+        await pump(tester, size);
+        expect(tester.getSize(region).width, 220);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('railNavTile-0'))).right,
+          lessThanOrEqualTo(220),
+        );
+        // Labelled, never forced to icons by the narrow-window desktop rule.
+        expect(find.text('Home'), findsWidgets);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Large is 260 px with bigger labels', (tester) async {
+      await pump(tester, const Size(1032, 1376), style: 'comfortable');
+      expect(tester.getSize(region).width, 260);
+      final home = find.descendant(of: region, matching: find.text('Home'));
+      expect(tester.widget<Text>(home).style?.fontSize, 18);
+    });
+
+    testWidgets('Icons is a 64 px rail without labels', (tester) async {
+      await pump(tester, const Size(1032, 1376), style: 'icons');
+      expect(tester.getSize(region).width, 64);
+      expect(
+        find.descendant(of: region, matching: find.text('Home')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('railNavTile-0')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Icons: every nav tile has a label, a tooltip and a '
+        'long-press bubble', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, const Size(1032, 1376), style: 'icons');
+      for (final label in const <String>['Home', 'Library']) {
+        expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+        final tip = find.descendant(
+          of: region,
+          matching: find.byWidgetPredicate(
+            (w) => w is NavisTooltip && w.message == label,
+          ),
+        );
+        expect(tip, findsOneWidget, reason: label);
+      }
+      await tester.longPress(find.byKey(const ValueKey('railNavTile-0')));
+      await tester.pump();
+      expect(find.byKey(NavisTooltip.defaultBubbleKey), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(NavisTooltip.defaultBubbleKey),
+          matching: find.text('Home'),
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+      handle.dispose();
+    });
+
+    testWidgets('the labelled styles add no tooltip to the nav tiles', (
+      tester,
+    ) async {
+      await pump(tester, const Size(1032, 1376));
+      expect(
+        find.descendant(of: region, matching: find.byType(NavisTooltip)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('desktop icons sidebar: nav tiles carry the same tooltip', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        const Size(1280, 1000),
+        style: 'icons',
+        desktopRuntime: true,
+      );
+      expect(find.bySemanticsLabel('Home'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is NavisTooltip && w.message == 'Home'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('a stored icons style is honoured below 1008 px too', (
+      tester,
+    ) async {
+      await pump(tester, const Size(981, 1032), style: 'icons');
+      expect(tester.getSize(region).width, 64);
+    });
+
+    testWidgets('the default rail lists the Library sections inline', (
+      tester,
+    ) async {
+      await pump(tester, const Size(1032, 1376));
+      expect(
+        find.byKey(const ValueKey('railLibrarySection-liked')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'Icons: no inline Library sections, the page has its own tabs',
+      (tester) async {
+        await pump(tester, const Size(1032, 1376), style: 'icons');
+        await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('railLibrarySection-liked')),
+          findsNothing,
+        );
+        expect(find.byType(TabBar), findsOneWidget);
+      },
+    );
+
+    testWidgets('220 px rail at 2.0x text does not overflow', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pump(tester, const Size(1032, 1376));
+      expect(tester.getSize(region).width, 220);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('phone portrait keeps the bottom navigation', (tester) async {
+      await pump(tester, const Size(412, 915), style: 'icons');
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    for (final style in <String?>[null, 'comfortable', 'icons']) {
+      testWidgets('compact-wide landscape phone ignores the style ($style)', (
+        tester,
+      ) async {
+        await pump(tester, const Size(915, 412), style: style);
+        expect(tester.getSize(region).width, inInclusiveRange(57.2, 75.4));
+      });
+
+      testWidgets('a phone-form-factor standard rail keeps its own width '
+          '($style)', (tester) async {
+        await pump(tester, const Size(900, 500), style: style);
+        expect(tester.getSize(region).width, closeTo(198, 0.01));
+        expect(find.text('Home'), findsWidgets);
+      });
+    }
+
+    testWidgets('desktop keeps forcing icons below 1008 px', (tester) async {
+      await pump(
+        tester,
+        const Size(900, 800),
+        style: 'comfortable',
+        desktopRuntime: true,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('desktopSidebarRegion')))
+            .width,
+        64,
+      );
+    });
+
+    testWidgets('resizing across 840 swaps the rail and the bottom bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(841, 701));
+      expect(region, findsOneWidget);
+      tester.view.physicalSize = const Size(839, 701);
+      await tester.pumpAndSettle();
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+  });
+
   group('tablet rail bottom mini player (P1.1)', () {
     const strip = ValueKey<String>('railBottomMiniPlayer');
     const fade = ValueKey<String>('railBottomMiniPlayerFade');
@@ -2605,6 +2823,7 @@ void main() {
       WidgetTester tester,
       Size size, {
       PlaybackSnapshot playback = _activePlayback,
+      bool settle = true,
     }) async {
       setAdaptiveTestViewport(tester, size);
       final container = _createContainerWithDatabase(
@@ -2613,7 +2832,16 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: testNavisApp),
       );
-      await tester.pumpAndSettle();
+      if (settle) {
+        await tester.pumpAndSettle();
+      } else {
+        // The collapsed, off-screen Now Playing split layout holds a
+        // _MarqueeScroller (long title) whose ticker never stops, so
+        // pumpAndSettle never settles.
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
       return container;
     }
 
@@ -2751,7 +2979,9 @@ void main() {
     /// Opens Library, scrolls its page to the end and returns the page rect.
     Future<Rect> scrolledPageRect(WidgetTester tester) async {
       await tester.tap(find.byKey(const ValueKey('railNavTile-3')));
-      await tester.pumpAndSettle();
+      // Not pumpAndSettle: the collapsed, off-screen Now Playing layout holds a
+      // _MarqueeScroller (long title) whose ticker never stops.
+      await tester.pump(const Duration(seconds: 1));
       ScrollableState? page;
       for (final state in tester.stateList<ScrollableState>(
         find.byType(Scrollable),
@@ -2764,7 +2994,7 @@ void main() {
         }
       }
       page!.position.jumpTo(page.position.maxScrollExtent);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       return tester.getRect(find.byElementPredicate((e) => e == page!.context));
     }
 
@@ -2776,7 +3006,7 @@ void main() {
         ) async {
           tester.platformDispatcher.textScaleFactorTestValue = scale;
           addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-          await pump(tester, size);
+          await pump(tester, size, settle: size.width < 1100);
 
           expect(tester.takeException(), isNull);
           final rect = tester.getRect(find.byKey(strip));

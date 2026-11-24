@@ -7917,6 +7917,12 @@ abstract class AppLocalizations {
   /// **'Desktop Navigation'**
   String get desktopNavbarSectionLabel;
 
+  /// No description provided for @tabletNavbarSectionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar'**
+  String get tabletNavbarSectionLabel;
+
   /// No description provided for @desktopNavbarStyleLabel.
   ///
   /// In en, this message translates to:

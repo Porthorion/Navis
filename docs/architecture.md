@@ -1636,8 +1636,9 @@ target-selection rules.
     the scheduled style when the app resumes.
   - Settings › Interface (`interface_settings_screen.dart`) holds everything
     else: Language (when the language control is enabled), then Song Titles (Keep
-    Song Versions Visible), Home Sections, Page Visibility and, on desktop
-    only, Desktop Navigation. Each is an always-open section under an
+    Song Versions Visible), Home Sections, Page Visibility and the navigation
+    style: Desktop Navigation on desktop (style and auto-hide), Sidebar on
+    tablets (style only; phones have none). Each is an always-open section under an
     `AppearanceHeading`; the page has no dropdowns
     (`SettingsCollapsibleGroup` remains for setup only).
     Page rule: Themes = `AppearanceSnapshot` fields + Looks + Auto
@@ -3051,6 +3052,16 @@ lyrics overlay is full-bleed). Sidebar styles are stored as `compact` (shown
 as Default, 220 px, the default), `comfortable` (Large, a fixed 260 px with
 18 sp labels and 52 px tiles) and `icons`; schema 109 moved profiles still on
 the old `comfortable` default to `compact` once.
+
+The tablet rail (touch, standard rail, shortest side >= 600 dp) uses the same
+style setting, tiles and widths (220 / 260 / 64 px, default 220) instead of a
+width proportional to the window, so a stored style from a desktop install is
+honoured. The narrow-window icons rule is desktop-only: a tablet in Split View
+below 1008 px keeps its chosen style. Icons style hides the inline Library
+sections as on desktop. Tablets get no auto-hide, peek strip or history
+controls, and the Interface settings "Sidebar" section shows the style
+selector on them (auto-hide stays desktop-only). Phone-form-factor and
+compact-wide rails keep their own widths.
 
 With auto-hide the layout always reserves the 64 px icon strip and
 `DesktopNavigationPresentationScope.iconsOnly` stays true. The rail is laid out

@@ -122,7 +122,6 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  static const double _sideRailWidth = 270;
   static const int _kQueueCoverArtPrefetchAheadCount = 6;
   bool _playbackRecoverySheetOpen = false;
   static const int _kQueueCoverArtPrefetchSizePx = kCoverArtStandardSize;
@@ -1103,10 +1102,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (useDesktopShell && !isMiniPlayerMode) {
       _lastDesktopViewSize = mediaSize;
     }
-    final configuredNavbarStyle = desktopRuntime
+    // The tablet rail (touch, standard rail, not a phone form factor) follows
+    // the same navbar style setting as the desktop sidebar. Phone-form-factor
+    // and compact-wide rails keep their own fixed widths and tiles.
+    final useTabletRailStyle = useStandardRailNavigation && !isPhoneFormFactor;
+    final configuredNavbarStyle = (desktopRuntime || useTabletRailStyle)
         ? ref.watch(desktopNavbarStyleProvider)
         : 'comfortable';
-    final navbarStyle = desktopLayoutClass == DesktopLayoutClass.compactDesktop
+    // The narrow-window icons rail is a desktop-window rule: a tablet in Split
+    // View below 1008 px keeps the style the user chose.
+    final navbarStyle =
+        desktopRuntime &&
+            desktopLayoutClass == DesktopLayoutClass.compactDesktop
         ? 'icons'
         : configuredNavbarStyle;
     final navbarAutohide =
@@ -1154,7 +1161,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               .clamp(57.2, 75.4)
         : (isPhoneFormFactor
               ? (screenWidth * 0.22).clamp(188.0, 236.0)
-              : (screenWidth * 0.25).clamp(_sideRailWidth, 360.0));
+              : desktopSidebarWidth);
     final showLibrarySubNavigation =
         (useDesktopShell || useStandardRailNavigation) &&
         screenWidth >= kAdaptiveExpandedWidth &&
@@ -1582,9 +1589,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     // counts as hidden so the Library page does not reflow on hover.
     final sidebarAllowsLibrarySections =
         showLibrarySubNavigation &&
-        (useDesktopShell
-            ? navbarStyle != 'icons' && !navbarAutohide
-            : !useCompactWideLandscape);
+        navbarStyle != 'icons' &&
+        (useDesktopShell ? !navbarAutohide : !useCompactWideLandscape);
     final hasBottomNav = !useDesktopShell && !useRailNavigation;
     final shell = LibrarySectionNavigationScope(
       sidebarAllowsSections: sidebarAllowsLibrarySections,
@@ -1798,6 +1804,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         ),
                                         child: SideInsetsConsumed(
                                           child: SizedBox(
+                                            key: const ValueKey<String>(
+                                              'touchRailRegion',
+                                            ),
                                             width: sideRailWidth,
                                             child: Padding(
                                               padding: useCompactWideLandscape
@@ -1807,6 +1816,20 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                       0,
                                                       8,
                                                     )
+                                                  : useTabletRailStyle
+                                                  ? (navbarStyle == 'icons'
+                                                        ? const EdgeInsets.fromLTRB(
+                                                            4,
+                                                            12,
+                                                            4,
+                                                            12,
+                                                          )
+                                                        : const EdgeInsets.fromLTRB(
+                                                            14,
+                                                            12,
+                                                            14,
+                                                            12,
+                                                          ))
                                                   : const EdgeInsets.fromLTRB(
                                                       18,
                                                       14,
@@ -1823,6 +1846,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                           onDestinationSelected,
                                                     )
                                                   : _RailSidebar(
+                                                      navbarStyle: navbarStyle,
+                                                      largeTiles:
+                                                          useTabletRailStyle &&
+                                                          navbarStyle ==
+                                                              'comfortable',
                                                       selectedIndex:
                                                           selectedIndex,
                                                       onDestinationSelected:

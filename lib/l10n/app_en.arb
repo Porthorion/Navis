@@ -2377,6 +2377,7 @@
   "interfaceSongTitlesHeading": "Song Titles",
 
   "desktopNavbarSectionLabel": "Desktop Navigation",
+  "tabletNavbarSectionLabel": "Sidebar",
   "desktopNavbarStyleLabel": "Navigation Style",
   "desktopNavbarStyleLarge": "Large",
   "desktopNavbarStyleDefault": "Default",

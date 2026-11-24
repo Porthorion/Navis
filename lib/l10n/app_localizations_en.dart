@@ -5015,6 +5015,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopNavbarSectionLabel => 'Desktop Navigation';
 
   @override
+  String get tabletNavbarSectionLabel => 'Sidebar';
+
+  @override
   String get desktopNavbarStyleLabel => 'Navigation Style';
 
   @override
