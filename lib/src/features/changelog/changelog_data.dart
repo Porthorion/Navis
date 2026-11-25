@@ -212,6 +212,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'A trackpad or mouse on a tablet now right-clicks for the same menus '
+        'as on desktop, and album covers show Play on hover',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Library on a landscape phone drops its title and keeps search, '
         'filters and sort in one row, leaving more room for your music',
         type: ChangelogEntryType.improvement,
