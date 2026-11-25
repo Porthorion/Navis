@@ -1140,6 +1140,11 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 117 (`from116To117`, guarded by `_columnExists`) adds
+    `app_settings.tablet_medium_sidebar` (boolean, default false): Settings >
+    Interface > Sidebar > Sidebar on medium screens
+    (`updateTabletMediumSidebar`, `tabletMediumSidebarProvider`). It is not an
+    appearance preset field.
   - Schema 115 (`from114To115`, guarded by `_columnExists`) adds
     `app_settings.keep_title_version_visible` (boolean, default true): Settings >
     Interface > Song Titles > Keep Song Versions Visible
@@ -1636,8 +1641,9 @@ target-selection rules.
     the scheduled style when the app resumes.
   - Settings › Interface (`interface_settings_screen.dart`) holds everything
     else: Language (when the language control is enabled), then Song Titles (Keep
-    Song Versions Visible), Home Sections, Page Visibility and, on desktop
-    only, Desktop Navigation. Each is an always-open section under an
+    Song Versions Visible), Home Sections, Page Visibility and the navigation
+    style: Desktop Navigation on desktop (style and auto-hide), Sidebar on
+    tablets (style only; phones have none). Each is an always-open section under an
     `AppearanceHeading`; the page has no dropdowns
     (`SettingsCollapsibleGroup` remains for setup only).
     Page rule: Themes = `AppearanceSnapshot` fields + Looks + Auto
@@ -1840,7 +1846,7 @@ wide artist and album cells only while hovered; the compact secondary
 "Artist · Album" line and subtitles stay single-line ellipsis. Player
 surfaces always scroll a truncated title a few times per track, then rest in
 the still form: 2 passes on the phone mini player, the desktop player bar, the
-desktop Mini Player, the rail mini player, the lyrics headers and the wide
+desktop Mini Player, the tablet bottom strip, the lyrics headers and the wide
 panel header, 3 on the Now Playing single artist and album lines, while the
 Now Playing title repeats (`passes` null: rest, travel, rest) for as long as
 Now Playing is visible, still muted by `TickerMode`, `VisibilityDetector` and
@@ -2720,7 +2726,12 @@ The app uses `StatefulShellRoute.indexedStack` for persistent navigation. On
 non-desktop platforms, shell composition is selected by `resolveAdaptiveShellMode`.
 Desktop runtime has only Desktop View and the dedicated same-window Mini Player;
 it never renders the phone bottom navigation, expandable player sheet, or tablet
-rail mini-player. Desktop View always reserves its bottom player bar, including
+bottom player strip. In the touch `standardRail` shell the rail is navigation only:
+the player is the phone `_MiniPlayerStrip` (key `railBottomMiniPlayer`, 64 px,
+skip buttons, swipe up expands) pinned at the bottom of the content pane. Now
+Playing slides over the whole pane, strip included, and the strip fades out and
+goes inert meanwhile; the page keeps its 64 px reserve throughout. The pane
+resizes for the keyboard like the bottom-nav shell, so the strip rides above it. Desktop View always reserves its bottom player bar, including
 when playback is empty. Its right-side action region is stable from the 800 px
 minimum upward: Favorite, Lyrics, Queue, and Mini Player remain directly
 visible in a 44 px-target row, with mute and the full volume slider on the row
@@ -2903,6 +2914,9 @@ the tracks. Phone and tablet layouts ignore the height band.
   shortcuts (tab switches, search, queue, history) are ignored in Mini Player.
 - **Tablets (shortest side ≥ 600 dp), ≥ 840 dp wide** → standard rail,
   whatever the aspect ratio
+- **Tablets, 600–839 dp wide, with Sidebar on medium screens on** → standard
+  rail (`resolveAdaptiveShellMode(mediumSidebar:)`, read only for non-phone
+  form factors; the setting is off by default, so bottom tabs stay the default)
 - **Phones in landscape, ≥ 840 dp wide** → standard rail when the rail fits the
   height, otherwise the compact icon rail (compact-wide)
 - **Phones in landscape, 600–839 dp wide** → the compact icon rail when the
@@ -3047,6 +3061,16 @@ as Default, 220 px, the default), `comfortable` (Large, a fixed 260 px with
 18 sp labels and 52 px tiles) and `icons`; schema 109 moved profiles still on
 the old `comfortable` default to `compact` once.
 
+The tablet rail (touch, standard rail, shortest side >= 600 dp) uses the same
+style setting, tiles and widths (220 / 260 / 64 px, default 220) instead of a
+width proportional to the window, so a stored style from a desktop install is
+honoured. The narrow-window icons rule is desktop-only: a tablet in Split View
+below 1008 px keeps its chosen style. Icons style hides the inline Library
+sections as on desktop. Tablets get no auto-hide, peek strip or history
+controls, and the Interface settings "Sidebar" section shows the style
+selector on them (auto-hide stays desktop-only). Phone-form-factor and
+compact-wide rails keep their own widths.
+
 With auto-hide the layout always reserves the 64 px icon strip and
 `DesktopNavigationPresentationScope.iconsOnly` stays true. The rail is laid out
 expanded and clipped to the strip while closed (icons, lock and tiles never
@@ -3100,11 +3124,20 @@ triggering rebuilds on unrelated dimension changes.
 - `enableEscapeOverlayPriority`
 - `enableDesktopPointerAffordances`
 - `enableSecondaryClickMenus`
-- `enableDesktopCommandShortcuts`
+- `enableDesktopCommandShortcuts` (desktop runtime, or any non-phone form factor:
+  tablets with a hardware keyboard get the desktop commands; iPadOS uses Cmd like
+  macOS, Android uses Ctrl)
 
 The policy is resolved from `AdaptiveContext` by `AdaptiveShell` and propagated via
 `AdaptiveInputPolicyScope`. This allows feature screens to adapt their affordances
 independently of layout decisions.
+
+`enableDesktopPointerAffordances` and `enableSecondaryClickMenus` are on for the desktop
+runtime and every non-phone size (shortest side >= 600), so a trackpad or mouse on a tablet
+gets the anchored context menu on secondary click and the hover Play button on album cards.
+Long-press keeps the bottom sheet. Menus and cards read them through
+`secondaryClickMenusEnabled(context)` / `desktopPointerAffordancesEnabled(context)`, which fall
+back to `isDesktopRuntime` outside an `AdaptiveInputPolicyScope`.
 
 ### Collection pane geometry
 

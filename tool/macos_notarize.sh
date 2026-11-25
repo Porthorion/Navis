@@ -4,16 +4,19 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./tool/macos_notarize.sh --app <path/to/App.app> --output <path/to/output.zip> [options]
+  ./tool/macos_notarize.sh --app=<path/to/App.app> --output=<path/to/output.zip> [options]
 
 Options:
   --identity=<name>         codesign identity (default: $MACOS_SIGN_IDENTITY)
-  --notary-profile=<name>   notarytool keychain profile (default: $MACOS_NOTARY_PROFILE)
+  --notary-key=<AuthKey.p8> --notary-key-id=<id> --notary-issuer=<id>
+                            App Store Connect API key (preferred; no keychain needed)
+  --notary-profile=<name>   notarytool keychain profile, used without a key
+                            (default: $MACOS_NOTARY_PROFILE)
   --help                    Show this help
 
 Required environment (if options omitted):
   MACOS_SIGN_IDENTITY
-  MACOS_NOTARY_PROFILE
+  MACOS_NOTARY_PROFILE (unless an API key is given)
 
 This script:
   1) signs the .app bundle inside-out (nested code first, then the app with
@@ -28,12 +31,16 @@ APP_PATH=""
 OUTPUT_PATH=""
 IDENTITY="${MACOS_SIGN_IDENTITY:-}"
 NOTARY_PROFILE="${MACOS_NOTARY_PROFILE:-}"
+NOTARY_KEY="" NOTARY_KEY_ID="" NOTARY_ISSUER=""
 
 for arg in "$@"; do
   case "${arg}" in
     --app=*) APP_PATH="${arg#--app=}" ;;
     --output=*) OUTPUT_PATH="${arg#--output=}" ;;
     --identity=*) IDENTITY="${arg#--identity=}" ;;
+    --notary-key=*) NOTARY_KEY="${arg#--notary-key=}" ;;
+    --notary-key-id=*) NOTARY_KEY_ID="${arg#--notary-key-id=}" ;;
+    --notary-issuer=*) NOTARY_ISSUER="${arg#--notary-issuer=}" ;;
     --notary-profile=*) NOTARY_PROFILE="${arg#--notary-profile=}" ;;
     -h|--help)
       usage
@@ -58,8 +65,23 @@ if [[ -z "${IDENTITY}" ]]; then
   exit 1
 fi
 
-if [[ -z "${NOTARY_PROFILE}" ]]; then
-  echo "Error: missing notary profile. Set --notary-profile or MACOS_NOTARY_PROFILE." >&2
+# The API key wins over a profile; messages name options, never values.
+if [[ -n "${NOTARY_KEY}${NOTARY_KEY_ID}${NOTARY_ISSUER}" ]]; then
+  if [[ -z "${NOTARY_KEY}" || -z "${NOTARY_KEY_ID}" || -z "${NOTARY_ISSUER}" ]]; then
+    echo "Error: --notary-key, --notary-key-id and --notary-issuer go together." >&2
+    exit 1
+  fi
+  if [[ ! -f "${NOTARY_KEY}" || ! -r "${NOTARY_KEY}" ]]; then
+    echo "Error: --notary-key does not point to a readable file." >&2
+    exit 1
+  fi
+  NOTARY_AUTH=(--key "${NOTARY_KEY}" --key-id "${NOTARY_KEY_ID}" --issuer "${NOTARY_ISSUER}")
+  NOTARY_AUTH_LABEL="API key"
+elif [[ -n "${NOTARY_PROFILE}" ]]; then
+  NOTARY_AUTH=(--keychain-profile "${NOTARY_PROFILE}")
+  NOTARY_AUTH_LABEL="profile: ${NOTARY_PROFILE}"
+else
+  echo "Error: missing notary credentials. Set --notary-key, --notary-key-id and --notary-issuer (App Store Connect API key), or --notary-profile / MACOS_NOTARY_PROFILE." >&2
   exit 1
 fi
 
@@ -116,10 +138,8 @@ codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
 echo "==> Creating notary upload archive..."
 ditto -c -k --keepParent "${APP_PATH}" "${NOTARY_ZIP}"
 
-echo "==> Submitting to Apple notary service (profile: ${NOTARY_PROFILE})..."
-xcrun notarytool submit "${NOTARY_ZIP}" \
-  --keychain-profile "${NOTARY_PROFILE}" \
-  --wait
+echo "==> Submitting to Apple notary service (${NOTARY_AUTH_LABEL})..."
+xcrun notarytool submit "${NOTARY_ZIP}" "${NOTARY_AUTH[@]}" --wait
 
 echo "==> Stapling notarization ticket..."
 xcrun stapler staple "${APP_PATH}"

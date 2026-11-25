@@ -9,6 +9,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -326,6 +327,153 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('playlist header row on wide panes', () {
+    const header = ValueKey<String>('playlist-detail-desktop-header');
+
+    Future<void> pumpWide(
+      WidgetTester tester,
+      Size size, {
+      bool desktop = false,
+      TextDirection? textDirection,
+      TextScaler? textScaler,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              playlistViewerProvider.overrideWithValue(null),
+              playlistByIdProvider(_playlistId)
+                  .overrideWith((ref) => Stream.value(_playlist)),
+              playlistSongsProvider(_playlistId)
+                  .overrideWith((ref) => Stream.value(_twoSongs)),
+              playlistDetailSyncProvider(_playlistId)
+                  .overrideWith((ref) async {}),
+              appSettingsProvider.overrideWithValue(
+                const AsyncData(AppSettingsModel.defaults()),
+              ),
+              songDownloadStateProvider.overrideWith(
+                (ref, songId) => SongDownloadState.none,
+              ),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) {
+              var app = child!;
+              if (textDirection != null) {
+                app = Directionality(textDirection: textDirection, child: app);
+              }
+              if (textScaler != null) {
+                app = MediaQuery(
+                  data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+                  child: app,
+                );
+              }
+              return app;
+            },
+            home: AdaptiveContextScope(
+              adaptiveContext: resolveAdaptiveContext(
+                desktopRuntime: desktop,
+                viewportSize: size,
+                safePadding: EdgeInsets.zero,
+              ),
+              child: const PlaylistDetailScreen(playlistId: _playlistId),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Finder inHeader(Finder f) =>
+        find.descendant(of: find.byKey(header), matching: f);
+
+    for (final (size, cover) in const <(Size, double)>[
+      (Size(762, 1376), 200),
+      (Size(1032, 1032), 220),
+    ]) {
+      testWidgets('touch ${size.width.toInt()} wide: cover left of title', (
+        tester,
+      ) async {
+        await pumpWide(tester, size);
+        expect(find.byKey(header), findsOneWidget);
+        expect(find.byType(DesktopFrame), findsNothing);
+        final coverRect = tester.getRect(inHeader(find.byType(CoverArtImage)));
+        expect(coverRect.height, cover);
+        expect(
+          coverRect.right,
+          lessThanOrEqualTo(
+            tester.getRect(inHeader(find.text(_playlist.name))).left,
+          ),
+        );
+        // Measured 762: under 420; 1032 (220 cover plus filter field): 438.
+        expect(
+          tester.getTopLeft(find.text('First song')).dy,
+          lessThan(size.width < 960 ? 420 : 460),
+        );
+        // Touch keeps its filter field and row actions.
+        expect(find.byType(ListFilterField), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('touch 700 wide keeps the centred cover', (tester) async {
+      await pumpWide(tester, const Size(700, 1000));
+      expect(find.byKey(header), findsNothing);
+    });
+
+    testWidgets('phone keeps the centred cover', (tester) async {
+      await pumpWide(tester, const Size(390, 844));
+      expect(find.byKey(header), findsNothing);
+    });
+
+    testWidgets('desktop 760 pane has the header row', (tester) async {
+      await pumpWide(tester, const Size(760, 900), desktop: true);
+      expect(
+        tester.getRect(inHeader(find.byType(CoverArtImage))).right,
+        lessThanOrEqualTo(
+          tester.getRect(inHeader(find.text(_playlist.name))).left,
+        ),
+      );
+    });
+
+    testWidgets('RTL puts the cover on the right', (tester) async {
+      await pumpWide(
+        tester,
+        const Size(762, 1376),
+        textDirection: TextDirection.rtl,
+      );
+      expect(
+        tester.getRect(inHeader(find.byType(CoverArtImage))).left,
+        greaterThanOrEqualTo(
+          tester.getRect(inHeader(find.text(_playlist.name))).right,
+        ),
+      );
+    });
+
+    testWidgets('large text scale follows the scaled width', (tester) async {
+      await pumpWide(
+        tester,
+        const Size(1032, 1032),
+        textScaler: const TextScaler.linear(2),
+      );
+      expect(find.byKey(header), findsNothing);
+      await pumpWide(
+        tester,
+        const Size(1032, 1032),
+        textScaler: const TextScaler.linear(1.2),
+      );
+      expect(find.byKey(header), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 
   testWidgets('desktop playlist detail uses a continuous tonal header', (
     tester,

@@ -543,7 +543,13 @@ void main() {
           reason: 'the fixture must activate the Artwork layer',
         );
         expect(sheetColor(tester, 'queue'), high);
-        await tester.tap(find.byTooltip('Close'));
+        // Embedded on touch, Now Playing has its own Close (#803) beside the
+        // panel's; close the panel.
+        final panelClose = find.descendant(
+          of: find.byKey(const ValueKey('right-pane-panel-queue')),
+          matching: find.byTooltip('Close'),
+        );
+        await tester.tap(panelClose);
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.byTooltip('Settings').first);
         await tester.tap(find.byTooltip('Settings').first);

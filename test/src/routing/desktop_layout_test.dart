@@ -386,6 +386,83 @@ void main() {
     );
   });
 
+  group('P3.3 sidebar on medium screens', () {
+    const rail = AdaptiveShellMode.standardRail;
+    const bottomNav = AdaptiveShellMode.phoneBottomNav;
+
+    AdaptiveShellMode resolve(
+      Size size, {
+      required bool mediumSidebar,
+      EdgeInsets padding = EdgeInsets.zero,
+      bool desktop = false,
+    }) => resolveAdaptiveShellMode(
+      desktopRuntime: desktop,
+      viewportSize: size,
+      safePadding: padding,
+      mediumSidebar: mediumSidebar,
+    );
+
+    test(
+      'a 600-839 touch tablet gets the rail only when the setting is on',
+      () {
+        for (final size in const [
+          Size(834, 1194),
+          Size(700, 1000),
+          Size(756, 1158),
+          Size(600, 960),
+        ]) {
+          expect(
+            resolve(size, mediumSidebar: false),
+            bottomNav,
+            reason: '$size',
+          );
+          expect(resolve(size, mediumSidebar: true), rail, reason: '$size');
+        }
+      },
+    );
+
+    test('phones, side strips, wide panes and desktop ignore the setting', () {
+      const strip = EdgeInsets.fromLTRB(0, 0, 84, 34);
+      for (final on in [false, true]) {
+        expect(resolve(const Size(390, 844), mediumSidebar: on), bottomNav);
+        expect(
+          resolve(const Size(844, 390), mediumSidebar: on),
+          resolve(const Size(844, 390), mediumSidebar: false),
+        );
+        expect(
+          resolve(const Size(466, 678), mediumSidebar: on, padding: strip),
+          AdaptiveShellMode.sideStripNav,
+        );
+        expect(resolve(const Size(1032, 1376), mediumSidebar: on), rail);
+        expect(
+          resolve(const Size(700, 1000), mediumSidebar: on, desktop: true),
+          rail,
+        );
+      }
+    });
+
+    test('the context follows the mode and only tablets read the setting', () {
+      AdaptiveContext context(Size size, {bool on = true}) =>
+          resolveAdaptiveContext(
+            desktopRuntime: false,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+            mediumSidebar: on,
+          );
+      final tablet = context(const Size(834, 1194));
+      expect(tablet.useStandardRailNavigation, isTrue);
+      expect(tablet.useRailNavigation, isTrue);
+      expect(tablet.isPhoneFormFactor, isFalse);
+      expect(
+        context(const Size(834, 1194), on: false).useRailNavigation,
+        isFalse,
+      );
+      final phone = context(const Size(390, 844));
+      expect(phone.useRailNavigation, isFalse);
+      expect(phone.isPhoneFormFactor, isTrue);
+    });
+  });
+
   test('desktop runtime always resolves to the desktop workspace', () {
     final context = resolveAdaptiveContext(
       desktopRuntime: true,
@@ -435,8 +512,9 @@ void main() {
     );
     expect(tabletPolicy.enableDeterministicTraversal, isTrue);
     expect(tabletPolicy.enableEscapeOverlayPriority, isTrue);
-    expect(tabletPolicy.enableDesktopCommandShortcuts, isFalse);
-    expect(tabletPolicy.enableDesktopPointerAffordances, isFalse);
+    expect(tabletPolicy.enableDesktopCommandShortcuts, isTrue);
+    expect(tabletPolicy.enableDesktopPointerAffordances, isTrue);
+    expect(tabletPolicy.enableSecondaryClickMenus, isTrue);
 
     final desktopContext = resolveAdaptiveContext(
       desktopRuntime: true,
@@ -451,6 +529,58 @@ void main() {
     expect(desktopPolicy.enableDesktopCommandShortcuts, isTrue);
     expect(desktopPolicy.enableDesktopPointerAffordances, isTrue);
     expect(desktopPolicy.enableSecondaryClickMenus, isTrue);
+  });
+
+  test('command shortcuts follow form factor: tablets on, phones off', () {
+    bool shortcutsAt(Size size, {bool desktop = false}) =>
+        resolveAdaptiveInputPolicy(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: desktop,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+          ),
+        ).enableDesktopCommandShortcuts;
+
+    expect(shortcutsAt(const Size(1032, 1376)), isTrue);
+    expect(shortcutsAt(const Size(834, 1194)), isTrue);
+    expect(shortcutsAt(const Size(1376, 1032)), isTrue);
+    expect(shortcutsAt(const Size(390, 844)), isFalse);
+    expect(shortcutsAt(const Size(844, 390)), isFalse);
+    expect(shortcutsAt(const Size(1366, 900), desktop: true), isTrue);
+    expect(shortcutsAt(const Size(500, 400), desktop: true), isTrue);
+  });
+
+  test('pointer affordances follow size: tablets on, phones off', () {
+    AdaptiveInputPolicy policyFor(Size size, {bool desktop = false}) =>
+        resolveAdaptiveInputPolicy(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: desktop,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+          ),
+        );
+
+    for (final size in const <Size>[
+      Size(1032, 1376),
+      Size(834, 1194),
+      Size(1376, 1032),
+    ]) {
+      final policy = policyFor(size);
+      expect(policy.enableSecondaryClickMenus, isTrue, reason: '$size');
+      expect(policy.enableDesktopPointerAffordances, isTrue, reason: '$size');
+    }
+    // Phones, including wide phone landscape, stay touch-only.
+    for (final size in const <Size>[Size(390, 844), Size(844, 390)]) {
+      final policy = policyFor(size);
+      expect(policy.enableSecondaryClickMenus, isFalse, reason: '$size');
+      expect(policy.enableDesktopPointerAffordances, isFalse, reason: '$size');
+    }
+    // Desktop is unchanged at any window size.
+    for (final size in const <Size>[Size(1366, 900), Size(500, 400)]) {
+      final policy = policyFor(size, desktop: true);
+      expect(policy.enableSecondaryClickMenus, isTrue, reason: '$size');
+      expect(policy.enableDesktopPointerAffordances, isTrue, reason: '$size');
+    }
   });
 
   test('desktop runtime never uses compact-wide phone fallback behavior', () {

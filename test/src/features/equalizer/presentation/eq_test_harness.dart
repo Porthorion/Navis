@@ -29,6 +29,7 @@ Future<ProviderContainer> mount(
   bool keyboard = false,
   bool dark = false,
   EqConfiguration? configuration,
+  ThemeData? theme,
 }) async {
   setAdaptiveTestViewport(tester, size);
   final db = createTestDatabase();
@@ -53,7 +54,7 @@ Future<ProviderContainer> mount(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: dark ? ThemeData.dark() : testTheme(),
+        theme: theme ?? (dark ? ThemeData.dark() : testTheme()),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(

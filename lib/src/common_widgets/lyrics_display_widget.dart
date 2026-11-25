@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -321,22 +322,24 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
                           horizontal: horizontalPadding,
                           vertical: verticalPadding,
                         ),
-                        child: Text(
-                          line.value ?? '',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: isActive
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.onSurface
-                                          .withValues(alpha: 0.6),
-                                fontWeight: isActive
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                fontSize: isActive
-                                    ? activeFontSize
-                                    : inactiveFontSize,
-                              ),
+                        child: _readingColumn(
+                          Text(
+                            line.value ?? '',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: isActive
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.onSurface
+                                            .withValues(alpha: 0.6),
+                                  fontWeight: isActive
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  fontSize: isActive
+                                      ? activeFontSize
+                                      : inactiveFontSize,
+                                ),
+                          ),
                         ),
                       ),
                     );
@@ -394,24 +397,35 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
             horizontalPadding,
             24,
           ),
-          child: Column(
-            children: <Widget>[
-              Text(
-                unsyncedLyrics,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge
-                    ?.copyWith(height: 1.8, fontSize: fontSize),
-              ),
-              if (hasFooter) ...<Widget>[
-                const SizedBox(height: 20),
-                _buildFooter(context),
+          child: _readingColumn(
+            Column(
+              children: <Widget>[
+                Text(
+                  unsyncedLyrics,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge
+                      ?.copyWith(height: 1.8, fontSize: fontSize),
+                ),
+                if (hasFooter) ...<Widget>[
+                  const SizedBox(height: 20),
+                  _buildFooter(context),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },
     );
   }
+
+  /// Caps a block of lyric text at the reading width, centred; narrower panes
+  /// are unchanged. The scroll area and tap target stay full width.
+  Widget _readingColumn(Widget child) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: ContentLayout.readingWidth),
+      child: child,
+    ),
+  );
 
   double _resolveSyncedFontSize(double width) {
     if (width >= 1500) return 30;
@@ -439,27 +453,29 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
     final attribution = widget.attribution;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-      child: Column(
-        children: <Widget>[
-          if (source != null && source.trim().isNotEmpty)
-            Text(
-              source,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant
-                    .withValues(alpha: 0.85),
+      child: _readingColumn(
+        Column(
+          children: <Widget>[
+            if (source != null && source.trim().isNotEmpty)
+              Text(
+                source,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant
+                      .withValues(alpha: 0.85),
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-          if (attribution != null && attribution.trim().isNotEmpty)
-            Text(
-              attribution,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant
-                    .withValues(alpha: 0.75),
+            if (attribution != null && attribution.trim().isNotEmpty)
+              Text(
+                attribution,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant
+                      .withValues(alpha: 0.75),
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

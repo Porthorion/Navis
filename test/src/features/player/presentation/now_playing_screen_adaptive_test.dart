@@ -23,6 +23,7 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/features/player/presentation/playback_lyrics_content.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -108,6 +109,7 @@ Future<void> _pumpNowPlaying(
   bool settle = true,
   AppNoticeController? notices,
   bool desktopRuntime = false,
+  VoidCallback onCollapse = _noopCollapse,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -133,7 +135,7 @@ Future<void> _pumpNowPlaying(
             body: NowPlayingScreen(
               wideEmbeddedMode: wideEmbeddedMode,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onCollapse: _noopCollapse,
+              onCollapse: onCollapse,
             ),
           ),
         ),
@@ -455,6 +457,105 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Lyrics'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  for (final size in <Size>[Size(762, 1376), Size(868, 756), Size(711, 1032)]) {
+    testWidgets(
+      'embedded lyrics action shows inline lyrics at ${size.width.toInt()}x'
+      '${size.height.toInt()}',
+      (tester) async {
+        setAdaptiveTestViewport(tester, size);
+        final container = _createContainer();
+        container.read(nowPlayingTestPlaybackProvider.notifier).state =
+            _songPlayback;
+        await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+        expect(find.byType(PlaybackLyricsContent), findsNothing);
+        await tester.tap(find.byTooltip('Lyrics').first);
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.byType(PlaybackLyricsContent), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Lyrics').first);
+        await tester.pumpAndSettle();
+        expect(find.byType(PlaybackLyricsContent), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  testWidgets('embedded radio has no lyrics action and keeps the cover', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(868, 756));
+    final container = _createContainer();
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      radioStation: const RadioStationMetadata(
+        stationId: 'radio-1',
+        stationName: 'Fixture FM',
+        streamUrl: 'https://example.com/radio',
+      ),
+    );
+    await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+    expect(find.byTooltip('Lyrics'), findsNothing);
+    expect(find.byType(PlaybackLyricsContent), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('embedded without a song never shows lyrics', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(868, 756));
+    final container = _createContainer();
+    await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+    final lyrics = find.byTooltip('Lyrics');
+    if (lyrics.evaluate().isNotEmpty) {
+      await tester.tap(lyrics.first, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+    expect(find.byType(PlaybackLyricsContent), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets(
+    'embedded fullscreen-lyrics setting still opens the lyrics page',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(868, 756));
+      final container = _createContainer(
+        overrides: [fullscreenModeLyricsProvider.overrideWithValue(true)],
+      );
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+      await tester.tap(find.byTooltip('Lyrics').first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppBar), findsOneWidget);
+      expect(find.byType(PlaybackLyricsContent), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  testWidgets('split embedded lyrics action shows lyrics in the split pane', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1200, 1000));
+    final container = _createContainer();
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+
+    await tester.tap(find.byTooltip('Lyrics').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaybackLyricsContent), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('nowPlayingArtLyricsSwitcher')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
 
@@ -1622,6 +1723,207 @@ void main() {
       await tester.pump();
     });
   }, skip: !sqliteAvailable);
+
+  // I803: the rail shell embeds Now Playing in a pane without a sheet, so
+  // touch platforms need a close button and a swipe-down in every layout.
+  group('I803 embedded Now Playing closes by touch', () {
+    Future<int> pumpEmbedded(
+      WidgetTester tester,
+      Size size,
+      TargetPlatform platform, {
+      bool embedded = true,
+      bool compactWide = false,
+      List<Override> overrides = const [],
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainer(overrides: overrides);
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      var collapsed = 0;
+      await _pumpNowPlaying(
+        tester,
+        container,
+        wideEmbeddedMode: embedded,
+        compactWideLandscapeMode: compactWide,
+        platform: platform,
+        onCollapse: () => collapsed++,
+      );
+      return collapsed;
+    }
+
+    final closeButton = find.byKey(const Key('nowPlayingCloseButton'));
+
+    for (final platform in <TargetPlatform>[
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    ]) {
+      for (final size in <Size>[Size(762, 1376), Size(1032, 1032)]) {
+        testWidgets('close button on $platform at ${size.width.toInt()}x'
+            '${size.height.toInt()} calls onCollapse', (tester) async {
+          var collapsed = 0;
+          setAdaptiveTestViewport(tester, size);
+          final container = _createContainer();
+          container.read(nowPlayingTestPlaybackProvider.notifier).state =
+              _songPlayback;
+          await _pumpNowPlaying(
+            tester,
+            container,
+            wideEmbeddedMode: true,
+            platform: platform,
+            onCollapse: () => collapsed++,
+          );
+
+          expect(closeButton, findsOneWidget);
+          // It must not sit on top of another control. (It does overlap the
+          // cover's top-right corner at 762x1376: 706..754 x 6..54 vs cover
+          // 24.8..737.2 x 8..720.3; the button floats over the art.)
+          final buttonRect = tester.getRect(closeButton);
+          for (final other in <Finder>[
+            find.byType(IconButton),
+            find.byType(Slider),
+          ]) {
+            for (final element in other.evaluate()) {
+              if (element.widget.key == const Key('nowPlayingCloseButton')) {
+                continue;
+              }
+              final rect = tester.getRect(find.byWidget(element.widget));
+              expect(
+                rect.overlaps(buttonRect),
+                isFalse,
+                reason: '${element.widget.runtimeType} $rect vs $buttonRect',
+              );
+            }
+          }
+          await tester.tap(closeButton);
+          await tester.pump();
+          expect(collapsed, 1);
+        }, skip: !sqliteAvailable);
+      }
+    }
+
+    testWidgets('standard embedded swipe down closes, short drag does not', (
+      tester,
+    ) async {
+      var collapsed = 0;
+      setAdaptiveTestViewport(tester, const Size(762, 1376));
+      final container = _createContainer();
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      await _pumpNowPlaying(
+        tester,
+        container,
+        wideEmbeddedMode: true,
+        platform: TargetPlatform.iOS,
+        onCollapse: () => collapsed++,
+      );
+
+      final start = tester.getCenter(find.byType(CoverArtImage).first);
+      await tester.dragFrom(start, const Offset(0, 30));
+      await tester.pump();
+      expect(collapsed, 0);
+
+      await tester.dragFrom(start, const Offset(0, 200));
+      await tester.pump();
+      expect(collapsed, 1);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('dragging scrollable lyrics scrolls them, does not close', (
+      tester,
+    ) async {
+      var collapsed = 0;
+      setAdaptiveTestViewport(tester, const Size(762, 1376));
+      final container = _createContainer(
+        overrides: [
+          lyricsProvider.overrideWith(
+            (ref, songId) async => LyricsResolution(
+              lyrics: LyricsList(
+                value: List.generate(80, (i) => 'Line $i').join('\n'),
+              ),
+              source: LyricsSource.serverPlain,
+            ),
+          ),
+        ],
+      );
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      await _pumpNowPlaying(
+        tester,
+        container,
+        wideEmbeddedMode: true,
+        platform: TargetPlatform.iOS,
+        onCollapse: () => collapsed++,
+      );
+      await tester.tap(find.byTooltip('Lyrics').first);
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 600));
+
+      final lyrics = find.byType(PlaybackLyricsContent);
+      expect(lyrics, findsOneWidget);
+      final scrollable = find.descendant(
+        of: lyrics,
+        matching: find.byType(Scrollable),
+      );
+      expect(scrollable, findsWidgets);
+      final position = tester.state<ScrollableState>(scrollable.first).position;
+      expect(position.maxScrollExtent, greaterThan(0));
+      // Scroll down from the top: content moves, finger moves down.
+      await tester.drag(scrollable.first, const Offset(0, 100));
+      await tester.pump();
+      await tester.drag(scrollable.first, const Offset(0, -300));
+      await tester.pump();
+      await tester.drag(scrollable.first, const Offset(0, 150));
+      await tester.pump();
+      expect(collapsed, 0);
+      expect(position.pixels, greaterThan(0));
+    }, skip: !sqliteAvailable);
+
+    testWidgets('iOS phone sheet (not embedded) has no close button', (
+      tester,
+    ) async {
+      await pumpEmbedded(
+        tester,
+        const Size(390, 844),
+        TargetPlatform.iOS,
+        embedded: false,
+      );
+      expect(closeButton, findsNothing);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('compact-wide landscape has no close button', (tester) async {
+      await pumpEmbedded(
+        tester,
+        const Size(844, 390),
+        TargetPlatform.android,
+        compactWide: true,
+      );
+      expect(closeButton, findsNothing);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('macOS embedded keeps its close button', (tester) async {
+      await pumpEmbedded(tester, const Size(762, 1376), TargetPlatform.macOS);
+      expect(closeButton, findsOneWidget);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('Escape still collapses on iOS embedded', (tester) async {
+      var collapsed = 0;
+      setAdaptiveTestViewport(tester, const Size(762, 1376));
+      final container = _createContainer();
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      await _pumpNowPlaying(
+        tester,
+        container,
+        wideEmbeddedMode: true,
+        platform: TargetPlatform.iOS,
+        onCollapse: () => collapsed++,
+      );
+      // Shortcuts need focus inside the surface; Tab focuses the close button.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(collapsed, 1);
+    }, skip: !sqliteAvailable);
+  });
 
   // I46: the song cover is sized by the layout, not by the image. Every
   // non-phone layout used to paint it at its intrinsic size.

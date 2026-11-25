@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/settings/domain/album_title_shade.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 const _album = AlbumsTableData(
@@ -170,4 +171,65 @@ void main() {
     await tester.pumpAndSettle();
     expect(play, findsNothing);
   });
+
+  for (final (name, size, expectHover) in <(String, Size, bool)>[
+    ('tablet', const Size(1032, 1376), true),
+    ('phone', const Size(390, 844), false),
+  ]) {
+    testWidgets('hover Play follows the input policy on a $name', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      debugDesktopRuntimeOverride = false;
+      addTearDown(() => debugDesktopRuntimeOverride = null);
+      final policy = resolveAdaptiveInputPolicy(
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: false,
+          viewportSize: size,
+          safePadding: EdgeInsets.zero,
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subsonicApiProvider.overrideWithValue(null),
+            coverArtShapeProvider.overrideWithValue('rounded'),
+            albumTitleShadeModeProvider.overrideWithValue(
+              AlbumTitleShade.classic,
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: AdaptiveInputPolicyScope(
+              policy: policy,
+              child: Scaffold(
+                body: Center(
+                  child: SizedBox(
+                    width: 200,
+                    child: AlbumCard(
+                      album: _album.copyWith(name: 'Short'),
+                      onTap: () {},
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(AlbumCard)));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey<String>('albumCardHoverPlay')),
+        expectHover ? findsOneWidget : findsNothing,
+      );
+    });
+  }
 }

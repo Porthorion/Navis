@@ -40,6 +40,7 @@ import 'package:navis/src/features/library/presentation/detail_load_states.dart'
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
@@ -310,6 +311,31 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Layout follows this page's own pane width, scaled like
+    // ContentLayout.trackMode so the header row and track rows switch together.
+    final textScale = max(1, MediaQuery.textScalerOf(context).scale(14) / 14);
+    // The page is one stable widget; only a threshold crossing (720, 960)
+    // rebuilds it, so height-only changes (keyboard) leave it alone.
+    final page = Builder(
+      builder: (context) => _buildPage(context, _PaneWidthScope.of(context)),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth / textScale;
+        return _PaneWidthScope(
+          floor: width >= 960
+              ? 960
+              : ContentLayout.wideDetail(width)
+              ? 720
+              : 0,
+          child: page,
+        );
+      },
+    );
+  }
+
+  /// [paneWidth] is the scaled pane width floored to its layout threshold.
+  Widget _buildPage(BuildContext context, double paneWidth) {
     final l10n = AppLocalizations.of(context)!;
     final album = ref.watch(albumProvider(widget.albumId));
     final downloadedSongIds = _showDownloadedOnly
@@ -324,50 +350,82 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
     final desktopMode = adaptiveContext.useDesktopShell;
     final compactWideMode = adaptiveContext.useCompactWideLandscape;
     final showsAlbum = _showsAlbum(album.value);
+    // Same rule as the playlist page's field. Hoisted so the header-row app bar
+    // and the hero share one search affordance.
+    final showSearch =
+        !desktopMode &&
+        ((album.value?.songs.isNotEmpty ?? false) || _filterQuery.isNotEmpty);
+    final searchTooltip = MaterialLocalizations.of(context).searchFieldLabel;
+    final searchingBar = showsAlbum && !desktopMode && _searching;
+    // Layout (pane width): the cover-left header row. Platform (desktopMode):
+    // DesktopFrame, height bands, row actions.
+    final headerRow =
+        desktopMode ||
+        (!compactWideMode &&
+            !adaptiveContext.isPhoneFormFactor &&
+            ContentLayout.wideDetail(paneWidth));
 
     return Scaffold(
-      // AppBar is only shown on desktop or until the album can show.
+      // AppBar is only shown with the header row or until the album can show.
       // The mobile data state uses a custom SliverAppBar with overlay nav buttons.
-      appBar: (desktopMode || !showsAlbum)
+      appBar: (headerRow || !showsAlbum)
           ? AppBar(
               // The page always offers a way back, even when it was opened
               // without history while the album loads.
-              leading: showsAlbum
+              leading: searchingBar
+                  ? IconButton(
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
+                      onPressed: _closeSearch,
+                      icon: const Icon(Icons.close),
+                    )
+                  : showsAlbum && desktopMode
                   ? null
                   : BackButton(
                       onPressed: () =>
                           NavService.back(context, fallback: AppRoutes.library),
                     ),
               // Once loaded, the header's large album title names the page.
-              title: showsAlbum
+              title: searchingBar
+                  ? _searchField(l10n)
+                  : showsAlbum
                   ? null
                   : Text(
                       album.value?.album.name ??
                           _nonBlank(widget.nameHint) ??
                           l10n.albumDetailTitle,
                     ),
-              backgroundColor: desktopMode
+              backgroundColor: headerRow
                   ? Theme.of(context).colorScheme.surfaceContainerHigh
                   : null,
               actions: <Widget>[
-                IconButton(
-                  tooltip: l10n.detailRefreshAction,
-                  onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: _isRefreshingAlbum
-                        ? const SizedBox(
-                            key: ValueKey<String>('album-refresh-loading'),
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2.2),
-                          )
-                        : const Icon(
-                            Icons.refresh,
-                            key: ValueKey<String>('album-refresh-idle'),
-                          ),
+                if (showsAlbum && showSearch && !_searching)
+                  IconButton(
+                    tooltip: searchTooltip,
+                    onPressed: _openSearch,
+                    icon: const Icon(Icons.search),
                   ),
-                ),
+                if (!searchingBar)
+                  IconButton(
+                    tooltip: l10n.detailRefreshAction,
+                    onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _isRefreshingAlbum
+                          ? const SizedBox(
+                              key: ValueKey<String>('album-refresh-loading'),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.refresh,
+                              key: ValueKey<String>('album-refresh-idle'),
+                            ),
+                    ),
+                  ),
               ],
             )
           : null,
@@ -402,12 +460,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                     })
                     .toList(growable: false);
                 _currentFilteredSongs = filteredSongs;
-                // Same rule as the playlist page's field.
-                final showSearch =
-                    !desktopMode &&
-                    (songs.isNotEmpty || _filterQuery.isNotEmpty);
-                final searchTooltip = MaterialLocalizations.of(context)
-                    .searchFieldLabel;
                 final storedStarred = details.starred != null;
                 if (_pendingStarred == storedStarred) _pendingStarred = null;
                 final isStarred = _pendingStarred ?? storedStarred;
@@ -548,21 +600,28 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                       );
 
                 // ── Desktop layout: horizontal header + scrollable track panel ──
-                if (desktopMode) {
+                if (headerRow) {
                   final desktopLayoutClass = resolveDesktopLayoutClass(
                     MediaQuery.sizeOf(context).width,
                   );
-                  final compactDesktop =
-                      desktopLayoutClass == DesktopLayoutClass.compactDesktop;
+                  // Touch has no window height bands: the compact header below
+                  // 960, the roomy one from 960 (cover 240 / 280).
+                  final compactDesktop = desktopMode
+                      ? desktopLayoutClass == DesktopLayoutClass.compactDesktop
+                      : paneWidth < 960;
                   // Cover and spacing follow the window height band; tall keeps
                   // the original sizes.
-                  final heightClass = desktopHeightClassOf(context);
+                  final heightClass = desktopMode
+                      ? desktopHeightClassOf(context)
+                      : DesktopHeightClass.tall;
                   final shortHeader = heightClass == DesktopHeightClass.short;
-                  final artSize = heightClass.pick<double>(
-                    short: 140,
-                    regular: 200,
-                    tall: compactDesktop ? 208 : 260,
-                  );
+                  final artSize = desktopMode
+                      ? heightClass.pick<double>(
+                          short: 140,
+                          regular: 200,
+                          tall: compactDesktop ? 208 : 260,
+                        )
+                      : (compactDesktop ? 240.0 : 280.0);
                   final colors = Theme.of(context).colorScheme;
                   final textTheme = Theme.of(context).textTheme;
                   final titleStyle = shortHeader
@@ -612,7 +671,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                         letterSpacing: -0.5,
                         height: 1.1,
                       ),
-                      maxLines: shortHeader ? 2 : 3,
+                      maxLines: shortHeader || !desktopMode ? 2 : 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                     SizedBox(
@@ -696,6 +755,21 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                             unawaited(_updateAlbumRating(next)),
                       ),
                       _albumFilterButton(),
+                      // Touch has no row context menu: keep the mobile one.
+                      if (!desktopMode)
+                        IconButton(
+                          tooltip: MaterialLocalizations.of(context)
+                              .showMenuTooltip,
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: () => unawaited(
+                            _showMobileAlbumContextMenu(
+                              details,
+                              songs,
+                              albumRating,
+                              coverArtHeroTag,
+                            ),
+                          ),
+                        ),
                     ],
                   );
                   // Short and regular windows put the actions beside the title
@@ -703,7 +777,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                   // column; narrower panes stack them.
                   final headerDetails = LayoutBuilder(
                     builder: (context, constraints) {
-                      if (heightClass != DesktopHeightClass.tall &&
+                      if (desktopMode &&
+                          heightClass != DesktopHeightClass.tall &&
                           constraints.maxWidth >= 900) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -738,14 +813,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                       );
                     },
                   );
+                  Widget frame(Widget child) => desktopMode
+                      ? DesktopFrame(
+                          layoutClass: desktopLayoutClass,
+                          padding: EdgeInsets.zero,
+                          child: child,
+                        )
+                      : child;
                   return SafeArea(
                     bottom: false,
-                    child: DesktopFrame(
-                      layoutClass: desktopLayoutClass,
-                      padding: EdgeInsets.zero,
-                      // The header is the first sliver: it scrolls away with the
-                      // tracks, so a short window shows more of them.
-                      child: CustomScrollView(
+                    child: frame(
+                      CustomScrollView(
                         slivers: <Widget>[
                           SliverToBoxAdapter(
                             child: Column(
@@ -1766,7 +1844,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
   }
 
   Future<void> _showSongActions(SongsTableData song, {Offset? anchor}) async {
-    if (anchor != null && isDesktopRuntime) {
+    if (anchor != null && secondaryClickMenusEnabled(context)) {
       await _showDesktopSongActions(song, anchor: anchor);
       return;
     }
@@ -3177,4 +3255,18 @@ final class _SongItem extends _AlbumRenderItem {
 String? _nonBlank(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
+/// The page's pane width, floored to the layout thresholds so dependents
+/// rebuild only when a threshold is crossed.
+class _PaneWidthScope extends InheritedWidget {
+  const _PaneWidthScope({required this.floor, required super.child});
+
+  final double floor;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PaneWidthScope>()!.floor;
+
+  @override
+  bool updateShouldNotify(_PaneWidthScope old) => floor != old.floor;
 }

@@ -105,6 +105,15 @@ class ContentLayout {
   static int shelfLimit(double width, double extent) =>
       math.max(1, ((width + gap(width)) / (extent + gap(width))).ceil()) * 2;
 
+  /// Whether a detail page's content pane is wide enough for its cover-left
+  /// header row. The threshold is [trackMode]'s medium one, so the header and
+  /// the track rows switch together; pass the same text-scaled width.
+  static bool wideDetail(double paneWidth) => paneWidth >= 720;
+
+  /// The widest a block of running text (lyrics, an artist biography) gets;
+  /// wider panes centre or start-align it instead of stretching the lines.
+  static const double readingWidth = 720;
+
   static TrackRowMode trackMode(double width, TextScaler scaler) {
     final effectiveWidth = width / math.max(1, scaler.scale(14) / 14);
     if (effectiveWidth >= 960) return TrackRowMode.wide;

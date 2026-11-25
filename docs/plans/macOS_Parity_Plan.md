@@ -91,9 +91,9 @@ M3, M4, with M5 and M7 as small parallel PRs and M8 last.
 - **Android cover-art check** for M6 (#257): the cover-art checks in that section on an
   Android device, because the sqflite store is shared with Android.
 - **Apple Development certificate for test builds** (owner, before the next hands-on pass): Xcode > Settings > Accounts > add the Apple ID > Manage Certificates > + Apple Development. The self-signed "Navis Local Dev" certificate has no Team ID, so the login keychain's partition list is keyed per build and the keychain password prompt returns after every rebuild; a Team ID certificate (or Developer ID) ends it. A paid Developer account is needed before the macOS and iOS store submissions.
-- **Notarize credentials**, if not yet stored: Developer ID Application identity
-  (`MACOS_SIGN_IDENTITY`) and `xcrun notarytool store-credentials` profile
-  (`MACOS_NOTARY_PROFILE`), then the first `tool/macos_notarize.sh` run, as in
+- **Notarize credentials**: done 2026-11-24. The Developer ID Application identity
+  (`MACOS_SIGN_IDENTITY`) is installed, and notarization uses the App Store Connect
+  API key (`ASC_KEY_ID`, `ASC_ISSUER_ID`), as in
   [release-macos.md](../release/release-macos.md#notarization).
 
 ## M1 phase A results (2026-11-04)

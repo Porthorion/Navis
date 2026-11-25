@@ -281,11 +281,10 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
     _updateGraph(current.copyWith(filters: filters));
   }
 
-  bool _wide(AdaptiveContext adaptive, double width) =>
-      (adaptive.desktopWide ||
-          adaptive.adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded) &&
-      width >= 850 &&
-      MediaQuery.textScalerOf(context).scale(1) <= 1.4;
+  /// Gated on the pane width alone, so a 13" portrait tablet pane (762) and
+  /// any desktop pane get the presets panel.
+  bool _wide(double width) =>
+      width >= 760 && MediaQuery.textScalerOf(context).scale(1) <= 1.4;
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +292,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
     final capabilities = ref.watch(eqCapabilitiesProvider);
     final async = capabilities.supported ? ref.watch(equalizerProvider) : null;
     final libraryPanel =
-        _wide(adaptive, MediaQuery.sizeOf(context).width) &&
+        _wide(MediaQuery.sizeOf(context).width) &&
         adaptive.desktopWide &&
         MediaQuery.sizeOf(context).width >= 1200;
     return PopScope(
@@ -356,7 +355,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                 ),
                 data: (value) => LayoutBuilder(
                   builder: (context, constraints) {
-                    final wide = _wide(adaptive, constraints.maxWidth);
+                    final wide = _wide(constraints.maxWidth);
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [

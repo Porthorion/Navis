@@ -24,7 +24,9 @@ import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -925,6 +927,7 @@ Future<void> _pumpHomeWithAppSettings(
   List<Override> overrides = const <Override>[],
   TextScaler? textScaler,
   AppNoticeController? notices,
+  Widget Function(BuildContext context, Widget home)? wrapHome,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -998,7 +1001,11 @@ Future<void> _pumpHomeWithAppSettings(
               ? child!
               : AppNoticeScope(notifier: notices, child: child!),
         ),
-        home: const HomeScreen(),
+        home: wrapHome == null
+            ? const HomeScreen()
+            : Builder(
+                builder: (context) => wrapHome(context, const HomeScreen()),
+              ),
       ),
     ),
   );
@@ -2224,6 +2231,247 @@ void main() {
     },
   );
 
+  group('wide Home on tablet panes (P2.2)', () {
+    const compactHeader = ValueKey<String>('homeCompactWideHeaderRow');
+    const centeredHeader = ValueKey<String>('homeCenteredLogoHeader');
+    const desktopBrandRow = ValueKey<String>('homeDesktopBrandRow');
+    const twoColumns = ValueKey<String>('homeSongListTwoColumnGrid');
+    const oneColumn = ValueKey<String>('homeSongListSingleColumn');
+
+    final songs = List<SongsTableData>.generate(
+      6,
+      (index) => _songRow(
+        id: 'wide-${index + 1}',
+        title: 'Wide Song ${index + 1}',
+        albumId: 'wide-album',
+      ),
+    );
+    final songSettings = const AppSettingsModel.defaults().copyWith(
+      homeSectionOrder: <String>[HomeSectionIds.likedTracks],
+      homeSectionsHidden: _hiddenExcept(<String>[HomeSectionIds.likedTracks]),
+    );
+
+    // A pane of [width] beside the window edge, as the rail leaves it.
+    Widget Function(BuildContext, Widget) pane(
+      double width, {
+      bool desktop = false,
+      TextDirection direction = TextDirection.ltr,
+    }) =>
+        (context, home) => AdaptiveContextScope(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: desktop,
+            viewportSize: MediaQuery.sizeOf(context),
+            safePadding: EdgeInsets.zero,
+          ),
+          child: Directionality(
+            textDirection: direction,
+            child: Align(
+              alignment: AlignmentDirectional.topStart,
+              child: SizedBox(width: width, child: home),
+            ),
+          ),
+        );
+
+    Finder cardedHeaders() => find.descendant(
+      of: find.byType(Card),
+      matching: find.byType(NavisSectionHeader),
+    );
+
+    testWidgets('762 wide pane: compact header, flat sections, two columns', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(762, 1376));
+      await _pumpHomeWithAppSettings(tester, database: database);
+
+      expect(find.byKey(compactHeader), findsOneWidget);
+      expect(find.byKey(centeredHeader), findsNothing);
+      expect(find.byKey(desktopBrandRow), findsNothing);
+      expect(
+        tester.getTopLeft(find.byType(NavisSectionHeader).first).dy,
+        lessThan(520),
+      );
+      expect(cardedHeaders(), findsNothing);
+      // Empty states stay inside the pane.
+      expect(find.byType(EmptyState), findsWidgets);
+      expect(tester.takeException(), isNull);
+
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: songSettings,
+        homeLikedSongs: songs,
+        likedSongs: songs,
+      );
+      expect(find.byKey(twoColumns), findsOneWidget);
+      expect(find.byKey(oneColumn), findsNothing);
+    });
+
+    testWidgets('762 wide rail pane inside a 1032 window', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(1032, 1376));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(762),
+      );
+
+      expect(find.byKey(compactHeader), findsOneWidget);
+      expect(find.byKey(centeredHeader), findsNothing);
+      expect(
+        tester.getTopLeft(find.byType(NavisSectionHeader).first).dy,
+        lessThan(520),
+      );
+      expect(cardedHeaders(), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('834 wide bottom-nav tablet gets the same wide header', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(834, 1194));
+      await _pumpHomeWithAppSettings(tester, database: database);
+
+      expect(find.byKey(compactHeader), findsOneWidget);
+      expect(find.byKey(centeredHeader), findsNothing);
+      expect(cardedHeaders(), findsNothing);
+    });
+
+    testWidgets('700 wide pane keeps the phone-like tablet Home', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(700, 1000));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: songSettings,
+        homeLikedSongs: songs,
+        likedSongs: songs,
+      );
+
+      expect(find.byKey(centeredHeader), findsOneWidget);
+      expect(find.byKey(compactHeader), findsNothing);
+      expect(cardedHeaders(), findsWidgets);
+      expect(find.byKey(twoColumns), findsNothing);
+      expect(find.byKey(oneColumn), findsOneWidget);
+    });
+
+    testWidgets('a 700 wide pane in a wide window is unchanged', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1032, 1376));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(700),
+      );
+
+      expect(find.byKey(centeredHeader), findsOneWidget);
+      expect(find.byKey(compactHeader), findsNothing);
+      expect(cardedHeaders(), findsWidgets);
+    });
+
+    testWidgets('phone portrait and phone landscape are unchanged', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await _pumpHomeWithAppSettings(tester, database: database);
+      expect(find.byKey(centeredHeader), findsOneWidget);
+      expect(find.byKey(compactHeader), findsNothing);
+
+      tester.view.physicalSize = const Size(1000, 420);
+      await tester.pumpAndSettle();
+      expect(find.byKey(compactHeader), findsOneWidget);
+      expect(find.byKey(centeredHeader), findsNothing);
+      expect(cardedHeaders(), findsNothing);
+    });
+
+    testWidgets('desktop shell at a 760 pane keeps its brand row', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1200, 900));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: songSettings,
+        homeLikedSongs: songs,
+        likedSongs: songs,
+        wrapHome: pane(760, desktop: true),
+      );
+
+      expect(find.byKey(desktopBrandRow), findsOneWidget);
+      expect(find.byKey(compactHeader), findsNothing);
+      expect(find.byKey(centeredHeader), findsNothing);
+      expect(find.byKey(twoColumns), findsNothing);
+    });
+
+    testWidgets('a phone-sized standard-rail window keeps the narrow Home', (
+      tester,
+    ) async {
+      // Shortest side 520 < 600: a phone form factor, even on the rail.
+      setAdaptiveTestViewport(tester, const Size(900, 520));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(900),
+      );
+      expect(find.byKey(compactHeader), findsNothing);
+    });
+
+    testWidgets('the gate switches at a 720 pane, scaled by text size', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1032, 1376));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(719),
+      );
+      expect(find.byKey(compactHeader), findsNothing);
+
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        wrapHome: pane(720),
+      );
+      expect(find.byKey(compactHeader), findsOneWidget);
+
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        textScaler: const TextScaler.linear(2),
+        wrapHome: pane(1000),
+      );
+      expect(find.byKey(compactHeader), findsNothing);
+    });
+
+    testWidgets('RTL pane and 200 % text keep the wide header intact', (
+      tester,
+    ) async {
+      // The gate divides the pane by the text scale, like album detail.
+      setAdaptiveTestViewport(tester, const Size(1500, 1000));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        textScaler: const TextScaler.linear(2),
+        wrapHome: pane(1500, direction: TextDirection.rtl),
+      );
+
+      expect(find.byKey(compactHeader), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(compactHeader),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Text &&
+                widget.maxLines == 1 &&
+                widget.overflow == TextOverflow.ellipsis,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   _testWidgetsWithCleanup(
     'desktop Home song rows use actions instead of navigation arrows',
     (tester) async {
@@ -2395,6 +2643,7 @@ void main() {
   testWidgets(
     'default home shows default-on sections and keeps optional sections hidden',
     (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
       await tester.pumpWidget(
         ProviderScope(
           overrides: withTestDatabase(
@@ -3072,6 +3321,16 @@ void main() {
         expectCoversTitleAndPage(tester, size);
       });
 
+      testWidgets('wide tablet pane: no card, edge to edge', (tester) async {
+        const size = Size(834, 1194);
+        await pumpAt(tester, size, nativeTouch: true);
+        expect(
+          find.ancestor(of: wash(), matching: find.byType(Card)),
+          findsNothing,
+        );
+        expectCoversTitleAndPage(tester, size);
+      });
+
       testWidgets('short landscape: past the rail-side inset', (tester) async {
         const size = Size(844, 390);
         await pumpAt(tester, size, nativeTouch: true);
@@ -3140,7 +3399,7 @@ void main() {
         );
         expect(find.byKey(fadeLeft), findsNothing);
         expect(find.byKey(fadeRight), findsNothing);
-        await pumpAt(tester, const Size(800, 1000), nativeTouch: true);
+        await pumpAt(tester, const Size(700, 1000), nativeTouch: true);
         expect(find.byKey(fadeLeft), findsNothing);
         expect(find.byKey(fadeRight), findsNothing);
       });
@@ -3175,7 +3434,7 @@ void main() {
       testWidgets('tablet card: fills the card and fades into its colour', (
         tester,
       ) async {
-        await pumpAt(tester, const Size(800, 1000), nativeTouch: true);
+        await pumpAt(tester, const Size(700, 1000), nativeTouch: true);
         final card = find.ancestor(of: wash(), matching: find.byType(Card));
         expect(card, findsOneWidget);
         // The card's visible surface, without its margin.

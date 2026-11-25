@@ -7,6 +7,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
@@ -92,6 +94,62 @@ void main() {
     'light': buildLightTheme(defaultColorSchemeSeedColor),
     'dark': buildDarkTheme(defaultColorSchemeSeedColor),
   };
+
+  group('AlbumCardContent artwork slot', () {
+    Future<void> pumpCard(WidgetTester tester, AlbumCardContent card) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subsonicApiProvider.overrideWithValue(null),
+            coverArtShapeProvider.overrideWithValue('rounded'),
+            albumTitleShadeModeProvider.overrideWithValue(
+              AlbumTitleShade.classic,
+            ),
+          ],
+          child: MaterialApp(
+            theme: buildLightTheme(defaultColorSchemeSeedColor),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: Center(child: SizedBox(width: 200, child: card)),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    testWidgets('without artwork it renders the album cover as before', (
+      tester,
+    ) async {
+      await pumpCard(
+        tester,
+        const AlbumCardContent(name: 'A', coverArtId: 'c', heroTag: 'h'),
+      );
+      expect(find.byType(HeroCoverArt), findsOneWidget);
+      await pumpCard(
+        tester,
+        const AlbumCardContent(name: 'A', coverArtId: 'c'),
+      );
+      expect(find.byType(HeroCoverArt), findsNothing);
+      expect(find.byType(CoverArtImage), findsOneWidget);
+    });
+
+    testWidgets('artwork replaces the cover and its hero', (tester) async {
+      await pumpCard(
+        tester,
+        const AlbumCardContent(
+          name: 'A',
+          coverArtId: 'c',
+          heroTag: 'h',
+          artwork: ColoredBox(key: ValueKey('slot'), color: Colors.red),
+        ),
+      );
+      expect(find.byKey(const ValueKey('slot')), findsOneWidget);
+      expect(find.byType(HeroCoverArt), findsNothing);
+      expect(find.byType(CoverArtImage), findsNothing);
+    });
+  });
 
   testWidgets(
     'revision refresh waits for artwork and scrolling, keeps tint through worker dispatch',

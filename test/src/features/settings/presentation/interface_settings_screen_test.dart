@@ -166,7 +166,7 @@ void main() {
     expect(find.text(l10n.appearanceDensityLabel), findsNothing);
   });
 
-  testWidgets('desktop adds Desktop Navigation, keeps the back button and '
+  testWidgets('desktop adds Sidebar, keeps the back button and '
       'the 1040 width', (tester) async {
     setAdaptiveTestViewport(tester, const Size(1280, 1600));
     await pumpInterface(
@@ -187,7 +187,123 @@ void main() {
     );
   });
 
-  testWidgets('Home Sections, Page Visibility and Desktop Navigation keep '
+  testWidgets('a tablet gets the sidebar style selector but no auto-hide', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1032, 1376));
+    final container = await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(1032, 1376),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text(l10n.desktopNavbarStyleLarge),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text(l10n.tabletNavbarSectionLabel), findsOneWidget);
+    expect(find.text(l10n.desktopNavbarSectionLabel), findsNothing);
+    expect(find.text(l10n.desktopNavbarAutohideLabel), findsNothing);
+    await tester.tap(find.text(l10n.desktopNavbarStyleLarge));
+    await tester.pump();
+    final saved = await tester.runAsync(
+      () => container.read(navisDatabaseProvider).appSettingsDao.getSettings(),
+    );
+    expect(saved!.desktopNavbarStyle, 'comfortable');
+  });
+
+  testWidgets('a tablet can turn on the sidebar for medium screens', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(834, 1194));
+    final container = await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(834, 1194),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.text(l10n.tabletMediumSidebarLabel),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text(l10n.tabletMediumSidebarSub), findsOneWidget);
+    expect(
+      l10n.tabletMediumSidebarSub,
+      'Use the sidebar instead of bottom tabs when the window is 600 to 839 '
+      'points wide',
+    );
+    await tester.tap(find.text(l10n.tabletMediumSidebarLabel));
+    await tester.pump();
+    final saved = await tester.runAsync(
+      () => container.read(navisDatabaseProvider).appSettingsDao.getSettings(),
+    );
+    expect(saved!.tabletMediumSidebar, isTrue);
+  });
+
+  testWidgets('a phone and desktop have no medium-screen sidebar switch', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(412, 915));
+    await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(412, 915),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    expect(find.text(l10n.tabletMediumSidebarLabel), findsNothing);
+
+    tallView(tester);
+    await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: const Size(800, 3200),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    expect(find.text(l10n.tabletMediumSidebarLabel), findsNothing);
+  });
+
+  testWidgets('a phone has no sidebar section', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(412, 915));
+    await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(412, 915),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    expect(find.text(l10n.desktopNavbarSectionLabel), findsNothing);
+    expect(find.text(l10n.tabletNavbarSectionLabel), findsNothing);
+  });
+
+  testWidgets('desktop keeps both the style selector and auto-hide', (
+    tester,
+  ) async {
+    tallView(tester);
+    await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: const Size(800, 3200),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    expect(find.text(l10n.desktopNavbarStyleLarge), findsOneWidget);
+    expect(find.text(l10n.desktopNavbarAutohideLabel), findsOneWidget);
+  });
+
+  testWidgets('Home Sections, Page Visibility and Sidebar keep '
       'their order', (tester) async {
     tallView(tester);
     await pumpInterface(

@@ -7917,6 +7917,12 @@ abstract class AppLocalizations {
   /// **'Desktop Navigation'**
   String get desktopNavbarSectionLabel;
 
+  /// No description provided for @tabletNavbarSectionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar'**
+  String get tabletNavbarSectionLabel;
+
   /// No description provided for @desktopNavbarStyleLabel.
   ///
   /// In en, this message translates to:
@@ -7952,6 +7958,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'When inactive, the sidebar collapses to icons. Hover it to expand.'**
   String get desktopNavbarAutohideSub;
+
+  /// No description provided for @tabletMediumSidebarLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar on medium screens'**
+  String get tabletMediumSidebarLabel;
+
+  /// No description provided for @tabletMediumSidebarSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the sidebar instead of bottom tabs when the window is 600 to 839 points wide'**
+  String get tabletMediumSidebarSub;
 
   /// No description provided for @desktopNavbarLockTooltip.
   ///

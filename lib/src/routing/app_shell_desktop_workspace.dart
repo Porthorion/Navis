@@ -27,7 +27,6 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.selectedLibrarySection,
     required this.visibleLibrarySections,
     required this.onLibrarySectionSelected,
-    required this.onOpenPlayer,
     required this.onToggleQueue,
     required this.onDismissQueue,
     required this.queueToggleFocusNode,
@@ -63,7 +62,6 @@ class _DesktopWorkspace extends StatefulWidget {
   final LibrarySection? selectedLibrarySection;
   final List<LibrarySection> visibleLibrarySections;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
-  final VoidCallback onOpenPlayer;
   final VoidCallback onToggleQueue;
   final VoidCallback onDismissQueue;
   final FocusNode queueToggleFocusNode;
@@ -244,16 +242,6 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                 widget.onLibrarySectionSelected(section);
                 _closeAfterSelection();
               },
-              showPlayer: false,
-              playback: widget.playback,
-              songTitle: widget.songTitle,
-              songArtist: widget.songArtist,
-              coverArtId: widget.coverArtId,
-              coverArtUrl: widget.coverArtUrl,
-              isExternalSource: widget.isExternalSource,
-              isRadio: widget.playback.isRadioMode,
-              radioArtUrl: widget.playback.radioStation?.nowPlayingArtUrl,
-              onOpenPlayer: widget.onOpenPlayer,
               navbarAutohide: widget.navbarAutohide,
               onToggleAutohide: widget.onToggleAutohide,
               librarySectionsFit: widget.librarySectionsFit,

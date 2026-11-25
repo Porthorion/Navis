@@ -1125,6 +1125,108 @@ void main() {
     await tester.pump();
   });
 
+  // P2.6: the body caps at 1040 and centres, like the settings pages.
+  for (final (width, capped, rtl) in [
+    (1376.0, true, false),
+    (1376.0, true, true),
+    (1040.0, false, false),
+    (600.0, false, false),
+  ]) {
+    testWidgets('body is ${capped ? 'capped and centred' : 'full width'} at '
+        '$width${rtl ? ' rtl' : ''}', (tester) async {
+      final size = Size(width, 900);
+      setAdaptiveTestViewport(tester, size);
+      const song = SongsTableData(
+        id: 'cap-song',
+        title: 'Capped Song',
+        artistName: 'Artist',
+        albumName: 'Album',
+        duration: 200,
+        isProvisional: false,
+        isExternal: false,
+      );
+      final track = CachedTracksTableData(
+        songId: song.id,
+        filePath: '/tmp/cap-song.mp3',
+        storageKind: 'filesystem',
+        fileSize: 1000000,
+        format: 'mp3',
+        bitRate: 320,
+        lastAccessedAt: DateTime(2026),
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              downloadFolderProblemProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+              downloadQueueProvider.overrideWithValue(
+                AsyncData(<DownloadQueueTableData>[
+                  DownloadQueueTableData(
+                    id: 1,
+                    songId: song.id,
+                    status: DownloadStatus.downloading,
+                    progress: 0.4,
+                    addedAt: DateTime(2026),
+                    priority: 0,
+                    retryCount: 0,
+                  ),
+                ]),
+              ),
+              permanentCachedTracksProvider.overrideWithValue(
+                AsyncData([track]),
+              ),
+              downloadRelatedSongsProvider.overrideWith(
+                (ref) => Stream.value({song.id: song}),
+              ),
+              songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
+              playerStateProvider.overrideWithValue(_pausedSnapshot('other')),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => Directionality(
+              textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+              child: child!,
+            ),
+            home: AdaptiveContextScope(
+              adaptiveContext: resolveAdaptiveContext(
+                desktopRuntime: false,
+                viewportSize: size,
+                safePadding: EdgeInsets.zero,
+              ),
+              child: const DownloadsScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      void expectBody(Finder finder) {
+        final rect = tester.getRect(finder.first);
+        expect(rect.width, capped ? 1040 : width);
+        expect(rect.center.dx, closeTo(width / 2, .5));
+      }
+
+      // Queue tab: the active-download row and the tab body.
+      expectBody(find.byType(TabBarView));
+      expect(find.text('Capped Song'), findsOneWidget);
+      expectBody(find.byType(ListTile));
+      await tester.tap(find.text('Downloaded'));
+      await tester.pumpAndSettle();
+      expectBody(find.byType(AdaptiveTrackRow));
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      expectBody(find.byType(TabBarView));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('desktop Downloads combines navigation and search in one strip', (
     tester,
   ) async {

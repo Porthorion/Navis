@@ -201,6 +201,22 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Tablets can use the sidebar on medium-width windows (600 to 839 '
+        'points, such as an iPad in portrait): turn on Settings > Interface > '
+        'Sidebar on medium screens. Bottom tabs stay the default',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Hardware keyboard shortcuts now work on tablets, such as Space to '
+        'play or pause and the arrow keys for the previous and next song',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'A trackpad or mouse on a tablet now right-clicks for the same menus '
+        'as on desktop, and album covers show Play on hover',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Library on a landscape phone drops its title and keeps search, '
         'filters and sort in one row, leaving more room for your music',
         type: ChangelogEntryType.improvement,
