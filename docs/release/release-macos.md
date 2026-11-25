@@ -45,7 +45,15 @@ Flutter builds the plugins that ship a Swift package with Swift Package Manager,
 tree clean. CocoaPods is still needed because `media_kit_libs_macos_audio` has no
 Swift package yet.
 
-### 4. Run the preflight script
+### 4. uv (DMG layout)
+
+```bash
+brew install uv           # or https://docs.astral.sh/uv/; provides `uvx`
+```
+
+`tool/macos_dmg.sh` runs a pinned `dmgbuild` through `uvx` (fetched on first use).
+
+### 5. Run the preflight script
 
 ```bash
 ./tool/multi_os_host_preflight.sh --doctor
@@ -53,7 +61,7 @@ Swift package yet.
 
 Resolve any failures before building.
 
-### 5. R2 publishing settings
+### 6. R2 publishing settings
 
 Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
@@ -166,16 +174,17 @@ macOS 10.15+ requires any app distributed outside the App Store to be notarized 
 Without notarization, Gatekeeper shows a hard block ("can't be opened because Apple cannot
 check it for malicious software") with no safe override for standard users.
 
-### Steps
+### Authentication
 
-#### 1. Create an app-specific password
+**Recommended: the App Store Connect API key.** `release.sh --macos-notarize` reuses the key
+that `--ios-upload` already uses (`ASC_KEY_ID`, `ASC_ISSUER_ID` and the `.p8` at
+`ASC_KEY_PATH` or `~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8`, see
+[release-ios.md](release-ios.md)) and hands it to `notarytool` as `--key`, `--key-id` and
+`--issuer`. No `store-credentials` step and no keychain item are needed.
 
-Go to [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security →
-App-Specific Passwords → Generate a password for "Navis-notarize".
-
-#### 2. Store credentials in Keychain
-
-Run once on the release machine:
+**Fallback: a keychain profile**, used only when the key variables or file are missing.
+`xcrun notarytool store-credentials` needs an app-specific password from
+[appleid.apple.com](https://appleid.apple.com) (Sign-In and Security):
 
 ```bash
 xcrun notarytool store-credentials navis-notary-profile \
@@ -184,13 +193,18 @@ xcrun notarytool store-credentials navis-notary-profile \
   --password "xxxx-xxxx-xxxx-xxxx"
 ```
 
-#### 3. Add to `tool/release.env`
+Then add to `tool/release.env`:
 
 ```bash
 MACOS_NOTARY_PROFILE="navis-notary-profile"
 ```
 
-#### 4. Verify after notarization
+The standalone scripts take the same choice: `macos_notarize.sh --notary-key=<p8>
+--notary-key-id=<id> --notary-issuer=<id>` or `--notary-profile=<name>`; `macos_dmg.sh` takes
+`--notary-key <p8> --notary-key-id <id> --notary-issuer <id>` or `--notary-profile <name>`.
+The key wins when both are given; with neither, the script fails.
+
+### Verify after notarization
 
 ```bash
 spctl --assess --type execute --verbose=4 Navis.app
@@ -237,9 +251,9 @@ Asset naming: `navis-dev-v0.x.y-macos.zip`
    staples → packages with `ditto`.
 4. **Without `--macos-notarize`:** packages with `ditto -c -k --keepParent`.
 5. Builds `navis-v0.x.y-macos.dmg` from the same app with `tool/macos_dmg.sh` (see
-   [DMG for first installs](#dmg-for-first-installs)). This step scripts Finder, so it needs
-   a logged-in desktop session (and Automation permission for Finder); an SSH or
-   locked-screen release must pass `--no-macos-dmg`, which skips it with a notice.
+   [DMG for first installs](#dmg-for-first-installs)). The window layout is written by
+   `dmgbuild` through `uvx`, so it needs [uv](https://docs.astral.sh/uv/) but no desktop
+   session or Finder Automation permission; `--no-macos-dmg` skips the step with a notice.
 6. Bumps `pubspec.yaml`, commits, tags, pushes.
 7. Uploads `navis-v0.x.y-macos.zip` to R2 and publishes the signed channel manifest
    (manifest key `macosBundle`). The DMG is uploaded next to it and listed in
@@ -250,7 +264,7 @@ Asset naming: `navis-dev-v0.x.y-macos.zip`
 
 ## DMG for first installs
 
-`navis-<tag>-macos.dmg` is the notarized download for a first install: a dark Navis-styled
+`navis-<tag>-macos.dmg` is the notarized download for a first install: a light Navis-styled
 window with the app and an `Applications` shortcut. It is **not** an updater asset. The
 self-updater still installs `navis-<tag>-macos.zip` (manifest key `macosBundle`, see
 `lib/src/features/settings/data/update_install_mode.dart`); `tool/r2_publish.sh` uploads the
@@ -258,15 +272,19 @@ DMG and adds it to `SHA256SUMS` but keeps it out of the signed manifest, so olde
 unaffected.
 
 - **Build:** `tool/macos_dmg.sh --app <Navis.app> --output <file.dmg>
-  [--sign-identity <id>] [--notary-profile <profile>]`. `release.sh` runs it after the zip,
+  [--sign-identity <id>] [--notary-key <p8> --notary-key-id <id> --notary-issuer <id> |
+  --notary-profile <profile>]`. `release.sh` runs it after the zip,
   from the same app (already stapled with `--macos-notarize`), and passes
-  `MACOS_SIGN_IDENTITY` / `MACOS_NOTARY_PROFILE` only with `--macos-notarize`. It stages the
-  app, an `Applications` symlink, `.background/background.tiff` and the volume icon, lays out
-  the Finder window with `osascript` (needs a logged-in GUI session; it times out after 3
-  minutes rather than hang), compresses to ULFO, then signs, notarizes and staples the DMG.
-  Without the two options the DMG is unsigned (internal builds).
-- **Art:** `assets/macos/dmg/background.svg` (660x400 pt: `#141313` base, soft glow in the
-  default white accent, the Navis mark, Inter text). The committed PNGs are rendered with
+  `MACOS_SIGN_IDENTITY` and the notary auth only with `--macos-notarize`. It stages the
+  app, an `Applications` symlink, the HiDPI background (`.background.tiff`) and the volume
+  icon into a ULFO image and lays out the window with `dmgbuild` (pinned in the script and run
+  as `uvx --from dmgbuild==<version> dmgbuild`, which writes `.DS_Store` directly: no Finder
+  scripting), then signs, notarizes and staples the DMG. Without the two options the DMG is
+  unsigned (internal builds).
+- **Art:** `assets/macos/dmg/background.svg` (660x400 pt: light `#F9F7F4`..`#EDEAE5` field,
+  one Inter instruction line, an arrow and faint wave lines at the foot; no logo, since the app
+  icon already carries it). Finder draws icon labels in black on a background picture, so the
+  area under the labels must stay light. The committed PNGs are rendered with
   `FONTCONFIG_FILE=$PWD/assets/macos/dmg/fonts.conf` and `PANGOCAIRO_BACKEND=fc` so Inter loads
   from `assets/fonts` (the default CoreText backend on macOS ignores fontconfig and silently
   falls back to Helvetica); from
@@ -276,11 +294,11 @@ unaffected.
     rsvg-convert -w 660 -h 400 background.svg -o background.png && \
     rsvg-convert -w 1320 -h 800 background.svg -o background@2x.png
   ```
-  Icon slots (app x=170, Applications x=490, y=200) live in both the SVG and
+  Icon slots (app x=170, Applications x=490, y=190) live in both the SVG and
   `tool/macos_dmg.sh`; change them together.
-- **Install (users):** open the DMG, drag Navis onto Applications, eject the disk image, then
+- **Install (users):** open the DMG (it mounts as "Install Navis"), drag Navis onto Applications, eject the disk image, then
   open Navis from Applications.
-- **Test:** `bash tool/macos_dmg_test.sh` (staged-bundle allowlist and manifest-key helpers; no hdiutil needed). `bash tool/dev_release_test.sh` covers the DMG upload, its absence from the signed manifest and its `SHA256SUMS` line against a fake R2.
+- **Test:** `bash tool/macos_dmg_test.sh` (staged-bundle allowlist, manifest-key helpers and the rendered dmgbuild settings; no hdiutil needed). `bash tool/dev_release_test.sh` covers the DMG upload, its absence from the signed manifest and its `SHA256SUMS` line against a fake R2.
 
 ---
 
@@ -411,9 +429,11 @@ The `MACOS_SIGN_IDENTITY` string must exactly match the certificate in Keychain,
 the team ID in parentheses. Run `security find-identity -v -p codesigning` to see the
 exact string.
 
-### Notarization fails: `Unable to find keychain profile`
+### Notarization fails: `No Keychain password item found for profile`
 
-The profile name must match exactly what was stored:
+On some Macs a stored profile vanishes right after `store-credentials` reports success. Use
+the App Store Connect API key instead (see [Authentication](#authentication)). If you rely on
+the profile, its name must match exactly what was stored:
 
 ```bash
 xcrun notarytool history --keychain-profile navis-notary-profile

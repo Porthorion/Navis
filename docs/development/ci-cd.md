@@ -768,7 +768,7 @@ Optional variables:
 | `NAVIS_RELEASE_NOTES_URL` | HTTPS link on `navis.porthorion.com` shown as the release notes link in the update dialog |
 | `NAVIS_DEB_MAINTAINER` | Linux Debian maintainer override (default `Porthorion <support@porthorion.com>`) |
 | `MACOS_SIGN_IDENTITY` | Developer ID Application signing identity used by `--macos-notarize` |
-| `MACOS_NOTARY_PROFILE` | `xcrun notarytool` keychain profile name used by `--macos-notarize` |
+| `MACOS_NOTARY_PROFILE` | `xcrun notarytool` keychain profile, the fallback for `--macos-notarize` when `ASC_KEY_ID`, `ASC_ISSUER_ID` and the API key file are not all present |
 | `NAVIS_LINUX_SSH` | Default SSH target for remote Linux builder |
 | `NAVIS_WINDOWS_SSH` | Default SSH target for remote Windows builder |
 | `NAVIS_LINUX_REMOTE_DIR` | Remote Linux working dir relative to remote HOME |
@@ -843,7 +843,8 @@ The asset helper's success/failure tests run in `tool/check.sh`.
   - Install from https://jrsoftware.org/isdl.php and ensure `ISCC.exe` is on `PATH`.
 - macOS notarization mode (`--macos-notarize`)
   - Requires a valid Developer ID Application certificate in keychain.
-  - Requires a configured `notarytool` keychain profile:
+  - Authenticates with the App Store Connect API key (`ASC_KEY_ID`, `ASC_ISSUER_ID`, the `.p8`
+    file; the same key as `--ios-upload`). Without it, requires a `notarytool` keychain profile:
     ```bash
     xcrun notarytool store-credentials navis-notary-profile \
       --apple-id "<apple-id>" \

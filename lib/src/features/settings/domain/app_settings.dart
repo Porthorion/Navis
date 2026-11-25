@@ -118,6 +118,7 @@ class AppSettingsModel {
     required this.libraryPageOrder,
     this.desktopNavbarStyle = 'compact',
     this.desktopNavbarAutohide = false,
+    this.tabletMediumSidebar = false,
     this.albumQueueEnabled = true,
     this.matchFlowEnabled = false,
     this.likedQueueEnabled = true,
@@ -224,6 +225,7 @@ class AppSettingsModel {
       libraryPageOrder = null,
       desktopNavbarStyle = 'compact',
       desktopNavbarAutohide = false,
+      tabletMediumSidebar = false,
       albumQueueEnabled = true,
       matchFlowEnabled = false,
       likedQueueEnabled = true,
@@ -388,6 +390,10 @@ class AppSettingsModel {
   /// When true on desktop, the navigation sidebar autohides.
   final bool desktopNavbarAutohide;
 
+  /// When true, a touch tablet window 600-839 wide uses the sidebar rail
+  /// instead of the bottom tabs.
+  final bool tabletMediumSidebar;
+
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track.
   final bool albumQueueEnabled;
@@ -537,6 +543,7 @@ class AppSettingsModel {
     List<String>? libraryPageOrder,
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
+    bool? tabletMediumSidebar,
     bool? albumQueueEnabled,
     bool? matchFlowEnabled,
     bool? likedQueueEnabled,
@@ -698,6 +705,7 @@ class AppSettingsModel {
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
+      tabletMediumSidebar: tabletMediumSidebar ?? this.tabletMediumSidebar,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,

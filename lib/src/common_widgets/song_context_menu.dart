@@ -34,7 +34,7 @@ Future<void> showSongContextMenu(
   SongsTableData song, {
   Offset? anchor,
 }) async {
-  if (anchor != null && isDesktopRuntime) {
+  if (anchor != null && secondaryClickMenusEnabled(context)) {
     await _showDesktopSongContextMenu(context, ref, song, anchor: anchor);
     return;
   }

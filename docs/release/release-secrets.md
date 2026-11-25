@@ -23,7 +23,8 @@ This document defines the recommended secret handling model for Navis multi-OS r
 - Never commit secrets to the repository.
 - Use local-only files and system keychains:
   - `tool/release.env` (already git-ignored)
-  - macOS Keychain for Apple notarytool profile
+  - the App Store Connect `.p8` key (mode 600) for iOS upload and macOS notarization;
+    a macOS Keychain notarytool profile only as the notarization fallback
   - local `android/key.properties` and keystore files (never committed)
 - The ListenBrainz token is a runtime user credential. It must stay in
   platform secure storage, not Drift or logs. (Last.fm shared secrets and
@@ -116,24 +117,22 @@ Set signing identity in shell or local env file:
 export MACOS_SIGN_IDENTITY="Developer ID Application: <Team Name> (<TEAMID>)"
 ```
 
-Store notarization credentials in keychain once:
+Notarization authenticates with the App Store Connect API key described below
+(`ASC_KEY_ID`, `ASC_ISSUER_ID`, the `.p8` file); no `store-credentials` step is needed.
+
+Fallback when the key is not available: store a keychain profile once and export its name.
 
 ```bash
 xcrun notarytool store-credentials navis-notary-profile \
   --apple-id "<apple-id>" \
   --team-id "<team-id>" \
   --password "<app-specific-password>"
-```
-
-Then export:
-
-```bash
 export MACOS_NOTARY_PROFILE="navis-notary-profile"
 ```
 
 ## App Store Connect API key
 
-Needed only for `release.sh --ios-upload`; setup is in
+Used by `release.sh --ios-upload` and `release.sh --macos-notarize`; setup is in
 [release-ios.md](release-ios.md). The team key (App Manager role) is a `.p8`
 file saved once at `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` (mode
 600), which is where `altool` looks. `tool/release.env` holds only the

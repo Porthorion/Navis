@@ -286,6 +286,15 @@ void main() {
       expect((await dao.getSettings())!.keepTitleVersionVisible, isTrue);
     }, skip: !sqliteAvailable);
 
+    test('tablet medium sidebar defaults off and toggles', () async {
+      final dao = database.appSettingsDao;
+      expect((await dao.getSettings())!.tabletMediumSidebar, isFalse);
+      await dao.updateTabletMediumSidebar(true);
+      expect((await dao.getSettings())!.tabletMediumSidebar, isTrue);
+      await dao.updateTabletMediumSidebar(false);
+      expect((await dao.getSettings())!.tabletMediumSidebar, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('background writes leave the legacy migration source alone', () async {
       await database.customStatement(
         'UPDATE app_settings SET art_tinted_now_playing = 0',

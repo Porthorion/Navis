@@ -538,10 +538,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 );
 
           final platform = Theme.of(context).platform;
+          // Touch platforms normally close via the sheet's drag handle, but an
+          // embedded pane (rail shell) has no sheet, so it needs the button.
+          final embeddedWithoutSheet =
+              widget.wideEmbeddedMode && !widget.compactWideLandscapeMode;
           final showCollapseButton =
               widget.onCollapse != null &&
-              platform != TargetPlatform.android &&
-              platform != TargetPlatform.iOS;
+              (embeddedWithoutSheet ||
+                  (platform != TargetPlatform.android &&
+                      platform != TargetPlatform.iOS));
 
           if (!showCollapseButton) {
             return surface;
@@ -906,7 +911,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   _WideNowPlayingPanel _widePanel = _WideNowPlayingPanel.none;
   bool _isCompactWidePanelDismissing = false;
   bool _showLyrics = false;
-  bool _showWideFullscreenLyrics = false;
 
   /// Whether the transport row shows its EQ and Speed buttons. The settings
   /// sheet and panel list those controls only while it does not; unknown
@@ -934,12 +938,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       _dismissCompactWidePanel();
       return true;
     }
-    if (_showWideFullscreenLyrics) {
-      _updateWideOverlayState(() {
-        _showWideFullscreenLyrics = false;
-      });
-      return true;
-    }
     if (_showLyrics) {
       // Inline lyrics replace the artwork; back returns to it before the
       // player collapses.
@@ -955,7 +953,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
 
   bool get _compactWideOverlayActive {
     return widget.compactWideLandscapeMode &&
-        (_widePanel != _WideNowPlayingPanel.none || _showWideFullscreenLyrics);
+        _widePanel != _WideNowPlayingPanel.none;
   }
 
   void _publishCompactWideOverlayActiveState({bool defer = false}) {
@@ -1534,7 +1532,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
 
   void _showQueuePanel() {
     _updateWideOverlayState(() {
-      _showWideFullscreenLyrics = false;
       _isCompactWidePanelDismissing = false;
       _widePanel = _WideNowPlayingPanel.queue;
     });
@@ -1564,12 +1561,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   void _dismissWideOverlayOrNowPlaying() {
     if (_widePanel != _WideNowPlayingPanel.none) {
       _dismissCompactWidePanel();
-      return;
-    }
-    if (_showWideFullscreenLyrics) {
-      _updateWideOverlayState(() {
-        _showWideFullscreenLyrics = false;
-      });
       return;
     }
     widget.onCollapse?.call();
@@ -1626,12 +1617,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     String songId,
     String title,
   ) async {
-    if (widget.wideEmbeddedMode &&
-        (_widePanel != _WideNowPlayingPanel.none ||
-            _showWideFullscreenLyrics)) {
+    if (widget.wideEmbeddedMode && _widePanel != _WideNowPlayingPanel.none) {
       _updateWideOverlayState(() {
         _widePanel = _WideNowPlayingPanel.none;
-        _showWideFullscreenLyrics = false;
       });
     }
     await _openFullscreenLyricsRoute(context, songId, title);
@@ -1887,7 +1875,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
 
     VoidCallback openWidePanelAction(_WideNowPlayingPanel panel) =>
         () => _updateWideOverlayState(() {
-          _showWideFullscreenLyrics = false;
           _widePanel = panel;
         });
     final nowPlayingVisualKey = isRadio
@@ -1913,11 +1900,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     // mode so it does not reappear the next time the user expands the player.
     ref.listen<bool>(playerSheetExpandedProvider, (_, nowExpanded) {
       if (widget.compactWideLandscapeMode && !nowExpanded) {
-        if (_widePanel != _WideNowPlayingPanel.none ||
-            _showWideFullscreenLyrics) {
+        if (_widePanel != _WideNowPlayingPanel.none) {
           _updateWideOverlayState(() {
             _widePanel = _WideNowPlayingPanel.none;
-            _showWideFullscreenLyrics = false;
           });
         }
       }
@@ -1936,7 +1921,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             ? null
             : () {
                 _updateWideOverlayState(() {
-                  _showWideFullscreenLyrics = false;
                   _widePanel = _WideNowPlayingPanel.none;
                 });
                 unawaited(
@@ -1986,19 +1970,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               .min(artPaneWidth - 12, constraints.maxHeight * 0.68)
               .clamp(180.0, 380.0);
           final showInlineLyrics =
-              _showLyrics &&
-              !_showWideFullscreenLyrics &&
-              playback.currentSongId != null;
-
-          if (_showWideFullscreenLyrics && playback.currentSongId == null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _updateWideOverlayState(() {
-                  _showWideFullscreenLyrics = false;
-                });
-              }
-            });
-          }
+              _showLyrics && playback.currentSongId != null;
 
           final compactWideArtSwitcher = songSwapArtSwitcher(
             _buildInteractiveSwipeableArt(
@@ -2100,11 +2072,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       song: song,
                       songId: playback.currentSongId,
                       isLiked: playback.isCurrentSongLiked,
-                      showLyrics: _showLyrics || _showWideFullscreenLyrics,
+                      showLyrics: _showLyrics,
                       onLyricsToggle: playback.currentSongId == null
                           ? null
                           : () => _updateWideOverlayState(() {
-                              _showWideFullscreenLyrics = false;
                               _showLyrics = !_showLyrics;
                             }),
                       wideEmbeddedMode: true,
@@ -2143,23 +2114,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           var compactOverlayKey = const ValueKey<String>(
             'compact-wide-overlay-none',
           );
-          if (_showWideFullscreenLyrics && playback.currentSongId != null) {
-            compactOverlayKey = const ValueKey<String>(
-              'compact-wide-fullscreen-lyrics',
-            );
-            compactOverlayPage = _EmbeddedNowPlayingPanelScaffold(
-              key: compactOverlayKey,
-              title: l10n.nowPlayingLyrics,
-              subtitle: title,
-              onBack: () => _updateWideOverlayState(() {
-                _showWideFullscreenLyrics = false;
-              }),
-              child: _EmbeddedFullscreenLyricsPanel(
-                songId: playback.currentSongId!,
-                playback: playback,
-              ),
-            );
-          } else if (_widePanel == _WideNowPlayingPanel.queue) {
+          if (_widePanel == _WideNowPlayingPanel.queue) {
             compactOverlayKey = const ValueKey<String>('compact-wide-queue');
             compactOverlayPage = _CompactWideOverlaySheet(
               key: compactOverlayKey,
@@ -2229,33 +2184,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               ),
             ],
           );
-        }
-
-        if (widget.wideEmbeddedMode &&
-            !isSplitNowPlaying &&
-            _showWideFullscreenLyrics &&
-            playback.currentSongId != null) {
-          return _EmbeddedNowPlayingPanelScaffold(
-            key: const ValueKey<String>('wide-fullscreen-lyrics'),
-            title: l10n.nowPlayingLyrics,
-            subtitle: title,
-            onBack: () => _updateWideOverlayState(() {
-              _showWideFullscreenLyrics = false;
-            }),
-            child: PlaybackLyricsContent(songId: playback.currentSongId!),
-          );
-        }
-        if (widget.wideEmbeddedMode &&
-            !isSplitNowPlaying &&
-            _showWideFullscreenLyrics &&
-            playback.currentSongId == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _updateWideOverlayState(() {
-                _showWideFullscreenLyrics = false;
-              });
-            }
-          });
         }
 
         if (!supportsSplitPanelOverlay &&
@@ -2404,7 +2332,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         );
 
         final showInlineLyrics =
-            !widget.wideEmbeddedMode &&
             _showLyrics &&
             playback.currentSongId != null &&
             !supportsSplitPanelOverlay;
@@ -2518,7 +2445,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 song: song,
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
-                showLyrics: _showLyrics || _showWideFullscreenLyrics,
+                showLyrics: _showLyrics,
                 onOpenSettingsSheet: settingsSheetAction(
                   splitPanelOverlay: supportsSplitPanelOverlay,
                 ),
@@ -2539,13 +2466,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             _widePanel != _WideNowPlayingPanel.none) {
                           _updateWideOverlayState(() {
                             _widePanel = _WideNowPlayingPanel.none;
-                            _showWideFullscreenLyrics = false;
                             _showLyrics = !_showLyrics;
                           });
                           return;
                         }
                         setState(() {
-                          _showWideFullscreenLyrics = false;
                           _showLyrics = !_showLyrics;
                         });
                       },
@@ -2634,7 +2559,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         }
 
         if (!isSplitNowPlaying) {
-          return Padding(
+          Widget standardLayout = Padding(
             padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Column(
               children: <Widget>[
@@ -2654,6 +2579,19 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               ],
             ),
           );
+          if (widget.wideEmbeddedMode) {
+            standardLayout = GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragStart: _handleWideVerticalDragStart,
+              onVerticalDragUpdate: (details) =>
+                  _handleWideVerticalDragUpdate(details, splitLayout: false),
+              onVerticalDragEnd: (details) =>
+                  _handleWideVerticalDragEnd(details, splitLayout: false),
+              onVerticalDragCancel: _handleWideVerticalDragCancel,
+              child: standardLayout,
+            );
+          }
+          return standardLayout;
         }
 
         final colorScheme = Theme.of(context).colorScheme;

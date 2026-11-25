@@ -58,12 +58,14 @@ import 'package:navis/src/features/player/presentation/now_playing_artwork_backg
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/navis_theme.dart' show navisFontFamily;
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
@@ -71,6 +73,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/fake_eq_controller.dart';
 import '../../helpers/haptics_spy.dart';
 import '../../helpers/fake_playback_handler.dart';
@@ -513,15 +516,13 @@ void main() {
     },
   );
 
-  for (final bar in ['desktop', 'compact', 'rail', 'nowPlaying']) {
+  for (final bar in ['desktop', 'compact', 'nowPlaying']) {
     testWidgets(
       '$bar seek drag rests, moves, releases and cancels occurrences',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = bar == 'compact'
             ? const Size(560, 360)
-            : bar == 'rail'
-            ? const Size(1440, 900)
             : const Size(800, 900);
         addTearDown(tester.view.reset);
         final handler = _RecordingLikePlaybackHandler();
@@ -551,10 +552,6 @@ void main() {
           'desktop' => find.byKey(const ValueKey('desktopPlayerSeekSlider')),
           'compact' => find.byKey(
             const ValueKey('desktopMiniPlayerSeekSlider'),
-          ),
-          'rail' => find.descendant(
-            of: find.byKey(const ValueKey('railMiniPlayer')),
-            matching: find.byType(Slider),
           ),
           _ => find.byKey(const ValueKey('nowPlayingSeekSlider')),
         };
@@ -631,31 +628,6 @@ void main() {
     expectAheadRange(
       tester,
       find.byKey(const ValueKey('desktopPlayerSeekSlider')),
-    );
-  });
-
-  testWidgets('the rail mini player draws the ahead range', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1440, 900);
-    addTearDown(tester.view.reset);
-    final container = _createContainerWithDatabase(
-      overrides: [
-        ..._authenticatedShellOverrides(),
-        playbackBufferStateProvider.overrideWithValue(
-          const AsyncData(detachedBuffer),
-        ),
-      ],
-    );
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: testNavisApp),
-    );
-    await tester.pumpAndSettle();
-    expectAheadRange(
-      tester,
-      find.descendant(
-        of: find.byKey(const ValueKey('railMiniPlayer')),
-        matching: find.byType(Slider),
-      ),
     );
   });
 
@@ -2607,6 +2579,704 @@ void main() {
       () => Future<void>.delayed(const Duration(seconds: 2)),
     );
     await tester.pump();
+  });
+
+  group('tablet rail follows the navbar style (P1.2)', () {
+    final region = find.byKey(const ValueKey<String>('touchRailRegion'));
+    final allSections = <Override>[
+      showLikedPageProvider.overrideWithValue(true),
+      showArtistsPageProvider.overrideWithValue(true),
+      showGenresPageProvider.overrideWithValue(true),
+      showPlaylistsPageProvider.overrideWithValue(true),
+      showRadioPageProvider.overrideWithValue(true),
+    ];
+
+    Future<ProviderContainer> pump(
+      WidgetTester tester,
+      Size size, {
+      String? style,
+      bool desktopRuntime = false,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: desktopRuntime),
+          if (style != null)
+            desktopNavbarStyleProvider.overrideWithValue(style),
+          ...allSections,
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    for (final size in const <Size>[
+      Size(1032, 1376),
+      Size(1376, 1032),
+      Size(1194, 834),
+      Size(981, 1032),
+      Size(841, 701),
+    ]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}: the default '
+          'style is a 220 px labelled rail', (tester) async {
+        await pump(tester, size);
+        expect(tester.getSize(region).width, 220);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('railNavTile-0'))).right,
+          lessThanOrEqualTo(220),
+        );
+        // Labelled, never forced to icons by the narrow-window desktop rule.
+        expect(find.text('Home'), findsWidgets);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Large is 260 px with bigger labels', (tester) async {
+      await pump(tester, const Size(1032, 1376), style: 'comfortable');
+      expect(tester.getSize(region).width, 260);
+      final home = find.descendant(of: region, matching: find.text('Home'));
+      expect(tester.widget<Text>(home).style?.fontSize, 18);
+    });
+
+    testWidgets('Icons is a 64 px rail without labels', (tester) async {
+      await pump(tester, const Size(1032, 1376), style: 'icons');
+      expect(tester.getSize(region).width, 64);
+      expect(
+        find.descendant(of: region, matching: find.text('Home')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('railNavTile-0')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Icons: every nav tile has a label, a tooltip and a '
+        'long-press bubble', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, const Size(1032, 1376), style: 'icons');
+      for (final label in const <String>['Home', 'Library']) {
+        expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+        final tip = find.descendant(
+          of: region,
+          matching: find.byWidgetPredicate(
+            (w) => w is NavisTooltip && w.message == label,
+          ),
+        );
+        expect(tip, findsOneWidget, reason: label);
+      }
+      await tester.longPress(find.byKey(const ValueKey('railNavTile-0')));
+      await tester.pump();
+      expect(find.byKey(NavisTooltip.defaultBubbleKey), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(NavisTooltip.defaultBubbleKey),
+          matching: find.text('Home'),
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+      handle.dispose();
+    });
+
+    testWidgets('the labelled styles add no tooltip to the nav tiles', (
+      tester,
+    ) async {
+      await pump(tester, const Size(1032, 1376));
+      expect(
+        find.descendant(of: region, matching: find.byType(NavisTooltip)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('desktop icons sidebar: nav tiles carry the same tooltip', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        const Size(1280, 1000),
+        style: 'icons',
+        desktopRuntime: true,
+      );
+      expect(find.bySemanticsLabel('Home'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is NavisTooltip && w.message == 'Home'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('a stored icons style is honoured below 1008 px too', (
+      tester,
+    ) async {
+      await pump(tester, const Size(981, 1032), style: 'icons');
+      expect(tester.getSize(region).width, 64);
+    });
+
+    testWidgets('the default rail lists the Library sections inline', (
+      tester,
+    ) async {
+      await pump(tester, const Size(1032, 1376));
+      expect(
+        find.byKey(const ValueKey('railLibrarySection-liked')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'Icons: no inline Library sections, the page has its own tabs',
+      (tester) async {
+        await pump(tester, const Size(1032, 1376), style: 'icons');
+        await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('railLibrarySection-liked')),
+          findsNothing,
+        );
+        expect(find.byType(TabBar), findsOneWidget);
+      },
+    );
+
+    testWidgets('220 px rail at 2.0x text does not overflow', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pump(tester, const Size(1032, 1376));
+      expect(tester.getSize(region).width, 220);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('phone portrait keeps the bottom navigation', (tester) async {
+      await pump(tester, const Size(412, 915), style: 'icons');
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    for (final style in <String?>[null, 'comfortable', 'icons']) {
+      testWidgets('compact-wide landscape phone ignores the style ($style)', (
+        tester,
+      ) async {
+        await pump(tester, const Size(915, 412), style: style);
+        expect(tester.getSize(region).width, inInclusiveRange(57.2, 75.4));
+      });
+
+      testWidgets('a phone-form-factor standard rail keeps its own width '
+          '($style)', (tester) async {
+        await pump(tester, const Size(900, 500), style: style);
+        expect(tester.getSize(region).width, closeTo(198, 0.01));
+        expect(find.text('Home'), findsWidgets);
+      });
+    }
+
+    testWidgets('desktop keeps forcing icons below 1008 px', (tester) async {
+      await pump(
+        tester,
+        const Size(900, 800),
+        style: 'comfortable',
+        desktopRuntime: true,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('desktopSidebarRegion')))
+            .width,
+        64,
+      );
+    });
+
+    testWidgets('resizing across 840 swaps the rail and the bottom bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(841, 701));
+      expect(region, findsOneWidget);
+      tester.view.physicalSize = const Size(839, 701);
+      await tester.pumpAndSettle();
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+  });
+
+  group('tablet rail bottom mini player (P1.1)', () {
+    const strip = ValueKey<String>('railBottomMiniPlayer');
+    const fade = ValueKey<String>('railBottomMiniPlayerFade');
+    const swipeSemantics = ValueKey<String>('miniPlayerSwipeSemantics');
+    const radioPlayback = PlaybackSnapshot(
+      queueSongIds: <String>[],
+      currentSongId: null,
+      currentIndex: null,
+      playing: true,
+      processingState: AudioProcessingState.ready,
+      position: Duration.zero,
+      duration: Duration.zero,
+      bufferedPosition: Duration.zero,
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+      radioStation: RadioStationMetadata(
+        stationId: 'radio-1',
+        stationName: 'Test Radio',
+        streamUrl: 'https://example.com/radio',
+      ),
+    );
+
+    Future<ProviderContainer> pump(
+      WidgetTester tester,
+      Size size, {
+      PlaybackSnapshot playback = _activePlayback,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(playback: playback),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    for (final size in const <Size>[
+      Size(1032, 1376),
+      Size(1376, 1032),
+      Size(1194, 834),
+      Size(1133, 744),
+      Size(981, 1032),
+    ]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}: the strip '
+          'sits at the bottom of the content pane, not in the rail', (
+        tester,
+      ) async {
+        await pump(tester, size);
+
+        expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+        expect(find.byKey(strip), findsOneWidget);
+        final rect = tester.getRect(find.byKey(strip));
+        final railTile = tester.getRect(
+          find.byKey(const ValueKey('railNavTile-0')),
+        );
+        expect(rect.left, greaterThanOrEqualTo(railTile.right));
+        expect(rect.right, size.width);
+        expect(rect.bottom, size.height);
+        expect(rect.height, 64);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets(
+      'the collapsed Now Playing is off screen with its tickers stopped',
+      (tester) async {
+        final container = await pump(tester, const Size(1194, 834));
+        bool tickers() =>
+            TickerMode.of(tester.element(find.byType(NowPlayingScreen)));
+        Offset slide() =>
+            tester.widget<AnimatedSlide>(find.byType(AnimatedSlide)).offset;
+        expect(tickers(), isFalse);
+        expect(slide(), const Offset(0, 1));
+
+        container.read(playerOverlayStackProvider.notifier).expand();
+        await tester.pumpAndSettle();
+        expect(tickers(), isTrue);
+        expect(slide(), Offset.zero);
+
+        container.read(playerOverlayStackProvider.notifier).collapse();
+        await tester.pumpAndSettle();
+        expect(tickers(), isFalse);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    testWidgets('tapping the title opens Now Playing', (tester) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      final rect = tester.getRect(find.byKey(strip));
+      await tester.tapAt(rect.centerLeft + const Offset(120, 0));
+      await tester.pumpAndSettle();
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('a swipe up on the strip opens Now Playing', (tester) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      final rect = tester.getRect(find.byKey(strip));
+      await tester.dragFrom(
+        rect.centerLeft + const Offset(120, 0),
+        const Offset(0, -90),
+      );
+      await tester.pumpAndSettle();
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('the strip is hidden and inert while Now Playing is open', (
+      tester,
+    ) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      double opacity() =>
+          tester.widget<AnimatedOpacity>(find.byKey(fade)).opacity;
+      bool ignoring() => tester
+          .widget<IgnorePointer>(
+            find
+                .ancestor(
+                  of: find.byKey(strip),
+                  matching: find.byType(IgnorePointer),
+                )
+                .first,
+          )
+          .ignoring;
+      expect(opacity(), 1);
+      expect(ignoring(), isFalse);
+
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      expect(opacity(), 0);
+      expect(ignoring(), isTrue);
+
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await tester.pumpAndSettle();
+      expect(opacity(), 1);
+      expect(ignoring(), isFalse);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+    });
+
+    testWidgets('Escape closes Now Playing and the strip returns', (
+      tester,
+    ) async {
+      final container = await pump(tester, const Size(1032, 1376));
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      expect(tester.widget<AnimatedOpacity>(find.byKey(fade)).opacity, 1);
+    });
+
+    // The full app only has an English locale, so a right-to-left shell cannot
+    // be pumped (same limit as foldable_layouts_test); the strip is a plain
+    // Column child of the pane, which the Row places by text direction.
+
+    testWidgets('resizing across 840 keeps exactly one strip', (tester) async {
+      await pump(tester, const Size(900, 1000));
+      expect(find.byKey(swipeSemantics), findsOneWidget);
+      for (final size in const <Size>[Size(800, 1000), Size(900, 1000)]) {
+        tester.view.physicalSize = size;
+        await tester.pump();
+        expect(find.byKey(swipeSemantics), findsOneWidget, reason: '$size');
+        await tester.pumpAndSettle();
+        expect(find.byKey(swipeSemantics), findsOneWidget, reason: '$size');
+      }
+      expect(find.byKey(strip), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('without playback there is no strip and no reserve', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const Size(1032, 1376),
+        playback: const PlaybackSnapshot.idle(),
+      );
+      expect(find.byKey(strip), findsNothing);
+      expect(find.byKey(swipeSemantics), findsNothing);
+      expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+    });
+
+    testWidgets('radio shows the strip without skip buttons', (tester) async {
+      await pump(tester, const Size(1032, 1376), playback: radioPlayback);
+      expect(find.byKey(strip), findsOneWidget);
+      // Now Playing is mounted below the fold; look inside the strip only.
+      Finder inStrip(String tip) =>
+          find.descendant(of: find.byKey(strip), matching: find.byTooltip(tip));
+      expect(inStrip('Previous'), findsNothing);
+      expect(inStrip('Skip to Next'), findsNothing);
+      expect(inStrip('Stop Radio'), findsOneWidget);
+    });
+
+    /// Opens Library, scrolls its page to the end and returns the page rect.
+    Future<Rect> scrolledPageRect(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('railNavTile-3')));
+      await tester.pumpAndSettle();
+      ScrollableState? page;
+      for (final state in tester.stateList<ScrollableState>(
+        find.byType(Scrollable),
+      )) {
+        if (state.position.axis == Axis.vertical &&
+            (page == null ||
+                state.position.maxScrollExtent >
+                    page.position.maxScrollExtent)) {
+          page = state;
+        }
+      }
+      page!.position.jumpTo(page.position.maxScrollExtent);
+      await tester.pump(const Duration(milliseconds: 500));
+      return tester.getRect(find.byElementPredicate((e) => e == page!.context));
+    }
+
+    for (final size in const <Size>[Size(1032, 1376), Size(1194, 834)]) {
+      for (final scale in const <double>[1.6, 2]) {
+        testWidgets('${size.width.toInt()}x${size.height.toInt()} at '
+            '${scale}x text: the strip grows and the page stays above it', (
+          tester,
+        ) async {
+          tester.platformDispatcher.textScaleFactorTestValue = scale;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await pump(tester, size);
+
+          expect(tester.takeException(), isNull);
+          final rect = tester.getRect(find.byKey(strip));
+          expect(rect.bottom, size.height);
+          expect(rect.height, greaterThanOrEqualTo(64));
+          final pageRect = await scrolledPageRect(tester);
+          expect(pageRect.bottom, lessThanOrEqualTo(rect.top));
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    testWidgets('the page ends above the strip', (tester) async {
+      await pump(tester, const Size(1032, 1376));
+      final pageRect = await scrolledPageRect(tester);
+      expect(
+        pageRect.bottom,
+        lessThanOrEqualTo(tester.getRect(find.byKey(strip)).top),
+      );
+    });
+  });
+
+  group('tablet rail queue panel (P2.5)', () {
+    const panelKey = ValueKey<String>('queueOverlayTranslation');
+    const strip = ValueKey<String>('railBottomMiniPlayer');
+    const fade = ValueKey<String>('railBottomMiniPlayerFade');
+
+    Future<ProviderContainer> openQueue(
+      WidgetTester tester,
+      Size size, {
+      double bottomInset = 0,
+      List<Override> extra = const <Override>[],
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      if (bottomInset > 0) {
+        tester.view.padding = FakeViewPadding(bottom: bottomInset);
+        tester.view.viewPadding = FakeViewPadding(bottom: bottomInset);
+        addTearDown(tester.view.resetPadding);
+        addTearDown(tester.view.resetViewPadding);
+      }
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[..._authenticatedShellOverrides(), ...extra],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+      return container;
+    }
+
+    void expectFloatingPanel(
+      WidgetTester tester,
+      Size size, {
+      double bottomInset = 0,
+    }) {
+      final panel = tester.getRect(find.byKey(panelKey));
+      final railTile = tester.getRect(
+        find.byKey(const ValueKey('railNavTile-0')),
+      );
+      expect(panel.width, inInclusiveRange(320, 560));
+      expect(panel.right, size.width - 12, reason: 'right-aligned in pane');
+      expect(panel.left, greaterThanOrEqualTo(railTile.right));
+      expect(panel.bottom, lessThanOrEqualTo(size.height - bottomInset - 12));
+      // The strip is faded and inert under Now Playing, which the queue
+      // opens over, so the panel never covers a live strip.
+      expect(tester.widget<AnimatedOpacity>(find.byKey(fade)).opacity, 0);
+      expect(
+        tester.getRect(find.byKey(strip)).bottom,
+        lessThanOrEqualTo(size.height - bottomInset),
+      );
+      // The rail stays clear of the scrim and the panel.
+      expect(
+        find.byKey(const ValueKey('railNavTile-0')).hitTestable(),
+        findsOneWidget,
+      );
+    }
+
+    for (final size in const <Size>[Size(1032, 1376), Size(1376, 1032)]) {
+      testWidgets(
+        '${size.width.toInt()}x${size.height.toInt()} iOS: a floating panel '
+        'right-aligned in the pane, above the safe area',
+        (tester) async {
+          await openQueue(tester, size, bottomInset: 34);
+          expectFloatingPanel(tester, size, bottomInset: 34);
+          expect(
+            tester.getSize(find.byType(QueueSheet)).height,
+            lessThan(size.height * 0.8),
+          );
+          expect(tester.takeException(), isNull);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+      );
+    }
+
+    testWidgets('1032x1376 Android: the same floating panel', (tester) async {
+      await openQueue(tester, const Size(1032, 1376));
+      expectFloatingPanel(tester, const Size(1032, 1376));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    testWidgets('834x1194 bottom navigation keeps the full-width sheet', (
+      tester,
+    ) async {
+      await openQueue(tester, const Size(834, 1194));
+      expect(find.byType(NavigationRail), findsNothing);
+      expect(tester.getRect(find.byKey(panelKey)).width, 834);
+    });
+
+    testWidgets('a rail pane under 600 keeps the fullscreen queue', (
+      tester,
+    ) async {
+      // The Large rail is 260 wide, leaving a 581 pane.
+      await openQueue(
+        tester,
+        const Size(841, 701),
+        extra: <Override>[
+          desktopNavbarStyleProvider.overrideWithValue('comfortable'),
+        ],
+      );
+      expect(find.byKey(const ValueKey('railNavTile-0')), findsOneWidget);
+      final sheet = tester.getRect(find.byKey(panelKey));
+      expect(sheet.width, lessThan(600), reason: 'the whole narrow pane');
+      expect(sheet.top, 0);
+      expect(sheet.bottom, 701, reason: 'fullscreen, not a floating panel');
+    });
+
+    testWidgets('tapping the scrim outside the panel closes the queue', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      final panel = tester.getRect(find.byKey(panelKey));
+      await tester.tapAt(Offset(panel.left - 40, panel.top + 20));
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('Escape closes the queue and leaves Now Playing open', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets('the panel sits above Now Playing opened from the rail', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      expect(find.byType(NowPlayingScreen), findsOneWidget);
+      expect(find.byType(QueueSheet).hitTestable(), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(NowPlayingScreen), findsOneWidget);
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+    });
+
+    testWidgets(
+      'long-press reorder inside the panel moves the item and keeps it open',
+      (tester) async {
+        final calls = <(int, int)>[];
+        final container = await openQueue(
+          tester,
+          const Size(1032, 1376),
+          extra: <Override>[
+            reorderQueueProvider.overrideWithValue((a, b) async {
+              calls.add((a, b));
+            }),
+          ],
+        );
+        final rows = find.descendant(
+          of: find.byType(QueueSheet),
+          matching: find.byType(ReorderableDelayedDragStartListener),
+        );
+        expect(rows, findsNWidgets(2));
+        final start = tester.getCenter(rows.at(0));
+        final g = await tester.startGesture(start);
+        await tester.pump(const Duration(milliseconds: 700));
+        for (var i = 1; i <= 10; i++) {
+          await g.moveTo(start + Offset(0, 90.0 * i / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await g.up();
+        await tester.pumpAndSettle();
+        expect(calls, isNotEmpty);
+        expect(container.read(queueOverlayVisibleProvider), isTrue);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    testWidgets('Now Playing keeps its tickers behind the floating panel', (
+      tester,
+    ) async {
+      await openQueue(tester, const Size(1032, 1376));
+      expect(
+        TickerMode.of(tester.element(find.byType(NowPlayingScreen))),
+        isTrue,
+      );
+    });
+
+    testWidgets(
+      'a pane resize during a reorder keeps drag-to-dismiss working',
+      (tester) async {
+        final container = await openQueue(
+          tester,
+          const Size(1032, 1376),
+          extra: <Override>[
+            reorderQueueProvider.overrideWithValue((a, b) async {}),
+            desktopNavbarStyleProvider.overrideWithValue('comfortable'),
+          ],
+        );
+        final rows = find.descendant(
+          of: find.byType(QueueSheet),
+          matching: find.byType(ReorderableDelayedDragStartListener),
+        );
+        final start = tester.getCenter(rows.at(0));
+        final g = await tester.startGesture(start);
+        await tester.pump(const Duration(milliseconds: 700));
+        await g.moveTo(start + const Offset(0, 30));
+        await tester.pump(const Duration(milliseconds: 16));
+        // The 581 pane switches the floating panel to the fullscreen queue.
+        setAdaptiveTestViewport(tester, const Size(841, 701));
+        await tester.pumpAndSettle();
+        await g.up();
+        await tester.pumpAndSettle();
+        expect(container.read(queueOverlayVisibleProvider), isTrue);
+        final sheet = tester.getRect(find.byKey(panelKey));
+        await tester.flingFrom(
+          sheet.topCenter + const Offset(0, 24),
+          const Offset(0, 400),
+          1500,
+        );
+        await tester.pumpAndSettle();
+        expect(container.read(queueOverlayVisibleProvider), isFalse);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    testWidgets('a downward drag at the list top dismisses the panel', (
+      tester,
+    ) async {
+      final container = await openQueue(tester, const Size(1032, 1376));
+      final panel = tester.getRect(find.byKey(panelKey));
+      await tester.flingFrom(
+        panel.topCenter + const Offset(0, 24),
+        const Offset(0, 400),
+        1500,
+      );
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+    });
   });
 
   group('mobile mini player (#559)', () {
@@ -5057,10 +5727,16 @@ void main() {
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1024, 640);
+    tester.view.physicalSize = const Size(1024, 600);
+    // The player left the rail, so the Library sections now fit inline even at
+    // the old 1024x640 (the rail gained the player's 170 px); only large text
+    // makes the rail this tight. Playback stays active: the strip grows with
+    // the text instead of overflowing.
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
     });
 
     final container = _createContainerWithDatabase(
@@ -6333,6 +7009,107 @@ void main() {
     expect(container.read(queueOverlayVisibleProvider), isTrue);
   });
 
+  group('tablet hardware keyboard shortcuts (P3.2)', () {
+    Future<(_TransportRecordingHandler, ProviderContainer)> pumpTablet(
+      WidgetTester tester,
+      Size size,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final handler = _TransportRecordingHandler();
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          audioHandlerProvider.overrideWithValue(handler),
+          radioStationsProvider.overrideWith((ref) async => []),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return (handler, container);
+    }
+
+    Future<void> chord(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Space and arrows drive playback on a tablet', (tester) async {
+      final (handler, _) = await pumpTablet(tester, const Size(1032, 1376));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+
+      expect(handler.calls, <String>['pause', 'next', 'previous']);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Cmd+F opens quick search on a tablet', (tester) async {
+      await pumpTablet(tester, const Size(1032, 1376));
+
+      await chord(tester, LogicalKeyboardKey.keyF);
+
+      expect(
+        find.byKey(const ValueKey('desktopQuickSearchField')),
+        findsOneWidget,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Cmd+3 opens Search in the bottom-nav tablet shell', (
+      tester,
+    ) async {
+      await pumpTablet(tester, const Size(700, 1000));
+
+      await chord(tester, LogicalKeyboardKey.digit3);
+
+      expect(find.byType(SearchScreen), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Space in the Search field does not toggle playback', (
+      tester,
+    ) async {
+      final (handler, _) = await pumpTablet(tester, const Size(1032, 1376));
+      await chord(tester, LogicalKeyboardKey.digit3);
+      final field = find.descendant(
+        of: find.byType(SearchScreen),
+        matching: find.byType(TextField),
+      );
+      await tester.tap(field.first);
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+
+      expect(handler.calls, isEmpty);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Space does nothing on a phone', (tester) async {
+      final (handler, _) = await pumpTablet(tester, const Size(390, 844));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await chord(tester, LogicalKeyboardKey.keyF);
+
+      expect(handler.calls, isEmpty);
+      expect(
+        find.byKey(const ValueKey('desktopQuickSearchField')),
+        findsNothing,
+      );
+    });
+  });
+
   group('bare transport keys yield to focused controls', () {
     Future<(_TransportRecordingHandler, BuildContext)> pumpShell(
       WidgetTester tester,
@@ -7014,5 +7791,128 @@ void main() {
         });
       }
     }
+  });
+
+  group('sidebar on medium screens (P3.3)', () {
+    const strip = ValueKey<String>('railBottomMiniPlayer');
+    final region = find.byKey(const ValueKey<String>('touchRailRegion'));
+
+    Future<ProviderContainer> pump(
+      WidgetTester tester,
+      Size size, {
+      bool sidebar = true,
+      String? style,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          tabletMediumSidebarProvider.overrideWithValue(sidebar),
+          if (style != null)
+            desktopNavbarStyleProvider.overrideWithValue(style),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets('834x1194 with the setting on: rail and strip, no bottom bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(834, 1194));
+      expect(region, findsOneWidget);
+      expect(tester.getSize(region).width, 220);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byKey(strip), findsOneWidget);
+      final rect = tester.getRect(find.byKey(strip));
+      expect(rect.left, greaterThanOrEqualTo(220));
+      expect(rect.right, 834);
+      expect(rect.bottom, 1194);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the rail follows the navbar style at 700x1000', (
+      tester,
+    ) async {
+      await pump(tester, const Size(700, 1000), style: 'icons');
+      expect(tester.getSize(region).width, 64);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byKey(strip), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('834x1194 with the setting off keeps the bottom bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(834, 1194), sidebar: false);
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('a phone ignores the setting', (tester) async {
+      await pump(tester, const Size(390, 844));
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('resizing to a phone keeps the selected tab and the bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(834, 1194));
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(region, findsNothing);
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        1,
+      );
+      tester.view.physicalSize = const Size(834, 1194);
+      await tester.pumpAndSettle();
+      expect(region, findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final (size, style) in const <(Size, String?)>[
+      (Size(600, 960), null),
+      (Size(700, 1000), 'comfortable'),
+      (Size(834, 1194), 'icons'),
+    ]) {
+      testWidgets(
+        'Now Playing opens and closes in the pane at $size ($style)',
+        (tester) async {
+          final container = await pump(tester, size, style: style);
+          container.read(playerOverlayStackProvider.notifier).expand();
+          await tester.pumpAndSettle();
+          expect(container.read(playerSheetExpandedProvider), isTrue);
+          expect(tester.takeException(), isNull);
+          container.read(playerOverlayStackProvider.notifier).collapse();
+          await tester.pumpAndSettle();
+          expect(container.read(playerSheetExpandedProvider), isFalse);
+          expect(find.byKey(strip), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    testWidgets('600x960 at 2.0x text does not overflow', (tester) async {
+      // Ahem is wider than Inter; load the real font.
+      final inter = FontLoader(navisFontFamily)
+        ..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'));
+      await inter.load();
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pump(tester, const Size(600, 960));
+      expect(region, findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
   });
 }

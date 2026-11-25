@@ -24,7 +24,8 @@
 #   --linux-remote-dir=<path>  Remote Linux work dir relative to remote HOME
 #   --windows-remote-dir=<path> Remote Windows work dir relative to remote HOME
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
-#   --no-macos-dmg             Skip the macOS DMG (it needs a logged-in desktop session for Finder)
+#                              (App Store Connect API key, else MACOS_NOTARY_PROFILE)
+#   --no-macos-dmg             Skip the macOS DMG (it needs uv for dmgbuild)
 #   --ios-upload               Upload the built IPA to App Store Connect (TestFlight).
 #                              Needs ios in --targets, the stable channel, ASC_KEY_ID,
 #                              ASC_ISSUER_ID and the API key file; works with --build-only. See
@@ -271,20 +272,24 @@ if [[ "${PUBLISH_FORGEJO}" == "true" && "${BUILD_ONLY}" == false ]]; then
   : "${FORGEJO_TOKEN:?Set FORGEJO_TOKEN in tool/release.env}"
 fi
 
-# App Store Connect API key for --ios-upload: validated before any build, and
-# the messages name variables and never print values.
+# App Store Connect API key (iOS upload and macOS notarization): validated
+# before any build, and the messages name variables and never print values.
+# Sets IOS_KEY_FILE (absolute) from ASC_KEY_PATH or the default location.
 IOS_KEY_FILE=""
-if [[ "${IOS_UPLOAD}" == "true" ]]; then
-  [[ -n "${ASC_KEY_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_KEY_ID (tool/release.env or the environment)." >&2; exit 1; }
-  [[ -n "${ASC_ISSUER_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_ISSUER_ID (tool/release.env or the environment)." >&2; exit 1; }
+resolve_asc_key_file() {
   if [[ -n "${ASC_KEY_PATH:-}" ]]; then
-    [[ -f "${ASC_KEY_PATH}" && -r "${ASC_KEY_PATH}" ]] || { echo "Error: ASC_KEY_PATH does not point to a readable file." >&2; exit 1; }
+    [[ -f "${ASC_KEY_PATH}" && -r "${ASC_KEY_PATH}" ]] || { echo "Error: ASC_KEY_PATH does not point to a readable file." >&2; return 1; }
     # The script changes to the repo root before altool runs, so make it absolute now.
     IOS_KEY_FILE="$(cd "$(dirname "${ASC_KEY_PATH}")" && pwd)/$(basename "${ASC_KEY_PATH}")"
   else
     IOS_KEY_FILE="${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-    [[ -f "${IOS_KEY_FILE}" && -r "${IOS_KEY_FILE}" ]] || { echo 'Error: API key file ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8 not found (or set ASC_KEY_PATH).' >&2; exit 1; }
+    [[ -f "${IOS_KEY_FILE}" && -r "${IOS_KEY_FILE}" ]] || { echo 'Error: API key file ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8 not found (or set ASC_KEY_PATH).' >&2; return 1; }
   fi
+}
+if [[ "${IOS_UPLOAD}" == "true" ]]; then
+  [[ -n "${ASC_KEY_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_KEY_ID (tool/release.env or the environment)." >&2; exit 1; }
+  [[ -n "${ASC_ISSUER_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_ISSUER_ID (tool/release.env or the environment)." >&2; exit 1; }
+  resolve_asc_key_file || exit 1
 fi
 
 # ─── Validate tools ─────────────────────────────────────────────────────────
@@ -358,6 +363,24 @@ fi
 if [[ "${MACOS_NOTARIZE}" == "true" && "${BUILD_MACOS}" != "true" ]]; then
   echo "Error: --macos-notarize requires macOS to be included in --targets."
   exit 1
+fi
+
+# Notary auth for --macos-notarize: the App Store Connect API key when it is
+# complete, else the notarytool keychain profile. Only the key's path reaches argv.
+NOTARY_EQ_ARGS=() NOTARY_DMG_ARGS=()
+if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
+  : "${MACOS_SIGN_IDENTITY:?--macos-notarize needs MACOS_SIGN_IDENTITY (a Developer ID Application identity)}"
+  # --ios-upload may have resolved the key already, before the cd to the repo root.
+  if [[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]] && { [[ -n "${IOS_KEY_FILE:-}" ]] || resolve_asc_key_file 2>/dev/null; }; then
+    NOTARY_EQ_ARGS=("--notary-key=${IOS_KEY_FILE}" "--notary-key-id=${ASC_KEY_ID}" "--notary-issuer=${ASC_ISSUER_ID}")
+    NOTARY_DMG_ARGS=(--notary-key "${IOS_KEY_FILE}" --notary-key-id "${ASC_KEY_ID}" --notary-issuer "${ASC_ISSUER_ID}")
+  elif [[ -n "${MACOS_NOTARY_PROFILE:-}" ]]; then
+    NOTARY_EQ_ARGS=("--notary-profile=${MACOS_NOTARY_PROFILE}")
+    NOTARY_DMG_ARGS=(--notary-profile "${MACOS_NOTARY_PROFILE}")
+  else
+    echo "Error: --macos-notarize needs ASC_KEY_ID, ASC_ISSUER_ID and the API key file (ASC_KEY_PATH or ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8), or MACOS_NOTARY_PROFILE." >&2
+    exit 1
+  fi
 fi
 
 if [[ "${BUILD_LINUX}" == "true" && "${UNAME}" != "Linux" ]]; then
@@ -802,7 +825,9 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
     echo "==> Notarizing macOS app..."
     "${SCRIPT_DIR}/macos_notarize.sh" \
       --app="${MACOS_APP_PATH}" \
-      --output="${MACOS_ASSET}"
+      --output="${MACOS_ASSET}" \
+      --identity="${MACOS_SIGN_IDENTITY:-}" \
+      "${NOTARY_EQ_ARGS[@]}"
   else
     ditto -c -k --keepParent "${MACOS_APP_PATH}" "${MACOS_ASSET}"
   fi
@@ -820,7 +845,7 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
     remove_release_asset "${MACOS_DMG}"
     dmg_args=(--app "${MACOS_APP_PATH}" --output "${MACOS_DMG}")
     if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
-      dmg_args+=(--sign-identity "${MACOS_SIGN_IDENTITY}" --notary-profile "${MACOS_NOTARY_PROFILE}")
+      dmg_args+=(--sign-identity "${MACOS_SIGN_IDENTITY:-}" "${NOTARY_DMG_ARGS[@]}")
     fi
     echo "==> Building macOS DMG..."
     "${SCRIPT_DIR}/macos_dmg.sh" "${dmg_args[@]}"

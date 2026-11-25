@@ -51,7 +51,7 @@ class DesktopShortcutBinding {
 
   @visibleForTesting
   ShortcutActivator toActivator(TargetPlatform platform) {
-    final isApple = platform == TargetPlatform.macOS;
+    final isApple = usesAppleShortcutKeys(platform);
     return SingleActivator(
       key,
       meta: isApple && primaryModifier,
@@ -63,7 +63,7 @@ class DesktopShortcutBinding {
   }
 
   String formatLabel(TargetPlatform platform) {
-    final isApple = platform == TargetPlatform.macOS;
+    final isApple = usesAppleShortcutKeys(platform);
     final parts = <String>[
       if (primaryModifier)
         if (isApple) 'Cmd' else 'Ctrl',
@@ -147,19 +147,19 @@ defaultDesktopShortcutBindings() {
           key: LogicalKeyboardKey.digit3,
         ),
         // Cmd+, is the macOS Settings convention.
-        DesktopCommandAction.goSettings: _isApplePlatform
+        DesktopCommandAction.goSettings: _usesAppleShortcutKeys
             ? const DesktopShortcutBinding(key: LogicalKeyboardKey.comma)
             : const DesktopShortcutBinding(key: LogicalKeyboardKey.digit4),
         // Browser conventions: Cmd+[ / Cmd+] on macOS, Alt+Left / Alt+Right
         // elsewhere.
-        DesktopCommandAction.navigateBack: _isApplePlatform
+        DesktopCommandAction.navigateBack: _usesAppleShortcutKeys
             ? const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketLeft)
             : const DesktopShortcutBinding(
                 key: LogicalKeyboardKey.arrowLeft,
                 primaryModifier: false,
                 alt: true,
               ),
-        DesktopCommandAction.navigateForward: _isApplePlatform
+        DesktopCommandAction.navigateForward: _usesAppleShortcutKeys
             ? const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketRight)
             : const DesktopShortcutBinding(
                 key: LogicalKeyboardKey.arrowRight,
@@ -179,7 +179,7 @@ defaultDesktopShortcutBindings() {
           key: LogicalKeyboardKey.period,
         ),
         // Cmd+, belongs to Settings on macOS, so speed-down is Cmd+- there.
-        DesktopCommandAction.speedDown: _isApplePlatform
+        DesktopCommandAction.speedDown: _usesAppleShortcutKeys
             ? const DesktopShortcutBinding(key: LogicalKeyboardKey.minus)
             : const DesktopShortcutBinding(key: LogicalKeyboardKey.comma),
         DesktopCommandAction.speedReset: const DesktopShortcutBinding(
@@ -190,7 +190,13 @@ defaultDesktopShortcutBindings() {
   );
 }
 
-bool get _isApplePlatform => defaultTargetPlatform == TargetPlatform.macOS;
+/// macOS and iPadOS use Cmd (Meta) and Option; other platforms Ctrl and Alt.
+bool usesAppleShortcutKeys(TargetPlatform platform) =>
+    platform == TargetPlatform.macOS || platform == TargetPlatform.iOS;
+
+bool get _usesAppleShortcutKeys => usesAppleShortcutKeys(defaultTargetPlatform);
+
+bool get _isMacOS => defaultTargetPlatform == TargetPlatform.macOS;
 
 const String _desktopShortcutStorageKey = 'navis.desktop.shortcut_bindings.v1';
 const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage(
@@ -207,8 +213,7 @@ const Duration _desktopShortcutStorageDeadline = Duration(seconds: 5);
 /// On macOS a shortcut keychain call can wait on a system prompt, so it joins
 /// the credential stores' serialized native queue (never overlapping theirs)
 /// with the same deadline. Other platforms call the plugin directly.
-Future<T> _shortcutStorageCall<T>(Future<T> Function() operation) =>
-    _isApplePlatform
+Future<T> _shortcutStorageCall<T>(Future<T> Function() operation) => _isMacOS
     ? runSerializedSecureStorage(operation, _desktopShortcutStorageDeadline)
     : operation();
 
@@ -516,7 +521,7 @@ bool _isBindingMatchForEvent(
     return false;
   }
   final keyboard = HardwareKeyboard.instance;
-  final isApple = platform == TargetPlatform.macOS;
+  final isApple = usesAppleShortcutKeys(platform);
   final primaryModifierPressed = isApple
       ? keyboard.isMetaPressed
       : keyboard.isControlPressed;

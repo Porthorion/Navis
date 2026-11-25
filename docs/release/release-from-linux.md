@@ -201,7 +201,8 @@ Run the macOS release directly on the Mac:
 ```bash
 # On the Mac
 export MACOS_SIGN_IDENTITY="Developer ID Application: ..."
-export MACOS_NOTARY_PROFILE="navis-notary-profile"
+# Notarizes with the App Store Connect API key (ASC_KEY_ID, ASC_ISSUER_ID, .p8); set
+# MACOS_NOTARY_PROFILE="navis-notary-profile" only as a fallback.
 ./tool/release.sh v0.9.0 --targets=macos --macos-notarize
 ```
 

@@ -167,6 +167,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? libraryPageOrder,
     String desktopNavbarStyle = 'compact',
     bool desktopNavbarAutohide = false,
+    bool tabletMediumSidebar = false,
     bool albumQueueEnabled = true,
     bool matchFlowEnabled = false,
     bool likedQueueEnabled = true,
@@ -228,6 +229,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         libraryPageOrder: Value(libraryPageOrder),
         desktopNavbarStyle: Value(desktopNavbarStyle),
         desktopNavbarAutohide: Value(desktopNavbarAutohide),
+        tabletMediumSidebar: Value(tabletMediumSidebar),
         albumQueueEnabled: Value(albumQueueEnabled),
         matchFlowEnabled: Value(matchFlowEnabled),
         likedQueueEnabled: Value(likedQueueEnabled),
@@ -1075,6 +1077,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Future<void> updateDesktopNavbarAutohide(bool enabled) {
     return _writeSettings(
       AppSettingsTableCompanion(desktopNavbarAutohide: Value(enabled)),
+    );
+  }
+
+  /// Targeted update for the sidebar on medium (600-839 wide) tablet windows.
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> updateTabletMediumSidebar(bool enabled) {
+    return _writeSettings(
+      AppSettingsTableCompanion(tabletMediumSidebar: Value(enabled)),
     );
   }
 

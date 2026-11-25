@@ -255,6 +255,89 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('116 to 117 medium sidebar', () {
+    Future<File> fixture116() async {
+      final directory = await Directory.systemTemp.createTemp('navis_v117_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
+      await seed.customStatement(
+        "UPDATE app_settings SET desktop_navbar_style = 'icons', "
+        'desktop_navbar_autohide = 1',
+      );
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN tablet_medium_sidebar',
+        );
+        raw.execute('PRAGMA user_version = 116');
+        expect(
+          raw
+              .select('PRAGMA table_info(app_settings)')
+              .where((row) => row['name'] == 'tablet_medium_sidebar'),
+          isEmpty,
+        );
+      } finally {
+        raw.close();
+      }
+      return file;
+    }
+
+    test('fresh profiles keep the bottom tabs', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      expect(
+        (await db.appSettingsDao.getSettings())!.tabletMediumSidebar,
+        isFalse,
+      );
+    });
+
+    test(
+      'adds the column off, keeps other values, and re-runs safely',
+      () async {
+        final file = await fixture116();
+        final db = createTestDatabase(file: file);
+        addTearDown(db.close);
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.tabletMediumSidebar, isFalse);
+        expect(settings.hapticsEnabled, isFalse);
+        expect(settings.desktopNavbarStyle, 'icons');
+        expect(settings.desktopNavbarAutohide, isTrue);
+        final raw = await db
+            .customSelect('SELECT tablet_medium_sidebar AS v FROM app_settings')
+            .getSingle();
+        expect(raw.read<int>('v'), 0);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+        // Idempotent: running the step again keeps a later user change.
+        await db.appSettingsDao.updateTabletMediumSidebar(true);
+        await db.from116To117(Migrator(db));
+        final again = (await db.appSettingsDao.getSettings())!;
+        expect(again.tabletMediumSidebar, isTrue);
+        expect(again.desktopNavbarStyle, 'icons');
+      },
+    );
+
+    test('reopening an upgraded database is a no-op', () async {
+      final file = await fixture116();
+      final first = createTestDatabase(file: file);
+      await first.appSettingsDao.updateTabletMediumSidebar(true);
+      await first.close();
+      final second = createTestDatabase(file: file);
+      addTearDown(second.close);
+      expect(
+        (await second.appSettingsDao.getSettings())!.tabletMediumSidebar,
+        isTrue,
+      );
+    });
+  }, skip: !sqliteAvailable);
+
   group('115 to 116 queue and menus', () {
     const newColumns = <String>[
       'customize_queue_menus',
@@ -577,8 +660,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 116', () {
-      expect(NavisDatabase.currentSchemaVersion, 116);
+    test('the schema version is 117', () {
+      expect(NavisDatabase.currentSchemaVersion, 117);
     });
 
     test('fresh profiles seed the Auto defaults', () async {

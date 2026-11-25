@@ -58,6 +58,26 @@ class _QueueOverlayState extends State<_QueueOverlay>
   }
 
   @override
+  void didUpdateWidget(covariant _QueueOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A layout switch (rotation or pane resize) rebuilds the queue list, so a
+    // reorder or swipe in flight never reports its end; clear the gesture
+    // flags or drag-to-dismiss stays disabled.
+    if (oldWidget.fullscreen != widget.fullscreen ||
+        oldWidget.floatingWindow != widget.floatingWindow) {
+      _queueReorderActive = false;
+      _queueItemSwiping = false;
+      _activePointer = null;
+      if (_draggingSheet) {
+        _draggingSheet = false;
+        if (!_dismissing) {
+          _controller.animateTo(1, curve: Curves.easeOutCubic);
+        }
+      }
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final duration = MotionPolicy.of(context).surface;

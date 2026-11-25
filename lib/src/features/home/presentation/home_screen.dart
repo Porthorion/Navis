@@ -1139,6 +1139,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final compactWideLandscapeMode = resolveAdaptiveContextFor(context)
+        .useCompactWideLandscape;
+    // The pane's width, not the window's: the rail takes part of it. The
+    // Consumer keeps `ref.watch` inside a build of its own, and the Scaffold
+    // stays the page's root so a rebuild never re-lays out the page.
+    return Scaffold(
+      body: SafeArea(
+        left: !compactWideLandscapeMode,
+        right: !compactWideLandscapeMode,
+        child: LayoutBuilder(
+          builder: (context, constraints) => Consumer(
+            builder: (context, ref, _) =>
+                _buildHome(context, ref, constraints.maxWidth),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHome(BuildContext context, WidgetRef ref, double paneWidth) {
     final l10n = AppLocalizations.of(context)!;
     // Home sections only need to know whether sync is running; the logo
     // watches detailed progress itself.
@@ -1162,11 +1182,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final desktopRuntime = adaptiveContext.desktopRuntime;
     final desktopMode = adaptiveContext.useDesktopShell;
+    // Touch panes from 720 up (rail panes, bottom-nav tablets, foldables) use
+    // the compact-wide header, flat sections and two-column song lists.
+    // Scaled by text size like album and playlist detail, so the screens
+    // switch together.
+    final textScale = math.max(
+      1,
+      MediaQuery.textScalerOf(context).scale(14) / 14,
+    );
+    final wideHome =
+        !desktopMode &&
+        !compactWideLandscapeMode &&
+        !adaptiveContext.isPhoneFormFactor &&
+        ContentLayout.wideDetail(paneWidth / textScale);
     // Home's sections add NavisSpace.md themselves; desktop tops it up to the
     // page gutter.
     final compactHorizontalInset = _homePageInset(
       desktopMode: desktopMode,
       compactWideLandscapeMode: compactWideLandscapeMode,
+      wideHome: wideHome,
     );
     // Phones get a tighter header (about 40 px less than tablets) so more of
     // You Might Like is visible; tablet portrait keeps the roomier one.
@@ -1213,7 +1247,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ],
             ),
           )
-        else if (compactWideLandscapeMode)
+        else if (compactWideLandscapeMode || wideHome)
           Padding(
             key: const ValueKey<String>('homeCompactWideHeaderRow'),
             padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
@@ -1244,8 +1278,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ],
             ),
-          )
-        else ...<Widget>[
+          ),
+        // ponytail: two spacers keep the child count of the centred header
+        // below, so a resize across 720 doesn't shift every section's element
+        // (carousel page, shelf offsets); give the list keyed children if the
+        // header ever changes shape again.
+        if (wideHome) ...const <Widget>[SizedBox.shrink(), SizedBox.shrink()],
+        if (!desktopMode && !compactWideLandscapeMode && !wideHome) ...<Widget>[
           Padding(
             key: const ValueKey<String>('homeCenteredLogoHeader'),
             padding: phoneHeader
@@ -1288,6 +1327,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode,
               adaptiveLayoutClass,
               compactWideLandscapeMode,
+              wideHome,
             ),
       ],
     );
@@ -1317,13 +1357,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: scrollObservedContent,
           );
 
-    return Scaffold(
-      body: SafeArea(
-        left: !compactWideLandscapeMode,
-        right: !compactWideLandscapeMode,
-        child: refreshContainer,
-      ),
-    );
+    return refreshContainer;
   }
 
   List<Widget> _buildSection(
@@ -1338,6 +1372,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     bool desktopMode,
     AdaptiveLayoutClass adaptiveLayoutClass,
     bool compactWideLandscapeMode,
+    bool wideHome,
   ) {
     // Quick actions are shown inline in the desktop brand row instead.
     if (desktopMode && sectionId == HomeSectionIds.quickActions) {
@@ -1360,6 +1395,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
             data: ref
@@ -1403,6 +1439,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopRuntime && !compactWideLandscapeMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.compactList,
             density: sectionDensity,
             data: ref.watch(
@@ -1417,6 +1454,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
+              wideHome: wideHome,
               onTap: (song) {
                 final allLikedSongs = ref.read(likedPlaybackSongsProvider);
                 final eligibleSongs = downloadedOnly
@@ -1464,6 +1502,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
+              wideHome: wideHome,
               template: _HomeSectionTemplate.carousel,
               density: sectionDensity,
               data: ref
@@ -1504,6 +1543,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
             data: ref
@@ -1547,6 +1587,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
+              wideHome: wideHome,
               template: _HomeSectionTemplate.carousel,
               density: sectionDensity,
               data: ref
@@ -1587,6 +1628,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
             data: ref
@@ -1641,6 +1683,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
             data: AsyncData(releases),
@@ -1666,6 +1709,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
             data: ref
@@ -1713,6 +1757,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
             loadingBuilder: () => _RandomHeroShimmer(
@@ -1769,6 +1814,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopRuntime && !compactWideLandscapeMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.compactList,
             density: sectionDensity,
             data: ref
@@ -1791,6 +1837,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
+              wideHome: wideHome,
               onTap: (song) => playTableSongInCollection(
                 ref,
                 songs,
@@ -1815,6 +1862,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopRuntime && !compactWideLandscapeMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.compactList,
             density: sectionDensity,
             data: ref
@@ -1837,6 +1885,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
+              wideHome: wideHome,
               onTap: (song) => playTableSongInCollection(
                 ref,
                 songs,
@@ -1876,6 +1925,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
+            wideHome: wideHome,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
             data: frequentAsync,
@@ -2090,7 +2140,8 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
 double _homePageInset({
   required bool desktopMode,
   required bool compactWideLandscapeMode,
-}) => compactWideLandscapeMode
+  bool wideHome = false,
+}) => compactWideLandscapeMode || wideHome
     ? 10.0
     : (desktopMode ? NavisSpace.xl - NavisSpace.md : 0.0);
 
@@ -2106,6 +2157,7 @@ class _HomeSection<T> extends StatelessWidget {
     this.desktopMode = false,
     this.adaptiveLayoutClass = AdaptiveLayoutClass.phoneCompact,
     this.compactWideLandscapeMode = false,
+    this.wideHome = false,
     this.template = _HomeSectionTemplate.carousel,
     this.density = _HomeSectionDensity.comfortable,
     this.loadingBuilder,
@@ -2132,6 +2184,9 @@ class _HomeSection<T> extends StatelessWidget {
   final bool desktopMode;
   final AdaptiveLayoutClass adaptiveLayoutClass;
   final bool compactWideLandscapeMode;
+
+  /// A wide touch pane: no card, shelves run to the page inset.
+  final bool wideHome;
   final _HomeSectionTemplate template;
   final _HomeSectionDensity density;
   final Widget Function()? loadingBuilder;
@@ -2225,9 +2280,10 @@ class _HomeSection<T> extends StatelessWidget {
     final pageInset = _homePageInset(
       desktopMode: desktopMode,
       compactWideLandscapeMode: compactWideLandscapeMode,
+      wideHome: wideHome,
     );
 
-    if (tabletMode && !compactWideLandscapeMode && !desktopMode) {
+    if (tabletMode && !compactWideLandscapeMode && !wideHome && !desktopMode) {
       final cardColor =
           Theme.of(context).cardTheme.color ??
           Theme.of(context).colorScheme.surfaceContainerLow;
@@ -4496,6 +4552,7 @@ class _SongListSection extends ConsumerWidget {
     this.desktopMode = false,
     this.adaptiveLayoutClass = AdaptiveLayoutClass.phoneCompact,
     this.compactWideLandscapeMode = false,
+    this.wideHome = false,
   });
 
   static const double _compactWideTwoColumnMinWidth = 900;
@@ -4507,6 +4564,9 @@ class _SongListSection extends ConsumerWidget {
   final bool desktopMode;
   final AdaptiveLayoutClass adaptiveLayoutClass;
   final bool compactWideLandscapeMode;
+
+  /// A wide touch pane: two columns at any width the pane allows.
+  final bool wideHome;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -4541,8 +4601,9 @@ class _SongListSection extends ConsumerWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final useTwoColumns =
-              compactWideLandscapeMode &&
-              constraints.maxWidth >= _compactWideTwoColumnMinWidth;
+              wideHome ||
+              (compactWideLandscapeMode &&
+                  constraints.maxWidth >= _compactWideTwoColumnMinWidth);
           if (useTwoColumns) {
             return Column(
               key: const ValueKey<String>('homeSongListTwoColumnGrid'),

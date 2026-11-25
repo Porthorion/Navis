@@ -239,7 +239,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 116;
+  static const currentSchemaVersion = 117;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -416,6 +416,7 @@ class NavisDatabase extends _$NavisDatabase {
       from113To114,
       from114To115,
       from115To116,
+      from116To117,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -543,6 +544,17 @@ class NavisDatabase extends _$NavisDatabase {
       'UPDATE app_settings SET customize_queue_menus = 1 '
       "WHERE sheet_style = 'album_color'",
     );
+  }
+
+  /// Sidebar on medium screens (`app_settings.tablet_medium_sidebar`). Adds
+  /// one column that defaults off, so every profile keeps the bottom tabs.
+  Future<void> from116To117(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'tablet_medium_sidebar')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.tabletMediumSidebar,
+      );
+    }
   }
 
   /// Search ranking by Deezer popularity (`deezer.searchRanking`) is on by

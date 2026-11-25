@@ -212,6 +212,20 @@ class AdaptiveInputPolicyScope extends InheritedWidget {
   }
 }
 
+/// Whether a secondary click opens the anchored context menu instead of the
+/// bottom sheet. Falls back to [isDesktopRuntime] outside an
+/// [AdaptiveInputPolicyScope] (isolated leaf components).
+bool secondaryClickMenusEnabled(BuildContext context) =>
+    AdaptiveInputPolicyScope.maybeOf(context)?.enableSecondaryClickMenus ??
+    isDesktopRuntime;
+
+/// Whether hover-only affordances (such as the album card Play button) show.
+/// Same scope fallback as [secondaryClickMenusEnabled].
+bool desktopPointerAffordancesEnabled(BuildContext context) =>
+    AdaptiveInputPolicyScope.maybeOf(context)
+        ?.enableDesktopPointerAffordances ??
+    isDesktopRuntime;
+
 /// Exposes the currently visible desktop navigation treatment to a workspace.
 ///
 /// Desktop pages use this to avoid duplicating orientation chrome when the
@@ -325,6 +339,7 @@ AdaptiveShellMode resolveAdaptiveShellMode({
   required bool desktopRuntime,
   required Size viewportSize,
   required EdgeInsets safePadding,
+  bool mediumSidebar = false,
 }) {
   if (desktopRuntime) {
     return AdaptiveShellMode.standardRail;
@@ -341,7 +356,8 @@ AdaptiveShellMode resolveAdaptiveShellMode({
     // Tablets are at least 600dp tall, which always fits the standard rail,
     // whatever their aspect ratio: a 16:9 tablet is still a tablet. Only a
     // short viewport (below) gets the compact icon rail.
-    return adaptiveClass == AdaptiveLayoutClass.tabletExpanded
+    // The "sidebar on medium screens" setting extends that rail to 600-839.
+    return adaptiveClass == AdaptiveLayoutClass.tabletExpanded || mediumSidebar
         ? AdaptiveShellMode.standardRail
         : AdaptiveShellMode.phoneBottomNav;
   }
@@ -391,6 +407,7 @@ AdaptiveContext resolveAdaptiveContext({
   required bool desktopRuntime,
   required Size viewportSize,
   required EdgeInsets safePadding,
+  bool mediumSidebar = false,
 }) {
   final width = viewportSize.width;
   final shortestSide = viewportSize.shortestSide;
@@ -403,6 +420,7 @@ AdaptiveContext resolveAdaptiveContext({
     desktopRuntime: desktopRuntime,
     viewportSize: viewportSize,
     safePadding: safePadding,
+    mediumSidebar: mediumSidebar,
   );
   final desktopLayoutClass = resolveDesktopLayoutClass(width);
   final isPhoneFormFactor =
@@ -439,12 +457,17 @@ AdaptiveInputPolicy resolveAdaptiveInputPolicy({
   final enableDeterministicTraversal =
       adaptiveContext.desktopRuntime ||
       adaptiveContext.adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+  // A size check, not a platform check: a trackpad or mouse can be attached to
+  // any tablet, and hover cannot fire without a pointer.
+  final pointerAffordances =
+      adaptiveContext.desktopRuntime || !adaptiveContext.isPhoneFormFactor;
   return AdaptiveInputPolicy(
     enableDeterministicTraversal: enableDeterministicTraversal,
     enableEscapeOverlayPriority: enableDeterministicTraversal,
-    enableDesktopPointerAffordances: adaptiveContext.desktopRuntime,
-    enableSecondaryClickMenus: adaptiveContext.desktopRuntime,
-    enableDesktopCommandShortcuts: adaptiveContext.desktopRuntime,
+    enableDesktopPointerAffordances: pointerAffordances,
+    enableSecondaryClickMenus: pointerAffordances,
+    enableDesktopCommandShortcuts:
+        adaptiveContext.desktopRuntime || !adaptiveContext.isPhoneFormFactor,
   );
 }
 
@@ -481,6 +504,9 @@ AdaptiveContext resolveAdaptiveContextFor(
       desktopRuntimeOverride ??
       (isDesktopRuntime &&
           mediaQuery.size.width >= _legacyUnscopedDesktopShellWidth);
+  // Leaves mediumSidebar at its default: outside the shell scope the shell
+  // mode can say bottom tabs where the shell shows the rail. Read the shell
+  // mode from the scope, never from this fallback.
   return resolveAdaptiveContext(
     desktopRuntime: desktopRuntime,
     viewportSize: mediaQuery.size,

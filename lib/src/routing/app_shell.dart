@@ -122,7 +122,6 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  static const double _sideRailWidth = 270;
   static const int _kQueueCoverArtPrefetchAheadCount = 6;
   bool _playbackRecoverySheetOpen = false;
   static const int _kQueueCoverArtPrefetchSizePx = kCoverArtStandardSize;
@@ -1051,6 +1050,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       desktopRuntime: desktopRuntime,
       viewportSize: mediaSize,
       safePadding: mediaViewPadding,
+      mediumSidebar: ref.watch(tabletMediumSidebarProvider),
     );
     final adaptiveHeightClass = resolveDesktopHeightClass(mediaSize.height);
     final adaptiveInputPolicy = resolveAdaptiveInputPolicy(
@@ -1103,10 +1103,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (useDesktopShell && !isMiniPlayerMode) {
       _lastDesktopViewSize = mediaSize;
     }
-    final configuredNavbarStyle = desktopRuntime
+    // The tablet rail (touch, standard rail, not a phone form factor) follows
+    // the same navbar style setting as the desktop sidebar. Phone-form-factor
+    // and compact-wide rails keep their own fixed widths and tiles.
+    final useTabletRailStyle = useStandardRailNavigation && !isPhoneFormFactor;
+    final configuredNavbarStyle = (desktopRuntime || useTabletRailStyle)
         ? ref.watch(desktopNavbarStyleProvider)
         : 'comfortable';
-    final navbarStyle = desktopLayoutClass == DesktopLayoutClass.compactDesktop
+    // The narrow-window icons rail is a desktop-window rule: a tablet in Split
+    // View below 1008 px keeps the style the user chose.
+    final navbarStyle =
+        desktopRuntime &&
+            desktopLayoutClass == DesktopLayoutClass.compactDesktop
         ? 'icons'
         : configuredNavbarStyle;
     final navbarAutohide =
@@ -1154,7 +1162,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               .clamp(57.2, 75.4)
         : (isPhoneFormFactor
               ? (screenWidth * 0.22).clamp(188.0, 236.0)
-              : (screenWidth * 0.25).clamp(_sideRailWidth, 360.0));
+              : desktopSidebarWidth);
     final showLibrarySubNavigation =
         (useDesktopShell || useStandardRailNavigation) &&
         screenWidth >= kAdaptiveExpandedWidth &&
@@ -1582,9 +1590,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     // counts as hidden so the Library page does not reflow on hover.
     final sidebarAllowsLibrarySections =
         showLibrarySubNavigation &&
-        (useDesktopShell
-            ? navbarStyle != 'icons' && !navbarAutohide
-            : !useCompactWideLandscape);
+        navbarStyle != 'icons' &&
+        (useDesktopShell ? !navbarAutohide : !useCompactWideLandscape);
     final hasBottomNav = !useDesktopShell && !useRailNavigation;
     final shell = LibrarySectionNavigationScope(
       sidebarAllowsSections: sidebarAllowsLibrarySections,
@@ -1680,7 +1687,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 onLibrarySectionSelected:
                                     onLibrarySectionSelected,
                                 allowScrollableRail: allowScrollableRail,
-                                onOpenPlayer: _toggleDesktopLyricsOverlay,
                                 onToggleQueue: () {
                                   if (showQueueOverlay) {
                                     _hideQueueWithAnimation();
@@ -1799,6 +1805,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         ),
                                         child: SideInsetsConsumed(
                                           child: SizedBox(
+                                            key: const ValueKey<String>(
+                                              'touchRailRegion',
+                                            ),
                                             width: sideRailWidth,
                                             child: Padding(
                                               padding: useCompactWideLandscape
@@ -1808,6 +1817,20 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                       0,
                                                       8,
                                                     )
+                                                  : useTabletRailStyle
+                                                  ? (navbarStyle == 'icons'
+                                                        ? const EdgeInsets.fromLTRB(
+                                                            4,
+                                                            12,
+                                                            4,
+                                                            12,
+                                                          )
+                                                        : const EdgeInsets.fromLTRB(
+                                                            14,
+                                                            12,
+                                                            14,
+                                                            12,
+                                                          ))
                                                   : const EdgeInsets.fromLTRB(
                                                       18,
                                                       14,
@@ -1824,6 +1847,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                           onDestinationSelected,
                                                     )
                                                   : _RailSidebar(
+                                                      navbarStyle: navbarStyle,
+                                                      largeTiles:
+                                                          useTabletRailStyle &&
+                                                          navbarStyle ==
+                                                              'comfortable',
                                                       selectedIndex:
                                                           selectedIndex,
                                                       onDestinationSelected:
@@ -1842,32 +1870,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                           onLibrarySectionSelected,
                                                       allowScrollableRail:
                                                           allowScrollableRail,
-                                                      showPlayer: showPlayer,
-                                                      playback: playback,
-                                                      songTitle: songTitle,
-                                                      songArtist: songArtist,
-                                                      artistId: artistId,
-                                                      albumId: albumId,
-                                                      coverArtId: coverArtId,
-                                                      coverArtUrl: coverArtUrl,
-                                                      isExternalSource:
-                                                          isExternalSource,
-                                                      isRadio:
-                                                          playback.isRadioMode,
-                                                      radioArtUrl: playback
-                                                          .radioStation
-                                                          ?.nowPlayingArtUrl,
-                                                      onOpenPlayer: () {
-                                                        NavService.dismissKeyboard(
-                                                          context,
-                                                        );
-                                                        ref
-                                                            .read(
-                                                              playerOverlayStackProvider
-                                                                  .notifier,
-                                                            )
-                                                            .expand();
-                                                      },
                                                     ),
                                             ),
                                           ),
@@ -2088,8 +2090,88 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                     ? Stack(
                                                         children: <Widget>[
                                                           Positioned.fill(
-                                                            child:
-                                                                navigationShell,
+                                                            // The player lives in a strip pinned under the page,
+                                                            // not in the rail. Now Playing slides over both, so the
+                                                            // page keeps its 64 px reserve while it is open.
+                                                            child: Column(
+                                                              children: <Widget>[
+                                                                Expanded(
+                                                                  child:
+                                                                      navigationShell,
+                                                                ),
+                                                                AnimatedOpacity(
+                                                                  key:
+                                                                      const ValueKey<
+                                                                        String
+                                                                      >(
+                                                                        'railBottomMiniPlayerFade',
+                                                                      ),
+                                                                  duration:
+                                                                      const Duration(
+                                                                        milliseconds:
+                                                                            200,
+                                                                      ),
+                                                                  opacity:
+                                                                      isExpanded
+                                                                      ? 0
+                                                                      : 1,
+                                                                  child: IgnorePointer(
+                                                                    ignoring:
+                                                                        isExpanded,
+                                                                    child: ExcludeFocus(
+                                                                      excluding:
+                                                                          isExpanded,
+                                                                      child: ExcludeSemantics(
+                                                                        excluding:
+                                                                            isExpanded,
+                                                                        // Grows past 64 px at large text scale (the page above is
+                                                                        // Expanded, so it shrinks).
+                                                                        child: ConstrainedBox(
+                                                                          key:
+                                                                              const ValueKey<
+                                                                                String
+                                                                              >(
+                                                                                'railBottomMiniPlayer',
+                                                                              ),
+                                                                          constraints: const BoxConstraints(
+                                                                            minHeight:
+                                                                                kMiniPlayerHeight,
+                                                                          ),
+                                                                          child: _MiniPlayerStrip(
+                                                                            playback:
+                                                                                playback,
+                                                                            flattenWideStyle:
+                                                                                true,
+                                                                            showSkipButtons:
+                                                                                true,
+                                                                            songTitle:
+                                                                                songTitle,
+                                                                            songArtist:
+                                                                                songArtist,
+                                                                            coverArtId:
+                                                                                coverArtId,
+                                                                            coverArtUrl:
+                                                                                coverArtUrl,
+                                                                            isExternalSource:
+                                                                                isExternalSource,
+                                                                            isRadio:
+                                                                                playback.isRadioMode,
+                                                                            radioArtUrl:
+                                                                                playback.radioStation?.nowPlayingArtUrl,
+                                                                            onTap: () {
+                                                                              NavService.dismissKeyboard(
+                                                                                context,
+                                                                              );
+                                                                              ref.read(playerOverlayStackProvider.notifier).expand();
+                                                                            },
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
                                                           ),
                                                           Positioned.fill(
                                                             // The collapsed player
@@ -2118,30 +2200,34 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                           0,
                                                                           1,
                                                                         ),
-                                                                  // The fullscreen queue covers Now Playing; stop its
-                                                                  // endless title marquee and other tickers meanwhile.
-                                                                  child: TickerMode(
-                                                                    enabled:
-                                                                        !showQueueOverlay,
-                                                                    child: NowPlayingScreen(
-                                                                      wideEmbeddedMode:
-                                                                          true,
-                                                                      compactWideLandscapeMode:
-                                                                          useCompactWideLandscape,
-                                                                      sheetProgress:
-                                                                          _playerSheetProgress,
-                                                                      onShowQueue: () =>
-                                                                          NavService.showQueue(
-                                                                            context,
-                                                                            ref,
-                                                                          ),
-                                                                      onCollapse: () => ref
-                                                                          .read(
-                                                                            playerOverlayStackProvider.notifier,
-                                                                          )
-                                                                          .collapse(),
-                                                                      onBackInterceptorChanged:
-                                                                          _setNowPlayingBackInterceptor,
+                                                                  // Stop its tickers (title marquee) while collapsed off
+                                                                  // screen or covered by the fullscreen queue; the floating
+                                                                  // panel (pane >= 600) leaves it visible.
+                                                                  child: LayoutBuilder(
+                                                                    builder: (context, pane) => TickerMode(
+                                                                      enabled:
+                                                                          isExpanded &&
+                                                                          (!showQueueOverlay ||
+                                                                              pane.maxWidth >= kAdaptiveMediumWidth),
+                                                                      child: NowPlayingScreen(
+                                                                        wideEmbeddedMode:
+                                                                            true,
+                                                                        compactWideLandscapeMode:
+                                                                            useCompactWideLandscape,
+                                                                        sheetProgress:
+                                                                            _playerSheetProgress,
+                                                                        onShowQueue: () => NavService.showQueue(
+                                                                          context,
+                                                                          ref,
+                                                                        ),
+                                                                        onCollapse: () => ref
+                                                                            .read(
+                                                                              playerOverlayStackProvider.notifier,
+                                                                            )
+                                                                            .collapse(),
+                                                                        onBackInterceptorChanged:
+                                                                            _setNowPlayingBackInterceptor,
+                                                                      ),
                                                                     ),
                                                                   ),
                                                                 ),
@@ -2150,13 +2236,24 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                           ),
                                                           if (showQueueOverlay)
                                                             Positioned.fill(
-                                                              child: _QueueOverlay(
-                                                                key:
-                                                                    _queueOverlayKey,
-                                                                fullscreen:
-                                                                    true,
-                                                                onDismiss:
-                                                                    _handleQueueOverlayDismissed,
+                                                              // A wide pane gets the desktop floating panel; the
+                                                              // strip is faded under Now Playing, so no inset.
+                                                              child: LayoutBuilder(
+                                                                builder: (context, pane) {
+                                                                  final floating =
+                                                                      pane.maxWidth >=
+                                                                      kAdaptiveMediumWidth;
+                                                                  return _QueueOverlay(
+                                                                    key:
+                                                                        _queueOverlayKey,
+                                                                    fullscreen:
+                                                                        !floating,
+                                                                    floatingWindow:
+                                                                        floating,
+                                                                    onDismiss:
+                                                                        _handleQueueOverlayDismissed,
+                                                                  );
+                                                                },
                                                               ),
                                                             ),
                                                         ],

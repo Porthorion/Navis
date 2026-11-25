@@ -114,33 +114,49 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
                   : l10n.downloadsSearchHint,
               onSearchChanged: (value) => setState(() => _query = value),
               onClearSearch: _clearSearch,
-            )
-          else if (showSearch)
-            ListFilterField(
-              controller: _searchController,
-              hint: _tabController.index == 0
-                  ? l10n.downloadsQueueSearchHint
-                  : l10n.downloadsSearchHint,
-              onChanged: (value) => setState(() => _query = value),
-              onClear: _clearSearch,
             ),
-          ref
-              .watch(downloadFolderProblemProvider)
-              .when(
-                data: (problem) => problem == null
-                    ? const SizedBox.shrink()
-                    : _DownloadFolderHoldBanner(problem: problem),
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: <Widget>[
-                _QueueTab(query: _query, onClearQuery: _clearSearch),
-                _DownloadedTab(query: _query, onClearQuery: _clearSearch),
-                const _DownloadSettingsTab(),
-              ],
+            // Same 1040 cap as the settings pages (interface_settings_screen).
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: Column(
+                  children: <Widget>[
+                    if (!desktopMode && showSearch)
+                      ListFilterField(
+                        controller: _searchController,
+                        hint: _tabController.index == 0
+                            ? l10n.downloadsQueueSearchHint
+                            : l10n.downloadsSearchHint,
+                        onChanged: (value) => setState(() => _query = value),
+                        onClear: _clearSearch,
+                      ),
+                    ref
+                        .watch(downloadFolderProblemProvider)
+                        .when(
+                          data: (problem) => problem == null
+                              ? const SizedBox.shrink()
+                              : _DownloadFolderHoldBanner(problem: problem),
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
+                        ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: <Widget>[
+                          _QueueTab(query: _query, onClearQuery: _clearSearch),
+                          _DownloadedTab(
+                            query: _query,
+                            onClearQuery: _clearSearch,
+                          ),
+                          const _DownloadSettingsTab(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -891,7 +907,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
       onTap: () => _playTrack(ref),
       onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
-    final interactiveTile = !isDesktopRuntime
+    final interactiveTile = !secondaryClickMenusEnabled(context)
         ? tile
         : GestureDetector(
             behavior: HitTestBehavior.translucent,
@@ -927,7 +943,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
     AppLocalizations l10n, {
     Offset? anchor,
   }) async {
-    if (anchor != null && isDesktopRuntime) {
+    if (anchor != null && secondaryClickMenusEnabled(context)) {
       final action = await showDesktopContextMenu<_DownloadedTrackAction>(
         context: context,
         anchor: anchor,
@@ -948,10 +964,12 @@ class _DownloadedTrackTile extends ConsumerWidget {
             value: _DownloadedTrackAction.addToPlaylist,
             child: Text(l10n.librarySongMenuAddToPlaylist),
           ),
-          PopupMenuItem<_DownloadedTrackAction>(
-            value: _DownloadedTrackAction.openFolder,
-            child: Text(l10n.downloadsOpenFolderAction),
-          ),
+          // iOS cannot open a folder in Files from the app.
+          if (!Platform.isIOS)
+            PopupMenuItem<_DownloadedTrackAction>(
+              value: _DownloadedTrackAction.openFolder,
+              child: Text(l10n.downloadsOpenFolderAction),
+            ),
           const PopupMenuDivider(),
           PopupMenuItem<_DownloadedTrackAction>(
             value: _DownloadedTrackAction.removeDownload,

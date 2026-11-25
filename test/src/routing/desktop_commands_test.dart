@@ -165,6 +165,63 @@ void main() {
     );
   });
 
+  test('iPadOS uses Cmd like macOS; Android uses Ctrl', () {
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    const binding = DesktopShortcutBinding(key: LogicalKeyboardKey.keyF);
+    expect(
+      binding.toActivator(TargetPlatform.iOS).toString(),
+      contains('Meta + Key F'),
+    );
+    expect(binding.formatLabel(TargetPlatform.iOS), 'Cmd+F');
+    expect(
+      binding.toActivator(TargetPlatform.android).toString(),
+      contains('Control + Key F'),
+    );
+    expect(binding.formatLabel(TargetPlatform.android), 'Ctrl+F');
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    final ios = defaultDesktopShortcutBindings();
+    expect(
+      ios[DesktopCommandAction.goSettings],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.comma),
+    );
+    expect(
+      ios[DesktopCommandAction.navigateBack],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketLeft),
+    );
+    expect(
+      ios[DesktopCommandAction.speedDown],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.minus),
+    );
+    // No default claims an iPadOS system chord (Cmd+Tab/H/Space).
+    final systemKeys = {
+      LogicalKeyboardKey.tab,
+      LogicalKeyboardKey.keyH,
+      LogicalKeyboardKey.space,
+    };
+    expect(
+      ios.values.whereType<DesktopShortcutBinding>().where(
+        (b) => systemKeys.contains(b.key),
+      ),
+      isEmpty,
+    );
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final android = defaultDesktopShortcutBindings();
+    expect(
+      android[DesktopCommandAction.goSettings],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.digit4),
+    );
+    expect(
+      android[DesktopCommandAction.navigateBack],
+      const DesktopShortcutBinding(
+        key: LogicalKeyboardKey.arrowLeft,
+        primaryModifier: false,
+        alt: true,
+      ),
+    );
+  });
+
   test('shortcut labels use platform-specific modifier names', () {
     const binding = DesktopShortcutBinding(
       key: LogicalKeyboardKey.keyJ,
@@ -261,6 +318,43 @@ void main() {
     expect(matched, DesktopCommandAction.speedReset);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
   });
+
+  testWidgets('iPadOS matches Cmd chords and ignores system chords', (
+    tester,
+  ) async {
+    final matches = <LogicalKeyboardKey, DesktopCommandAction?>{};
+    bool handler(KeyEvent event) {
+      if (event is KeyDownEvent &&
+          event.logicalKey != LogicalKeyboardKey.metaLeft) {
+        matches[event.logicalKey] = matchAnyDesktopCommandForKeyEvent(
+          event,
+          TargetPlatform.iOS,
+          enableShortcuts: true,
+          enableEscapeOverlay: false,
+        );
+      }
+      return false;
+    }
+
+    HardwareKeyboard.instance.addHandler(handler);
+    addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyH);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    expect(
+      matches[LogicalKeyboardKey.keyF],
+      DesktopCommandAction.openQuickSearch,
+    );
+    expect(matches[LogicalKeyboardKey.comma], DesktopCommandAction.goSettings);
+    expect(matches[LogicalKeyboardKey.tab], isNull);
+    expect(matches[LogicalKeyboardKey.keyH], isNull);
+    expect(matches[LogicalKeyboardKey.space], isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets('transport commands are blocked when typing in a text field', (
     tester,

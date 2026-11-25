@@ -610,6 +610,21 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    test('tablet medium sidebar maps, saves and watches', () async {
+      expect((await repository.getSettings()).tabletMediumSidebar, isFalse);
+      await database.appSettingsDao.updateTabletMediumSidebar(true);
+      expect((await repository.getSettings()).tabletMediumSidebar, isTrue);
+      expect(
+        (await repository.watchSettings().first).tabletMediumSidebar,
+        isTrue,
+      );
+      final saved = (await repository.getSettings()).copyWith(
+        tabletMediumSidebar: false,
+      );
+      await repository.saveSettings(saved);
+      expect((await repository.getSettings()).tabletMediumSidebar, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('stale onboarding drafts preserve setup release markers', () async {
       final stale = await repository.getSettings();
       await repository.updateSetupHighlightsSeenRelease('1.5.0');

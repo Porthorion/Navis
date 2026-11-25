@@ -3481,6 +3481,15 @@ final desktopNavbarAutohideProvider = Provider<bool>((ref) {
   return settings.desktopNavbarAutohide;
 });
 
+/// Whether a touch tablet window 600-839 wide uses the sidebar rail instead
+/// of the bottom tabs. Default off.
+final tabletMediumSidebarProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.tabletMediumSidebar;
+});
+
 /// Ordered list of home section IDs (null = default order).
 final homeSectionOrderProvider = Provider<List<String>?>((ref) {
   final settings =

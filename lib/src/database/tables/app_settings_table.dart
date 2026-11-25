@@ -378,6 +378,11 @@ class AppSettingsTable extends Table {
   BoolColumn get desktopNavbarAutohide =>
       boolean().withDefault(const Constant(false))();
 
+  /// When true, a touch tablet whose window is 600-839 wide uses the sidebar
+  /// rail instead of the phone bottom tabs. Default false.
+  BoolColumn get tabletMediumSidebar =>
+      boolean().withDefault(const Constant(false))();
+
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track. Default false.
   BoolColumn get albumQueueEnabled =>

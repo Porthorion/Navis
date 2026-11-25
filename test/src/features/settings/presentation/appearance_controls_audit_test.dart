@@ -54,6 +54,7 @@ class _Control {
     this.fields = const <String>{},
     this.seed,
     this.desktop = false,
+    this.tablet = false,
     this.page = _Page.themes,
   });
 
@@ -62,6 +63,9 @@ class _Control {
   final Set<String> columns;
   final Set<String> fields;
   final bool desktop;
+
+  /// A touch tablet viewport (not a phone form factor, not desktop).
+  final bool tablet;
   final _Page page;
 
   /// Settings in place before the Look is saved, so the control has something
@@ -150,11 +154,16 @@ void main() {
     required Future<void> Function(NavisDatabase db)? seed,
     required bool desktop,
     required _Page page,
+    bool tablet = false,
   }) async {
     // Tall enough that every control is built without scrolling.
     setAdaptiveTestViewport(
       tester,
-      desktop ? const Size(1280, 7000) : const Size(390, 7000),
+      desktop
+          ? const Size(1280, 7000)
+          : tablet
+          ? const Size(834, 7000)
+          : const Size(390, 7000),
     );
     database = createTestDatabase();
     await tester.runAsync(() async {
@@ -1065,6 +1074,17 @@ void main() {
       },
       effect: (c) => expect(c.read(desktopNavbarAutohideProvider), isTrue),
     ),
+    _Control(
+      'Tablet navigation: Sidebar on medium screens',
+      page: _Page.interface,
+      tablet: true,
+      writers: {'updateTabletMediumSidebar'},
+      columns: {'tabletMediumSidebar'},
+      act: (t) async {
+        await tap(t, find.text(l10n.tabletMediumSidebarLabel));
+      },
+      effect: (c) => expect(c.read(tabletMediumSidebarProvider), isTrue),
+    ),
   ];
 
   // ── the audit ────────────────────────────────────────────────────────────
@@ -1083,6 +1103,7 @@ void main() {
           tester,
           seed: control.seed,
           desktop: control.desktop,
+          tablet: control.tablet,
           page: control.page,
         );
         await saveBaseLook(tester);
