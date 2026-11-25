@@ -504,6 +504,9 @@ AdaptiveContext resolveAdaptiveContextFor(
       desktopRuntimeOverride ??
       (isDesktopRuntime &&
           mediaQuery.size.width >= _legacyUnscopedDesktopShellWidth);
+  // Leaves mediumSidebar at its default: outside the shell scope the shell
+  // mode can say bottom tabs where the shell shows the rail. Read the shell
+  // mode from the scope, never from this fallback.
   return resolveAdaptiveContext(
     desktopRuntime: desktopRuntime,
     viewportSize: mediaQuery.size,
