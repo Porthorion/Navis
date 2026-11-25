@@ -509,23 +509,30 @@ cover like album cards (F17, owner taste). Follow-ups #805 and #811 are PRs #815
 and #816.
 
 P3 runtime pass (2026-11-25, release/1.5 at 40ba16899, iPad Pro 13" landscape and
-iPad mini): P3.3 passes. With the setting on, mini portrait (756) shows the rail (~220) and
-strip with a 536 pane, Now Playing and the queue stay in the pane, the rail survives rotating
-across 840, the Large style leaves a 496 pane, and accessibility-large text renders; no overflow
-in logs or screenshots. P3.1 long-press opens the sheet (640-wide M3 sheet on the 13") and Space
-in the Search field types. Secondary click, hover and hardware keys are not testable on the
-simulator (agent-device 0.21.41: secondary click macOS/Linux only, hover web only, no key
-presses); they stay with widget tests plus an owner check on a real iPad with keyboard and
-trackpad. Reported glitches were checked against screenshots and are not bugs (album-card
-marquee mid-scroll, scrollable Library tabs, a Settings page not scrolled to its end); the
-tall gap above the transport in the 536 portrait Now Playing is the existing layout (1.6).
-Evidence: `build/ipad-ux/p3-pass/NOTES.md` (local).
+iPad mini): P3.3 passes as run. The mini's 756 portrait stood in for 834 Split View (the
+simulator tool cannot make Split View): with the setting on it shows the rail (~220) and strip
+with a 536 pane, Now Playing and the queue stay in the pane, the rail survives rotating across
+840 (landscape 1158), and the Large style leaves a 496 pane. Not run: Large at a 600 window
+(~340 pane) and text scale exactly 2.0 (iOS accessibility-large was used and renders). No
+overflow in logs or screenshots. P3.1: long-press opens the sheet (640-wide M3 sheet on the
+13"). P3.2: Space in the Search field types and does not toggle playback. Secondary click, hover
+and hardware keys are not testable on the simulator (agent-device 0.21.41: secondary click
+macOS/Linux only, hover web only, no key presses); they stay with widget tests plus an owner
+check on a real iPad with keyboard and trackpad. The runner reported glitches; the coordinator
+judged them from the screenshots and code as not bugs: titles cut on both sides on album cards
+are the card marquee mid-scroll (`album_card.dart` uses `marquee_text.dart`), the Library tab
+row switches to scrollable tabs when labels do not fit (`library_screen.dart` `useScrollableTabs`;
+the runner did not try scrolling it), and the last Settings row under the strip was a page not
+scrolled to its end. The tall gap above the transport in the 536 portrait Now Playing is the
+existing layout (1.6). Evidence: `build/ipad-ux/p3-pass/NOTES.md` (local).
 
 macOS check from dev ca3688e8c (2026-11-25, after forward #822, profile clone signed in as
-`navis`): Downloads capped at 1040 and centred at 1440 and full pane at 900, the Playlists cover
-grid, lyrics at most ~600 wide and centred, and the floating queue panel (560 at 1440, 414 at
-900) all pass at 1440x900 (clamped to the 1440x791 work area) and 900x700; no overflow lines.
-Evidence: `build/ipad-ux/macos-1440/NOTES.md` (local).
+`navis`) at 1440x900 (clamped to the 1440x791 work area) and 900x700: Downloads capped at 1040
+and centred at 1440 and full pane at 900, lyrics at most ~600 wide and centred, and the floating
+queue panel (560 at 1440, 414 at 900) pass. The Playlists cover grid and headers pass, column
+count unclear (the account has one item per section). No overflow stripes in the captures; the
+runner reported no overflow lines in its log grep. Evidence: `build/ipad-ux/macos-1440/NOTES.md`
+(local).
 
 P3 runtime pass checklist (as planned): iPad 13" with a hardware keyboard and
 trackpad where the simulator allows. P3.1: secondary click on a song row, album card,
