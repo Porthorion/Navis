@@ -3124,6 +3124,13 @@ The policy is resolved from `AdaptiveContext` by `AdaptiveShell` and propagated 
 `AdaptiveInputPolicyScope`. This allows feature screens to adapt their affordances
 independently of layout decisions.
 
+`enableDesktopPointerAffordances` and `enableSecondaryClickMenus` are on for the desktop
+runtime and every non-phone size (shortest side >= 600), so a trackpad or mouse on a tablet
+gets the anchored context menu on secondary click and the hover Play button on album cards.
+Long-press keeps the bottom sheet. Menus and cards read them through
+`secondaryClickMenusEnabled(context)` / `desktopPointerAffordancesEnabled(context)`, which fall
+back to `isDesktopRuntime` outside an `AdaptiveInputPolicyScope`.
+
 ### Collection pane geometry
 
 `routing/content_layout.dart` owns pure geometry for bounded album/artist grids,

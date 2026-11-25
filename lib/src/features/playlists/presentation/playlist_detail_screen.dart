@@ -741,7 +741,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen>
   }
 
   void _showSongActions(SongsTableData song, int songIndex, {Offset? anchor}) {
-    if (anchor != null && isDesktopRuntime) {
+    if (anchor != null && secondaryClickMenusEnabled(context)) {
       unawaited(_showDesktopSongActions(song, songIndex, anchor: anchor));
       return;
     }

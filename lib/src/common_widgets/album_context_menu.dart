@@ -76,7 +76,7 @@ Future<void> showAlbumContextMenu(
   String albumId, {
   Offset? anchor,
 }) async {
-  if (anchor != null && isDesktopRuntime) {
+  if (anchor != null && secondaryClickMenusEnabled(context)) {
     await _showDesktopAlbumContextMenu(context, ref, albumId, anchor: anchor);
     return;
   }

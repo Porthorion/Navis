@@ -907,7 +907,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
       onTap: () => _playTrack(ref),
       onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
-    final interactiveTile = !isDesktopRuntime
+    final interactiveTile = !secondaryClickMenusEnabled(context)
         ? tile
         : GestureDetector(
             behavior: HitTestBehavior.translucent,
@@ -943,7 +943,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
     AppLocalizations l10n, {
     Offset? anchor,
   }) async {
-    if (anchor != null && isDesktopRuntime) {
+    if (anchor != null && secondaryClickMenusEnabled(context)) {
       final action = await showDesktopContextMenu<_DownloadedTrackAction>(
         context: context,
         anchor: anchor,
@@ -964,10 +964,12 @@ class _DownloadedTrackTile extends ConsumerWidget {
             value: _DownloadedTrackAction.addToPlaylist,
             child: Text(l10n.librarySongMenuAddToPlaylist),
           ),
-          PopupMenuItem<_DownloadedTrackAction>(
-            value: _DownloadedTrackAction.openFolder,
-            child: Text(l10n.downloadsOpenFolderAction),
-          ),
+          // iOS cannot open a folder in Files from the app.
+          if (!Platform.isIOS)
+            PopupMenuItem<_DownloadedTrackAction>(
+              value: _DownloadedTrackAction.openFolder,
+              child: Text(l10n.downloadsOpenFolderAction),
+            ),
           const PopupMenuDivider(),
           PopupMenuItem<_DownloadedTrackAction>(
             value: _DownloadedTrackAction.removeDownload,

@@ -26,7 +26,7 @@ Future<void> showArtistContextMenu(
   String artistId, {
   Offset? anchor,
 }) async {
-  if (anchor != null && isDesktopRuntime) {
+  if (anchor != null && secondaryClickMenusEnabled(context)) {
     await _showDesktopArtistContextMenu(context, ref, artistId, anchor: anchor);
     return;
   }

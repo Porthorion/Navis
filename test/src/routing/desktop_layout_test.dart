@@ -436,7 +436,8 @@ void main() {
     expect(tabletPolicy.enableDeterministicTraversal, isTrue);
     expect(tabletPolicy.enableEscapeOverlayPriority, isTrue);
     expect(tabletPolicy.enableDesktopCommandShortcuts, isTrue);
-    expect(tabletPolicy.enableDesktopPointerAffordances, isFalse);
+    expect(tabletPolicy.enableDesktopPointerAffordances, isTrue);
+    expect(tabletPolicy.enableSecondaryClickMenus, isTrue);
 
     final desktopContext = resolveAdaptiveContext(
       desktopRuntime: true,
@@ -470,6 +471,39 @@ void main() {
     expect(shortcutsAt(const Size(844, 390)), isFalse);
     expect(shortcutsAt(const Size(1366, 900), desktop: true), isTrue);
     expect(shortcutsAt(const Size(500, 400), desktop: true), isTrue);
+  });
+
+  test('pointer affordances follow size: tablets on, phones off', () {
+    AdaptiveInputPolicy policyFor(Size size, {bool desktop = false}) =>
+        resolveAdaptiveInputPolicy(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: desktop,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+          ),
+        );
+
+    for (final size in const <Size>[
+      Size(1032, 1376),
+      Size(834, 1194),
+      Size(1376, 1032),
+    ]) {
+      final policy = policyFor(size);
+      expect(policy.enableSecondaryClickMenus, isTrue, reason: '$size');
+      expect(policy.enableDesktopPointerAffordances, isTrue, reason: '$size');
+    }
+    // Phones, including wide phone landscape, stay touch-only.
+    for (final size in const <Size>[Size(390, 844), Size(844, 390)]) {
+      final policy = policyFor(size);
+      expect(policy.enableSecondaryClickMenus, isFalse, reason: '$size');
+      expect(policy.enableDesktopPointerAffordances, isFalse, reason: '$size');
+    }
+    // Desktop is unchanged at any window size.
+    for (final size in const <Size>[Size(1366, 900), Size(500, 400)]) {
+      final policy = policyFor(size, desktop: true);
+      expect(policy.enableSecondaryClickMenus, isTrue, reason: '$size');
+      expect(policy.enableDesktopPointerAffordances, isTrue, reason: '$size');
+    }
   });
 
   test('desktop runtime never uses compact-wide phone fallback behavior', () {

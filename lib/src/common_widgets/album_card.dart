@@ -196,7 +196,9 @@ class AlbumCardContent extends ConsumerWidget {
                         coverArtRevision: coverArtRevision ?? 0,
                         coverReady: coverReady,
                       ),
-                      if (onTap != null && albumId != null && isDesktopRuntime)
+                      if (onTap != null &&
+                          albumId != null &&
+                          desktopPointerAffordancesEnabled(context))
                         Positioned.fill(
                           child: _AlbumCardHoverPlay(albumId: albumId!),
                         ),
