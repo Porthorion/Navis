@@ -3116,7 +3116,9 @@ triggering rebuilds on unrelated dimension changes.
 - `enableEscapeOverlayPriority`
 - `enableDesktopPointerAffordances`
 - `enableSecondaryClickMenus`
-- `enableDesktopCommandShortcuts`
+- `enableDesktopCommandShortcuts` (desktop runtime, or any non-phone form factor:
+  tablets with a hardware keyboard get the desktop commands; iPadOS uses Cmd like
+  macOS, Android uses Ctrl)
 
 The policy is resolved from `AdaptiveContext` by `AdaptiveShell` and propagated via
 `AdaptiveInputPolicyScope`. This allows feature screens to adapt their affordances

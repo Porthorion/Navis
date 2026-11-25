@@ -670,7 +670,7 @@ class DiagnosticsPresentationController {
     DesktopShortcutBinding binding,
     TargetPlatform platform,
   ) async {
-    final isApple = platform == TargetPlatform.macOS;
+    final isApple = usesAppleShortcutKeys(platform);
     final modifiers = <(PhysicalKeyboardKey, LogicalKeyboardKey)>[
       if (binding.primaryModifier && isApple)
         (PhysicalKeyboardKey.metaLeft, LogicalKeyboardKey.metaLeft)

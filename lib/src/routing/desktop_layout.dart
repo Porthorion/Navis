@@ -444,7 +444,8 @@ AdaptiveInputPolicy resolveAdaptiveInputPolicy({
     enableEscapeOverlayPriority: enableDeterministicTraversal,
     enableDesktopPointerAffordances: adaptiveContext.desktopRuntime,
     enableSecondaryClickMenus: adaptiveContext.desktopRuntime,
-    enableDesktopCommandShortcuts: adaptiveContext.desktopRuntime,
+    enableDesktopCommandShortcuts:
+        adaptiveContext.desktopRuntime || !adaptiveContext.isPhoneFormFactor,
   );
 }
 
