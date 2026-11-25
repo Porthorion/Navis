@@ -435,7 +435,7 @@ void main() {
     );
     expect(tabletPolicy.enableDeterministicTraversal, isTrue);
     expect(tabletPolicy.enableEscapeOverlayPriority, isTrue);
-    expect(tabletPolicy.enableDesktopCommandShortcuts, isFalse);
+    expect(tabletPolicy.enableDesktopCommandShortcuts, isTrue);
     expect(tabletPolicy.enableDesktopPointerAffordances, isFalse);
 
     final desktopContext = resolveAdaptiveContext(
@@ -451,6 +451,25 @@ void main() {
     expect(desktopPolicy.enableDesktopCommandShortcuts, isTrue);
     expect(desktopPolicy.enableDesktopPointerAffordances, isTrue);
     expect(desktopPolicy.enableSecondaryClickMenus, isTrue);
+  });
+
+  test('command shortcuts follow form factor: tablets on, phones off', () {
+    bool shortcutsAt(Size size, {bool desktop = false}) =>
+        resolveAdaptiveInputPolicy(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: desktop,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+          ),
+        ).enableDesktopCommandShortcuts;
+
+    expect(shortcutsAt(const Size(1032, 1376)), isTrue);
+    expect(shortcutsAt(const Size(834, 1194)), isTrue);
+    expect(shortcutsAt(const Size(1376, 1032)), isTrue);
+    expect(shortcutsAt(const Size(390, 844)), isFalse);
+    expect(shortcutsAt(const Size(844, 390)), isFalse);
+    expect(shortcutsAt(const Size(1366, 900), desktop: true), isTrue);
+    expect(shortcutsAt(const Size(500, 400), desktop: true), isTrue);
   });
 
   test('desktop runtime never uses compact-wide phone fallback behavior', () {

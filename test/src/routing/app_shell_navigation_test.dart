@@ -7008,6 +7008,107 @@ void main() {
     expect(container.read(queueOverlayVisibleProvider), isTrue);
   });
 
+  group('tablet hardware keyboard shortcuts (P3.2)', () {
+    Future<(_TransportRecordingHandler, ProviderContainer)> pumpTablet(
+      WidgetTester tester,
+      Size size,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final handler = _TransportRecordingHandler();
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          audioHandlerProvider.overrideWithValue(handler),
+          radioStationsProvider.overrideWith((ref) async => []),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return (handler, container);
+    }
+
+    Future<void> chord(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Space and arrows drive playback on a tablet', (tester) async {
+      final (handler, _) = await pumpTablet(tester, const Size(1032, 1376));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+
+      expect(handler.calls, <String>['pause', 'next', 'previous']);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Cmd+F opens quick search on a tablet', (tester) async {
+      await pumpTablet(tester, const Size(1032, 1376));
+
+      await chord(tester, LogicalKeyboardKey.keyF);
+
+      expect(
+        find.byKey(const ValueKey('desktopQuickSearchField')),
+        findsOneWidget,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Cmd+3 opens Search in the bottom-nav tablet shell', (
+      tester,
+    ) async {
+      await pumpTablet(tester, const Size(700, 1000));
+
+      await chord(tester, LogicalKeyboardKey.digit3);
+
+      expect(find.byType(SearchScreen), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Space in the Search field does not toggle playback', (
+      tester,
+    ) async {
+      final (handler, _) = await pumpTablet(tester, const Size(1032, 1376));
+      await chord(tester, LogicalKeyboardKey.digit3);
+      final field = find.descendant(
+        of: find.byType(SearchScreen),
+        matching: find.byType(TextField),
+      );
+      await tester.tap(field.first);
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+
+      expect(handler.calls, isEmpty);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Space does nothing on a phone', (tester) async {
+      final (handler, _) = await pumpTablet(tester, const Size(390, 844));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await chord(tester, LogicalKeyboardKey.keyF);
+
+      expect(handler.calls, isEmpty);
+      expect(
+        find.byKey(const ValueKey('desktopQuickSearchField')),
+        findsNothing,
+      );
+    });
+  });
+
   group('bare transport keys yield to focused controls', () {
     Future<(_TransportRecordingHandler, BuildContext)> pumpShell(
       WidgetTester tester,
