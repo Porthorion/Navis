@@ -549,7 +549,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       onLongPress: desktopMode || !canEdit
           ? null
           : () => _showPlaylistActions(context, playlist),
-      onSecondaryTapDown: desktopMode && canEdit
+      onSecondaryTapDown: secondaryClickMenusEnabled(context) && canEdit
           ? (details) => _showPlaylistActions(
               context,
               playlist,
@@ -711,7 +711,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
             : () => _showPlaylistActions(context, playlist),
       ),
     );
-    if (!desktopMode || !canEdit) return tile;
+    if (!secondaryClickMenusEnabled(context) || !canEdit) return tile;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onSecondaryTapDown: (details) => _showPlaylistActions(

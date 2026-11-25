@@ -363,12 +363,12 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
     WidgetRef ref,
     InternetRadioStation station, {
     required bool isLocal,
-    required Offset anchor,
+    Offset? anchor,
   }) async {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
     final _StationAction? action;
-    if (isDesktopRuntime) {
+    if (anchor != null && secondaryClickMenusEnabled(context)) {
       action = await showDesktopContextMenu<_StationAction>(
         context: context,
         anchor: anchor,
@@ -442,7 +442,7 @@ class _RadioStationCard extends StatelessWidget {
 
   /// Opens Edit/Delete at the given global position; null when the user may
   /// not change this station.
-  final void Function(Offset anchor)? onActions;
+  final void Function(Offset? anchor)? onActions;
 
   @override
   Widget build(BuildContext context) {
@@ -464,7 +464,12 @@ class _RadioStationCard extends StatelessWidget {
                 ? null
                 : () {
                     final box = context.findRenderObject()! as RenderBox;
-                    onActions!(box.localToGlobal(box.size.center(Offset.zero)));
+                    // Long-press is touch: only desktop anchors a popup to it.
+                    onActions!(
+                      isDesktopRuntime
+                          ? box.localToGlobal(box.size.center(Offset.zero))
+                          : null,
+                    );
                   },
           ),
           onSecondaryTapDown: onActions == null
