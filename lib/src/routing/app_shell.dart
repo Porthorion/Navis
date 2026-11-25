@@ -1050,6 +1050,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       desktopRuntime: desktopRuntime,
       viewportSize: mediaSize,
       safePadding: mediaViewPadding,
+      mediumSidebar: ref.watch(tabletMediumSidebarProvider),
     );
     final adaptiveHeightClass = resolveDesktopHeightClass(mediaSize.height);
     final adaptiveInputPolicy = resolveAdaptiveInputPolicy(

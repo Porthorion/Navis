@@ -1140,6 +1140,11 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 117 (`from116To117`, guarded by `_columnExists`) adds
+    `app_settings.tablet_medium_sidebar` (boolean, default false): Settings >
+    Interface > Sidebar > Sidebar on medium screens
+    (`updateTabletMediumSidebar`, `tabletMediumSidebarProvider`). It is not an
+    appearance preset field.
   - Schema 115 (`from114To115`, guarded by `_columnExists`) adds
     `app_settings.keep_title_version_visible` (boolean, default true): Settings >
     Interface > Song Titles > Keep Song Versions Visible
@@ -2909,6 +2914,9 @@ the tracks. Phone and tablet layouts ignore the height band.
   shortcuts (tab switches, search, queue, history) are ignored in Mini Player.
 - **Tablets (shortest side ≥ 600 dp), ≥ 840 dp wide** → standard rail,
   whatever the aspect ratio
+- **Tablets, 600–839 dp wide, with Sidebar on medium screens on** → standard
+  rail (`resolveAdaptiveShellMode(mediumSidebar:)`, read only for non-phone
+  form factors; the setting is off by default, so bottom tabs stay the default)
 - **Phones in landscape, ≥ 840 dp wide** → standard rail when the rail fits the
   height, otherwise the compact icon rail (compact-wide)
 - **Phones in landscape, 600–839 dp wide** → the compact icon rail when the

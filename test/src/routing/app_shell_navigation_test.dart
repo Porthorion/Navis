@@ -65,6 +65,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/navis_theme.dart' show navisFontFamily;
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
@@ -7790,5 +7791,128 @@ void main() {
         });
       }
     }
+  });
+
+  group('sidebar on medium screens (P3.3)', () {
+    const strip = ValueKey<String>('railBottomMiniPlayer');
+    final region = find.byKey(const ValueKey<String>('touchRailRegion'));
+
+    Future<ProviderContainer> pump(
+      WidgetTester tester,
+      Size size, {
+      bool sidebar = true,
+      String? style,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          tabletMediumSidebarProvider.overrideWithValue(sidebar),
+          if (style != null)
+            desktopNavbarStyleProvider.overrideWithValue(style),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets('834x1194 with the setting on: rail and strip, no bottom bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(834, 1194));
+      expect(region, findsOneWidget);
+      expect(tester.getSize(region).width, 220);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byKey(strip), findsOneWidget);
+      final rect = tester.getRect(find.byKey(strip));
+      expect(rect.left, greaterThanOrEqualTo(220));
+      expect(rect.right, 834);
+      expect(rect.bottom, 1194);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the rail follows the navbar style at 700x1000', (
+      tester,
+    ) async {
+      await pump(tester, const Size(700, 1000), style: 'icons');
+      expect(tester.getSize(region).width, 64);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byKey(strip), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('834x1194 with the setting off keeps the bottom bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(834, 1194), sidebar: false);
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('a phone ignores the setting', (tester) async {
+      await pump(tester, const Size(390, 844));
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('resizing to a phone keeps the selected tab and the bar', (
+      tester,
+    ) async {
+      await pump(tester, const Size(834, 1194));
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(region, findsNothing);
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        1,
+      );
+      tester.view.physicalSize = const Size(834, 1194);
+      await tester.pumpAndSettle();
+      expect(region, findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final (size, style) in const <(Size, String?)>[
+      (Size(600, 960), null),
+      (Size(700, 1000), 'comfortable'),
+      (Size(834, 1194), 'icons'),
+    ]) {
+      testWidgets(
+        'Now Playing opens and closes in the pane at $size ($style)',
+        (tester) async {
+          final container = await pump(tester, size, style: style);
+          container.read(playerOverlayStackProvider.notifier).expand();
+          await tester.pumpAndSettle();
+          expect(container.read(playerSheetExpandedProvider), isTrue);
+          expect(tester.takeException(), isNull);
+          container.read(playerOverlayStackProvider.notifier).collapse();
+          await tester.pumpAndSettle();
+          expect(container.read(playerSheetExpandedProvider), isFalse);
+          expect(find.byKey(strip), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    testWidgets('600x960 at 2.0x text does not overflow', (tester) async {
+      // Ahem is wider than Inter; load the real font.
+      final inter = FontLoader(navisFontFamily)
+        ..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'));
+      await inter.load();
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pump(tester, const Size(600, 960));
+      expect(region, findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
   });
 }

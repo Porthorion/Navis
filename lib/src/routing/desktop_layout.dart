@@ -339,6 +339,7 @@ AdaptiveShellMode resolveAdaptiveShellMode({
   required bool desktopRuntime,
   required Size viewportSize,
   required EdgeInsets safePadding,
+  bool mediumSidebar = false,
 }) {
   if (desktopRuntime) {
     return AdaptiveShellMode.standardRail;
@@ -355,7 +356,8 @@ AdaptiveShellMode resolveAdaptiveShellMode({
     // Tablets are at least 600dp tall, which always fits the standard rail,
     // whatever their aspect ratio: a 16:9 tablet is still a tablet. Only a
     // short viewport (below) gets the compact icon rail.
-    return adaptiveClass == AdaptiveLayoutClass.tabletExpanded
+    // The "sidebar on medium screens" setting extends that rail to 600-839.
+    return adaptiveClass == AdaptiveLayoutClass.tabletExpanded || mediumSidebar
         ? AdaptiveShellMode.standardRail
         : AdaptiveShellMode.phoneBottomNav;
   }
@@ -405,6 +407,7 @@ AdaptiveContext resolveAdaptiveContext({
   required bool desktopRuntime,
   required Size viewportSize,
   required EdgeInsets safePadding,
+  bool mediumSidebar = false,
 }) {
   final width = viewportSize.width;
   final shortestSide = viewportSize.shortestSide;
@@ -417,6 +420,7 @@ AdaptiveContext resolveAdaptiveContext({
     desktopRuntime: desktopRuntime,
     viewportSize: viewportSize,
     safePadding: safePadding,
+    mediumSidebar: mediumSidebar,
   );
   final desktopLayoutClass = resolveDesktopLayoutClass(width);
   final isPhoneFormFactor =
@@ -500,6 +504,9 @@ AdaptiveContext resolveAdaptiveContextFor(
       desktopRuntimeOverride ??
       (isDesktopRuntime &&
           mediaQuery.size.width >= _legacyUnscopedDesktopShellWidth);
+  // Leaves mediumSidebar at its default: outside the shell scope the shell
+  // mode can say bottom tabs where the shell shows the rail. Read the shell
+  // mode from the scope, never from this fallback.
   return resolveAdaptiveContext(
     desktopRuntime: desktopRuntime,
     viewportSize: mediaQuery.size,

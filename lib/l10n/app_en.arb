@@ -2384,6 +2384,8 @@
   "desktopNavbarStyleIcons": "Icons",
   "desktopNavbarAutohideLabel": "Collapse Sidebar",
   "desktopNavbarAutohideSub": "When inactive, the sidebar collapses to icons. Hover it to expand.",
+  "tabletMediumSidebarLabel": "Sidebar on medium screens",
+  "tabletMediumSidebarSub": "Use the sidebar instead of bottom tabs when the window is 600 to 839 points wide",
   "desktopNavbarLockTooltip": "Keep Sidebar Expanded",
   "desktopNavbarUnlockTooltip": "Collapse Sidebar When Inactive",
   "homeSectionRecentlyLikedAlbums": "Recently Liked Albums",

@@ -1947,6 +1947,20 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _tabletMediumSidebarMeta =
+      const VerificationMeta('tabletMediumSidebar');
+  @override
+  late final GeneratedColumn<bool> tabletMediumSidebar = GeneratedColumn<bool>(
+    'tablet_medium_sidebar',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tablet_medium_sidebar" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _albumQueueEnabledMeta = const VerificationMeta(
     'albumQueueEnabled',
   );
@@ -2318,6 +2332,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     libraryPageOrder,
     desktopNavbarStyle,
     desktopNavbarAutohide,
+    tabletMediumSidebar,
     albumQueueEnabled,
     matchFlowEnabled,
     likedQueueEnabled,
@@ -3287,6 +3302,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('tablet_medium_sidebar')) {
+      context.handle(
+        _tabletMediumSidebarMeta,
+        tabletMediumSidebar.isAcceptableOrUnknown(
+          data['tablet_medium_sidebar']!,
+          _tabletMediumSidebarMeta,
+        ),
+      );
+    }
     if (data.containsKey('album_queue_enabled')) {
       context.handle(
         _albumQueueEnabledMeta,
@@ -3903,6 +3927,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}desktop_navbar_autohide'],
       )!,
+      tabletMediumSidebar: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tablet_medium_sidebar'],
+      )!,
       albumQueueEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}album_queue_enabled'],
@@ -4279,6 +4307,10 @@ class AppSettingsTableData extends DataClass
   /// When true on desktop, the navigation sidebar hides automatically. Default false.
   final bool desktopNavbarAutohide;
 
+  /// When true, a touch tablet whose window is 600-839 wide uses the sidebar
+  /// rail instead of the phone bottom tabs. Default false.
+  final bool tabletMediumSidebar;
+
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track. Default false.
   final bool albumQueueEnabled;
@@ -4462,6 +4494,7 @@ class AppSettingsTableData extends DataClass
     this.libraryPageOrder,
     required this.desktopNavbarStyle,
     required this.desktopNavbarAutohide,
+    required this.tabletMediumSidebar,
     required this.albumQueueEnabled,
     required this.matchFlowEnabled,
     required this.likedQueueEnabled,
@@ -4661,6 +4694,7 @@ class AppSettingsTableData extends DataClass
     }
     map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle);
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
+    map['tablet_medium_sidebar'] = Variable<bool>(tabletMediumSidebar);
     map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled);
     map['match_flow_enabled'] = Variable<bool>(matchFlowEnabled);
     map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled);
@@ -4857,6 +4891,7 @@ class AppSettingsTableData extends DataClass
           : Value(libraryPageOrder),
       desktopNavbarStyle: Value(desktopNavbarStyle),
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
+      tabletMediumSidebar: Value(tabletMediumSidebar),
       albumQueueEnabled: Value(albumQueueEnabled),
       matchFlowEnabled: Value(matchFlowEnabled),
       likedQueueEnabled: Value(likedQueueEnabled),
@@ -5095,6 +5130,9 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: serializer.fromJson<bool>(
         json['desktopNavbarAutohide'],
       ),
+      tabletMediumSidebar: serializer.fromJson<bool>(
+        json['tabletMediumSidebar'],
+      ),
       albumQueueEnabled: serializer.fromJson<bool>(json['albumQueueEnabled']),
       matchFlowEnabled: serializer.fromJson<bool>(json['matchFlowEnabled']),
       likedQueueEnabled: serializer.fromJson<bool>(json['likedQueueEnabled']),
@@ -5296,6 +5334,7 @@ class AppSettingsTableData extends DataClass
       'libraryPageOrder': serializer.toJson<String?>(libraryPageOrder),
       'desktopNavbarStyle': serializer.toJson<String>(desktopNavbarStyle),
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
+      'tabletMediumSidebar': serializer.toJson<bool>(tabletMediumSidebar),
       'albumQueueEnabled': serializer.toJson<bool>(albumQueueEnabled),
       'matchFlowEnabled': serializer.toJson<bool>(matchFlowEnabled),
       'likedQueueEnabled': serializer.toJson<bool>(likedQueueEnabled),
@@ -5439,6 +5478,7 @@ class AppSettingsTableData extends DataClass
     Value<String?> libraryPageOrder = const Value.absent(),
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
+    bool? tabletMediumSidebar,
     bool? albumQueueEnabled,
     bool? matchFlowEnabled,
     bool? likedQueueEnabled,
@@ -5623,6 +5663,7 @@ class AppSettingsTableData extends DataClass
         : this.libraryPageOrder,
     desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
+    tabletMediumSidebar: tabletMediumSidebar ?? this.tabletMediumSidebar,
     albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
     matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
     likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
@@ -5977,6 +6018,9 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: data.desktopNavbarAutohide.present
           ? data.desktopNavbarAutohide.value
           : this.desktopNavbarAutohide,
+      tabletMediumSidebar: data.tabletMediumSidebar.present
+          ? data.tabletMediumSidebar.value
+          : this.tabletMediumSidebar,
       albumQueueEnabled: data.albumQueueEnabled.present
           ? data.albumQueueEnabled.value
           : this.albumQueueEnabled,
@@ -6154,6 +6198,7 @@ class AppSettingsTableData extends DataClass
           ..write('libraryPageOrder: $libraryPageOrder, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
+          ..write('tabletMediumSidebar: $tabletMediumSidebar, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
@@ -6289,6 +6334,7 @@ class AppSettingsTableData extends DataClass
     libraryPageOrder,
     desktopNavbarStyle,
     desktopNavbarAutohide,
+    tabletMediumSidebar,
     albumQueueEnabled,
     matchFlowEnabled,
     likedQueueEnabled,
@@ -6426,6 +6472,7 @@ class AppSettingsTableData extends DataClass
           other.libraryPageOrder == this.libraryPageOrder &&
           other.desktopNavbarStyle == this.desktopNavbarStyle &&
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
+          other.tabletMediumSidebar == this.tabletMediumSidebar &&
           other.albumQueueEnabled == this.albumQueueEnabled &&
           other.matchFlowEnabled == this.matchFlowEnabled &&
           other.likedQueueEnabled == this.likedQueueEnabled &&
@@ -6559,6 +6606,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> libraryPageOrder;
   final Value<String> desktopNavbarStyle;
   final Value<bool> desktopNavbarAutohide;
+  final Value<bool> tabletMediumSidebar;
   final Value<bool> albumQueueEnabled;
   final Value<bool> matchFlowEnabled;
   final Value<bool> likedQueueEnabled;
@@ -6687,6 +6735,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.libraryPageOrder = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
+    this.tabletMediumSidebar = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
@@ -6816,6 +6865,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.libraryPageOrder = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
+    this.tabletMediumSidebar = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
@@ -6945,6 +6995,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? libraryPageOrder,
     Expression<String>? desktopNavbarStyle,
     Expression<bool>? desktopNavbarAutohide,
+    Expression<bool>? tabletMediumSidebar,
     Expression<bool>? albumQueueEnabled,
     Expression<bool>? matchFlowEnabled,
     Expression<bool>? likedQueueEnabled,
@@ -7123,6 +7174,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'desktop_navbar_style': desktopNavbarStyle,
       if (desktopNavbarAutohide != null)
         'desktop_navbar_autohide': desktopNavbarAutohide,
+      if (tabletMediumSidebar != null)
+        'tablet_medium_sidebar': tabletMediumSidebar,
       if (albumQueueEnabled != null) 'album_queue_enabled': albumQueueEnabled,
       if (matchFlowEnabled != null) 'match_flow_enabled': matchFlowEnabled,
       if (likedQueueEnabled != null) 'liked_queue_enabled': likedQueueEnabled,
@@ -7267,6 +7320,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? libraryPageOrder,
     Value<String>? desktopNavbarStyle,
     Value<bool>? desktopNavbarAutohide,
+    Value<bool>? tabletMediumSidebar,
     Value<bool>? albumQueueEnabled,
     Value<bool>? matchFlowEnabled,
     Value<bool>? likedQueueEnabled,
@@ -7422,6 +7476,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
+      tabletMediumSidebar: tabletMediumSidebar ?? this.tabletMediumSidebar,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
@@ -7845,6 +7900,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         desktopNavbarAutohide.value,
       );
     }
+    if (tabletMediumSidebar.present) {
+      map['tablet_medium_sidebar'] = Variable<bool>(tabletMediumSidebar.value);
+    }
     if (albumQueueEnabled.present) {
       map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled.value);
     }
@@ -8050,6 +8108,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('libraryPageOrder: $libraryPageOrder, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
+          ..write('tabletMediumSidebar: $tabletMediumSidebar, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
@@ -37253,6 +37312,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> libraryPageOrder,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
+      Value<bool> tabletMediumSidebar,
       Value<bool> albumQueueEnabled,
       Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
@@ -37383,6 +37443,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> libraryPageOrder,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
+      Value<bool> tabletMediumSidebar,
       Value<bool> albumQueueEnabled,
       Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
@@ -37947,6 +38008,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get desktopNavbarAutohide => $composableBuilder(
     column: $table.desktopNavbarAutohide,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get tabletMediumSidebar => $composableBuilder(
+    column: $table.tabletMediumSidebar,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38597,6 +38663,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get tabletMediumSidebar => $composableBuilder(
+    column: $table.tabletMediumSidebar,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get albumQueueEnabled => $composableBuilder(
     column: $table.albumQueueEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -39234,6 +39305,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get tabletMediumSidebar => $composableBuilder(
+    column: $table.tabletMediumSidebar,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get albumQueueEnabled => $composableBuilder(
     column: $table.albumQueueEnabled,
     builder: (column) => column,
@@ -39480,6 +39556,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> libraryPageOrder = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
+                Value<bool> tabletMediumSidebar = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
@@ -39611,6 +39688,7 @@ class $$AppSettingsTableTableTableManager
                 libraryPageOrder: libraryPageOrder,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
+                tabletMediumSidebar: tabletMediumSidebar,
                 albumQueueEnabled: albumQueueEnabled,
                 matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,
@@ -39744,6 +39822,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> libraryPageOrder = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
+                Value<bool> tabletMediumSidebar = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
@@ -39875,6 +39954,7 @@ class $$AppSettingsTableTableTableManager
                 libraryPageOrder: libraryPageOrder,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
+                tabletMediumSidebar: tabletMediumSidebar,
                 albumQueueEnabled: albumQueueEnabled,
                 matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,

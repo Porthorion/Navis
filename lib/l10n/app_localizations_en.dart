@@ -5037,6 +5037,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'When inactive, the sidebar collapses to icons. Hover it to expand.';
 
   @override
+  String get tabletMediumSidebarLabel => 'Sidebar on medium screens';
+
+  @override
+  String get tabletMediumSidebarSub =>
+      'Use the sidebar instead of bottom tabs when the window is 600 to 839 points wide';
+
+  @override
   String get desktopNavbarLockTooltip => 'Keep Sidebar Expanded';
 
   @override

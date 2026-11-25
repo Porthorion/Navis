@@ -7959,6 +7959,18 @@ abstract class AppLocalizations {
   /// **'When inactive, the sidebar collapses to icons. Hover it to expand.'**
   String get desktopNavbarAutohideSub;
 
+  /// No description provided for @tabletMediumSidebarLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar on medium screens'**
+  String get tabletMediumSidebarLabel;
+
+  /// No description provided for @tabletMediumSidebarSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the sidebar instead of bottom tabs when the window is 600 to 839 points wide'**
+  String get tabletMediumSidebarSub;
+
   /// No description provided for @desktopNavbarLockTooltip.
   ///
   /// In en, this message translates to:
