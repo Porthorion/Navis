@@ -964,10 +964,12 @@ class _DownloadedTrackTile extends ConsumerWidget {
             value: _DownloadedTrackAction.addToPlaylist,
             child: Text(l10n.librarySongMenuAddToPlaylist),
           ),
-          PopupMenuItem<_DownloadedTrackAction>(
-            value: _DownloadedTrackAction.openFolder,
-            child: Text(l10n.downloadsOpenFolderAction),
-          ),
+          // iOS cannot open a folder in Files from the app.
+          if (!Platform.isIOS)
+            PopupMenuItem<_DownloadedTrackAction>(
+              value: _DownloadedTrackAction.openFolder,
+              child: Text(l10n.downloadsOpenFolderAction),
+            ),
           const PopupMenuDivider(),
           PopupMenuItem<_DownloadedTrackAction>(
             value: _DownloadedTrackAction.removeDownload,
