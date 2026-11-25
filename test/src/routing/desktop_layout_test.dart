@@ -386,6 +386,83 @@ void main() {
     );
   });
 
+  group('P3.3 sidebar on medium screens', () {
+    const rail = AdaptiveShellMode.standardRail;
+    const bottomNav = AdaptiveShellMode.phoneBottomNav;
+
+    AdaptiveShellMode resolve(
+      Size size, {
+      required bool mediumSidebar,
+      EdgeInsets padding = EdgeInsets.zero,
+      bool desktop = false,
+    }) => resolveAdaptiveShellMode(
+      desktopRuntime: desktop,
+      viewportSize: size,
+      safePadding: padding,
+      mediumSidebar: mediumSidebar,
+    );
+
+    test(
+      'a 600-839 touch tablet gets the rail only when the setting is on',
+      () {
+        for (final size in const [
+          Size(834, 1194),
+          Size(700, 1000),
+          Size(756, 1158),
+          Size(600, 960),
+        ]) {
+          expect(
+            resolve(size, mediumSidebar: false),
+            bottomNav,
+            reason: '$size',
+          );
+          expect(resolve(size, mediumSidebar: true), rail, reason: '$size');
+        }
+      },
+    );
+
+    test('phones, side strips, wide panes and desktop ignore the setting', () {
+      const strip = EdgeInsets.fromLTRB(0, 0, 84, 34);
+      for (final on in [false, true]) {
+        expect(resolve(const Size(390, 844), mediumSidebar: on), bottomNav);
+        expect(
+          resolve(const Size(844, 390), mediumSidebar: on),
+          resolve(const Size(844, 390), mediumSidebar: false),
+        );
+        expect(
+          resolve(const Size(466, 678), mediumSidebar: on, padding: strip),
+          AdaptiveShellMode.sideStripNav,
+        );
+        expect(resolve(const Size(1032, 1376), mediumSidebar: on), rail);
+        expect(
+          resolve(const Size(700, 1000), mediumSidebar: on, desktop: true),
+          rail,
+        );
+      }
+    });
+
+    test('the context follows the mode and only tablets read the setting', () {
+      AdaptiveContext context(Size size, {bool on = true}) =>
+          resolveAdaptiveContext(
+            desktopRuntime: false,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+            mediumSidebar: on,
+          );
+      final tablet = context(const Size(834, 1194));
+      expect(tablet.useStandardRailNavigation, isTrue);
+      expect(tablet.useRailNavigation, isTrue);
+      expect(tablet.isPhoneFormFactor, isFalse);
+      expect(
+        context(const Size(834, 1194), on: false).useRailNavigation,
+        isFalse,
+      );
+      final phone = context(const Size(390, 844));
+      expect(phone.useRailNavigation, isFalse);
+      expect(phone.isPhoneFormFactor, isTrue);
+    });
+  });
+
   test('desktop runtime always resolves to the desktop workspace', () {
     final context = resolveAdaptiveContext(
       desktopRuntime: true,

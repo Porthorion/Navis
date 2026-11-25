@@ -216,6 +216,63 @@ void main() {
     expect(saved!.desktopNavbarStyle, 'comfortable');
   });
 
+  testWidgets('a tablet can turn on the sidebar for medium screens', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(834, 1194));
+    final container = await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(834, 1194),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.text(l10n.tabletMediumSidebarLabel),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text(l10n.tabletMediumSidebarSub), findsOneWidget);
+    expect(
+      l10n.tabletMediumSidebarSub,
+      'Use the sidebar instead of bottom tabs when the window is 600 to 839 '
+      'points wide',
+    );
+    await tester.tap(find.text(l10n.tabletMediumSidebarLabel));
+    await tester.pump();
+    final saved = await tester.runAsync(
+      () => container.read(navisDatabaseProvider).appSettingsDao.getSettings(),
+    );
+    expect(saved!.tabletMediumSidebar, isTrue);
+  });
+
+  testWidgets('a phone and desktop have no medium-screen sidebar switch', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(412, 915));
+    await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(412, 915),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    expect(find.text(l10n.tabletMediumSidebarLabel), findsNothing);
+
+    tallView(tester);
+    await pumpInterface(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: const Size(800, 3200),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    expect(find.text(l10n.tabletMediumSidebarLabel), findsNothing);
+  });
+
   testWidgets('a phone has no sidebar section', (tester) async {
     setAdaptiveTestViewport(tester, const Size(412, 915));
     await pumpInterface(

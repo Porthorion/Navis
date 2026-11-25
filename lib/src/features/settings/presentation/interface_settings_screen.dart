@@ -302,6 +302,19 @@ class _InterfaceSettingsScreenState
                       );
                     },
                   ),
+                  if (showTabletRailStyle)
+                    NavisSwitchListTile(
+                      key: const ValueKey<String>('tabletMediumSidebarToggle'),
+                      title: Text(l10n.tabletMediumSidebarLabel),
+                      subtitle: Text(l10n.tabletMediumSidebarSub),
+                      value: ref.watch(tabletMediumSidebarProvider),
+                      onChanged: (enabled) async {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateTabletMediumSidebar(
+                          enabled,
+                        );
+                      },
+                    ),
                 ],
               ],
             ),

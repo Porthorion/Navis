@@ -2962,4 +2962,44 @@ void main() {
       expect(tester.getRect(field).top, greaterThanOrEqualTo(0));
     });
   });
+
+  group('P3.3 sidebar on medium screens across a fold', () {
+    final sidebar = <Override>[
+      tabletMediumSidebarProvider.overrideWithValue(true),
+    ];
+    final region = find.byKey(const ValueKey<String>('touchRailRegion'));
+    final compactTile = find.byKey(
+      const ValueKey<String>('compactRailNavTile-0'),
+    );
+
+    _testApp('unfolding past 600 swaps the side strip for the rail and back', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoFolded, extraOverrides: sidebar);
+      // Folded (a phone): the setting is ignored, the pill stays.
+      expect(region, findsNothing);
+      expect(compactTile, findsOne);
+      expect(find.byType(NavigationBar), findsNothing);
+
+      await _resize(tester, _duoPortrait);
+      expect(tester.takeException(), isNull);
+      expect(region, findsOneWidget);
+      expect(compactTile, findsNothing);
+      expect(find.byType(NavigationBar), findsNothing);
+
+      await _resize(tester, _duoFolded);
+      expect(tester.takeException(), isNull);
+      expect(region, findsNothing);
+      expect(compactTile, findsOne);
+    });
+
+    _testApp('unfolding without the setting keeps the bottom bar', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoFolded);
+      await _resize(tester, _duoPortrait);
+      expect(region, findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+  });
 }
