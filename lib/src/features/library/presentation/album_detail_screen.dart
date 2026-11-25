@@ -1844,7 +1844,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
   }
 
   Future<void> _showSongActions(SongsTableData song, {Offset? anchor}) async {
-    if (anchor != null && isDesktopRuntime) {
+    if (anchor != null && secondaryClickMenusEnabled(context)) {
       await _showDesktopSongActions(song, anchor: anchor);
       return;
     }

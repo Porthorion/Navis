@@ -23,7 +23,7 @@ void showSearchSongMenu(
   Offset? anchor,
 }) {
   final l10n = AppLocalizations.of(context)!;
-  if (anchor != null && isDesktopRuntime) {
+  if (anchor != null && secondaryClickMenusEnabled(context)) {
     final result = showDesktopContextMenu<String>(
       context: context,
       anchor: anchor,

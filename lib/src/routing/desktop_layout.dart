@@ -212,6 +212,20 @@ class AdaptiveInputPolicyScope extends InheritedWidget {
   }
 }
 
+/// Whether a secondary click opens the anchored context menu instead of the
+/// bottom sheet. Falls back to [isDesktopRuntime] outside an
+/// [AdaptiveInputPolicyScope] (isolated leaf components).
+bool secondaryClickMenusEnabled(BuildContext context) =>
+    AdaptiveInputPolicyScope.maybeOf(context)?.enableSecondaryClickMenus ??
+    isDesktopRuntime;
+
+/// Whether hover-only affordances (such as the album card Play button) show.
+/// Same scope fallback as [secondaryClickMenusEnabled].
+bool desktopPointerAffordancesEnabled(BuildContext context) =>
+    AdaptiveInputPolicyScope.maybeOf(context)
+        ?.enableDesktopPointerAffordances ??
+    isDesktopRuntime;
+
 /// Exposes the currently visible desktop navigation treatment to a workspace.
 ///
 /// Desktop pages use this to avoid duplicating orientation chrome when the
@@ -439,11 +453,15 @@ AdaptiveInputPolicy resolveAdaptiveInputPolicy({
   final enableDeterministicTraversal =
       adaptiveContext.desktopRuntime ||
       adaptiveContext.adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+  // A size check, not a platform check: a trackpad or mouse can be attached to
+  // any tablet, and hover cannot fire without a pointer.
+  final pointerAffordances =
+      adaptiveContext.desktopRuntime || !adaptiveContext.isPhoneFormFactor;
   return AdaptiveInputPolicy(
     enableDeterministicTraversal: enableDeterministicTraversal,
     enableEscapeOverlayPriority: enableDeterministicTraversal,
-    enableDesktopPointerAffordances: adaptiveContext.desktopRuntime,
-    enableSecondaryClickMenus: adaptiveContext.desktopRuntime,
+    enableDesktopPointerAffordances: pointerAffordances,
+    enableSecondaryClickMenus: pointerAffordances,
     enableDesktopCommandShortcuts:
         adaptiveContext.desktopRuntime || !adaptiveContext.isPhoneFormFactor,
   );
