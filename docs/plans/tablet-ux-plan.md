@@ -412,6 +412,11 @@ not presets. Pre-existing: EQ header overflows 19 px at a 700 touch pane (#811).
 ### P3: input and the medium tier (target 1.5.x if time allows, else 1.6)
 
 **P3.1 Pointer affordances by policy, not platform (F12).** Low risk.
+**Status (2026-11-25): merged in #818.** Secondary click opens the anchored menu on every
+non-phone size (songs, albums, artists, search, Downloads, Radio, Playlists tab); long-press
+keeps the sheet (radio's long-press anchors only on desktop); hover Play on album cards.
+`secondaryClickMenusEnabled(context)` / `desktopPointerAffordancesEnabled(context)` fall
+back to `isDesktopRuntime` without a scope. "Open folder" stays hidden on iOS.
 - `resolveAdaptiveInputPolicy` (`desktop_layout.dart:436-450`): set
   `enableSecondaryClickMenus` and `enableDesktopPointerAffordances` for
   desktop and every non-phone layout class. Then read the policy (via
@@ -426,6 +431,9 @@ not presets. Pre-existing: EQ header overflows 19 px at a 700 touch pane (#811).
 - Size: S.
 
 **P3.2 Hardware keyboard shortcuts on tablets (F12).** Low-medium risk.
+**Status (2026-11-25): merged in #819.** Shortcuts on every non-phone size; iOS uses Cmd and
+the Apple defaults (`usesAppleShortcutKeys`); keychain serialization stays macOS-only. The
+Keyboard Shortcuts settings screen stays desktop-only (labels key on macOS).
 - Set `enableDesktopCommandShortcuts` for non-phone layout classes too; the
   handler (`app_shell.dart:343-398`, `desktop_commands.dart:126-193,550-597`)
   only sees keys when a hardware keyboard is attached. Map Cmd (iPad) and
@@ -438,6 +446,9 @@ not presets. Pre-existing: EQ header overflows 19 px at a 700 touch pane (#811).
 - Size: S-M.
 
 **P3.3 The 600-839 tier (F13).** Owner (2026-11-24): a user setting,
+**Status (2026-11-25): merged in #820.** Interface > "Sidebar on medium screens" (tablets
+only, default off), `app_settings.tablet_medium_sidebar`, schema 117. Fresh Sonnet and Opus
+reviews; the Opus migration review found nothing blocking.
 default bottom nav. With the default the work is P2's width gate: every
 pane >= 720 (Pixel Tablet portrait 800, iPad 11" 834, mini portrait 756;
 Split View 2/3 crosses at ~761 after P1.2) gets the wide headers and Home
@@ -497,6 +508,15 @@ not observable at runtime (widget tests cover them); playlist titles sit on the
 cover like album cards (F17, owner taste). Follow-ups #805 and #811 are PRs #815
 and #816.
 
+P3 runtime pass (pending, one batch after #820): iPad 13" with a hardware keyboard and
+trackpad where the simulator allows. P3.1: secondary click on a song row, album card,
+Downloads row, radio station and playlist row opens the anchored menu; long-press opens the
+sheet; hover Play on album cards. P3.2: Space, arrows, Cmd+F/K/J/1-4 with no focus; Space in
+the Search field types. P3.3: with the setting on, 834 portrait (11"/mini-size Split View)
+shows the rail and strip, rotate across 840, open Now Playing and the queue, switch the
+navbar style (Large at 600 leaves a ~340 pane), text scale 2.0. The setting is not on the
+diagnostics API: flip it in Settings > Interface.
+
 Runtime check per PR (diagnostics API screenshots, run by Flash): 13"
 portrait/landscape, mini landscape, 11"-size Split View, Pixel Tablet
 emulator landscape, macOS window at 900x700 and 1440x900, iPhone portrait.
@@ -518,6 +538,8 @@ Owner decisions (2026-11-24):
 2. **600-839 tier:** a user setting, default bottom nav (P3.3).
 3. **Tablet rail:** a user setting (the existing navbar style), default
    220 px labelled (P1.2).
+4. **App Store screenshots (2026-11-25):** keep the current iPad 13" and iPhone 6.9" sets
+   taken against the live server, commercial art and lyrics included.
 
 Now Playing stays in the content pane as it does today (it reaches the
 existing split layout once the rail narrows); covering the whole window is a
