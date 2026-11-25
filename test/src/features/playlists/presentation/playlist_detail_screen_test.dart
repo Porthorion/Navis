@@ -458,13 +458,18 @@ void main() {
       );
     });
 
-    testWidgets('large text scale follows the scaled width', (tester) async {
+    // One test per scale: each pumpWide opens its own database.
+    testWidgets('text scale 2 keeps the stacked header', (tester) async {
       await pumpWide(
         tester,
         const Size(1032, 1032),
         textScaler: const TextScaler.linear(2),
       );
       expect(find.byKey(header), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('text scale 1.2 still fits the header row', (tester) async {
       await pumpWide(
         tester,
         const Size(1032, 1032),
