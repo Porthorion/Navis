@@ -522,8 +522,9 @@ check on a real iPad with keyboard and trackpad. The runner reported glitches; t
 judged them from the screenshots and code as not bugs: titles cut on both sides on album cards
 are the card marquee mid-scroll (`album_card.dart` uses `marquee_text.dart`), the Library tab
 row switches to scrollable tabs when labels do not fit (`library_screen.dart` `useScrollableTabs`;
-the runner did not try scrolling it), and the last Settings row under the strip was a page not
-scrolled to its end. The tall gap above the transport in the 536 portrait Now Playing is the
+the notes do not record a scroll attempt). Unverified: the last Interface row under the
+mini-player strip with bottom nav (`29-mini-sidebar-off-restored.png`); the list has 8 px bottom
+padding, so whether it can scroll clear of the strip needs a check on the next pass. The tall gap above the transport in the 536 portrait Now Playing is the
 existing layout (1.6). Evidence: `build/ipad-ux/p3-pass/NOTES.md` (local).
 
 macOS check from dev ca3688e8c (2026-11-25, after forward #822, profile clone signed in as
