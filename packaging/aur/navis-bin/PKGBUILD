@@ -1,7 +1,7 @@
 # Maintainer: Khalifa
 # Repackages the official release tarball.
 pkgname=navis-bin
-pkgver=1.5.1
+pkgver=1.5.2
 pkgrel=1
 pkgdesc='Subsonic/OpenSubsonic music player'
 arch=('x86_64')
@@ -12,7 +12,7 @@ provides=('navis')
 conflicts=('navis')
 options=('!strip' '!debug')
 source=("navis-v${pkgver}-linux.tar.gz::https://downloads.porthorion.com/navis/releases/v${pkgver}/navis-v${pkgver}-linux.tar.gz")
-sha256sums=('32a38eb170e2351290863312c095e7e6538a167047b60f406cac510a0b31fed9')
+sha256sums=('20f474dda51053d60023cfd5f0ae84ec6225c8dcc9e18e0de319853d523b7c37')
 
 package() {
   install -d "$pkgdir/opt/navis" "$pkgdir/usr/bin"
