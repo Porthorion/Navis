@@ -9,7 +9,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/Porthorion/Navis/ci.yml?branch=dev&style=flat-square&label=CI)](https://github.com/Porthorion/Navis/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Porthorion/Navis?style=flat-square&color=e8a598)](https://github.com/Porthorion/Navis/releases/latest)
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20Windows%20%7C%20Linux-555?style=flat-square)](#download)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-555?style=flat-square)](#download)
 [![OpenSubsonic](https://img.shields.io/badge/API-OpenSubsonic%20%7C%20Subsonic-6f42c1?style=flat-square)](https://opensubsonic.netlify.app/)
 [![Stars](https://img.shields.io/github/stars/Porthorion/Navis?style=flat-square&color=f5c518)](https://github.com/Porthorion/Navis/stargazers)
 
@@ -90,7 +90,7 @@ Every online service has its own switch. Turn off *Online services* and Navis on
 | **Windows** | Installer from the [website](https://navis.porthorion.com) or [Releases](https://github.com/Porthorion/Navis/releases/latest) | Windows 10 / 11, x64 |
 | **Linux** | `.deb`, `.rpm`, portable `.tar.gz` or the [per-user install script](#linux-install-script) | x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora). AUR coming soon |
 | **macOS** | Notarized DMG (1.5.2) on [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest): open it and drag Navis to Applications; or [build from source](#build-from-source) | macOS 12+, universal (Apple silicon and Intel). [Status](#macos-status) |
-| **iOS** | Unsigned sideload IPA on [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest); TestFlight and the App Store are planned for 1.5.2 | iOS 16+, iPhone and iPad. [Status](#ios-status) |
+| **iOS** | Unsigned sideload IPA from [navis.porthorion.com](https://navis.porthorion.com); the App Store is coming soon | iOS 16+, iPhone and iPad. [Status](#ios-status) |
 
 Official downloads are served from Porthorion's Cloudflare R2 storage (`downloads.porthorion.com`). Each GitHub release carries identical copies plus a `SHA256SUMS` file, so you can check any download with `sha256sum -c SHA256SUMS`. Navis updates itself from a signed release manifest.
 
@@ -107,7 +107,7 @@ Open work is tracked in the [macOS parity plan](docs/plans/macOS_Parity_Plan.md)
 
 ### iOS status
 
-The iOS build is not on the App Store yet; TestFlight and App Store distribution are planned for 1.5.2. Each GitHub release attaches an unsigned IPA (`navis-<tag>-ios-sideload.ipa`) for AltStore or SideStore, which sign and install it with your own Apple ID. That build checks for updates and, when one exists, links to the release page; iOS cannot install it for you, so install the new IPA the same way. TestFlight and App Store builds never check for updates. It has been checked on the iOS simulator only. It streams, downloads and caches in Navis's usual order (permanent download, rolling cache, stream), including from plain-http LAN servers and https servers, and it has the equalizer, a sign-in saved in the keychain, downloads visible in the Files app (under Navis, On My iPhone), and larger-text and Reduce Motion support. Known limits:
+The iOS build is not on the App Store yet; App Store distribution is coming soon. Each release has an unsigned IPA (`navis-<tag>-ios-sideload.ipa`, linked from [navis.porthorion.com](https://navis.porthorion.com)) for AltStore or SideStore, which sign and install it with your own Apple ID. That build checks for updates and, when one exists, links to the release page; iOS cannot install it for you, so install the new IPA the same way. TestFlight and App Store builds never check for updates. It has been checked on the iOS simulator only. It streams, downloads and caches in Navis's usual order (permanent download, rolling cache, stream), including from plain-http LAN servers and https servers, and it has the equalizer, a sign-in saved in the keychain, downloads visible in the Files app (under Navis, On My iPhone), and larger-text and Reduce Motion support. Known limits:
 
 - Nothing has run on a physical iPhone yet. Lock screen and Control Center Now Playing, AirPods, interruptions, the local network prompt and VoiceOver are device checks still pending ([iOS testing playbook](docs/platforms/ios-testing-playbook.md)).
 - A download deleted in the Files app is dropped from your downloads at the next launch rather than downloaded again; remove downloads inside Navis.
