@@ -9,7 +9,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/Porthorion/Navis/ci.yml?branch=dev&style=flat-square&label=CI)](https://github.com/Porthorion/Navis/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Porthorion/Navis?style=flat-square&color=e8a598)](https://github.com/Porthorion/Navis/releases/latest)
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20Windows%20%7C%20Linux-555?style=flat-square)](#download)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-555?style=flat-square)](#download)
 [![OpenSubsonic](https://img.shields.io/badge/API-OpenSubsonic%20%7C%20Subsonic-6f42c1?style=flat-square)](https://opensubsonic.netlify.app/)
 [![Stars](https://img.shields.io/github/stars/Porthorion/Navis?style=flat-square&color=f5c518)](https://github.com/Porthorion/Navis/stargazers)
 
