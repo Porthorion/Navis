@@ -247,9 +247,8 @@ void main() {
     expect(saved!.tabletMediumSidebar, isTrue);
   });
 
-  testWidgets('a phone and desktop have no medium-screen sidebar switch', (
-    tester,
-  ) async {
+  // One test per form factor: each pumpInterface opens its own database.
+  testWidgets('a phone has no medium-screen sidebar switch', (tester) async {
     setAdaptiveTestViewport(tester, const Size(412, 915));
     await pumpInterface(
       tester,
@@ -260,7 +259,9 @@ void main() {
       ),
     );
     expect(find.text(l10n.tabletMediumSidebarLabel), findsNothing);
+  });
 
+  testWidgets('a desktop has no medium-screen sidebar switch', (tester) async {
     tallView(tester);
     await pumpInterface(
       tester,
