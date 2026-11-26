@@ -199,6 +199,12 @@ enum ChangelogHighlightIcon {
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.5.2',
+    summary:
+        'Navis now runs on iPhone, iPad and Mac: a sideload IPA for iOS and '
+        'iPadOS, and a notarized disk image for macOS. This release also '
+        'brings Top Results in search, a Smart ReplayGain mode, scheduled '
+        'light and dark themes, haptics settings, and a large round of '
+        'sync, download and playback fixes.',
     entries: [
       ChangelogEntry(
         'Tablets can use the sidebar on medium-width windows (600 to 839 '
