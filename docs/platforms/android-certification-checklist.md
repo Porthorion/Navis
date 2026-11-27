@@ -42,7 +42,7 @@ line, or diagnostics export) per row.
 
 - [ ] Download a new album to a SAF (custom folder) location; file lands in
       the picked tree and plays offline.
-- [ ] Review `Settings → Sync → Unavailable Items`: entries show reason
+- [ ] Review `Settings → Library & Storage → Unavailable Items`: entries show reason
       labels; Find match opens the preview dialog; relink keeps downloads.
 
 ## Metered networks and consent

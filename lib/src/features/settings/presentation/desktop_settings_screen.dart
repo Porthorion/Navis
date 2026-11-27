@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
+import 'package:navis/src/features/settings/presentation/desktop_navbar_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -10,7 +13,11 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
-class DesktopWindowSettingsScreen extends ConsumerWidget {
+const _headerPadding = EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8);
+
+/// Desktop-only settings: Mini Player window, sidebar navigation and a link to
+/// the keyboard shortcuts page.
+class DesktopSettingsScreen extends ConsumerWidget {
   const new({super.key});
 
   @override
@@ -22,7 +29,7 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
 
     if (!desktopRuntime) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.desktopWindowTitle)),
+        appBar: AppBar(title: Text(l10n.desktopSettingsTitle)),
         body: Center(
           child: Padding(
             padding: EdgeInsets.all(24),
@@ -44,24 +51,32 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
           onPressed: () =>
               NavService.back(context, fallback: AppRoutes.settings),
         ),
-        title: Text(l10n.desktopWindowTitle),
+        title: Text(l10n.desktopSettingsTitle),
       ),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1040),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+            padding: const EdgeInsets.fromLTRB(8, 24, 8, 32),
             children: <Widget>[
-              Text(
-                l10n.desktopWindowSubtitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+              NavisSectionHeader(
+                title: l10n.desktopSettingsWindowSection,
+                compact: true,
+                maxLines: null,
+                padding: _headerPadding,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  l10n.desktopWindowSubtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               ListTile(
-                contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.picture_in_picture_alt_outlined),
                 title: Text(l10n.desktopMiniPlayerTitle),
                 subtitle: Text(l10n.desktopMiniPlayerDescription),
@@ -86,7 +101,6 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
               ),
               const Divider(),
               NavisSwitchListTile(
-                contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.push_pin_outlined),
                 title: Text(l10n.desktopMiniPlayerKeepOnTop),
                 subtitle: Text(
@@ -99,6 +113,37 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
                     ? (value) =>
                           unawaited(windowController.setMiniAlwaysOnTop(value))
                     : null,
+              ),
+              const SizedBox(height: 24),
+              NavisSectionHeader(
+                title: l10n.desktopNavbarSectionLabel,
+                compact: true,
+                maxLines: null,
+                padding: _headerPadding,
+              ),
+              DesktopNavbarSettings(
+                currentStyle: ref.watch(desktopNavbarStyleProvider),
+                autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
+                onStyleChanged: (style) async {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateDesktopNavbarStyle(style);
+                },
+                onAutohideChanged: (enabled) async {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateDesktopNavbarAutohide(enabled);
+                },
+              ),
+              const SizedBox(height: 24),
+              ListTile(
+                leading: const Icon(Icons.keyboard_command_key_rounded),
+                title: Text(l10n.settingsDesktopShortcutsTitle),
+                subtitle: Text(l10n.settingsDesktopShortcutsSubtitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => NavService.openSettingsPage(
+                  context,
+                  ref,
+                  SettingsPage.shortcuts,
+                ),
               ),
             ],
           ),

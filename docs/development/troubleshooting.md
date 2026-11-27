@@ -211,7 +211,7 @@ Use this quick matrix to classify failures:
 - Expected: resolver should fall back from lock-cached stream to direct stream.
 - Desktop caching: Linux, Windows, and macOS play direct HTTPS streams while
   a sidecar download fills the rolling cache. A completed sidecar file should
-  appear in Cache & Storage and replay locally. Desktop recovery streams keep
+  appear in Storage & Cache and replay locally. Desktop recovery streams keep
   the sidecar cache path. Android uses `LockCachingAudioSource` for single-pass
   streaming and caching, with direct-stream fallback if lock-cache setup or
   playback fails.
@@ -387,8 +387,8 @@ Use the right tool for each failure mode:
   always cleared on completion, cancellation, sign-out, or restart.
 - **Unavailable items review.** Items the server no longer reports but that
   still own favorites, ratings or playlists appear in
-  Settings → Sync → Unavailable Items, only while there is something to
-  review. They are grouped by album; you can find a replacement match
+  Settings → Library & Storage → Unavailable Items (the entry is always
+  listed; its subtitle shows how many items wait). They are grouped by album; you can find a replacement match
   manually, keep an item (or Keep All) for later, or remove a song, album or
   artist from Liked
   after a confirmation. Navis never deletes these silently.

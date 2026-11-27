@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
+import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
@@ -13,11 +14,16 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 
-final _noHighlights = [
+final _baseOverrides = [
   pendingSetupHighlightsProvider.overrideWithValue(const <SetupHighlight>{}),
   appSettingsProvider.overrideWithValue(
     const AsyncData(AppSettingsModel.defaults()),
   ),
+];
+
+final _noHighlights = [
+  pendingUnavailableCountProvider.overrideWith((ref) => Stream.value(0)),
+  ..._baseOverrides,
 ];
 
 void main() {
@@ -97,13 +103,19 @@ void main() {
       );
       expect(find.text('Listen Together Configuration'), findsNothing);
       if (step.size.width >= 1200) {
-        expect(find.text('Desktop Window'), findsOneWidget);
+        expect(find.text('Desktop'), findsWidgets);
+        expect(
+          find.text('Window, navigation and keyboard shortcuts.'),
+          findsOneWidget,
+        );
         expect(
           find.text('Desktop workspace controls and app preferences'),
           findsNothing,
         );
-        expect(find.text('Keyboard Shortcuts'), findsOneWidget);
-        expect(find.text('Connection'), findsOneWidget);
+        // Window and shortcuts live on the Desktop page now.
+        expect(find.text('Desktop Window'), findsNothing);
+        expect(find.text('Keyboard Shortcuts'), findsNothing);
+        expect(find.text('Server & Accounts'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
     }
@@ -133,7 +145,7 @@ void main() {
     },
   );
 
-  testWidgets('lists Themes and Interface in Other, in that order', (
+  testWidgets('lists Themes and Home & Library in Look & Feel, in that order', (
     tester,
   ) async {
     setAdaptiveTestViewport(tester, const Size(1200, 1000));
@@ -157,15 +169,16 @@ void main() {
     );
     expect(
       tester.getTopLeft(find.text('Themes')).dy,
-      lessThan(tester.getTopLeft(find.text('Interface')).dy),
+      lessThan(tester.getTopLeft(find.text('Home & Library')).dy),
     );
+    expect(find.text('Interface'), findsNothing);
     expect(
-      tester.getTopLeft(find.text('Interface')).dy,
+      tester.getTopLeft(find.text('Home & Library')).dy,
       lessThan(tester.getTopLeft(find.text('Run Quick Customization')).dy),
     );
   });
 
-  testWidgets('places quick customization in Other before About', (
+  testWidgets('places quick customization in Help & About before About', (
     tester,
   ) async {
     setAdaptiveTestViewport(tester, const Size(1200, 1000));
@@ -181,7 +194,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Other'), findsOneWidget);
+    expect(find.text('Help & About'), findsOneWidget);
+    expect(find.text('Other'), findsNothing);
     expect(find.text('Run Quick Customization'), findsOneWidget);
     expect(find.text('Customize Navis'), findsNothing);
     expect(
@@ -190,40 +204,39 @@ void main() {
     );
   });
 
-  testWidgets('lists Server Information, then Integrations, under Connection', (
-    tester,
-  ) async {
-    setAdaptiveTestViewport(tester, const Size(390, 844));
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: _noHighlights,
-        child: MaterialApp(
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SettingsScreen(),
+  testWidgets(
+    'lists Server Information, then Integrations, under Server & Accounts',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noHighlights,
+          child: MaterialApp(
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final connection = tester.getTopLeft(find.text('Connection')).dy;
-    final serverInformation = tester
-        .getTopLeft(find.text('Server Information'))
-        .dy;
-    final integrations = tester.getTopLeft(find.text('Integrations')).dy;
-    final nextGroup = tester
-        .getTopLeft(find.text('Device Storage & Cache').first)
-        .dy;
-    expect(connection, lessThan(serverInformation));
-    expect(serverInformation, lessThan(integrations));
-    expect(integrations, lessThan(nextGroup));
-    // Integrations is its own entry, listed once.
-    expect(find.text('Integrations'), findsOneWidget);
-    expect(
-      find.text('Deezer, Last.fm, ListenBrainz and other online services.'),
-      findsOneWidget,
-    );
-  });
+      final connection = tester.getTopLeft(find.text('Server & Accounts')).dy;
+      final serverInformation = tester
+          .getTopLeft(find.text('Server Information'))
+          .dy;
+      final integrations = tester.getTopLeft(find.text('Integrations')).dy;
+      final nextGroup = tester.getTopLeft(find.text('Playback').first).dy;
+      expect(connection, lessThan(serverInformation));
+      expect(serverInformation, lessThan(integrations));
+      expect(integrations, lessThan(nextGroup));
+      // Integrations is its own entry, listed once.
+      expect(find.text('Integrations'), findsOneWidget);
+      expect(
+        find.text('Deezer, Last.fm, ListenBrainz and other online services.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   group('Appearance entry New tag', () {
     Future<void> pump(
@@ -237,6 +250,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            pendingUnavailableCountProvider.overrideWith(
+              (ref) => Stream.value(0),
+            ),
             pendingSetupHighlightsProvider.overrideWithValue(highlights),
             appSettingsProvider.overrideWithValue(
               AsyncData(
@@ -274,7 +290,7 @@ void main() {
           200,
           scrollable: find.byType(Scrollable).first,
         );
-        // Themes, Interface (Genres) and Quick Customization.
+        // Themes, Home & Library (Genres) and Quick Customization.
         expect(find.byType(NewFeatureTag), findsNWidgets(3));
       });
 
@@ -287,7 +303,7 @@ void main() {
     }
 
     testWidgets(
-      'Themes, Interface and Quick Customization say "Has new options"',
+      'Themes, Home & Library and Quick Customization say "Has new options"',
       (tester) async {
         final handle = tester.ensureSemantics();
         await pump(
@@ -303,7 +319,7 @@ void main() {
 
         for (final title in <String>[
           'Themes',
-          'Interface',
+          'Home & Library',
           'Run Quick Customization',
         ]) {
           final row = find.ancestor(
@@ -332,7 +348,7 @@ void main() {
     );
 
     testWidgets(
-      'the Genres highlight tags Interface, not Themes or Quick Customization',
+      'the Genres highlight tags Home & Library, not Themes or Quick Customization',
       (tester) async {
         await pump(tester, const Size(390, 1600), const <SetupHighlight>{
           SetupHighlight.genresPage,
@@ -349,7 +365,7 @@ void main() {
               .first,
           matching: find.byType(NewFeatureTag),
         );
-        expect(tagIn('Interface'), findsOneWidget);
+        expect(tagIn('Home & Library'), findsOneWidget);
         expect(tagIn('Themes'), findsNothing);
         expect(tagIn('Run Quick Customization'), findsNothing);
       },
@@ -406,6 +422,131 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.byType(NewFeatureTag), findsNWidgets(2));
+    });
+  });
+
+  group('top-level groups', () {
+    Future<void> pump(WidgetTester tester, Size size) async {
+      setAdaptiveTestViewport(tester, size);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noHighlights,
+          child: MaterialApp(
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    double top(WidgetTester tester, String text) =>
+        tester.getTopLeft(find.text(text).first).dy;
+
+    final sizes = <String, Size>{
+      'phone': const Size(390, 2800),
+      'tablet': const Size(700, 2800),
+      'compact wide landscape': const Size(900, 420),
+      'desktop': const Size(1200, 2400),
+    };
+    for (final entry in sizes.entries) {
+      testWidgets('follow the approved order on the ${entry.key} layout', (
+        tester,
+      ) async {
+        await pump(tester, entry.value);
+        final desktop = entry.key == 'desktop';
+        final order = <String>[
+          'Server & Accounts',
+          'Server Information',
+          'Integrations',
+          'Playback',
+          'Equalizer',
+          'Library & Storage',
+          'Sync',
+          'Downloads',
+          'Storage & Cache',
+          'Unavailable Items',
+          'Look & Feel',
+          'Themes',
+          'Home & Library',
+          if (desktop) 'Desktop' else 'Haptics',
+          'Help & About',
+          'Run Quick Customization',
+          'About',
+        ];
+        final compactWide = entry.key == 'compact wide landscape';
+        if (compactWide) {
+          // A short, wide ListView builds lazily: scroll to the end.
+          await tester.scrollUntilVisible(
+            find.text('About'),
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+        }
+        if (!compactWide) {
+          var previous = -1.0;
+          for (final label in order) {
+            final y = top(tester, label);
+            expect(y, greaterThan(previous), reason: label);
+            previous = y;
+          }
+        }
+        expect(find.text('Device Storage & Cache'), findsNothing);
+        expect(find.text('Library Synchronization'), findsNothing);
+        expect(find.text('Connection'), findsNothing);
+      });
+    }
+
+    testWidgets('About is the last entry on desktop too', (tester) async {
+      await pump(tester, const Size(1200, 2400));
+      final about = tester.getTopLeft(find.text('About').last).dy;
+      for (final row in tester.widgetList<DesktopListRow>(
+        find.byType(DesktopListRow),
+      )) {
+        final y = tester.getTopLeft(find.byWidget(row)).dy;
+        expect(y, lessThanOrEqualTo(about));
+      }
+      expect(find.text('Desktop Window'), findsNothing);
+    });
+
+    testWidgets('Desktop entry is desktop only', (tester) async {
+      await pump(tester, const Size(390, 2800));
+      expect(
+        find.text('Window, navigation and keyboard shortcuts.'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Unavailable Items is a Library & Storage entry that shows '
+        'the waiting count', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 2800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ..._baseOverrides,
+            pendingUnavailableCountProvider.overrideWith(
+              (ref) => Stream.value(3),
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Unavailable Items'), findsOneWidget);
+      expect(find.text('3 items waiting for review'), findsOneWidget);
+    });
+
+    testWidgets('Unavailable Items stays listed with nothing waiting', (
+      tester,
+    ) async {
+      await pump(tester, const Size(390, 2800));
+      expect(find.text('Unavailable Items'), findsOneWidget);
+      expect(find.textContaining('waiting for review'), findsNothing);
     });
   });
 

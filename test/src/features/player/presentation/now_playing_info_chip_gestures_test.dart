@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_source.dart';
@@ -348,14 +349,14 @@ void main() {
     }, skip: !sqliteAvailable);
   });
 
-  testWidgets('holding ReplayGain shows the ReplayGain section of Playback '
+  testWidgets('holding ReplayGain shows the Volume section of Playback '
       'settings', (tester) async {
     await pumpSheet(tester, realPlaybackSettings: true);
     await showReplayGainPage(tester);
     await tester.longPress(_infoText);
     await tester.pumpAndSettle();
     expect(find.byType(PlaybackSettingsScreen), findsOneWidget);
-    final title = find.text('Volume Normalization (ReplayGain)');
+    final title = find.widgetWithText(NavisSectionHeader, 'Volume');
     expect(title, findsOneWidget);
     final rect = tester.getRect(title);
     expect(rect.top, inInclusiveRange(0, 844 - rect.height));

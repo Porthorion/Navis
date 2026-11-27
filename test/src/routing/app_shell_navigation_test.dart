@@ -55,6 +55,7 @@ import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
+import 'package:navis/src/features/settings/presentation/cache_settings_screen.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -5419,7 +5420,7 @@ void main() {
       final router = container.read(appRouterProvider);
       router.go('/settings/cache');
       await tester.pumpAndSettle();
-      expect(find.text('Cache & Storage'), findsWidgets);
+      expect(find.text('Storage & Cache'), findsWidgets);
 
       const transitions = <Size>[
         Size(700, 1000),
@@ -5433,7 +5434,7 @@ void main() {
         tester.view.physicalSize = size;
         await tester.pumpAndSettle();
 
-        expect(find.text('Cache & Storage'), findsWidgets);
+        expect(find.text('Storage & Cache'), findsWidgets);
       }
     },
   );
@@ -5782,7 +5783,7 @@ void main() {
     router.go('/settings/cache');
     await tester.pumpAndSettle();
 
-    expect(find.text('Cache & Storage'), findsWidgets);
+    expect(find.text('Storage & Cache'), findsWidgets);
 
     container.read(playerOverlayStackProvider.notifier).expand();
     await tester.pumpAndSettle();
@@ -5793,7 +5794,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(playerSheetExpandedProvider), isFalse);
-    expect(find.text('Cache & Storage'), findsWidgets);
+    expect(find.text('Storage & Cache'), findsWidgets);
   });
 
   testWidgets('system back dismisses queue before collapsing now playing', (
@@ -6156,7 +6157,8 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      expect(find.text('Cache & Storage'), findsNothing);
+      // The Settings list also has a "Storage & Cache" entry.
+      expect(find.byType(CacheSettingsScreen), findsNothing);
       expect(find.byType(ExpandablePlayerSheet), findsNothing);
       expect(tester.takeException(), isNull);
     },
@@ -6210,7 +6212,8 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      expect(find.text('Cache & Storage'), findsNothing);
+      // The Settings list also has a "Storage & Cache" entry.
+      expect(find.byType(CacheSettingsScreen), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

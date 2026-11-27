@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
@@ -134,6 +135,101 @@ void main() {
       expect(find.text('Skip silence when possible'), findsNothing);
       expect(find.text('Changes save automatically'), findsOneWidget);
       expect(find.text('Reset Defaults'), findsOneWidget);
+    });
+
+    group('sections', () {
+      Future<void> pumpPlayback(
+        WidgetTester tester, {
+        Size viewport = const Size(800, 6000),
+        bool focusReplayGain = false,
+      }) async {
+        setAdaptiveTestViewport(tester, viewport);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  initialSettings.copyWith(
+                    albumQueueEnabled: true,
+                    crossfadeEnabled: true,
+                    replayGainMode: 'track',
+                  ),
+                ),
+              ),
+              playbackAdjustmentsProvider.overrideWith(_FakeAdjustments.new),
+              equalizerProvider.overrideWith(_FakeEq.new),
+            ],
+            child: _buildTestApp(focusReplayGain: focusReplayGain),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      Finder header(String title) => find.byWidgetPredicate(
+        (w) => w is NavisSectionHeader && w.title == title,
+      );
+
+      testWidgets('headed sections and their controls run in plan order', (
+        tester,
+      ) async {
+        await pumpPlayback(tester);
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(PlaybackSettingsScreen)),
+        )!;
+        double top(Finder f) => tester.getTopLeft(f.first).dy;
+        final ordered = <Finder>[
+          header(l10n.playbackSettingsQueueSectionTitle),
+          find.text(l10n.playbackSettingsQueueEndLabel),
+          find.text(l10n.playbackSettingsAlbumQueueTitle),
+          find.text(l10n.playbackSettingsLikedQueueTitle),
+          header(l10n.playbackSettingsTransitionsSectionTitle),
+          find.text(l10n.playbackSettingsGaplessTitle),
+          find.text(l10n.playbackSettingsCrossfadeEnableTitle),
+          find.text(l10n.playbackSettingsCrossfadeTypeLabel),
+          header(l10n.playbackSettingsVolumeSectionTitle),
+          find.text(l10n.playbackSettingsReplayGainModeLabel),
+          header(l10n.playbackSpeedPitchTitle),
+          header(l10n.playbackSettingsStreamingSectionTitle),
+          find.text(l10n.playbackSettingsWifiSectionTitle),
+          find.text(l10n.playbackSettingsCellularSectionTitle),
+          find.text(l10n.playbackSettingsCachedFirstTitle),
+          find.text(l10n.playbackSettingsPrefetchNextTitle),
+          header(l10n.playbackSettingsLyricsSectionTitle),
+          find.text(l10n.playbackSettingsFullscreenLyricsTitle),
+          header(l10n.playbackSettingsScrobblingSectionTitle),
+          find.text(l10n.playbackSettingsScrobbleTitle),
+          find.text(l10n.playbackSettingsExperimentalTitle),
+          find.text(l10n.playbackSettingsFooterIdle),
+          find.text(l10n.playbackSettingsResetAction),
+        ];
+        for (var i = 0; i < ordered.length; i++) {
+          expect(ordered[i], findsWidgets, reason: 'control $i');
+        }
+        for (var i = 1; i < ordered.length; i++) {
+          expect(
+            top(ordered[i]),
+            greaterThan(top(ordered[i - 1])),
+            reason: 'control $i below control ${i - 1}',
+          );
+        }
+      });
+
+      testWidgets('?focus=replayGain scrolls to the Volume section', (
+        tester,
+      ) async {
+        await pumpPlayback(
+          tester,
+          viewport: const Size(800, 600),
+          focusReplayGain: true,
+        );
+        final volume = header('Volume');
+        expect(volume, findsOneWidget);
+        expect(tester.getTopLeft(volume).dy, lessThan(100));
+      });
     });
 
     group('ReplayGain untagged songs', () {
@@ -798,6 +894,7 @@ void main() {
           expect(toggle, findsNothing);
         } else {
           await tester.ensureVisible(toggle);
+          await tester.pumpAndSettle();
           expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
           await tester.tap(toggle);
           await tester.pumpAndSettle(const Duration(milliseconds: 500));
@@ -926,6 +1023,7 @@ void main() {
         await tester.pumpAndSettle();
         final toggle = find.widgetWithText(SwitchListTile, title);
         await tester.ensureVisible(toggle);
+        await tester.pumpAndSettle();
         return toggle;
       }
 
@@ -1024,12 +1122,18 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
+      await _tapVisible(
+        tester,
+        find.byType(DropdownButtonFormField<int?>).first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('320 kbps').last);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+      await _tapVisible(
+        tester,
+        find.byType(DropdownButtonFormField<String?>).first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('OPUS').last);
       await tester.pumpAndSettle();
@@ -1130,7 +1234,10 @@ void main() {
       }
 
       Future<void> editWifiBitRate(WidgetTester tester) async {
-        await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
+        await _tapVisible(
+          tester,
+          find.byType(DropdownButtonFormField<int?>).first,
+        );
         await tester.pumpAndSettle();
         await tester.tap(find.text('320 kbps').last);
         // No settle: the 420 ms autosave debounce stays pending.
@@ -1361,11 +1468,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
+      await _tapVisible(
+        tester,
+        find.byType(DropdownButtonFormField<int?>).first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Original Quality').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+      await _tapVisible(
+        tester,
+        find.byType(DropdownButtonFormField<String?>).first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Server Default').last);
       await tester.pumpAndSettle();
@@ -1402,7 +1515,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+      await _tapVisible(
+        tester,
+        find.byType(DropdownButtonFormField<String?>).first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('VORBIS').last);
       await tester.pumpAndSettle();
@@ -1566,7 +1682,19 @@ void main() {
   });
 }
 
-Widget _buildTestApp({bool desktopMode = false, double textScale = 1}) {
+/// Scrolls [target] into view and lets the layout settle before it is tapped:
+/// the Playback page is longer than the default test viewport.
+Future<void> _tapVisible(WidgetTester tester, Finder target) async {
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+  await tester.tap(target);
+}
+
+Widget _buildTestApp({
+  bool desktopMode = false,
+  double textScale = 1,
+  bool focusReplayGain = false,
+}) {
   return MaterialApp(
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context)
@@ -1583,9 +1711,9 @@ Widget _buildTestApp({bool desktopMode = false, double textScale = 1}) {
               viewportSize: const Size(1280, 800),
               safePadding: EdgeInsets.zero,
             ),
-            child: const PlaybackSettingsScreen(),
+            child: PlaybackSettingsScreen(focusReplayGain: focusReplayGain),
           )
-        : const PlaybackSettingsScreen(),
+        : PlaybackSettingsScreen(focusReplayGain: focusReplayGain),
   );
 }
 
