@@ -100,12 +100,10 @@ class _FakeDeezer extends DeezerApiClient {
   final List<String> searched = <String>[];
   final List<bool> relatedBackground = <bool>[];
   final List<bool> relatedRetryQuota = <bool>[];
-  final List<CancelToken?> relatedTokens = <CancelToken?>[];
 
-  /// Tokens of the lookup and related requests that hung ([hang]), in call
-  /// order. The cap may land before either request starts, so tests wait on
-  /// [firstLegToken] instead of requiring a particular request to be reached.
-  final List<CancelToken?> legTokens = <CancelToken?>[];
+  /// Token of the first lookup or related request that hung ([hang]). The cap
+  /// may land before either request starts, so tests wait on this instead of
+  /// requiring a particular request to be reached.
   final Completer<CancelToken?> firstLegToken = Completer<CancelToken?>();
   List<DeezerArtist> related = const <DeezerArtist>[];
   bool onDeezer = true;
@@ -141,15 +139,14 @@ class _FakeDeezer extends DeezerApiClient {
   }) async {
     relatedBackground.add(background);
     relatedRetryQuota.add(retryQuota);
-    relatedTokens.add(cancelToken);
-    if (hang)
+    if (hang) {
       await _hangUntilCancelled(cancelToken, 'artist/$artistId/related');
+    }
     if (relatedError case final error?) throw error;
     return related;
   }
 
   Future<Never> _hangUntilCancelled(CancelToken? token, String path) async {
-    legTokens.add(token);
     if (!firstLegToken.isCompleted) firstLegToken.complete(token);
     await token!.whenCancel;
     throw DioException(
@@ -1075,6 +1072,7 @@ void main() {
       final container = containerFor(database);
       deezer.hang = true;
       final caller = CancelToken();
+      final elapsed = Stopwatch()..start();
       final batch = container
           .read(recommendationServiceProvider)
           .personalRadio(
@@ -1088,6 +1086,8 @@ void main() {
       caller.cancel();
       expect((await batch).songs, isNotEmpty);
       expect(token!.isCancelled, isTrue);
+      // Well under the 6 s cap, so the caller's cancel did it, not the cap.
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 2)));
     }, skip: !sqliteAvailable);
 
     test(
