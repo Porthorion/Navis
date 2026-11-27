@@ -78,6 +78,8 @@ enum SiriPlayMedia {
 /// `pendingSearch` until Dart reports `ready`.
 final class SiriBridge: NSObject, INPlayMediaIntentHandling {
   static let shared = SiriBridge()
+  /// Serial, so a clear and a later write land in the order they were pushed.
+  private let vocabularyQueue = DispatchQueue(label: "com.navis.app.siri.vocabulary", qos: .utility)
 
   private var channel: FlutterMethodChannel?
   private var dartReady = false
@@ -210,7 +212,7 @@ final class SiriBridge: NSObject, INPlayMediaIntentHandling {
     DispatchQueue.main.async {
       if artists.isEmpty && playlists.isEmpty {
         self.pendingVocabulary = nil
-        DispatchQueue.global(qos: .utility).async {
+        self.vocabularyQueue.async {
           INVocabulary.shared().removeAllVocabularyStrings()
           NSLog("Navis Siri: vocabulary cleared")
         }
@@ -256,7 +258,7 @@ final class SiriBridge: NSObject, INPlayMediaIntentHandling {
   }
 
   private func writeVocabulary(_ artists: [String], _ playlists: [String]) {
-    DispatchQueue.global(qos: .utility).async {
+    self.vocabularyQueue.async {
       let vocabulary = INVocabulary.shared()
       vocabulary.setVocabularyStrings(NSOrderedSet(array: artists), of: .mediaMusicArtistName)
       vocabulary.setVocabularyStrings(NSOrderedSet(array: playlists), of: .mediaPlaylistTitle)
