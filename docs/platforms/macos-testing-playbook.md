@@ -133,7 +133,7 @@ Streaming and hardware:
 Cover art (the cache store is shared with Android and iOS):
 - Load: browse albums; covers appear.
 - Restart: quit and relaunch; covers still appear (from the cache, also with the server off).
-- Clear cache: Settings > Device Storage & Cache > Clear Cover Art Cache; the storage figure drops to zero and covers refetch as you browse.
+- Clear cache: Settings > Library & Storage > Storage & Cache > Clear Cover Art Cache; the storage figure drops to zero and covers refetch as you browse.
 - Change the limit: set Maximum Images, restart when asked; covers still load and the stored count stays near the limit.
 - Sign-out: sign out and in again; covers load and nothing from the previous account shows.
 - The same five cover-art checks on Android (a phone or emulator, release or profile build).

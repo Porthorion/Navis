@@ -2,6 +2,7 @@ import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -52,14 +53,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final tabletMode =
         !adaptiveContext.useDesktopShell &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    final groupConnection = l10n.settingsGroupConnection;
-    final groupStorage = l10n.settingsGroupStorage;
-    final groupDeviceStorageCache = l10n.settingsGroupDeviceStorageCache;
-    final groupPlayback = l10n.settingsGroupPlayback;
-    final groupLibrarySynchronization =
-        l10n.settingsGroupLibrarySynchronization;
-    final groupOther = l10n.settingsGroupOther;
-    final groupDesktop = l10n.settingsGroupDesktop;
     final themesHasNewOptions = ref.watch(themesHasNewOptionsProvider);
     final interfaceHasNewOptions = ref.watch(interfaceHasNewOptionsProvider);
     final quickHasNewOptions = ref.watch(
@@ -68,129 +61,114 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final newOptionsTag = NewFeatureTag(
       semanticsLabel: l10n.settingsAppearanceNewOptionsSemantics,
     );
-    final coreEntries = <_SettingsEntry>[
-      _SettingsEntry(
-        icon: Icons.storage_outlined,
-        title: l10n.settingsServerTitle,
-        subtitle: l10n.settingsServerSubtitle,
-        page: SettingsPage.server,
-        group: groupConnection,
-      ),
-      _SettingsEntry(
-        icon: Icons.hub_outlined,
-        title: l10n.integrationsTitle,
-        subtitle: l10n.integrationsSubtitle,
-        page: SettingsPage.integrations,
-        group: groupConnection,
-      ),
-      _SettingsEntry(
-        icon: Icons.folder_copy_outlined,
-        title: l10n.settingsCacheTitle,
-        subtitle: l10n.settingsCacheSubtitle,
-        page: SettingsPage.cache,
-        group: groupDeviceStorageCache,
-      ),
-      _SettingsEntry(
-        icon: Icons.download_outlined,
-        title: l10n.downloadsTitle,
-        subtitle: l10n.settingsDownloadsSubtitle,
-        page: SettingsPage.downloads,
-        group: groupStorage,
-      ),
-      _SettingsEntry(
-        icon: Icons.sync_outlined,
-        title: l10n.settingsSyncTitle,
-        subtitle: l10n.settingsSyncSubtitle,
-        page: SettingsPage.sync,
-        group: groupLibrarySynchronization,
-      ),
-      _SettingsEntry(
-        icon: Icons.graphic_eq_outlined,
-        title: l10n.settingsPlaybackTitle,
-        subtitle: l10n.settingsPlaybackSubtitle,
-        page: SettingsPage.playback,
-        group: groupPlayback,
-      ),
-      _SettingsEntry(
-        icon: Icons.equalizer,
-        title: l10n.eqTitle,
-        subtitle: ref.watch(eqCapabilitiesProvider).supported
-            ? l10n.eqSubtitle
-            : l10n.eqUnavailable,
-        page: SettingsPage.equalizer,
-        group: groupPlayback,
-        enabled: ref.watch(eqCapabilitiesProvider).supported,
-      ),
-      _SettingsEntry(
-        icon: Icons.palette_outlined,
-        title: l10n.settingsThemesTitle,
-        subtitle: l10n.settingsThemesSubtitle,
-        page: SettingsPage.themes,
-        group: groupOther,
-        adornment: themesHasNewOptions ? newOptionsTag : null,
-      ),
-      _SettingsEntry(
-        icon: Icons.dashboard_customize_outlined,
-        title: l10n.settingsInterfaceTitle,
-        subtitle: l10n.settingsInterfaceSubtitle,
-        page: SettingsPage.interface,
-        group: groupOther,
-        adornment: interfaceHasNewOptions ? newOptionsTag : null,
-      ),
-      // Desktop haptics are silent, so there is nothing to set there.
-      if (!adaptiveContext.desktopRuntime)
+    final eqSupported = ref.watch(eqCapabilitiesProvider).supported;
+    final unavailableCount =
+        ref.watch(pendingUnavailableCountProvider).asData?.value ?? 0;
+    // Groups render in this order on every layout; About is always last.
+    final groups = <String, List<_SettingsEntry>>{
+      l10n.settingsGroupServerAccounts: <_SettingsEntry>[
         _SettingsEntry(
-          icon: Icons.vibration,
-          title: l10n.hapticsTitle,
-          subtitle: l10n.hapticsSubtitle,
-          page: SettingsPage.haptics,
-          group: groupOther,
+          icon: Icons.storage_outlined,
+          title: l10n.settingsServerTitle,
+          subtitle: l10n.settingsServerSubtitle,
+          page: SettingsPage.server,
         ),
-    ];
-    final desktopEntries = <_SettingsEntry>[
-      if (adaptiveContext.desktopRuntime)
         _SettingsEntry(
-          icon: Icons.picture_in_picture_alt_outlined,
-          title: l10n.desktopWindowTitle,
-          subtitle: l10n.desktopWindowSubtitle,
-          page: SettingsPage.desktopWindow,
-          group: groupDesktop,
+          icon: Icons.hub_outlined,
+          title: l10n.integrationsTitle,
+          subtitle: l10n.integrationsSubtitle,
+          page: SettingsPage.integrations,
         ),
-      if (adaptiveContext.desktopRuntime)
+      ],
+      l10n.settingsGroupPlayback: <_SettingsEntry>[
         _SettingsEntry(
-          icon: Icons.keyboard_command_key_rounded,
-          title: l10n.settingsDesktopShortcutsTitle,
-          subtitle: l10n.settingsDesktopShortcutsSubtitle,
-          page: SettingsPage.shortcuts,
-          group: groupDesktop,
+          icon: Icons.graphic_eq_outlined,
+          title: l10n.settingsPlaybackTitle,
+          subtitle: l10n.settingsPlaybackSubtitle,
+          page: SettingsPage.playback,
         ),
-    ];
-    final aboutEntry = _SettingsEntry(
-      icon: Icons.info_outline,
-      title: l10n.aboutTitle,
-      subtitle: null,
-      page: SettingsPage.about,
-      group: groupOther,
-    );
-    final quickCustomizationEntry = _SettingsEntry(
-      icon: Icons.auto_awesome_outlined,
-      title: l10n.settingsRunQuickCustomizationTitle,
-      subtitle: l10n.settingsRunQuickCustomizationSubtitle,
-      group: groupOther,
-      adornment: quickHasNewOptions ? newOptionsTag : null,
-    );
-    // Desktop entries come between core and About so About is always last.
-    final entries = <_SettingsEntry>[
-      ...coreEntries,
-      ...desktopEntries,
-      quickCustomizationEntry,
-      aboutEntry,
-    ];
-
-    final groups = <String, List<_SettingsEntry>>{};
-    for (final entry in entries) {
-      groups.putIfAbsent(entry.group, () => <_SettingsEntry>[]).add(entry);
-    }
+        _SettingsEntry(
+          icon: Icons.equalizer,
+          title: l10n.eqTitle,
+          subtitle: eqSupported ? l10n.eqSubtitle : l10n.eqUnavailable,
+          page: SettingsPage.equalizer,
+          enabled: eqSupported,
+        ),
+      ],
+      l10n.settingsGroupLibraryStorage: <_SettingsEntry>[
+        _SettingsEntry(
+          icon: Icons.sync_outlined,
+          title: l10n.settingsSyncTitle,
+          subtitle: l10n.settingsSyncSubtitle,
+          page: SettingsPage.sync,
+        ),
+        _SettingsEntry(
+          icon: Icons.download_outlined,
+          title: l10n.downloadsTitle,
+          subtitle: l10n.settingsDownloadsSubtitle,
+          page: SettingsPage.downloads,
+        ),
+        _SettingsEntry(
+          icon: Icons.folder_copy_outlined,
+          title: l10n.settingsCacheTitle,
+          subtitle: l10n.settingsCacheSubtitle,
+          page: SettingsPage.cache,
+        ),
+        _SettingsEntry(
+          icon: Icons.playlist_remove,
+          title: l10n.unavailableReviewTitle,
+          subtitle: unavailableCount > 0
+              ? l10n.settingsUnavailableItemsSubtitle(unavailableCount)
+              : null,
+          page: SettingsPage.unavailableItems,
+        ),
+      ],
+      l10n.settingsGroupLookFeel: <_SettingsEntry>[
+        _SettingsEntry(
+          icon: Icons.palette_outlined,
+          title: l10n.settingsThemesTitle,
+          subtitle: l10n.settingsThemesSubtitle,
+          page: SettingsPage.themes,
+          adornment: themesHasNewOptions ? newOptionsTag : null,
+        ),
+        _SettingsEntry(
+          icon: Icons.dashboard_customize_outlined,
+          title: l10n.settingsInterfaceTitle,
+          subtitle: l10n.settingsInterfaceSubtitle,
+          page: SettingsPage.interface,
+          adornment: interfaceHasNewOptions ? newOptionsTag : null,
+        ),
+        // Desktop haptics are silent, so there is nothing to set there.
+        if (adaptiveContext.desktopRuntime)
+          _SettingsEntry(
+            icon: Icons.desktop_windows_outlined,
+            title: l10n.desktopSettingsTitle,
+            subtitle: l10n.desktopSettingsSubtitle,
+            page: SettingsPage.desktop,
+          )
+        else
+          _SettingsEntry(
+            icon: Icons.vibration,
+            title: l10n.hapticsTitle,
+            subtitle: l10n.hapticsSubtitle,
+            page: SettingsPage.haptics,
+          ),
+      ],
+      l10n.settingsGroupHelpAbout: <_SettingsEntry>[
+        _SettingsEntry(
+          icon: Icons.auto_awesome_outlined,
+          title: l10n.settingsRunQuickCustomizationTitle,
+          subtitle: l10n.settingsRunQuickCustomizationSubtitle,
+          adornment: quickHasNewOptions ? newOptionsTag : null,
+        ),
+        _SettingsEntry(
+          icon: Icons.info_outline,
+          title: l10n.aboutTitle,
+          subtitle: null,
+          page: SettingsPage.about,
+        ),
+      ],
+    };
 
     if (!adaptiveContext.useDesktopShell && !tabletMode) {
       final portraitPhone =
@@ -394,7 +372,6 @@ class _SettingsEntry {
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.group,
     this.page,
     this.enabled = true,
     this.adornment,
@@ -406,7 +383,6 @@ class _SettingsEntry {
 
   /// The Settings page this entry opens; null opens the onboarding review.
   final SettingsPage? page;
-  final String group;
   final bool enabled;
 
   /// Shown before the chevron, for example a "New" tag.

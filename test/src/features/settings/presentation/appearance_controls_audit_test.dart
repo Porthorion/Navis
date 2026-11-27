@@ -18,10 +18,12 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
+import 'package:navis/src/features/settings/presentation/desktop_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/interface_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -31,9 +33,9 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 
-/// The two pages Appearance is split into. Themes holds everything a Look
-/// saves; Interface holds no Look field.
-enum _Page { themes, interface }
+/// The pages Appearance is split into, plus Desktop settings. Themes holds
+/// everything a Look saves; Interface and Desktop hold no Look field.
+enum _Page { themes, interface, desktop }
 
 /// One control on the Themes or Interface page, driven through the real
 /// screen.
@@ -102,6 +104,7 @@ void main() {
     final screen = switch (page) {
       _Page.themes => const ThemesSettingsScreen(),
       _Page.interface => const InterfaceSettingsScreen(),
+      _Page.desktop => const DesktopSettingsScreen(),
     };
     return UncontrolledProviderScope(
       container: container,
@@ -176,6 +179,9 @@ void main() {
       overrides: withTestDatabase(
         database,
         overrides: <Override>[
+          desktopWindowControllerProvider.overrideWith(
+            (ref) => DesktopWindowController.fallback(desktopRuntime: true),
+          ),
           pendingSetupHighlightsProvider.overrideWithValue(
             const <SetupHighlight>{},
           ),
@@ -1054,7 +1060,7 @@ void main() {
     ])
       _Control(
         'Desktop navigation: $name',
-        page: _Page.interface,
+        page: _Page.desktop,
         desktop: true,
         writers: {'updateDesktopNavbarStyle'},
         columns: {'desktopNavbarStyle'},
@@ -1065,7 +1071,7 @@ void main() {
       ),
     _Control(
       'Desktop navigation: Collapse Sidebar',
-      page: _Page.interface,
+      page: _Page.desktop,
       desktop: true,
       writers: {'updateDesktopNavbarAutohide'},
       columns: {'desktopNavbarAutohide'},
@@ -1073,6 +1079,20 @@ void main() {
         await tap(t, find.text(l10n.desktopNavbarAutohideLabel));
       },
       effect: (c) => expect(c.read(desktopNavbarAutohideProvider), isTrue),
+    ),
+    _Control(
+      'Tablet navigation: Large',
+      page: _Page.interface,
+      tablet: true,
+      writers: {'updateDesktopNavbarStyle'},
+      columns: {'desktopNavbarStyle'},
+      act: (t) async {
+        await tap(
+          t,
+          find.widgetWithText(FilledButton, l10n.desktopNavbarStyleLarge),
+        );
+      },
+      effect: (c) => expect(c.read(desktopNavbarStyleProvider), 'comfortable'),
     ),
     _Control(
       'Tablet navigation: Sidebar on medium screens',
@@ -1203,6 +1223,15 @@ void main() {
             .difference(unreachable),
         isEmpty,
         reason: 'an Interface control writes a setting that no row exercises',
+      );
+    });
+
+    test('every writer on the Desktop page has a row there', () {
+      expect(
+        writersIn('desktop_settings_screen.dart')
+            .difference(writersOf((c) => c.page == _Page.desktop)),
+        isEmpty,
+        reason: 'a Desktop control writes a setting that no row exercises',
       );
     });
 

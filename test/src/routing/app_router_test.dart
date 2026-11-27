@@ -25,6 +25,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/settings/presentation/interface_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/desktop_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/themes_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/haptics_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
@@ -1173,7 +1174,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Cache & Storage'), findsWidgets);
+    expect(find.text('Storage & Cache'), findsWidgets);
 
     // Flush any pending Riverpod retry timers (e.g. from the artist provider
     // failing its HTTP call in the test environment) to avoid a pending-timer
@@ -1467,6 +1468,24 @@ void main() {
     expect(router.state.matchedLocation, '/settings/themes');
     expect(find.byType(ThemesSettingsScreen), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 500));
+
+    debugDesktopRuntimeOverride = true;
+    addTearDown(() => debugDesktopRuntimeOverride = null);
+    router.go('/settings/desktop-window');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(router.state.matchedLocation, '/settings/desktop');
+    expect(find.byType(DesktopSettingsScreen), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Desktop settings are desktop only, like the old desktop-window path.
+    debugDesktopRuntimeOverride = false;
+    router.go('/settings/desktop');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(router.state.matchedLocation, '/settings');
+    await tester.pumpAndSettle();
+    expect(find.byType(DesktopSettingsScreen), findsNothing);
   });
 
   testWidgets(

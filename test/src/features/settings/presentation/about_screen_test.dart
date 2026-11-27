@@ -555,13 +555,14 @@ void main() {
       }
     });
 
-    testWidgets('the automatic check moved to Integrations', (tester) async {
+    testWidgets('the automatic check moved to Integrations, which About '
+        'no longer links (Settings lists it)', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {
         await pumpAbout(tester, updateInfo: null);
 
         expect(find.byType(SwitchListTile), findsNothing);
-        expect(find.widgetWithText(ListTile, 'Integrations'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'Integrations'), findsNothing);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

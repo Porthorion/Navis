@@ -14,10 +14,10 @@ import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/features/settings/presentation/desktop_navbar_settings.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
-import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -85,7 +85,7 @@ class _InterfaceSettingsScreenState
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final isDesktop = adaptiveContext.useDesktopShell;
     // Devices that can show the tablet rail (not a phone form factor) get the
-    // style selector; auto-hide needs a pointer, so it stays desktop-only.
+    // style selector here; the desktop sidebar settings live on Desktop.
     final showTabletRailStyle =
         !isDesktop && !adaptiveContext.isPhoneFormFactor;
     // Quick Actions are now always-visible below the home logo; remove from
@@ -280,41 +280,30 @@ class _InterfaceSettingsScreenState
                     }
                   },
                 ),
-                if (isDesktop || showTabletRailStyle) ...[
+                if (showTabletRailStyle) ...[
                   AppearanceHeading(
-                    title: isDesktop
-                        ? l10n.desktopNavbarSectionLabel
-                        : l10n.tabletNavbarSectionLabel,
+                    title: l10n.tabletNavbarSectionLabel,
                     level: AppearanceHeadingLevel.section,
                   ),
-                  _DesktopNavbarSettings(
+                  DesktopNavbarSettings(
                     currentStyle: ref.watch(desktopNavbarStyleProvider),
-                    autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
-                    showAutohide: isDesktop,
                     onStyleChanged: (style) async {
                       final db = ref.read(navisDatabaseProvider);
                       await db.appSettingsDao.updateDesktopNavbarStyle(style);
                     },
-                    onAutohideChanged: (enabled) async {
+                  ),
+                  NavisSwitchListTile(
+                    key: const ValueKey<String>('tabletMediumSidebarToggle'),
+                    title: Text(l10n.tabletMediumSidebarLabel),
+                    subtitle: Text(l10n.tabletMediumSidebarSub),
+                    value: ref.watch(tabletMediumSidebarProvider),
+                    onChanged: (enabled) async {
                       final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateDesktopNavbarAutohide(
+                      await db.appSettingsDao.updateTabletMediumSidebar(
                         enabled,
                       );
                     },
                   ),
-                  if (showTabletRailStyle)
-                    NavisSwitchListTile(
-                      key: const ValueKey<String>('tabletMediumSidebarToggle'),
-                      title: Text(l10n.tabletMediumSidebarLabel),
-                      subtitle: Text(l10n.tabletMediumSidebarSub),
-                      value: ref.watch(tabletMediumSidebarProvider),
-                      onChanged: (enabled) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateTabletMediumSidebar(
-                          enabled,
-                        );
-                      },
-                    ),
                 ],
               ],
             ),
@@ -611,107 +600,6 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
           ),
         );
       },
-    );
-  }
-}
-
-class _DesktopNavbarSettings extends StatelessWidget {
-  const new({
-    required this.currentStyle,
-    required this.autohideEnabled,
-    required this.showAutohide,
-    required this.onStyleChanged,
-    required this.onAutohideChanged,
-  });
-
-  final String currentStyle;
-  final bool autohideEnabled;
-  final bool showAutohide;
-  final ValueChanged<String> onStyleChanged;
-  final ValueChanged<bool> onAutohideChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final selected = (currentStyle == 'comfortable' || currentStyle == 'icons')
-        ? currentStyle
-        : 'compact';
-
-    final colorStyle = NavisColorStyleData.of(context);
-    Widget styleOption({
-      required String value,
-      required String label,
-      required IconData icon,
-    }) {
-      final isSelected = selected == value;
-      return Expanded(
-        child: SizedBox(
-          height: 48,
-          child: FilledButton.icon(
-            onPressed: () => onStyleChanged(value),
-            icon: Icon(icon, size: 18),
-            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              backgroundColor: isSelected
-                  ? colorStyle.tonalControlFill(colorScheme)
-                  : colorScheme.surfaceContainerLow,
-              foregroundColor: isSelected
-                  ? colorStyle.onTonalControlFill(colorScheme)
-                  : colorScheme.onSurfaceVariant,
-              shape: NavisShapeData.of(context).mdShape,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Text(
-            l10n.desktopNavbarStyleLabel,
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: colorScheme.primary,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: <Widget>[
-              styleOption(
-                value: 'compact',
-                label: l10n.desktopNavbarStyleDefault,
-                icon: Icons.view_compact_alt_outlined,
-              ),
-              const SizedBox(width: 8),
-              styleOption(
-                value: 'comfortable',
-                label: l10n.desktopNavbarStyleLarge,
-                icon: Icons.view_sidebar_outlined,
-              ),
-              const SizedBox(width: 8),
-              styleOption(
-                value: 'icons',
-                label: l10n.desktopNavbarStyleIcons,
-                icon: Icons.more_vert_rounded,
-              ),
-            ],
-          ),
-        ),
-        if (showAutohide)
-          NavisSwitchListTile(
-            title: Text(l10n.desktopNavbarAutohideLabel),
-            subtitle: Text(l10n.desktopNavbarAutohideSub),
-            value: autohideEnabled,
-            onChanged: onAutohideChanged,
-          ),
-      ],
     );
   }
 }

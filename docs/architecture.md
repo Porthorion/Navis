@@ -2594,7 +2594,20 @@ Settings):
   `/settings/about`, `/settings/unavailable-items`
 - `/settings/playback/match-flow` and `/settings/playback/match-flow/:flowId/search`
 - `/settings/about/changelog`, `/settings/about/privacy`
-- `/settings/desktop-window`, `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
+- `/settings/desktop` (Window, Navigation and a Keyboard Shortcuts row),
+  `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
+
+The top-level Settings list renders its groups from one explicit, ordered map
+on every layout (phone, tablet, desktop): Server & Accounts (Server
+Information, Integrations), Playback (Playback, Equalizer), Library & Storage
+(Sync, Downloads, Storage & Cache, Unavailable Items), Look & Feel (Themes,
+Home & Library, Haptics on mobile or Desktop on desktop) and Help & About
+(Run Quick Customization, About, always last). Route segments did not change
+when pages were renamed (`/settings/cache` is "Storage & Cache",
+`/settings/interface` is "Home & Library"). Unavailable Items is always listed
+in Library & Storage; its subtitle shows the waiting count from
+`pendingUnavailableCountProvider` when there is one. The retired
+`/settings/desktop-window` path redirects to `/settings/desktop`.
 
 The retired `/settings/group-listening` path redirects to Server Information
 (`/settings/server`) and `/settings/external-services` to Integrations
@@ -3080,8 +3093,8 @@ width proportional to the window, so a stored style from a desktop install is
 honoured. The narrow-window icons rule is desktop-only: a tablet in Split View
 below 1008 px keeps its chosen style. Icons style hides the inline Library
 sections as on desktop. Tablets get no auto-hide, peek strip or history
-controls, and the Interface settings "Sidebar" section shows the style
-selector on them (auto-hide stays desktop-only). Phone-form-factor and
+controls, and the Home & Library settings "Sidebar" section shows the style
+selector on them (auto-hide stays desktop-only, on the Desktop settings page). Phone-form-factor and
 compact-wide rails keep their own widths.
 
 With auto-hide the layout always reserves the 64 px icon strip and
@@ -8437,7 +8450,7 @@ download naming throws when all 100 collision candidates are occupied.
    the distinct device-storage recovery action: it deletes rolling cache,
    cover-art cache, and local library metadata, preserves permanent downloads,
    then starts a fresh catalog build. Settings keeps these actions in the
-   separate **Library synchronization** and **Device Storage & Cache** groups;
+   separate **Sync** and **Storage & Cache** pages in the Library & Storage group;
    their metered confirmations, history origins, and full-screen progress
    states stay distinct even though both can collect a catalog. Choosing reset enters the
    shared full-screen required-library-rebuild route, which is also used for a

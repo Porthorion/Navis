@@ -291,11 +291,6 @@ abstract final class NavService {
     WidgetRef ref,
   ) => _drillIn(context, ref, AppRoutes.playbackReplayGain);
 
-  /// Open the unavailable-items review screen.
-  static void openUnavailableItems(BuildContext context, WidgetRef ref) {
-    openSettingsPage(context, ref, SettingsPage.unavailableItems);
-  }
-
   /// Open Interface settings on the Library pages group, e.g. from the
   /// "no pages enabled" recovery state.
   static void openLibraryPagesSettings(BuildContext context, WidgetRef ref) =>

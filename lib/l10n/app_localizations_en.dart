@@ -240,7 +240,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsServerSubtitle => 'Server connection and account.';
 
   @override
-  String get settingsCacheTitle => 'Device Storage & Cache';
+  String get settingsCacheTitle => 'Storage & Cache';
 
   @override
   String get settingsCacheSubtitle =>
@@ -270,7 +270,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsThemesSubtitle => 'Looks, colors, shapes and layout.';
 
   @override
-  String get settingsInterfaceTitle => 'Interface';
+  String get settingsInterfaceTitle => 'Home & Library';
 
   @override
   String get settingsInterfaceSubtitle =>
@@ -344,22 +344,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hapticsSaveError => 'Couldn\'t save this change. Try again.';
 
   @override
-  String get settingsGroupConnection => 'Connection';
-
-  @override
-  String get settingsGroupStorage => 'Storage';
-
-  @override
-  String get settingsGroupDeviceStorageCache => 'Device Storage & Cache';
+  String get settingsGroupServerAccounts => 'Server & Accounts';
 
   @override
   String get settingsGroupPlayback => 'Playback';
 
   @override
-  String get settingsGroupLibrarySynchronization => 'Library Synchronization';
+  String get settingsGroupLibraryStorage => 'Library & Storage';
 
   @override
-  String get settingsGroupOther => 'Other';
+  String get settingsGroupLookFeel => 'Look & Feel';
+
+  @override
+  String get settingsGroupHelpAbout => 'Help & About';
+
+  @override
+  String settingsUnavailableItemsSubtitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items waiting for review',
+      one: '1 item waiting for review',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get settingsRunQuickCustomizationTitle => 'Run Quick Customization';
@@ -369,7 +377,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Review your listening and appearance preferences.';
 
   @override
-  String get settingsGroupDesktop => 'Desktop';
+  String get desktopSettingsTitle => 'Desktop';
+
+  @override
+  String get desktopSettingsSubtitle =>
+      'Window, navigation and keyboard shortcuts.';
+
+  @override
+  String get desktopSettingsWindowSection => 'Window';
 
   @override
   String get settingsDesktopShortcutsTitle => 'Keyboard Shortcuts';
@@ -3489,7 +3504,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySongMenuAddToPlaylist => 'Add to Playlist';
 
   @override
-  String get cacheSettingsTitle => 'Cache & Storage';
+  String get cacheSettingsTitle => 'Storage & Cache';
 
   @override
   String get cacheSettingsRollingSection => 'Streaming Cache';
@@ -5028,7 +5043,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get interfaceSongTitlesHeading => 'Song Titles';
 
   @override
-  String get desktopNavbarSectionLabel => 'Desktop Navigation';
+  String get desktopNavbarSectionLabel => 'Navigation';
 
   @override
   String get tabletNavbarSectionLabel => 'Sidebar';
@@ -5306,9 +5321,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get desktopWindowTitle => 'Desktop Window';
-
-  @override
   String get desktopViewTitle => 'Desktop View';
 
   @override
@@ -5547,11 +5559,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unavailableReviewRefNone => 'No local references to carry over.';
-
-  @override
-  String unavailableReviewEntryWithCount(Object count) {
-    return 'Unavailable Items ($count)';
-  }
 
   @override
   String get appearanceArtworkSizeLabel => 'Artwork Size';

@@ -157,7 +157,7 @@ void main() {
   ) async {
     setAdaptiveTestViewport(tester, const Size(390, 2400));
     await pumpInterface(tester);
-    expect(find.text('Interface'), findsOneWidget); // the AppBar title
+    expect(find.text('Home & Library'), findsOneWidget); // the AppBar title
     expect(find.text(l10n.appearanceHomeSectionsLabel), findsOneWidget);
     expect(find.text(l10n.appearancePagesSectionLabel), findsOneWidget);
     expect(find.text(l10n.desktopNavbarSectionLabel), findsNothing);
@@ -166,8 +166,8 @@ void main() {
     expect(find.text(l10n.appearanceDensityLabel), findsNothing);
   });
 
-  testWidgets('desktop adds Sidebar, keeps the back button and '
-      'the 1040 width', (tester) async {
+  testWidgets('desktop keeps the back button and the 1040 width, with no '
+      'Sidebar section (it moved to Desktop settings)', (tester) async {
     setAdaptiveTestViewport(tester, const Size(1280, 1600));
     await pumpInterface(
       tester,
@@ -180,7 +180,7 @@ void main() {
 
     expect(find.byTooltip('Back'), findsOneWidget);
     expect(tester.getSize(find.byType(ListView)).width, 1040);
-    expect(find.text(l10n.desktopNavbarSectionLabel), findsOneWidget);
+    expect(find.text(l10n.desktopNavbarSectionLabel), findsNothing);
     await expectLater(
       find.byType(InterfaceSettingsScreen),
       matchesGoldenFile('goldens/interface_settings_desktop_workspace.png'),
@@ -288,7 +288,7 @@ void main() {
     expect(find.text(l10n.tabletNavbarSectionLabel), findsNothing);
   });
 
-  testWidgets('desktop keeps both the style selector and auto-hide', (
+  testWidgets('desktop no longer shows the style selector or auto-hide', (
     tester,
   ) async {
     tallView(tester);
@@ -300,12 +300,13 @@ void main() {
         safePadding: EdgeInsets.zero,
       ),
     );
-    expect(find.text(l10n.desktopNavbarStyleLarge), findsOneWidget);
-    expect(find.text(l10n.desktopNavbarAutohideLabel), findsOneWidget);
+    expect(find.text(l10n.desktopNavbarStyleLarge), findsNothing);
+    expect(find.text(l10n.desktopNavbarAutohideLabel), findsNothing);
   });
 
-  testWidgets('Home Sections, Page Visibility and Sidebar keep '
-      'their order', (tester) async {
+  testWidgets('Home Sections and Page Visibility keep their order', (
+    tester,
+  ) async {
     tallView(tester);
     await pumpInterface(
       tester,
@@ -319,10 +320,6 @@ void main() {
     expect(
       top(l10n.appearancePagesSectionLabel),
       greaterThan(top(l10n.appearanceHomeSectionsLabel)),
-    );
-    expect(
-      top(l10n.desktopNavbarSectionLabel),
-      greaterThan(top(l10n.appearancePagesSectionLabel)),
     );
   });
 
