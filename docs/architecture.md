@@ -8512,6 +8512,49 @@ download naming throws when all 100 collision candidates are occupied.
    when their own `match_flows` parent is deleted). Lyrics retain their existing
    cache/garbage-collection policy; this reset adds no cleanup.
 
+### iOS Siri "Play X in Navis" (#530)
+
+Siri plays from the Navis library through an in-app `INPlayMediaIntent`
+handler, with no Intents extension. `AppDelegate.application(_:handlerFor:)`
+returns `SiriBridge.shared` (`ios/Runner/SiriPlayMedia.swift`); the pure
+`SiriPlayMedia` enum maps the `INMediaSearch` to channel arguments and Dart's
+answers to Siri's response and resolution codes
+(`ios/RunnerTests/SiriPlayMediaTests.swift`). `Info.plist` declares
+`INIntentsSupported` (`INPlayMediaIntent`), `INSupportedMediaCategories`
+(music) and `NSSiriUsageDescription`; `Runner.entitlements` carries
+`com.apple.developer.siri` on the Runner Debug, Profile and Release
+configurations.
+
+The channel `com.navis.app/siri` is served by `IosSiriBridge`
+(`ios_siri_bridge.dart`, created from the root `ProviderContainer` in
+`main.dart`, because a background launch builds no widgets). Native to Dart:
+`status` (`ready`, `signedOut`, `unavailable`; no search) and `playMedia`
+(`mediaType`, `mediaName`, `artistName`, `albumName`, `genreName`; replies
+`playing`, `notFound`, `offline`, `signedOut`, `notReady`). Dart to native:
+`ready` (handler installed) and `setVocabulary` (`artists`, `playlists`).
+`siriPlayMediaRequest` turns the arguments into the query and extras of
+Android Auto's voice search, so `NavisPlaybackHandler.playFromVoiceSearch`
+is the one search both platforms share; an empty request starts instant
+radio. Every native call answers its completion handler exactly once on the
+main queue: `status` times out after 3 s (then Siri resolves normally), and
+`playMedia` after 10 s (`.failure`).
+
+A background launch for an intent connects no scene, so no Flutter engine runs
+and there is no Dart. That cold case answers `.continueInApp`; Siri opens
+Navis in the foreground and the intent arrives as a user activity
+(`SceneDelegate.scene(_:willConnectTo:options:)` and `scene(_:continue:)`),
+which waits in `pendingSearch` until Dart sends `ready`. Only a warm app
+(engine alive, a scene connected, Dart ready) answers in the background. The
+`Navis Siri:` NSLog lines record the scene count, `dartReady` and the chosen
+path per intent.
+
+`INVocabulary` gets the top 500 artists by library weight and every playlist
+name, pushed when the session is ready, when playlists change or a library sync
+completes, and cleared on sign-out. SiriKit has no album vocabulary type, so
+albums rely on Siri's own speech recognition and the local fuzzy search. The
+Siri authorization prompt appears the first time the vocabulary is pushed
+while the app is active.
+
 ### iOS downloads in the Files app
 
 On iOS the permanent download root is `<Documents>/Downloads`
