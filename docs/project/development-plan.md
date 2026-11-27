@@ -3167,7 +3167,7 @@ These are explicitly out of scope for the initial development but designed to be
 - **Multi-server support**: Add a `serverId` foreign key to all data tables. Add a server list/switcher UI. The provider architecture already supports swapping the API client based on active server.
 - **Android Auto / CarPlay**: ~~Promoted to **Phase 12**.~~ See Phase 12 for the full implementation plan.
 - **Desktop support (Windows, macOS, Linux)**: ~~Promoted to **Phase 13**.~~ See Phase 13 for the full implementation plan including adaptive layout, OS audio integration (SMTC / MPRIS / macOS media keys), and packaging.
-- **Chromecast / DLNA**: Cast audio to external devices. Requires a casting package and UI affordances. Independent of the core playback engine.
+- **Chromecast / DLNA**: ~~Cast audio to external devices.~~ Superseded by [the casting plan](../plans/Casting_1-6_Plan.md) (1.6, issue #2).
 - **Widgets**: ~~Promoted to **Phase 18**.~~ See Phase 18 for the Android home screen widget and iOS Live Activity implementation plan.
 - **Wear OS / Apple Watch**: Companion app for playback control.
 - **Import/export**: Import playlists from M3U files. Export starred items.
