@@ -211,7 +211,7 @@ Use this quick matrix to classify failures:
 - Expected: resolver should fall back from lock-cached stream to direct stream.
 - Desktop caching: Linux, Windows, and macOS play direct HTTPS streams while
   a sidecar download fills the rolling cache. A completed sidecar file should
-  appear in Cache & Storage and replay locally. Desktop recovery streams keep
+  appear in Storage & Cache and replay locally. Desktop recovery streams keep
   the sidecar cache path. Android uses `LockCachingAudioSource` for single-pass
   streaming and caching, with direct-stream fallback if lock-cache setup or
   playback fails.

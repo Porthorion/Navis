@@ -610,7 +610,7 @@ count write touches `songs`. Albums and songs show their genres as `GenreChips`
 (an album's come from its songs, remote songs excluded; songs show them at the
 top of the mobile song sheet and the desktop song menu, never for a remote song).
 A chip opens the genre page, or, while the page is hidden, a notice
-"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Interface with
+"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Home & Library with
 `focus=libraryPages`: that group opens, scrolls into view and briefly
 highlights the Genres row, which carries the 1.5.2 "New" tag
 (`SetupHighlight.genresPage`, a standalone highlight: the Library pages group
@@ -1360,7 +1360,7 @@ target-selection rules.
     the target). Look libraries decode leniently, discarding corrupt records
     and duplicate ids or names. Save returns `PresetResult<AppearanceLook>`;
     update, rename, delete and restore return nullable `PresetFailure`.
-  - Cache & Storage's Reset section offers **Delete all presets**. Its destructive
+  - Storage & Cache's Reset section offers **Delete all presets**. Its destructive
     confirmation clears Looks, Speed & Pitch libraries and selections in one
     `AppSettingsDao.deleteAllPresets` transaction, including retired
     `color_tuning_presets` / `selected_color_tuning_preset_id` columns when
@@ -1652,11 +1652,11 @@ target-selection rules.
     shows its explanation while off and the time pills while on; with Night as
     the chosen style the switch is locked off and says so. `app.dart` re-checks
     the scheduled style when the app resumes.
-  - Settings › Interface (`interface_settings_screen.dart`) holds everything
+  - Settings › Home & Library (`interface_settings_screen.dart`) holds everything
     else: Language (when the language control is enabled), then Song Titles (Keep
     Song Versions Visible), Home Sections, Page Visibility and the navigation
-    style: Desktop Navigation on desktop (style and auto-hide), Sidebar on
-    tablets (style only; phones have none). Each is an always-open section under an
+    style: Sidebar on tablets (style only; phones have none; desktop Navigation
+    lives on the Desktop page). Each is an always-open section under an
     `AppearanceHeading`; the page has no dropdowns
     (`SettingsCollapsibleGroup` remains for setup only).
     Page rule: Themes = `AppearanceSnapshot` fields + Looks + Auto
@@ -5996,7 +5996,7 @@ can only fetch http(s) and a `content://` URI through it failed every SAF
 download ("unexpected end of stream"). A completed
 sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
-Cache & Storage does not look idle before registration. Desktop partial-byte
+Storage & Cache does not look idle before registration. Desktop partial-byte
 diagnostics read the active sidecar attempt's received byte count, including
 its generation-specific partial write. A generation-scoped terminal callback
 clears activity on success, cancellation, or failure; an older attempt finishing
