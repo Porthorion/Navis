@@ -833,9 +833,11 @@ void main() {
       bool? pipeline,
       List<ControllableAudioPlayer>? decks,
       void Function(NavisDatabase database)? onDatabase,
+      bool startAgain = false,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rgs-');
       final (handler, player, database) = await createHandler(
+        queueEndStartAgain: startAgain,
         directory,
         albums.length,
         players: decks,
@@ -1027,8 +1029,7 @@ void main() {
     });
 
     test('repeat all wraps the neighbours', () async {
-      final (handler, player) = await smart(['a', 'b', 'a']);
-      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      final (handler, player) = await smart(['a', 'b', 'a'], startAgain: true);
       await handler.replaceQueue(
         ids(3),
         startIndex: 2,
@@ -1039,8 +1040,7 @@ void main() {
     });
 
     test('repeat all does not make a lone song its own neighbour', () async {
-      final (handler, player) = await smart(['a']);
-      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      final (handler, player) = await smart(['a'], startAgain: true);
       await handler.replaceQueue(ids(1), expandMatchFlows: false);
       expect(player.volume, closeTo(trackVolume, 0.00001));
     });

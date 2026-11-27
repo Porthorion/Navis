@@ -4937,12 +4937,13 @@ void main() {
         List<String>.generate(count - from, (i) => 'song-${i + from}');
 
     Future<(NavisAudioHandler, ControllableAudioPlayer, NavisDatabase)>
-    windowed(int count) async {
+    windowed(int count, {bool startAgain = false}) async {
       final directory = await Directory.systemTemp.createTemp('navis-window-');
       final created = await createHandler(
         directory,
         count,
         queueWindow: window,
+        queueEndStartAgain: startAgain,
       );
       addTearDown(() async {
         await created.$1.disposeHandler();
@@ -6031,9 +6032,9 @@ void main() {
     });
 
     test('repeat all resumes when a new queue has nothing deferred', () async {
-      final (handler, player, _) = await windowed(60);
+      final (handler, player, _) = await windowed(60, startAgain: true);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
-      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
       expect(player.appliedLoopMode, LoopMode.off);
       await handler.replaceQueue(['song-3'], expandMatchFlows: false);
       expect(player.appliedLoopMode, LoopMode.all);

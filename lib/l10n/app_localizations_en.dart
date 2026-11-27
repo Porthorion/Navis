@@ -1357,6 +1357,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Open lyrics in fullscreen directly from Now Playing.';
 
   @override
+  String get playbackSettingsQueueSectionTitle => 'Queue';
+
+  @override
+  String get playbackSettingsQueueEndLabel => 'When the queue ends';
+
+  @override
+  String get playbackSettingsQueueEndStartAgain => 'Start again from the top';
+
+  @override
+  String get playbackSettingsQueueEndStop => 'Stop';
+
+  @override
+  String get playbackSettingsQueueEndHint =>
+      'Sets the repeat mode a new queue starts with. You can still change repeat for the queue that is playing.';
+
+  @override
   String get playbackSettingsAlbumQueueTitle => 'Album Queue';
 
   @override

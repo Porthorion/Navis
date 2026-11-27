@@ -239,7 +239,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 117;
+  static const currentSchemaVersion = 118;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -417,6 +417,7 @@ class NavisDatabase extends _$NavisDatabase {
       from114To115,
       from115To116,
       from116To117,
+      from117To118,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -553,6 +554,17 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.tabletMediumSidebar,
+      );
+    }
+  }
+
+  /// "When the queue ends" (`app_settings.queue_end_start_again`). Adds one
+  /// column that defaults on, so every profile starts new queues on Repeat All.
+  Future<void> from117To118(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'queue_end_start_again')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.queueEndStartAgain,
       );
     }
   }

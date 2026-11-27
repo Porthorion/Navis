@@ -119,6 +119,7 @@ class AppSettingsModel {
     this.desktopNavbarStyle = 'compact',
     this.desktopNavbarAutohide = false,
     this.tabletMediumSidebar = false,
+    this.queueEndStartAgain = true,
     this.albumQueueEnabled = true,
     this.matchFlowEnabled = false,
     this.likedQueueEnabled = true,
@@ -226,6 +227,7 @@ class AppSettingsModel {
       desktopNavbarStyle = 'compact',
       desktopNavbarAutohide = false,
       tabletMediumSidebar = false,
+      queueEndStartAgain = true,
       albumQueueEnabled = true,
       matchFlowEnabled = false,
       likedQueueEnabled = true,
@@ -394,6 +396,10 @@ class AppSettingsModel {
   /// instead of the bottom tabs.
   final bool tabletMediumSidebar;
 
+  /// "When the queue ends": true starts new queues on Repeat All, false on
+  /// Repeat Off.
+  final bool queueEndStartAgain;
+
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track.
   final bool albumQueueEnabled;
@@ -544,6 +550,7 @@ class AppSettingsModel {
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
     bool? tabletMediumSidebar,
+    bool? queueEndStartAgain,
     bool? albumQueueEnabled,
     bool? matchFlowEnabled,
     bool? likedQueueEnabled,
@@ -706,6 +713,7 @@ class AppSettingsModel {
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       tabletMediumSidebar: tabletMediumSidebar ?? this.tabletMediumSidebar,
+      queueEndStartAgain: queueEndStartAgain ?? this.queueEndStartAgain,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,

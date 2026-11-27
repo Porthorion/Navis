@@ -1685,6 +1685,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
               adjustments?.lockPitchToSpeed ?? settings.lockPitchToSpeed,
           albumQueueEnabled: settings.albumQueueEnabled,
           matchFlowEnabled: settings.matchFlowEnabled,
+          queueEndStartAgain: settings.queueEndStartAgain,
         );
       },
     );
