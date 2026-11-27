@@ -610,6 +610,24 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    test('queue end start again maps, saves and watches', () async {
+      expect((await repository.getSettings()).queueEndStartAgain, isTrue);
+      expect(const AppSettingsModel.defaults().queueEndStartAgain, isTrue);
+      await database.customStatement(
+        'UPDATE app_settings SET queue_end_start_again = 0',
+      );
+      expect((await repository.getSettings()).queueEndStartAgain, isFalse);
+      expect(
+        (await repository.watchSettings().first).queueEndStartAgain,
+        isFalse,
+      );
+      final saved = (await repository.getSettings()).copyWith(
+        queueEndStartAgain: true,
+      );
+      await repository.saveSettings(saved);
+      expect((await repository.getSettings()).queueEndStartAgain, isTrue);
+    }, skip: !sqliteAvailable);
+
     test('tablet medium sidebar maps, saves and watches', () async {
       expect((await repository.getSettings()).tabletMediumSidebar, isFalse);
       await database.appSettingsDao.updateTabletMediumSidebar(true);

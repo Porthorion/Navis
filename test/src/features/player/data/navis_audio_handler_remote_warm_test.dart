@@ -131,6 +131,7 @@ void main() {
     int startIndex = 0,
     PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     bool Function()? readCrossfade,
+    bool startAgain = false,
   }) async {
     final previousHttp = HttpOverrides.current;
     HttpOverrides.global = null;
@@ -205,6 +206,7 @@ void main() {
     final created = await createHandler(
       directory,
       songCount + 2,
+      queueEndStartAgain: startAgain,
       cacheSongs: cacheSongs,
       hungLoadSongs: hungLoadSongs,
       rebuiltPlayers: hungLoadSongs == null
@@ -368,6 +370,23 @@ void main() {
       expect(player.appliedLoopMode, LoopMode.off);
     });
 
+    test('Repeat All is restored after a silent origin timeout', () async {
+      await setUpHandler(
+        startAgain: true,
+        timeouts: const NavisPlaybackTimeouts(
+          remoteLoad: Duration(milliseconds: 300),
+        ),
+      );
+      expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+      silent.add('song-3');
+      await handler.playFromIndex(3);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.all);
+      expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+    });
+
     test('an origin error records error with the status', () async {
       await setUpHandler();
       failing.add('song-3');
@@ -402,6 +421,34 @@ void main() {
         await release('song-3', navigation);
       },
     );
+
+    test(
+      'Repeat All is pinned during the warm and restored after it',
+      () async {
+        await setUpHandler(startAgain: true);
+        final navigation = await navigateGated(3);
+        expect(player.volume, 0);
+        expect(player.appliedLoopMode, LoopMode.one);
+        expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+        await release('song-3', navigation);
+        expect(handler.snapshot.currentSongId, 'song-3');
+        expect(player.volume, 1.0);
+        expect(player.appliedLoopMode, LoopMode.all);
+        expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+      },
+    );
+
+    test('stop during the warm restores Repeat All', () async {
+      await setUpHandler(startAgain: true);
+      final navigation = await navigateGated(3);
+      await handler.stop();
+      await pumpEventQueue();
+      expect(player.volume, 1.0);
+      expect(player.appliedLoopMode, LoopMode.all);
+      gates['song-3']!.complete();
+      await navigation.$1;
+      expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+    });
 
     test('the previous song is muted and not paused, then the target plays '
         'at the full volume', () async {

@@ -338,7 +338,6 @@ void main() {
               if (shuffled && entity) {
                 await handler.setShuffleMode(AudioServiceShuffleMode.all);
               }
-              await handler.setRepeatMode(repeat);
               final gate = Completer<void>();
               final entered = Completer<void>();
               addTearDown(() {
@@ -361,6 +360,9 @@ void main() {
                       expandMatchFlows: false,
                     );
               await entered.future;
+              // A new queue takes its repeat mode from "When the queue ends",
+              // so the mode under test is set on the queue that is filling.
+              await handler.setRepeatMode(repeat);
               final order = List<String>.of(handler.snapshot.queueSongIds);
               // Entity Shuffle supplies the play order with the start song
               // first; a plain replace plays in order from the start song,
@@ -2126,6 +2128,7 @@ void main() {
       Future<void> Function(NavisDatabase)? seed,
       int startIndex = 0,
       Future<void> Function(NavisAudioHandler)? beforePlay,
+      bool startAgain = false,
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -2174,6 +2177,7 @@ void main() {
       );
       final downloader = RollingCacheSidecarDownloader();
       final (handler, player, database) = await createHandler(
+        queueEndStartAgain: startAgain,
         directory,
         count,
         sidecarStreams: true,
@@ -2264,11 +2268,8 @@ void main() {
     });
 
     test('Repeat One warms nothing', () async {
-      final s = await serveQueue(
-        3,
-        beforePlay: (handler) =>
-            handler.setRepeatMode(AudioServiceRepeatMode.one),
-      );
+      final s = await serveQueue(3);
+      await s.handler.setRepeatMode(AudioServiceRepeatMode.one);
       final first = s.handler.queue.value[0].extras!['sidecarCacheFilePath'];
       await until(() => File(first as String).existsSync());
       await settle();
@@ -2276,12 +2277,7 @@ void main() {
     });
 
     test('Repeat All at the last song warms the first song', () async {
-      final s = await serveQueue(
-        2,
-        startIndex: 1,
-        beforePlay: (handler) =>
-            handler.setRepeatMode(AudioServiceRepeatMode.all),
-      );
+      final s = await serveQueue(2, startIndex: 1, startAgain: true);
       await until(() => s.requests.contains('song-0'));
       expect(s.requests, ['song-1', 'song-0']);
     });

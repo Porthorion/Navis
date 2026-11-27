@@ -2192,10 +2192,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required bool shuffled,
     List<SongsTableData>? suppliedRows,
   }) {
-    // The first broadcast of the new queue already carries its mode. The
-    // original order follows in [_applyNewQueueMode], once the rows are known:
-    // saving the old queue against it would reconcile it away.
-    if (!inPlayOrder) _shuffleEnabled = shuffled;
+    // The first broadcast of the new queue already carries its shuffle and
+    // repeat mode. The original order follows in [_applyNewQueueMode], once
+    // the rows are known: saving the old queue against it would reconcile it
+    // away.
+    if (!inPlayOrder) {
+      _shuffleEnabled = shuffled;
+      _desiredLoopMode = _newQueueLoopMode;
+    }
     _cancelCrossfade();
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
@@ -2574,7 +2578,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// start (Play, a song tap, search, radio, mixes, links) plays in order with
   /// shuffle off. [inPlayOrder] reloads of the current queue (failure
   /// recovery) keep the mode and order they have. The shuffle toggle still
-  /// acts on the current queue afterwards.
+  /// acts on the current queue afterwards. Repeat follows the same rule:
+  /// "When the queue ends" picks Repeat All (start again from the top) or
+  /// Repeat Off (stop) for every new queue, so a per-queue Repeat One or Off
+  /// never carries over. The caller syncs the native loop once the queue is
+  /// in place.
   void _applyNewQueueMode({
     required bool inPlayOrder,
     List<String>? originalOrder,
@@ -2584,7 +2592,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _originalOrder = originalOrder == null
         ? null
         : List<String>.of(originalOrder);
+    _desiredLoopMode = _newQueueLoopMode;
   }
+
+  /// The repeat mode "When the queue ends" gives a new queue.
+  LoopMode get _newQueueLoopMode =>
+      _readRuntimeSettings().queueEndStartAgain ? LoopMode.all : LoopMode.off;
 
   Future<void> _replaceQueueFromIds(
     List<String> songIds, {

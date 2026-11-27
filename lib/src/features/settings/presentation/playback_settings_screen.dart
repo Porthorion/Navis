@@ -72,6 +72,7 @@ class _PlaybackSettingsScreenState
   bool _prefetchNextOnMobileData = true;
   bool _fullscreenModeLyrics = false;
   bool _albumQueueEnabled = false;
+  bool _queueEndStartAgain = true;
   bool _likedQueueEnabled = false;
   bool _matchFlowEnabled = false;
 
@@ -275,6 +276,44 @@ class _PlaybackSettingsScreenState
                     title: Text(l10n.playbackSettingsScrobbleTitle),
                     subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
                   ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.playbackSettingsQueueSectionTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  // A form field keeps its first value, so a reset must rebuild it.
+                  KeyedSubtree(
+                    key: ValueKey<bool>(_queueEndStartAgain),
+                    child: DropdownButtonFormField<bool>(
+                      key: const ValueKey('playbackSettingsQueueEnd'),
+                      isExpanded: true,
+                      initialValue: _queueEndStartAgain,
+                      decoration: InputDecoration(
+                        labelText: l10n.playbackSettingsQueueEndLabel,
+                        helperText: l10n.playbackSettingsQueueEndHint,
+                        helperMaxLines: 3,
+                      ),
+                      items: <DropdownMenuItem<bool>>[
+                        DropdownMenuItem(
+                          value: true,
+                          child: Text(l10n.playbackSettingsQueueEndStartAgain),
+                        ),
+                        DropdownMenuItem(
+                          value: false,
+                          child: Text(l10n.playbackSettingsQueueEndStop),
+                        ),
+                      ],
+                      onChanged: _isSaving
+                          ? null
+                          : (value) {
+                              if (value != null) {
+                                setState(() => _queueEndStartAgain = value);
+                              }
+                            },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   NavisSwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _albumQueueEnabled,
@@ -863,6 +902,7 @@ class _PlaybackSettingsScreenState
     _prefetchNextOnMobileData = settings.prefetchNextOnMobileData;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _albumQueueEnabled = settings.albumQueueEnabled;
+    _queueEndStartAgain = settings.queueEndStartAgain;
     _likedQueueEnabled = settings.likedQueueEnabled;
     _matchFlowEnabled = settings.matchFlowEnabled;
 
@@ -911,6 +951,7 @@ class _PlaybackSettingsScreenState
       _replayGainPreamp,
       _replayGainUntaggedDb,
       _albumQueueEnabled,
+      _queueEndStartAgain,
       _likedQueueEnabled,
       _matchFlowEnabled,
     ].join('|');
@@ -966,6 +1007,7 @@ class _PlaybackSettingsScreenState
         replayGainUntaggedDb: _replayGainUntaggedDb,
         clearReplayGainUntaggedDb: _replayGainUntaggedDb == null,
         albumQueueEnabled: _albumQueueEnabled,
+        queueEndStartAgain: _queueEndStartAgain,
         matchFlowEnabled: _matchFlowEnabled,
         likedQueueEnabled: _likedQueueEnabled,
       );
