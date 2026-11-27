@@ -98,6 +98,14 @@ abstract class NavisPlaybackHandler {
   /// source was available yet. A no-op once the user has started playback.
   Future<void> retryDeferredQueueRestore();
 
+  /// Plays what a platform voice assistant (Siri, via Android Auto's search
+  /// shape) asked for, from the local library. Returns whether anything
+  /// started loading; a miss reports `false` without touching playback state.
+  Future<bool> playFromVoiceSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async => false;
+
   /// Replaces the queue with [songIds].
   ///
   /// [originalOrder] supplies pre-shuffle occurrence IDs when the caller
