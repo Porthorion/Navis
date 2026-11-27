@@ -78,6 +78,23 @@ void main() {
     expect(player.appliedLoopMode, LoopMode.all);
   });
 
+  test(
+    'the first snapshot of a new queue already carries its repeat mode',
+    () async {
+      final (handler, _, _) = await make();
+      await handler.replaceQueue(ids(3), expandMatchFlows: false);
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      final seen = <AudioServiceRepeatMode>[];
+      final sub = handler.snapshotStream.listen((snapshot) {
+        if (snapshot.currentSongId == 'song-4') seen.add(snapshot.repeatMode);
+      });
+      addTearDown(sub.cancel);
+      await handler.replaceQueue(['song-4', 'song-5'], expandMatchFlows: false);
+      expect(seen, isNotEmpty);
+      expect(seen.first, AudioServiceRepeatMode.all);
+    },
+  );
+
   test('the user can still turn repeat off for the current queue', () async {
     final (handler, player, database) = await make();
     await handler.replaceQueue(ids(3), expandMatchFlows: false);
