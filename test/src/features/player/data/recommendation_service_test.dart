@@ -100,12 +100,17 @@ class _FakeDeezer extends DeezerApiClient {
   final List<String> searched = <String>[];
   final List<bool> relatedBackground = <bool>[];
   final List<bool> relatedRetryQuota = <bool>[];
-  final List<CancelToken?> relatedTokens = <CancelToken?>[];
+
+  /// Token of the first lookup or related request that hung ([hang]). The cap
+  /// may land before either request starts, so tests wait on this instead of
+  /// requiring a particular request to be reached.
+  final Completer<CancelToken?> firstLegToken = Completer<CancelToken?>();
   List<DeezerArtist> related = const <DeezerArtist>[];
   bool onDeezer = true;
   Exception? relatedError;
   Exception? searchError;
   bool hang = false;
+  Duration searchDelay = Duration.zero;
 
   int get requests => searched.length + relatedBackground.length;
 
@@ -118,6 +123,8 @@ class _FakeDeezer extends DeezerApiClient {
     bool retryQuota = true,
   }) async {
     searched.add(name);
+    if (searchDelay > Duration.zero) await Future<void>.delayed(searchDelay);
+    if (hang) await _hangUntilCancelled(cancelToken, 'search/artist');
     if (searchError case final error?) throw error;
     return onDeezer ? [DeezerArtist(id: 7, name: name)] : const [];
   }
@@ -132,16 +139,20 @@ class _FakeDeezer extends DeezerApiClient {
   }) async {
     relatedBackground.add(background);
     relatedRetryQuota.add(retryQuota);
-    relatedTokens.add(cancelToken);
     if (hang) {
-      await cancelToken!.whenCancel;
-      throw DioException(
-        requestOptions: RequestOptions(path: 'artist/$artistId/related'),
-        type: DioExceptionType.cancel,
-      );
+      await _hangUntilCancelled(cancelToken, 'artist/$artistId/related');
     }
     if (relatedError case final error?) throw error;
     return related;
+  }
+
+  Future<Never> _hangUntilCancelled(CancelToken? token, String path) async {
+    if (!firstLegToken.isCompleted) firstLegToken.complete(token);
+    await token!.whenCancel;
+    throw DioException(
+      requestOptions: RequestOptions(path: path),
+      type: DioExceptionType.cancel,
+    );
   }
 }
 
@@ -1026,7 +1037,32 @@ void main() {
         final batch = await radio(container);
         expect(batch.songs, isNotEmpty);
         expect(batch.source, RecommendationSource.localTaste);
-        expect(deezer.relatedTokens.single!.isCancelled, isTrue);
+        final token = await deezer.firstLegToken.future.timeout(
+          const Duration(seconds: 5),
+        );
+        expect(token!.isCancelled, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'the cap also covers a slow artist lookup before the related request',
+      () async {
+        final database = await library();
+        final container = containerFor(
+          database,
+          timeout: const Duration(milliseconds: 50),
+        );
+        deezer
+          ..hang = true
+          ..searchDelay = const Duration(milliseconds: 200);
+        final batch = await radio(container);
+        expect(batch.songs, isNotEmpty);
+        expect(batch.source, RecommendationSource.localTaste);
+        final token = await deezer.firstLegToken.future.timeout(
+          const Duration(seconds: 5),
+        );
+        expect(token!.isCancelled, isTrue);
       },
       skip: !sqliteAvailable,
     );
@@ -1036,6 +1072,7 @@ void main() {
       final container = containerFor(database);
       deezer.hang = true;
       final caller = CancelToken();
+      final elapsed = Stopwatch()..start();
       final batch = container
           .read(recommendationServiceProvider)
           .personalRadio(
@@ -1043,12 +1080,14 @@ void main() {
             excludedIds: const <String>{},
             cancelToken: caller,
           );
-      while (deezer.relatedTokens.isEmpty) {
-        await Future<void>.delayed(const Duration(milliseconds: 5));
-      }
+      final token = await deezer.firstLegToken.future.timeout(
+        const Duration(seconds: 5),
+      );
       caller.cancel();
       expect((await batch).songs, isNotEmpty);
-      expect(deezer.relatedTokens.single!.isCancelled, isTrue);
+      expect(token!.isCancelled, isTrue);
+      // Well under the 6 s cap, so the caller's cancel did it, not the cap.
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 2)));
     }, skip: !sqliteAvailable);
 
     test(
