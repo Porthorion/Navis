@@ -993,10 +993,27 @@ class NavisAudioHandler extends BaseAudioHandler
     Map<String, dynamic>? extras,
   ]) async {
     AppLogger.info('Android Auto playFromSearch query="$query"');
-    await _runAndroidAutoLoad(
-      () => _loadFromSearch(query, extras, autoPlay: true),
-      failureMessage: 'No matching music was found.',
-    );
+    if (!await playFromVoiceSearch(query, extras)) {
+      _broadcastAndroidAutoPlaybackError('No matching music was found.');
+    }
+  }
+
+  /// The shared voice search: Android Auto's [playFromSearch] and the iOS
+  /// Siri bridge. A miss or failure returns `false` and never broadcasts an
+  /// error state; the caller decides how to report it.
+  @override
+  Future<bool> playFromVoiceSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    try {
+      return await _loadFromSearch(query, extras, autoPlay: true);
+    } on Object catch (error) {
+      AppLogger.warning(
+        'Android Auto playback request raised ${error.runtimeType}.',
+      );
+      return false;
+    }
   }
 
   /// Caches [coverArtId]'s cover from [artUri] for the system media

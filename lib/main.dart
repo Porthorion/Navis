@@ -18,6 +18,7 @@ import 'package:navis/src/features/library/data/android_background_sync_entrypoi
     as android_background_sync;
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
+import 'package:navis/src/features/player/presentation/ios_siri_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -128,6 +129,8 @@ Future<void> _runNavis() async {
   rootContainer
       .read(audioBootstrapControllerProvider.notifier)
       .ensureInitialized();
+  // iOS Siri "Play <X> in Navis" (#530) answers before any widget builds.
+  if (!kIsWeb && Platform.isIOS) rootContainer.read(iosSiriProvider);
 
   Future<void> startUi() async {
     await _unlockMobileOrientations();

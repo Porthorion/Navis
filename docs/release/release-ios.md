@@ -47,6 +47,13 @@ is therefore for `flutter build ipa` only: a Release app cannot be installed on
 a phone directly, so use Profile or Debug on a device. The bundle ID is
 `com.navis.app.navis`, the same as Android and macOS.
 
+The app declares the Siri capability (`ios/Runner/Runner.entitlements`,
+`com.apple.developer.siri`, #530). The app ID must have Siri enabled and the
+`Navis App Store` profile must be regenerated after that, or the archive fails
+to sign with an entitlement the profile does not grant. After installing the
+profile, `codesign -d --entitlements :- <Runner.app in the xcarchive>` should
+list `com.apple.developer.siri`.
+
 ## One-time setup
 
 1. Create an Apple Distribution certificate (Xcode › Settings › Accounts ›

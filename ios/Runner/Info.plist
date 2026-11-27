@@ -30,6 +30,16 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Navis does not use your photo library. The system file picker it includes requires this entry.</string>
+	<key>NSSiriUsageDescription</key>
+	<string>Siri plays music from your Navis library when you ask.</string>
+	<key>INIntentsSupported</key>
+	<array>
+		<string>INPlayMediaIntent</string>
+	</array>
+	<key>INSupportedMediaCategories</key>
+	<array>
+		<string>INMediaCategoryMusic</string>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Navis connects to music servers on your local network.</string>
 	<key>NSAppTransportSecurity</key>
