@@ -1,4 +1,5 @@
 import Flutter
+import Intents
 import Network
 import UIKit
 
@@ -68,6 +69,8 @@ import UIKit
       result(true)
     }
 
+    SiriBridge.shared.attach(messenger: messenger)
+
     FlutterMethodChannel(
       name: networkCostChannelName,
       binaryMessenger: messenger
@@ -78,6 +81,11 @@ import UIKit
       }
       result(self?.isActiveNetworkMetered() ?? NSNull())
     }
+  }
+
+  // Siri's "Play X in Navis" runs in the app process (no Intents extension).
+  override func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
+    intent is INPlayMediaIntent ? SiriBridge.shared : super.application(application, handlerFor: intent)
   }
 
   private func isActiveNetworkMetered() -> Bool? {

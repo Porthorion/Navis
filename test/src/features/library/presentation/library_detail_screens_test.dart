@@ -132,6 +132,12 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> retryDeferredQueueRestore() async {}
 
   @override
+  Future<bool> playFromVoiceSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async => false;
+
+  @override
   Future<void> replaceQueue(
     List<String> songIds, {
     int startIndex = 0,

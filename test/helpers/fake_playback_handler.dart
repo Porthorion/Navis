@@ -76,6 +76,11 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   @override
   Future<void> retryDeferredQueueRestore() async {}
   @override
+  Future<bool> playFromVoiceSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async => false;
+  @override
   Future<void> applyRuntimeSettings() async {}
   @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}

@@ -19,6 +19,8 @@
 		D0A110AD1030000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D0A110AD1030000000000001 /* PrivacyInfo.xcprivacy */; };
 		D0A110AD1040000000000002 /* HapticKinds.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A110AD1040000000000001 /* HapticKinds.swift */; };
 		D0A110AD1040000000000004 /* HapticKindsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A110AD1040000000000003 /* HapticKindsTests.swift */; };
+		D0A110AD1050000000000002 /* SiriPlayMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A110AD1050000000000001 /* SiriPlayMedia.swift */; };
+		D0A110AD1050000000000004 /* SiriPlayMediaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A110AD1050000000000003 /* SiriPlayMediaTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +66,9 @@
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D0A110AD1030000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D0A110AD1040000000000001 /* HapticKinds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticKinds.swift; sourceTree = "<group>"; };
+		D0A110AD1050000000000001 /* SiriPlayMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriPlayMedia.swift; sourceTree = "<group>"; };
+		D0A110AD1050000000000003 /* SiriPlayMediaTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriPlayMediaTests.swift; sourceTree = "<group>"; };
+		D0A110AD1050000000000005 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		D0A110AD1040000000000003 /* HapticKindsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticKindsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -91,6 +96,7 @@
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 				D0A110AD1040000000000003 /* HapticKindsTests.swift */,
+				D0A110AD1050000000000003 /* SiriPlayMediaTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -139,6 +145,8 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				D0A110AD1040000000000001 /* HapticKinds.swift */,
+				D0A110AD1050000000000001 /* SiriPlayMedia.swift */,
+				D0A110AD1050000000000005 /* Runner.entitlements */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
@@ -293,6 +301,7 @@
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
 				D0A110AD1040000000000004 /* HapticKindsTests.swift in Sources */,
+				D0A110AD1050000000000004 /* SiriPlayMediaTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -304,6 +313,7 @@
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				D0A110AD1040000000000002 /* HapticKinds.swift in Sources */,
+				D0A110AD1050000000000002 /* SiriPlayMedia.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -395,6 +405,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = BFBNSCVKXH;
@@ -576,6 +587,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = BFBNSCVKXH;
@@ -600,6 +612,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
