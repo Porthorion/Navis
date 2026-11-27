@@ -1105,7 +1105,7 @@ void main() {
   });
 
   group('Unavailable Items entry', () {
-    Future<(NavisDatabase, int)> seed(WidgetTester tester, int pending) async {
+    Future<void> seed(WidgetTester tester, int pending) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1200, 2400);
       addTearDown(() {
@@ -1144,33 +1144,11 @@ void main() {
         ),
         state: const LibrarySyncState.idle(),
       );
-      return (database, serverId);
     }
 
-    testWidgets('is hidden when nothing is pending', (tester) async {
-      await seed(tester, 0);
-      expect(find.textContaining('Unavailable Items'), findsNothing);
-    });
-
-    testWidgets('shows the count and disappears live when resolved', (
-      tester,
-    ) async {
-      final (database, serverId) = await seed(tester, 2);
-      expect(find.text('Unavailable Items (2)'), findsOneWidget);
-
-      final rows = await pendingRecoveryReviews(database, serverId);
-      await database.librarySyncDao.setRecoveryReviewDisposition(
-        id: rows.first.id,
-        disposition: 'keptForLater',
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Unavailable Items (1)'), findsOneWidget);
-
-      await database.librarySyncDao.setRecoveryReviewDisposition(
-        id: rows.last.id,
-        disposition: 'keptForLater',
-      );
-      await tester.pumpAndSettle();
+    testWidgets('is not listed on Sync, even with items waiting (it is a '
+        'top-level Settings entry)', (tester) async {
+      await seed(tester, 2);
       expect(find.textContaining('Unavailable Items'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());

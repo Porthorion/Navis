@@ -38,7 +38,7 @@ enum SettingsPage {
   interface(AppRoutes.settingsInterfaceSegment),
   haptics(AppRoutes.settingsHapticsSegment),
   about(AppRoutes.settingsAboutSegment),
-  desktopWindow(AppRoutes.settingsDesktopWindowSegment),
+  desktop(AppRoutes.settingsDesktopSegment),
   shortcuts(AppRoutes.settingsShortcutsSegment),
   unavailableItems(AppRoutes.settingsUnavailableItemsSegment);
 
@@ -164,7 +164,7 @@ abstract final class AppRoutes {
   static const settingsInterfaceSegment = 'interface';
   static const settingsHapticsSegment = 'haptics';
   static const settingsAboutSegment = 'about';
-  static const settingsDesktopWindowSegment = 'desktop-window';
+  static const settingsDesktopSegment = 'desktop';
   static const settingsShortcutsSegment = 'shortcuts';
   static const settingsUnavailableItemsSegment = 'unavailable-items';
   static const matchFlowSegment = 'match-flow';
@@ -177,6 +177,7 @@ abstract final class AppRoutes {
     'group-listening': SettingsPage.server,
     'external-services': SettingsPage.integrations,
     'appearance': SettingsPage.themes,
+    'desktop-window': SettingsPage.desktop,
   };
 
   static String get equalizer => SettingsPage.equalizer.location;

@@ -517,7 +517,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsCacheTitle.
   ///
   /// In en, this message translates to:
-  /// **'Device Storage & Cache'**
+  /// **'Storage & Cache'**
   String get settingsCacheTitle;
 
   /// No description provided for @settingsCacheSubtitle.
@@ -571,7 +571,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsInterfaceTitle.
   ///
   /// In en, this message translates to:
-  /// **'Interface'**
+  /// **'Home & Library'**
   String get settingsInterfaceTitle;
 
   /// No description provided for @settingsInterfaceSubtitle.
@@ -700,23 +700,11 @@ abstract class AppLocalizations {
   /// **'Couldn\'t save this change. Try again.'**
   String get hapticsSaveError;
 
-  /// No description provided for @settingsGroupConnection.
+  /// No description provided for @settingsGroupServerAccounts.
   ///
   /// In en, this message translates to:
-  /// **'Connection'**
-  String get settingsGroupConnection;
-
-  /// No description provided for @settingsGroupStorage.
-  ///
-  /// In en, this message translates to:
-  /// **'Storage'**
-  String get settingsGroupStorage;
-
-  /// No description provided for @settingsGroupDeviceStorageCache.
-  ///
-  /// In en, this message translates to:
-  /// **'Device Storage & Cache'**
-  String get settingsGroupDeviceStorageCache;
+  /// **'Server & Accounts'**
+  String get settingsGroupServerAccounts;
 
   /// No description provided for @settingsGroupPlayback.
   ///
@@ -724,17 +712,29 @@ abstract class AppLocalizations {
   /// **'Playback'**
   String get settingsGroupPlayback;
 
-  /// No description provided for @settingsGroupLibrarySynchronization.
+  /// No description provided for @settingsGroupLibraryStorage.
   ///
   /// In en, this message translates to:
-  /// **'Library Synchronization'**
-  String get settingsGroupLibrarySynchronization;
+  /// **'Library & Storage'**
+  String get settingsGroupLibraryStorage;
 
-  /// No description provided for @settingsGroupOther.
+  /// No description provided for @settingsGroupLookFeel.
   ///
   /// In en, this message translates to:
-  /// **'Other'**
-  String get settingsGroupOther;
+  /// **'Look & Feel'**
+  String get settingsGroupLookFeel;
+
+  /// No description provided for @settingsGroupHelpAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'Help & About'**
+  String get settingsGroupHelpAbout;
+
+  /// No description provided for @settingsUnavailableItemsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 item waiting for review} other{{count} items waiting for review}}'**
+  String settingsUnavailableItemsSubtitle(int count);
 
   /// No description provided for @settingsRunQuickCustomizationTitle.
   ///
@@ -748,11 +748,23 @@ abstract class AppLocalizations {
   /// **'Review your listening and appearance preferences.'**
   String get settingsRunQuickCustomizationSubtitle;
 
-  /// No description provided for @settingsGroupDesktop.
+  /// No description provided for @desktopSettingsTitle.
   ///
   /// In en, this message translates to:
   /// **'Desktop'**
-  String get settingsGroupDesktop;
+  String get desktopSettingsTitle;
+
+  /// No description provided for @desktopSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Window, navigation and keyboard shortcuts.'**
+  String get desktopSettingsSubtitle;
+
+  /// No description provided for @desktopSettingsWindowSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Window'**
+  String get desktopSettingsWindowSection;
 
   /// No description provided for @settingsDesktopShortcutsTitle.
   ///
@@ -1824,11 +1836,11 @@ abstract class AppLocalizations {
   /// **'Only cross-fade between tracks from different albums.'**
   String get playbackSettingsCrossfadeTypeSmartDescription;
 
-  /// No description provided for @playbackSettingsReplayGainSectionTitle.
+  /// No description provided for @playbackSettingsVolumeSectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'Volume Normalization (ReplayGain)'**
-  String get playbackSettingsReplayGainSectionTitle;
+  /// **'Volume'**
+  String get playbackSettingsVolumeSectionTitle;
 
   /// No description provided for @playbackVolumeSemanticLabel.
   ///
@@ -2031,6 +2043,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Queue'**
   String get playbackSettingsQueueSectionTitle;
+
+  /// No description provided for @playbackSettingsTransitionsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Transitions'**
+  String get playbackSettingsTransitionsSectionTitle;
+
+  /// No description provided for @playbackSettingsStreamingSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Streaming Quality'**
+  String get playbackSettingsStreamingSectionTitle;
+
+  /// No description provided for @playbackSettingsLyricsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics'**
+  String get playbackSettingsLyricsSectionTitle;
+
+  /// No description provided for @playbackSettingsScrobblingSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrobbling'**
+  String get playbackSettingsScrobblingSectionTitle;
+
+  /// No description provided for @playbackSettingsFooterSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving changes…'**
+  String get playbackSettingsFooterSaving;
+
+  /// No description provided for @playbackSettingsFooterIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes save automatically'**
+  String get playbackSettingsFooterIdle;
 
   /// No description provided for @playbackSettingsQueueEndLabel.
   ///
@@ -5514,7 +5562,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Cache & Storage'**
+  /// **'Storage & Cache'**
   String get cacheSettingsTitle;
 
   /// No description provided for @cacheSettingsRollingSection.
@@ -7944,7 +7992,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopNavbarSectionLabel.
   ///
   /// In en, this message translates to:
-  /// **'Desktop Navigation'**
+  /// **'Navigation'**
   String get desktopNavbarSectionLabel;
 
   /// No description provided for @tabletNavbarSectionLabel.
@@ -8415,12 +8463,6 @@ abstract class AppLocalizations {
   /// **'Added {title}.'**
   String matchFlowSongAdded(String title);
 
-  /// No description provided for @desktopWindowTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Desktop Window'**
-  String get desktopWindowTitle;
-
   /// No description provided for @desktopViewTitle.
   ///
   /// In en, this message translates to:
@@ -8810,12 +8852,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No local references to carry over.'**
   String get unavailableReviewRefNone;
-
-  /// No description provided for @unavailableReviewEntryWithCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Unavailable Items ({count})'**
-  String unavailableReviewEntryWithCount(Object count);
 
   /// No description provided for @appearanceArtworkSizeLabel.
   ///

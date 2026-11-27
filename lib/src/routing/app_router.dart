@@ -30,7 +30,7 @@ import 'package:navis/src/features/settings/presentation/themes_settings_screen.
 import 'package:navis/src/features/settings/presentation/about_screen.dart';
 import 'package:navis/src/features/settings/presentation/cache_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/desktop_shortcuts_settings_screen.dart';
-import 'package:navis/src/features/settings/presentation/desktop_window_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/desktop_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/privacy_screen.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
@@ -598,12 +598,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: AppRoutes.settingsDesktopWindowSegment,
+                    path: AppRoutes.settingsDesktopSegment,
                     redirect: _desktopOnlyRedirect,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
-                      child: const DesktopWindowSettingsScreen(),
+                      child: const DesktopSettingsScreen(),
                     ),
                   ),
                   GoRoute(

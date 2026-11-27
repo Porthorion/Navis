@@ -562,17 +562,6 @@ class _AboutInformation extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => NavService.openPrivacy(context, ref),
         ),
-        ListTile(
-          leading: const Icon(Icons.hub_outlined),
-          title: Text(l10n.integrationsTitle),
-          subtitle: Text(l10n.integrationsSubtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => NavService.openSettingsPage(
-            context,
-            ref,
-            SettingsPage.integrations,
-          ),
-        ),
       ],
     );
   }

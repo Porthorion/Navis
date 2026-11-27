@@ -12,7 +12,6 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
-import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -570,8 +569,6 @@ class SyncSettingsScreen extends ConsumerWidget {
                     label: Text(l10n.commonRetry),
                   ),
                 ],
-                const SizedBox(height: 8),
-                UnavailableReviewEntry(serverId: serverConfig?.id),
               ],
             ),
           ),
@@ -927,29 +924,4 @@ class _OperationCounts {
   final int songs;
 
   int get total => artists + albums + songs;
-}
-
-/// Entry point for the unavailable-items review list, shown only while items
-/// await review.
-class UnavailableReviewEntry extends ConsumerWidget {
-  const new({super.key, required this.serverId});
-
-  final int? serverId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final pendingCount = ref
-        .watch(pendingUnavailableCountProvider)
-        .asData
-        ?.value;
-    if (serverId == null || pendingCount == null || pendingCount == 0) {
-      return const SizedBox.shrink();
-    }
-    return TextButton.icon(
-      onPressed: () => NavService.openUnavailableItems(context, ref),
-      icon: const Icon(Icons.playlist_remove),
-      label: Text(l10n.unavailableReviewEntryWithCount(pendingCount)),
-    );
-  }
 }

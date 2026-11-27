@@ -610,7 +610,7 @@ count write touches `songs`. Albums and songs show their genres as `GenreChips`
 (an album's come from its songs, remote songs excluded; songs show them at the
 top of the mobile song sheet and the desktop song menu, never for a remote song).
 A chip opens the genre page, or, while the page is hidden, a notice
-"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Interface with
+"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Home & Library with
 `focus=libraryPages`: that group opens, scrolls into view and briefly
 highlights the Genres row, which carries the 1.5.2 "New" tag
 (`SetupHighlight.genresPage`, a standalone highlight: the Library pages group
@@ -1360,7 +1360,7 @@ target-selection rules.
     the target). Look libraries decode leniently, discarding corrupt records
     and duplicate ids or names. Save returns `PresetResult<AppearanceLook>`;
     update, rename, delete and restore return nullable `PresetFailure`.
-  - Cache & Storage's Reset section offers **Delete all presets**. Its destructive
+  - Storage & Cache's Reset section offers **Delete all presets**. Its destructive
     confirmation clears Looks, Speed & Pitch libraries and selections in one
     `AppSettingsDao.deleteAllPresets` transaction, including retired
     `color_tuning_presets` / `selected_color_tuning_preset_id` columns when
@@ -1652,11 +1652,11 @@ target-selection rules.
     shows its explanation while off and the time pills while on; with Night as
     the chosen style the switch is locked off and says so. `app.dart` re-checks
     the scheduled style when the app resumes.
-  - Settings › Interface (`interface_settings_screen.dart`) holds everything
+  - Settings › Home & Library (`interface_settings_screen.dart`) holds everything
     else: Language (when the language control is enabled), then Song Titles (Keep
     Song Versions Visible), Home Sections, Page Visibility and the navigation
-    style: Desktop Navigation on desktop (style and auto-hide), Sidebar on
-    tablets (style only; phones have none). Each is an always-open section under an
+    style: Sidebar on tablets (style only; phones have none; desktop Navigation
+    lives on the Desktop page). Each is an always-open section under an
     `AppearanceHeading`; the page has no dropdowns
     (`SettingsCollapsibleGroup` remains for setup only).
     Page rule: Themes = `AppearanceSnapshot` fields + Looks + Auto
@@ -2594,7 +2594,28 @@ Settings):
   `/settings/about`, `/settings/unavailable-items`
 - `/settings/playback/match-flow` and `/settings/playback/match-flow/:flowId/search`
 - `/settings/about/changelog`, `/settings/about/privacy`
-- `/settings/desktop-window`, `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
+- `/settings/desktop` (Window, Navigation and a Keyboard Shortcuts row),
+  `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
+
+The top-level Settings list renders its groups from one explicit, ordered map
+on every layout (phone, tablet, desktop): Server & Accounts (Server
+Information, Integrations), Playback (Playback, Equalizer), Library & Storage
+(Sync, Downloads, Storage & Cache, Unavailable Items), Look & Feel (Themes,
+Home & Library, Haptics on mobile or Desktop on desktop) and Help & About
+(Run Quick Customization, About, always last). Route segments did not change
+when pages were renamed (`/settings/cache` is "Storage & Cache",
+`/settings/interface` is "Home & Library"). Unavailable Items is always listed
+in Library & Storage; its subtitle shows the waiting count from
+`pendingUnavailableCountProvider` when there is one. The retired
+`/settings/desktop-window` path redirects to `/settings/desktop`.
+
+`/settings/playback` is one page of `NavisSectionHeader` sections in this
+order: Queue (When the queue ends, Album Queue, Liked Queue), Transitions
+(Gapless, Cross-Fade), Volume (ReplayGain), Speed & Pitch, Streaming Quality
+(Wi-Fi, Cellular, cached copies, prefetch, Fast Seeking where supported),
+Lyrics, Scrobbling and the Experimental expander, then the autosave footer
+(`playbackSettingsFooterSaving`/`Idle`) and Reset Defaults. `?focus=replayGain`
+scrolls to the Volume header.
 
 The retired `/settings/group-listening` path redirects to Server Information
 (`/settings/server`) and `/settings/external-services` to Integrations
@@ -3080,8 +3101,8 @@ width proportional to the window, so a stored style from a desktop install is
 honoured. The narrow-window icons rule is desktop-only: a tablet in Split View
 below 1008 px keeps its chosen style. Icons style hides the inline Library
 sections as on desktop. Tablets get no auto-hide, peek strip or history
-controls, and the Interface settings "Sidebar" section shows the style
-selector on them (auto-hide stays desktop-only). Phone-form-factor and
+controls, and the Home & Library settings "Sidebar" section shows the style
+selector on them (auto-hide stays desktop-only, on the Desktop settings page). Phone-form-factor and
 compact-wide rails keep their own widths.
 
 With auto-hide the layout always reserves the 64 px icon strip and
@@ -5951,7 +5972,7 @@ Desktop volume follows a parallel local-settings path:
    radio, no song or Off. It reads like "−6.2 dB · album (Smart)" or "−8.0 dB ·
    untagged (Automatic)" (real minus sign, one decimal, never "-0.0"); holding
    it, anywhere on the chip (the `InkWell`'s `onLongPress`, so a hold never
-   also pages), opens Playback settings scrolled to the ReplayGain section
+   also pages), opens Playback settings scrolled to the Volume (ReplayGain) section
    (`AppRoutes.playbackReplayGain`, read by `PlaybackSettingsScreen(
    focusReplayGain:)` after the form first builds). On the desktop grid the
    Quality and ReplayGain cells open track info and that section on click or
@@ -5975,7 +5996,7 @@ can only fetch http(s) and a `content://` URI through it failed every SAF
 download ("unexpected end of stream"). A completed
 sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
-Cache & Storage does not look idle before registration. Desktop partial-byte
+Storage & Cache does not look idle before registration. Desktop partial-byte
 diagnostics read the active sidecar attempt's received byte count, including
 its generation-specific partial write. A generation-scoped terminal callback
 clears activity on success, cancellation, or failure; an older attempt finishing
@@ -8437,7 +8458,7 @@ download naming throws when all 100 collision candidates are occupied.
    the distinct device-storage recovery action: it deletes rolling cache,
    cover-art cache, and local library metadata, preserves permanent downloads,
    then starts a fresh catalog build. Settings keeps these actions in the
-   separate **Library synchronization** and **Device Storage & Cache** groups;
+   separate **Sync** and **Storage & Cache** pages in the Library & Storage group;
    their metered confirmations, history origins, and full-screen progress
    states stay distinct even though both can collect a catalog. Choosing reset enters the
    shared full-screen required-library-rebuild route, which is also used for a
