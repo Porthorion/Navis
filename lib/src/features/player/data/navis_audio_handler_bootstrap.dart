@@ -541,6 +541,12 @@ abstract class _DelegatingNavisPlaybackHandler
       _delegate.retryDeferredQueueRestore();
 
   @override
+  Future<bool> playFromVoiceSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) => _delegate.playFromVoiceSearch(query, extras);
+
+  @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) =>
       _delegate.applySongIdentityAliases(aliases);
 
