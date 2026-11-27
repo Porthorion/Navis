@@ -198,6 +198,27 @@ enum ChangelogHighlightIcon {
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.5.3',
+    entries: [
+      ChangelogEntry(
+        'Ask Siri to play a song, album, artist or playlist in Navis',
+        type: ChangelogEntryType.newFeature,
+        platforms: {ChangelogPlatform.ios},
+      ),
+      ChangelogEntry(
+        'New Playback setting "When the queue ends": a queue now starts again '
+        'from the top by default, or choose Stop to end after the last song',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Settings are reorganised into clearer groups, with a new Desktop '
+        'page and the Playback page split into sections',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+    specialThanks: ['To Tas for the theming and color suggestions.'],
+  ),
+  ChangelogVersion(
     version: '1.5.2',
     summary:
         'Navis now runs on iPhone, iPad and Mac: a sideload IPA for iOS and '
