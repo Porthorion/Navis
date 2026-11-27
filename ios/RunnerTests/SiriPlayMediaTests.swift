@@ -63,8 +63,17 @@ class SiriPlayMediaTests: XCTestCase {
     XCTAssertEqual(SiriPlayMedia.arguments(from: nil), [:])
   }
 
+  func testDeferredFlagIsAddedOnlyWhenAsked() {
+    XCTAssertEqual(
+      SiriPlayMedia.arguments(from: search(.artist, name: "Radiohead"), deferred: true),
+      ["mediaType": "artist", "mediaName": "Radiohead", "deferred": "1"])
+    XCTAssertEqual(SiriPlayMedia.arguments(from: nil, deferred: true), ["deferred": "1"])
+    XCTAssertNil(SiriPlayMedia.arguments(from: search(.music))["deferred"])
+  }
+
   func testResponseCodes() {
     XCTAssertEqual(SiriPlayMedia.responseCode(forPlayStatus: "playing"), .success)
+    XCTAssertEqual(SiriPlayMedia.responseCode(forPlayStatus: "slow"), .success)
     XCTAssertEqual(SiriPlayMedia.responseCode(forPlayStatus: "signedOut"), .failureRequiringAppLaunch)
     XCTAssertEqual(SiriPlayMedia.responseCode(forPlayStatus: "notReady"), .failureRequiringAppLaunch)
     for status in ["notFound", "offline", "surprise", nil] as [String?] {

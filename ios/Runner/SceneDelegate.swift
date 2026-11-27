@@ -18,4 +18,10 @@ class SceneDelegate: FlutterSceneDelegate {
     super.scene(scene, continue: userActivity)
     SiriBridge.shared.takeUserActivity(userActivity)
   }
+
+  // The scene's engine is going away; Siri intents must wait for the next one.
+  override func sceneDidDisconnect(_ scene: UIScene) {
+    super.sceneDidDisconnect(scene)
+    SiriBridge.shared.sceneDidDisconnect()
+  }
 }

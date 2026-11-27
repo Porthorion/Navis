@@ -12,7 +12,11 @@ import 'package:navis/src/utils/app_logger.dart';
 ///
 /// Native -> Dart: `status` -> `ready | signedOut | unavailable` (cheap, no
 /// search); `playMedia` (`mediaType`, `mediaName`, `artistName`, `albumName`,
-/// `genreName`) -> `playing | notFound | offline | signedOut | notReady`.
+/// `genreName`, `deferred`) -> `playing | slow | notFound | offline |
+/// signedOut | notReady`. `deferred: "1"` marks a cold-launch intent that
+/// native replays once Dart is up: nobody is waiting on Siri, so it gets a
+/// long prepare budget and no overall deadline. A normal request answers
+/// `slow` when the search outlives [searchDeadline] (the load keeps running).
 /// Dart -> native: `ready` (handler installed; native flushes a cold-launch
 /// intent) and `setVocabulary` (`artists`, `playlists`; empty lists clear).
 ///
@@ -29,6 +33,8 @@ class IosSiriBridge {
     required this.playlistNames,
     required this.vocabularyChanges,
     this.readyBudget = const Duration(seconds: 8),
+    this.deferredBudget = const Duration(seconds: 30),
+    this.searchDeadline = const Duration(seconds: 9),
     this.vocabularyDebounce = const Duration(seconds: 2),
     this._channel = const MethodChannel(channelName),
   }) {
@@ -58,6 +64,13 @@ class IosSiriBridge {
 
   /// How long `playMedia` waits, in total, for the session and the handler.
   final Duration readyBudget;
+
+  /// The same wait for a `deferred` (cold-launch) request.
+  final Duration deferredBudget;
+
+  /// One deadline, from receipt, over prepare and the search of a normal
+  /// request; Siri's own timeout is longer than this.
+  final Duration searchDeadline;
   final Duration vocabularyDebounce;
   final MethodChannel _channel;
   late final List<StreamSubscription<Object?>> _subscriptions;
@@ -96,11 +109,20 @@ class IosSiriBridge {
   }
 
   Future<String> _playMedia(Object? arguments) async {
+    final args = arguments is Map
+        ? arguments.cast<Object?, Object?>()
+        : const <Object?, Object?>{};
+    final deferred = args['deferred'] == '1';
+    final search = _search(args, deferred ? deferredBudget : readyBudget);
+    if (deferred) return await search;
+    return await search.timeout(searchDeadline, onTimeout: () => 'slow');
+  }
+
+  /// Never throws; keeps running after a `slow` reply.
+  Future<String> _search(Map<Object?, Object?> args, Duration budget) async {
     try {
-      final request = siriPlayMediaRequest(
-        arguments is Map ? arguments.cast<Object?, Object?>() : const {},
-      );
-      final prepared = await _prepare().timeout(readyBudget);
+      final request = siriPlayMediaRequest(args);
+      final prepared = await _prepare(budget).timeout(budget);
       if (prepared is! NavisPlaybackHandler) return prepared as String;
       AppLogger.info('Siri playMedia query="${request.query}"');
       if (await prepared.playFromVoiceSearch(request.query, request.extras)) {
@@ -116,10 +138,17 @@ class IosSiriBridge {
   }
 
   /// The handler, or the status string to answer instead.
-  Future<Object> _prepare() async {
+  Future<Object> _prepare(Duration budget) async {
     var phase = readPhase();
     if (phase == SessionRoutePhase.loading) {
-      phase = await phases.firstWhere((p) => p != SessionRoutePhase.loading);
+      // `take(1)` cancels the listener on a result, a timeout or an error.
+      final next = await phases
+          .where((p) => p != SessionRoutePhase.loading)
+          .timeout(budget)
+          .take(1)
+          .toList();
+      if (next.isEmpty) return 'notReady'; // the phase stream closed
+      phase = next.single;
     }
     switch (phase) {
       case SessionRoutePhase.unauthenticated:
@@ -130,7 +159,7 @@ class IosSiriBridge {
       case SessionRoutePhase.ready:
         break;
     }
-    return await awaitHandler(readyBudget) ?? 'notReady';
+    return await awaitHandler(budget) ?? 'notReady';
   }
 
   void _scheduleVocabulary({bool immediate = false}) {

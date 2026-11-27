@@ -10,10 +10,13 @@ enum SiriPlayMedia {
     case success, loginRequired, serviceUnavailable
   }
 
-  /// The `playMedia` arguments; absent or blank fields are omitted.
-  static func arguments(from search: INMediaSearch?) -> [String: String] {
-    guard let search else { return [:] }
-    var arguments = ["mediaType": mediaTypeName(search.mediaType)]
+  /// The `playMedia` arguments; absent or blank fields are omitted. `deferred`
+  /// marks a cold-launch intent replayed once Dart is up (Dart waits longer,
+  /// as no Siri response is pending).
+  static func arguments(from search: INMediaSearch?, deferred: Bool = false) -> [String: String] {
+    var arguments: [String: String] = deferred ? ["deferred": "1"] : [:]
+    guard let search else { return arguments }
+    arguments["mediaType"] = mediaTypeName(search.mediaType)
     let fields: [(String, String?)] = [
       ("mediaName", search.mediaName),
       ("artistName", search.artistName),
@@ -41,9 +44,10 @@ enum SiriPlayMedia {
   }
 
   /// Dart's `playMedia` reply to Siri's response code; no reply (timeout) fails.
+  /// `slow` means the search is still loading and music will start: success.
   static func responseCode(forPlayStatus status: String?) -> INPlayMediaIntentResponseCode {
     switch status {
-    case "playing": return .success
+    case "playing", "slow": return .success
     case "signedOut", "notReady": return .failureRequiringAppLaunch
     default: return .failure
     }
@@ -164,7 +168,7 @@ final class SiriBridge: NSObject, INPlayMediaIntentHandling {
       let search = intent.mediaSearch
       if self.dartReady && self.channel != nil {
         NSLog("Navis Siri: activity played at once name=%@", search?.mediaName ?? "-")
-        self.call("playMedia", SiriPlayMedia.arguments(from: search), timeout: 10) { _ in }
+        self.call("playMedia", SiriPlayMedia.arguments(from: search, deferred: true), timeout: 10) { _ in }
       } else {
         NSLog("Navis Siri: activity held until ready name=%@", search?.mediaName ?? "-")
         self.pendingSearch = search
@@ -178,30 +182,85 @@ final class SiriBridge: NSObject, INPlayMediaIntentHandling {
       guard let pending = self.pendingSearch else { return }
       self.pendingSearch = nil
       NSLog("Navis Siri: flushing held activity name=%@", pending.mediaName ?? "-")
-      self.call("playMedia", SiriPlayMedia.arguments(from: pending), timeout: 10) { _ in }
+      self.call("playMedia", SiriPlayMedia.arguments(from: pending, deferred: true), timeout: 10) { _ in }
+    }
+  }
+
+  /// The scene (and its Flutter engine) went away: Dart is no longer there to
+  /// answer, so a later activity waits for the next engine's `ready`.
+  func sceneDidDisconnect() {
+    DispatchQueue.main.async {
+      NSLog("Navis Siri: scene disconnected, channel dropped")
+      self.dartReady = false
+      self.channel = nil
     }
   }
 
   // MARK: Vocabulary
 
+  /// Latest lists waiting for the Siri authorization prompt; main thread only.
+  private var pendingVocabulary: (artists: [String], playlists: [String])?
+  private var authorizationInFlight = false
+  private var activationObserver: NSObjectProtocol?
+
+  /// Empty lists clear the vocabulary and never prompt (signed out). Otherwise
+  /// the lists are applied once Siri is authorized; the prompt is requested
+  /// while the app is active, or on the next activation if it is not.
   private func setVocabulary(artists: [String], playlists: [String]) {
-    func apply() {
+    DispatchQueue.main.async {
+      if artists.isEmpty && playlists.isEmpty {
+        self.pendingVocabulary = nil
+        DispatchQueue.global(qos: .utility).async {
+          INVocabulary.shared().removeAllVocabularyStrings()
+          NSLog("Navis Siri: vocabulary cleared")
+        }
+        return
+      }
+      self.applyVocabulary(artists, playlists)
+    }
+  }
+
+  private func applyVocabulary(_ artists: [String], _ playlists: [String]) {
+    switch INPreferences.siriAuthorizationStatus() {
+    case .authorized:
+      pendingVocabulary = nil
+      writeVocabulary(artists, playlists)
+    case .notDetermined:
+      pendingVocabulary = (artists, playlists)
+      if UIApplication.shared.applicationState == .active {
+        requestAuthorization()
+      } else if activationObserver == nil {
+        activationObserver = NotificationCenter.default.addObserver(
+          forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+          guard let self, let pending = self.pendingVocabulary else { return }
+          self.applyVocabulary(pending.artists, pending.playlists)
+        }
+      }
+    default:
+      pendingVocabulary = nil
+    }
+  }
+
+  private func requestAuthorization() {
+    guard !authorizationInFlight else { return }
+    authorizationInFlight = true
+    INPreferences.requestSiriAuthorization { status in
+      DispatchQueue.main.async {
+        self.authorizationInFlight = false
+        guard let pending = self.pendingVocabulary else { return }
+        self.pendingVocabulary = nil
+        if status == .authorized { self.writeVocabulary(pending.artists, pending.playlists) }
+      }
+    }
+  }
+
+  private func writeVocabulary(_ artists: [String], _ playlists: [String]) {
+    DispatchQueue.global(qos: .utility).async {
       let vocabulary = INVocabulary.shared()
       vocabulary.setVocabularyStrings(NSOrderedSet(array: artists), of: .mediaMusicArtistName)
       vocabulary.setVocabularyStrings(NSOrderedSet(array: playlists), of: .mediaPlaylistTitle)
       NSLog("Navis Siri: vocabulary artists=%d playlists=%d", artists.count, playlists.count)
-    }
-    DispatchQueue.main.async {
-      switch INPreferences.siriAuthorizationStatus() {
-      case .authorized:
-        DispatchQueue.global(qos: .utility).async(execute: apply)
-      case .notDetermined where UIApplication.shared.applicationState == .active:
-        INPreferences.requestSiriAuthorization { status in
-          if status == .authorized { apply() }
-        }
-      default:
-        break
-      }
     }
   }
 
