@@ -286,6 +286,15 @@ void main() {
       expect((await dao.getSettings())!.keepTitleVersionVisible, isTrue);
     }, skip: !sqliteAvailable);
 
+    test('queue end start again defaults on and reads back off', () async {
+      final dao = database.appSettingsDao;
+      expect((await dao.getSettings())!.queueEndStartAgain, isTrue);
+      await database.customStatement(
+        'UPDATE app_settings SET queue_end_start_again = 0',
+      );
+      expect((await dao.getSettings())!.queueEndStartAgain, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('tablet medium sidebar defaults off and toggles', () async {
       final dao = database.appSettingsDao;
       expect((await dao.getSettings())!.tabletMediumSidebar, isFalse);

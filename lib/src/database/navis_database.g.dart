@@ -1961,6 +1961,20 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _queueEndStartAgainMeta =
+      const VerificationMeta('queueEndStartAgain');
+  @override
+  late final GeneratedColumn<bool> queueEndStartAgain = GeneratedColumn<bool>(
+    'queue_end_start_again',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("queue_end_start_again" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _albumQueueEnabledMeta = const VerificationMeta(
     'albumQueueEnabled',
   );
@@ -2333,6 +2347,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     desktopNavbarStyle,
     desktopNavbarAutohide,
     tabletMediumSidebar,
+    queueEndStartAgain,
     albumQueueEnabled,
     matchFlowEnabled,
     likedQueueEnabled,
@@ -3311,6 +3326,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('queue_end_start_again')) {
+      context.handle(
+        _queueEndStartAgainMeta,
+        queueEndStartAgain.isAcceptableOrUnknown(
+          data['queue_end_start_again']!,
+          _queueEndStartAgainMeta,
+        ),
+      );
+    }
     if (data.containsKey('album_queue_enabled')) {
       context.handle(
         _albumQueueEnabledMeta,
@@ -3931,6 +3955,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}tablet_medium_sidebar'],
       )!,
+      queueEndStartAgain: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}queue_end_start_again'],
+      )!,
       albumQueueEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}album_queue_enabled'],
@@ -4311,6 +4339,10 @@ class AppSettingsTableData extends DataClass
   /// rail instead of the phone bottom tabs. Default false.
   final bool tabletMediumSidebar;
 
+  /// "When the queue ends": true starts every new queue on Repeat All (start
+  /// again from the top), false on Repeat Off (stop). Default true.
+  final bool queueEndStartAgain;
+
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track. Default false.
   final bool albumQueueEnabled;
@@ -4495,6 +4527,7 @@ class AppSettingsTableData extends DataClass
     required this.desktopNavbarStyle,
     required this.desktopNavbarAutohide,
     required this.tabletMediumSidebar,
+    required this.queueEndStartAgain,
     required this.albumQueueEnabled,
     required this.matchFlowEnabled,
     required this.likedQueueEnabled,
@@ -4695,6 +4728,7 @@ class AppSettingsTableData extends DataClass
     map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle);
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
     map['tablet_medium_sidebar'] = Variable<bool>(tabletMediumSidebar);
+    map['queue_end_start_again'] = Variable<bool>(queueEndStartAgain);
     map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled);
     map['match_flow_enabled'] = Variable<bool>(matchFlowEnabled);
     map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled);
@@ -4892,6 +4926,7 @@ class AppSettingsTableData extends DataClass
       desktopNavbarStyle: Value(desktopNavbarStyle),
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
       tabletMediumSidebar: Value(tabletMediumSidebar),
+      queueEndStartAgain: Value(queueEndStartAgain),
       albumQueueEnabled: Value(albumQueueEnabled),
       matchFlowEnabled: Value(matchFlowEnabled),
       likedQueueEnabled: Value(likedQueueEnabled),
@@ -5133,6 +5168,7 @@ class AppSettingsTableData extends DataClass
       tabletMediumSidebar: serializer.fromJson<bool>(
         json['tabletMediumSidebar'],
       ),
+      queueEndStartAgain: serializer.fromJson<bool>(json['queueEndStartAgain']),
       albumQueueEnabled: serializer.fromJson<bool>(json['albumQueueEnabled']),
       matchFlowEnabled: serializer.fromJson<bool>(json['matchFlowEnabled']),
       likedQueueEnabled: serializer.fromJson<bool>(json['likedQueueEnabled']),
@@ -5335,6 +5371,7 @@ class AppSettingsTableData extends DataClass
       'desktopNavbarStyle': serializer.toJson<String>(desktopNavbarStyle),
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
       'tabletMediumSidebar': serializer.toJson<bool>(tabletMediumSidebar),
+      'queueEndStartAgain': serializer.toJson<bool>(queueEndStartAgain),
       'albumQueueEnabled': serializer.toJson<bool>(albumQueueEnabled),
       'matchFlowEnabled': serializer.toJson<bool>(matchFlowEnabled),
       'likedQueueEnabled': serializer.toJson<bool>(likedQueueEnabled),
@@ -5479,6 +5516,7 @@ class AppSettingsTableData extends DataClass
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
     bool? tabletMediumSidebar,
+    bool? queueEndStartAgain,
     bool? albumQueueEnabled,
     bool? matchFlowEnabled,
     bool? likedQueueEnabled,
@@ -5664,6 +5702,7 @@ class AppSettingsTableData extends DataClass
     desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     tabletMediumSidebar: tabletMediumSidebar ?? this.tabletMediumSidebar,
+    queueEndStartAgain: queueEndStartAgain ?? this.queueEndStartAgain,
     albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
     matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
     likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
@@ -6021,6 +6060,9 @@ class AppSettingsTableData extends DataClass
       tabletMediumSidebar: data.tabletMediumSidebar.present
           ? data.tabletMediumSidebar.value
           : this.tabletMediumSidebar,
+      queueEndStartAgain: data.queueEndStartAgain.present
+          ? data.queueEndStartAgain.value
+          : this.queueEndStartAgain,
       albumQueueEnabled: data.albumQueueEnabled.present
           ? data.albumQueueEnabled.value
           : this.albumQueueEnabled,
@@ -6199,6 +6241,7 @@ class AppSettingsTableData extends DataClass
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('tabletMediumSidebar: $tabletMediumSidebar, ')
+          ..write('queueEndStartAgain: $queueEndStartAgain, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
@@ -6335,6 +6378,7 @@ class AppSettingsTableData extends DataClass
     desktopNavbarStyle,
     desktopNavbarAutohide,
     tabletMediumSidebar,
+    queueEndStartAgain,
     albumQueueEnabled,
     matchFlowEnabled,
     likedQueueEnabled,
@@ -6473,6 +6517,7 @@ class AppSettingsTableData extends DataClass
           other.desktopNavbarStyle == this.desktopNavbarStyle &&
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
           other.tabletMediumSidebar == this.tabletMediumSidebar &&
+          other.queueEndStartAgain == this.queueEndStartAgain &&
           other.albumQueueEnabled == this.albumQueueEnabled &&
           other.matchFlowEnabled == this.matchFlowEnabled &&
           other.likedQueueEnabled == this.likedQueueEnabled &&
@@ -6607,6 +6652,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> desktopNavbarStyle;
   final Value<bool> desktopNavbarAutohide;
   final Value<bool> tabletMediumSidebar;
+  final Value<bool> queueEndStartAgain;
   final Value<bool> albumQueueEnabled;
   final Value<bool> matchFlowEnabled;
   final Value<bool> likedQueueEnabled;
@@ -6736,6 +6782,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
     this.tabletMediumSidebar = const Value.absent(),
+    this.queueEndStartAgain = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
@@ -6866,6 +6913,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
     this.tabletMediumSidebar = const Value.absent(),
+    this.queueEndStartAgain = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
@@ -6996,6 +7044,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? desktopNavbarStyle,
     Expression<bool>? desktopNavbarAutohide,
     Expression<bool>? tabletMediumSidebar,
+    Expression<bool>? queueEndStartAgain,
     Expression<bool>? albumQueueEnabled,
     Expression<bool>? matchFlowEnabled,
     Expression<bool>? likedQueueEnabled,
@@ -7176,6 +7225,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'desktop_navbar_autohide': desktopNavbarAutohide,
       if (tabletMediumSidebar != null)
         'tablet_medium_sidebar': tabletMediumSidebar,
+      if (queueEndStartAgain != null)
+        'queue_end_start_again': queueEndStartAgain,
       if (albumQueueEnabled != null) 'album_queue_enabled': albumQueueEnabled,
       if (matchFlowEnabled != null) 'match_flow_enabled': matchFlowEnabled,
       if (likedQueueEnabled != null) 'liked_queue_enabled': likedQueueEnabled,
@@ -7321,6 +7372,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? desktopNavbarStyle,
     Value<bool>? desktopNavbarAutohide,
     Value<bool>? tabletMediumSidebar,
+    Value<bool>? queueEndStartAgain,
     Value<bool>? albumQueueEnabled,
     Value<bool>? matchFlowEnabled,
     Value<bool>? likedQueueEnabled,
@@ -7477,6 +7529,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       tabletMediumSidebar: tabletMediumSidebar ?? this.tabletMediumSidebar,
+      queueEndStartAgain: queueEndStartAgain ?? this.queueEndStartAgain,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
@@ -7903,6 +7956,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (tabletMediumSidebar.present) {
       map['tablet_medium_sidebar'] = Variable<bool>(tabletMediumSidebar.value);
     }
+    if (queueEndStartAgain.present) {
+      map['queue_end_start_again'] = Variable<bool>(queueEndStartAgain.value);
+    }
     if (albumQueueEnabled.present) {
       map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled.value);
     }
@@ -8109,6 +8165,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('tabletMediumSidebar: $tabletMediumSidebar, ')
+          ..write('queueEndStartAgain: $queueEndStartAgain, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
@@ -37313,6 +37370,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
       Value<bool> tabletMediumSidebar,
+      Value<bool> queueEndStartAgain,
       Value<bool> albumQueueEnabled,
       Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
@@ -37444,6 +37502,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
       Value<bool> tabletMediumSidebar,
+      Value<bool> queueEndStartAgain,
       Value<bool> albumQueueEnabled,
       Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
@@ -38013,6 +38072,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get tabletMediumSidebar => $composableBuilder(
     column: $table.tabletMediumSidebar,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get queueEndStartAgain => $composableBuilder(
+    column: $table.queueEndStartAgain,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38668,6 +38732,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get queueEndStartAgain => $composableBuilder(
+    column: $table.queueEndStartAgain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get albumQueueEnabled => $composableBuilder(
     column: $table.albumQueueEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -39310,6 +39379,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get queueEndStartAgain => $composableBuilder(
+    column: $table.queueEndStartAgain,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get albumQueueEnabled => $composableBuilder(
     column: $table.albumQueueEnabled,
     builder: (column) => column,
@@ -39557,6 +39631,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> tabletMediumSidebar = const Value.absent(),
+                Value<bool> queueEndStartAgain = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
@@ -39689,6 +39764,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 tabletMediumSidebar: tabletMediumSidebar,
+                queueEndStartAgain: queueEndStartAgain,
                 albumQueueEnabled: albumQueueEnabled,
                 matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,
@@ -39823,6 +39899,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> tabletMediumSidebar = const Value.absent(),
+                Value<bool> queueEndStartAgain = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
@@ -39955,6 +40032,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 tabletMediumSidebar: tabletMediumSidebar,
+                queueEndStartAgain: queueEndStartAgain,
                 albumQueueEnabled: albumQueueEnabled,
                 matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,

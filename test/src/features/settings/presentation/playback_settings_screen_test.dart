@@ -806,6 +806,93 @@ void main() {
       }, variant: TargetPlatformVariant({platform}));
     }
 
+    group('when the queue ends', () {
+      AppSettingsModel? saved;
+      final dropdown = find.byKey(const ValueKey('playbackSettingsQueueEnd'));
+
+      Future<void> pump(
+        WidgetTester tester, {
+        required bool startAgain,
+        AppSettingsModel? afterReset,
+      }) async {
+        setAdaptiveTestViewport(tester, const Size(1280, 1400));
+        saved = null;
+        when(() => repository.getSettings())
+            .thenAnswer((_) async => afterReset ?? initialSettings);
+        when(() => repository.saveSettings(any()))
+            .thenAnswer((invocation) async {
+              saved = invocation.positionalArguments.first as AppSettingsModel;
+            });
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  initialSettings.copyWith(queueEndStartAgain: startAgain),
+                ),
+              ),
+              playbackAdjustmentsProvider.overrideWith(_FakeAdjustments.new),
+              equalizerProvider.overrideWith(_FakeEq.new),
+            ],
+            child: _buildTestApp(desktopMode: true),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(dropdown);
+      }
+
+      testWidgets('shows Start again from the top by default', (tester) async {
+        await pump(tester, startAgain: true);
+        expect(
+          find.descendant(
+            of: dropdown,
+            matching: find.text('Start again from the top'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('When the queue ends'), findsOneWidget);
+      });
+
+      testWidgets('choosing Stop autosaves it', (tester) async {
+        await pump(tester, startAgain: true);
+        await tester.tap(dropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Stop').last);
+        await tester.pumpAndSettle(const Duration(milliseconds: 500));
+        expect(saved?.queueEndStartAgain, isFalse);
+      });
+
+      testWidgets('Reset Defaults restores Start again from the top', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          startAgain: false,
+          afterReset: initialSettings.copyWith(queueEndStartAgain: true),
+        );
+        expect(
+          find.descendant(of: dropdown, matching: find.text('Stop')),
+          findsOneWidget,
+        );
+        final resetDefaults = find.text('Reset Defaults');
+        await tester.ensureVisible(resetDefaults);
+        await tester.pumpAndSettle();
+        await tester.tap(resetDefaults);
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: dropdown,
+            matching: find.text('Start again from the top'),
+          ),
+          findsOneWidget,
+        );
+      });
+    });
+
     group('prefetch next song on mobile data', () {
       const title = 'Prefetch the next song on mobile data';
       AppSettingsModel? saved;

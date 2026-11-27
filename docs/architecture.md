@@ -1140,6 +1140,19 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 118 (`from117To118`, guarded by `_columnExists`) adds
+    `app_settings.queue_end_start_again` (boolean, default true): Settings >
+    Playback > Queue > When the queue ends
+    (`PlaybackRuntimeSettings.queueEndStartAgain`, read through
+    `readRuntimeSettings`). It picks the repeat mode a NEW queue starts with:
+    Start again from the top = Repeat All (the default, also for existing
+    profiles), Stop = Repeat Off. The single hook is
+    `_applyNewQueueMode` (every replace, Android Auto load and in-place mix
+    start); the Repeat button, MPRIS, SMTC and Android Auto keep showing the
+    real mode, and a per-queue Repeat One or Off does not carry to the next
+    queue. Restores (app start, Android Auto resume), `inPlayOrder` reloads and
+    clearing the queue keep the mode; radio starts on Repeat Off. Changing the
+    setting never touches the queue that is playing.
   - Schema 117 (`from116To117`, guarded by `_columnExists`) adds
     `app_settings.tablet_medium_sidebar` (boolean, default false): Settings >
     Interface > Sidebar > Sidebar on medium screens

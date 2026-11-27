@@ -2026,6 +2026,36 @@ abstract class AppLocalizations {
   /// **'Open lyrics in fullscreen directly from Now Playing.'**
   String get playbackSettingsFullscreenLyricsSubtitle;
 
+  /// No description provided for @playbackSettingsQueueSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue'**
+  String get playbackSettingsQueueSectionTitle;
+
+  /// No description provided for @playbackSettingsQueueEndLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'When the queue ends'**
+  String get playbackSettingsQueueEndLabel;
+
+  /// No description provided for @playbackSettingsQueueEndStartAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Start again from the top'**
+  String get playbackSettingsQueueEndStartAgain;
+
+  /// No description provided for @playbackSettingsQueueEndStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get playbackSettingsQueueEndStop;
+
+  /// No description provided for @playbackSettingsQueueEndHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sets the repeat mode a new queue starts with. You can still change repeat for the queue that is playing.'**
+  String get playbackSettingsQueueEndHint;
+
   /// No description provided for @playbackSettingsAlbumQueueTitle.
   ///
   /// In en, this message translates to:

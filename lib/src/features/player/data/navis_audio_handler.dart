@@ -2250,6 +2250,8 @@ class NavisAudioHandler extends BaseAudioHandler
           unawaited(_playWithFocusRecovery());
         }
       });
+      // The queue was not reloaded, so the new mode reaches the player here.
+      await _syncNativeLoopMode();
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       await _persistSafely(
         () => _persistQueueState(includeQueueItems: true),
@@ -3757,6 +3759,9 @@ class NavisAudioHandler extends BaseAudioHandler
         );
         await _syncPlayerAdjustments();
 
+        // A station never ends, so it shows no loop state; the next queue
+        // takes its mode from "When the queue ends" again.
+        _desiredLoopMode = LoopMode.off;
         _queueItems.clear();
         await _clearDeferredTail();
         _updateScrobbleSession(null);

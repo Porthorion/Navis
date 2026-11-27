@@ -383,6 +383,11 @@ class AppSettingsTable extends Table {
   BoolColumn get tabletMediumSidebar =>
       boolean().withDefault(const Constant(false))();
 
+  /// "When the queue ends": true starts every new queue on Repeat All (start
+  /// again from the top), false on Repeat Off (stop). Default true.
+  BoolColumn get queueEndStartAgain =>
+      boolean().withDefault(const Constant(true))();
+
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track. Default false.
   BoolColumn get albumQueueEnabled =>

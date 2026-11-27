@@ -291,6 +291,7 @@ class PlaybackRuntimeSettings {
     this.lockPitchToSpeed = false,
     required this.albumQueueEnabled,
     required this.matchFlowEnabled,
+    this.queueEndStartAgain = true,
   });
 
   const new defaults()
@@ -309,7 +310,8 @@ class PlaybackRuntimeSettings {
       playbackPitchSemitones = 0,
       lockPitchToSpeed = false,
       albumQueueEnabled = false,
-      matchFlowEnabled = false;
+      matchFlowEnabled = false,
+      queueEndStartAgain = true;
 
   final bool gaplessEnabled;
   final bool fastSeekingEnabled;
@@ -346,4 +348,9 @@ class PlaybackRuntimeSettings {
 
   /// When true, user queue actions expand configured Match Flows.
   final bool matchFlowEnabled;
+
+  /// Whether a new queue starts on Repeat All ("Start again from the top",
+  /// the default) or Repeat Off ("Stop"). Read when a queue starts; it never
+  /// changes the queue already playing.
+  final bool queueEndStartAgain;
 }

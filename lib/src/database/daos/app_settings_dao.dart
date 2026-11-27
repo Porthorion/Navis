@@ -168,6 +168,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String desktopNavbarStyle = 'compact',
     bool desktopNavbarAutohide = false,
     bool tabletMediumSidebar = false,
+    bool queueEndStartAgain = true,
     bool albumQueueEnabled = true,
     bool matchFlowEnabled = false,
     bool likedQueueEnabled = true,
@@ -230,6 +231,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         desktopNavbarStyle: Value(desktopNavbarStyle),
         desktopNavbarAutohide: Value(desktopNavbarAutohide),
         tabletMediumSidebar: Value(tabletMediumSidebar),
+        queueEndStartAgain: Value(queueEndStartAgain),
         albumQueueEnabled: Value(albumQueueEnabled),
         matchFlowEnabled: Value(matchFlowEnabled),
         likedQueueEnabled: Value(likedQueueEnabled),
@@ -340,6 +342,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         albumQueueEnabled: Value(true),
         likedQueueEnabled: Value(true),
         matchFlowEnabled: Value(false),
+        queueEndStartAgain: Value(true),
       ),
     );
   }

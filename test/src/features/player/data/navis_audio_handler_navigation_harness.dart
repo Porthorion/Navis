@@ -1902,6 +1902,9 @@ createHandler(
   String Function()? readCrossfadeType,
   bool Function()? readCrossfade,
   bool matchFlow = false,
+  // Off keeps every older test on "stop at the end"; queue-end tests turn it on.
+  bool queueEndStartAgain = false,
+  bool Function()? readQueueEndStartAgain,
   int savedQueueIndex = -1,
   NavisQueueWindow queueWindow = const NavisQueueWindow(),
   bool? desktopRuntimeOverride,
@@ -2064,6 +2067,7 @@ createHandler(
       playbackSpeed: 1,
       albumQueueEnabled: false,
       matchFlowEnabled: matchFlow,
+      queueEndStartAgain: readQueueEndStartAgain?.call() ?? queueEndStartAgain,
     ),
     adjustmentCapabilities: adjustmentCapabilities,
     replayGainInPipelineOverride: replayGainInPipeline,

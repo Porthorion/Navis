@@ -2574,7 +2574,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// start (Play, a song tap, search, radio, mixes, links) plays in order with
   /// shuffle off. [inPlayOrder] reloads of the current queue (failure
   /// recovery) keep the mode and order they have. The shuffle toggle still
-  /// acts on the current queue afterwards.
+  /// acts on the current queue afterwards. Repeat follows the same rule:
+  /// "When the queue ends" picks Repeat All (start again from the top) or
+  /// Repeat Off (stop) for every new queue, so a per-queue Repeat One or Off
+  /// never carries over. The caller syncs the native loop once the queue is
+  /// in place.
   void _applyNewQueueMode({
     required bool inPlayOrder,
     List<String>? originalOrder,
@@ -2584,6 +2588,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _originalOrder = originalOrder == null
         ? null
         : List<String>.of(originalOrder);
+    _desiredLoopMode = _readRuntimeSettings().queueEndStartAgain
+        ? LoopMode.all
+        : LoopMode.off;
   }
 
   Future<void> _replaceQueueFromIds(

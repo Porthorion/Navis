@@ -255,6 +255,73 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('117 to 118 queue end', () {
+    Future<File> fixture117() async {
+      final directory = await Directory.systemTemp.createTemp('navis_v118_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.customStatement('UPDATE app_settings SET haptics_enabled = 0');
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN queue_end_start_again',
+        );
+        raw.execute('PRAGMA user_version = 117');
+        expect(
+          raw
+              .select('PRAGMA table_info(app_settings)')
+              .where((row) => row['name'] == 'queue_end_start_again'),
+          isEmpty,
+        );
+      } finally {
+        raw.close();
+      }
+      return file;
+    }
+
+    test('fresh profiles start the queue again', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      expect(
+        (await db.appSettingsDao.getSettings())!.queueEndStartAgain,
+        isTrue,
+      );
+    });
+
+    test(
+      'adds the column on, keeps other values, and re-runs safely',
+      () async {
+        final file = await fixture117();
+        final db = createTestDatabase(file: file);
+        addTearDown(db.close);
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.queueEndStartAgain, isTrue);
+        expect(settings.hapticsEnabled, isFalse);
+        final raw = await db
+            .customSelect('SELECT queue_end_start_again AS v FROM app_settings')
+            .getSingle();
+        expect(raw.read<int>('v'), 1);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+        // Idempotent: running the step again keeps a later user change.
+        await db.customStatement(
+          'UPDATE app_settings SET queue_end_start_again = 0',
+        );
+        await db.from117To118(Migrator(db));
+        expect(
+          (await db.appSettingsDao.getSettings())!.queueEndStartAgain,
+          isFalse,
+        );
+      },
+    );
+  }, skip: !sqliteAvailable);
+
   group('116 to 117 medium sidebar', () {
     Future<File> fixture116() async {
       final directory = await Directory.systemTemp.createTemp('navis_v117_');
@@ -660,8 +727,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 117', () {
-      expect(NavisDatabase.currentSchemaVersion, 117);
+    test('the schema version is 118', () {
+      expect(NavisDatabase.currentSchemaVersion, 118);
     });
 
     test('fresh profiles seed the Auto defaults', () async {
