@@ -709,9 +709,13 @@ void main() {
           presetsJson: '[{"id":"club","name":"Club"}]',
         );
 
+        await database.customStatement(
+          'UPDATE app_settings SET queue_end_start_again = 0',
+        );
         await dao.resetPlaybackDefaults();
 
         final settings = (await dao.getSettings())!;
+        expect(settings.queueEndStartAgain, isTrue);
         // Fields shown on the Playback page are back to their defaults.
         expect(settings.wifiMaxBitRate, isNull);
         expect(settings.wifiFormat, isNull);

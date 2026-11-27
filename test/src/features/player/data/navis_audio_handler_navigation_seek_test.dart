@@ -1089,11 +1089,13 @@ void main() {
       List<ControllableAudioPlayer>? rebuiltPlayers,
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
       RollingCacheManager Function(CacheDao)? rollingCache,
+      bool startAgain = false,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-offset-');
       final created = await createHandler(
         directory,
         count,
+        queueEndStartAgain: startAgain,
         sidecarStreams: true,
         streamingQuality: quality,
         supportsTranscodeOffset: capable,
@@ -1581,8 +1583,10 @@ void main() {
         void Function(NavisDatabase)? onDatabase,
         PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
         RollingCacheManager Function(CacheDao)? rollingCache,
+        bool repeatAll = false,
       }) async {
         final (handler, player, database) = await offsetHandler(
+          startAgain: repeatAll,
           desktopRuntimeOverride: mobile ? false : null,
           capable: capable,
           quality: original
@@ -2681,6 +2685,55 @@ void main() {
             player.processingState,
             last ? ProcessingState.completed : ProcessingState.ready,
           );
+        });
+      }
+
+      // The production default starts a new queue on Repeat All. A truncated
+      // end of the last song is still a truncation, never a wrap to song 0.
+      for (final mobile in [false, true]) {
+        test('Repeat All reopens a truncated last song at 47 s '
+            '(mobile: $mobile)', () async {
+          final (handler, player) = await setup(
+            last: true,
+            mobile: mobile,
+            repeatAll: true,
+          );
+          expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+          final loads = player.sourceLoads;
+          if (mobile) await clockTo47(player);
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.index, 1);
+          expect(current(player).uri.queryParameters['timeOffset'], '47');
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(player.sourceLoads, loads + 1);
+          expect(player.playing, isTrue);
+        });
+
+        test('Repeat All: a second early end of the last song gives up and '
+            'wraps to the first song (mobile: $mobile)', () async {
+          final (handler, player) = await setup(
+            last: true,
+            mobile: mobile,
+            repeatAll: true,
+          );
+          final loads = player.sourceLoads;
+          if (mobile) await clockTo47(player);
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+          final retriedLoads = player.sourceLoads;
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 50));
+          await drain(handler);
+
+          // No extra reopen: one retry, then the end is an ordinary end of
+          // the queue, which Repeat All wraps.
+          expect(player.sourceLoads, retriedLoads);
+          expect(handler.snapshot.currentSongId, 'song-0');
         });
       }
 

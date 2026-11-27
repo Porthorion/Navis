@@ -2192,10 +2192,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required bool shuffled,
     List<SongsTableData>? suppliedRows,
   }) {
-    // The first broadcast of the new queue already carries its mode. The
-    // original order follows in [_applyNewQueueMode], once the rows are known:
-    // saving the old queue against it would reconcile it away.
-    if (!inPlayOrder) _shuffleEnabled = shuffled;
+    // The first broadcast of the new queue already carries its shuffle and
+    // repeat mode. The original order follows in [_applyNewQueueMode], once
+    // the rows are known: saving the old queue against it would reconcile it
+    // away.
+    if (!inPlayOrder) {
+      _shuffleEnabled = shuffled;
+      _desiredLoopMode = _newQueueLoopMode;
+    }
     _cancelCrossfade();
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
@@ -2588,10 +2592,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _originalOrder = originalOrder == null
         ? null
         : List<String>.of(originalOrder);
-    _desiredLoopMode = _readRuntimeSettings().queueEndStartAgain
-        ? LoopMode.all
-        : LoopMode.off;
+    _desiredLoopMode = _newQueueLoopMode;
   }
+
+  /// The repeat mode "When the queue ends" gives a new queue.
+  LoopMode get _newQueueLoopMode =>
+      _readRuntimeSettings().queueEndStartAgain ? LoopMode.all : LoopMode.off;
 
   Future<void> _replaceQueueFromIds(
     List<String> songIds, {
