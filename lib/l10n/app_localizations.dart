@@ -1836,11 +1836,11 @@ abstract class AppLocalizations {
   /// **'Only cross-fade between tracks from different albums.'**
   String get playbackSettingsCrossfadeTypeSmartDescription;
 
-  /// No description provided for @playbackSettingsReplayGainSectionTitle.
+  /// No description provided for @playbackSettingsVolumeSectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'Volume Normalization (ReplayGain)'**
-  String get playbackSettingsReplayGainSectionTitle;
+  /// **'Volume'**
+  String get playbackSettingsVolumeSectionTitle;
 
   /// No description provided for @playbackVolumeSemanticLabel.
   ///
@@ -2043,6 +2043,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Queue'**
   String get playbackSettingsQueueSectionTitle;
+
+  /// No description provided for @playbackSettingsTransitionsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Transitions'**
+  String get playbackSettingsTransitionsSectionTitle;
+
+  /// No description provided for @playbackSettingsStreamingSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Streaming Quality'**
+  String get playbackSettingsStreamingSectionTitle;
+
+  /// No description provided for @playbackSettingsLyricsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics'**
+  String get playbackSettingsLyricsSectionTitle;
+
+  /// No description provided for @playbackSettingsScrobblingSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrobbling'**
+  String get playbackSettingsScrobblingSectionTitle;
+
+  /// No description provided for @playbackSettingsFooterSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving changes…'**
+  String get playbackSettingsFooterSaving;
+
+  /// No description provided for @playbackSettingsFooterIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes save automatically'**
+  String get playbackSettingsFooterIdle;
 
   /// No description provided for @playbackSettingsQueueEndLabel.
   ///

@@ -2609,6 +2609,14 @@ in Library & Storage; its subtitle shows the waiting count from
 `pendingUnavailableCountProvider` when there is one. The retired
 `/settings/desktop-window` path redirects to `/settings/desktop`.
 
+`/settings/playback` is one page of `NavisSectionHeader` sections in this
+order: Queue (When the queue ends, Album Queue, Liked Queue), Transitions
+(Gapless, Cross-Fade), Volume (ReplayGain), Speed & Pitch, Streaming Quality
+(Wi-Fi, Cellular, cached copies, prefetch, Fast Seeking where supported),
+Lyrics, Scrobbling and the Experimental expander, then the autosave footer
+(`playbackSettingsFooterSaving`/`Idle`) and Reset Defaults. `?focus=replayGain`
+scrolls to the Volume header.
+
 The retired `/settings/group-listening` path redirects to Server Information
 (`/settings/server`) and `/settings/external-services` to Integrations
 (`/settings/integrations`); neither is shown in navigation. A location that
@@ -5964,7 +5972,7 @@ Desktop volume follows a parallel local-settings path:
    radio, no song or Off. It reads like "−6.2 dB · album (Smart)" or "−8.0 dB ·
    untagged (Automatic)" (real minus sign, one decimal, never "-0.0"); holding
    it, anywhere on the chip (the `InkWell`'s `onLongPress`, so a hold never
-   also pages), opens Playback settings scrolled to the ReplayGain section
+   also pages), opens Playback settings scrolled to the Volume (ReplayGain) section
    (`AppRoutes.playbackReplayGain`, read by `PlaybackSettingsScreen(
    focusReplayGain:)` after the form first builds). On the desktop grid the
    Quality and ReplayGain cells open track info and that section on click or

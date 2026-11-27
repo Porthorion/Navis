@@ -55,77 +55,79 @@ void main() {
     },
   );
 
-  testWidgets('desktop settings screen has Window, Navigation and Keyboard '
-      'Shortcuts sections, and the shortcuts row opens the shortcuts page', (
-    tester,
-  ) async {
-    setAdaptiveTestViewport(tester, const Size(1280, 1000));
-    final controller = DesktopWindowController.fallback(desktopRuntime: true);
-    final desktopContext = resolveAdaptiveContext(
-      desktopRuntime: true,
-      viewportSize: const Size(1280, 1000),
-      safePadding: EdgeInsets.zero,
-    );
-    final router = GoRouter(
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/',
-          builder: (context, state) => AdaptiveContextScope(
-            adaptiveContext: desktopContext,
-            child: const DesktopSettingsScreen(),
+  testWidgets(
+    'desktop settings screen has Window and Navigation sections and a '
+    'Keyboard Shortcuts row (no section header) that opens the shortcuts page',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 1000));
+      final controller = DesktopWindowController.fallback(desktopRuntime: true);
+      final desktopContext = resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: const Size(1280, 1000),
+        safePadding: EdgeInsets.zero,
+      );
+      final router = GoRouter(
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/',
+            builder: (context, state) => AdaptiveContextScope(
+              adaptiveContext: desktopContext,
+              child: const DesktopSettingsScreen(),
+            ),
           ),
-        ),
-        GoRoute(
-          path: SettingsPage.shortcuts.location,
-          builder: (context, state) => const Text('shortcuts page'),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          desktopWindowControllerProvider.overrideWith((ref) => controller),
-          appSettingsProvider.overrideWithValue(
-            const AsyncData(AppSettingsModel.defaults()),
+          GoRoute(
+            path: SettingsPage.shortcuts.location,
+            builder: (context, state) => const Text('shortcuts page'),
           ),
         ],
-        child: MaterialApp.router(
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: router,
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            desktopWindowControllerProvider.overrideWith((ref) => controller),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+          ],
+          child: MaterialApp.router(
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Back'), findsOneWidget);
-    expect(find.text(l10n.desktopSettingsTitle), findsOneWidget); // AppBar
-    expect(find.text(l10n.desktopSettingsWindowSection), findsOneWidget);
-    expect(find.text('Mini Player'), findsOneWidget);
-    expect(find.text('Keep Mini Player on Top'), findsOneWidget);
-    expect(find.text(l10n.desktopNavbarSectionLabel), findsOneWidget);
-    expect(find.text(l10n.desktopNavbarStyleLarge), findsOneWidget);
-    expect(find.text(l10n.desktopNavbarAutohideLabel), findsOneWidget);
-    expect(controller.isMiniPlayerMode, isFalse);
-    expect(tester.getSize(find.byType(ListView)).width, 1040);
-    double top(String text) => tester.getTopLeft(find.text(text).first).dy;
-    expect(
-      top(l10n.desktopNavbarSectionLabel),
-      greaterThan(top(l10n.desktopSettingsWindowSection)),
-    );
-    expect(
-      top(l10n.settingsDesktopShortcutsTitle),
-      greaterThan(top(l10n.desktopNavbarSectionLabel)),
-    );
-    await expectLater(
-      find.byType(DesktopSettingsScreen),
-      matchesGoldenFile('goldens/desktop_settings_workspace.png'),
-    );
+      expect(find.byTooltip('Back'), findsOneWidget);
+      expect(find.text(l10n.desktopSettingsTitle), findsOneWidget); // AppBar
+      expect(find.text(l10n.desktopSettingsWindowSection), findsOneWidget);
+      expect(find.text('Mini Player'), findsOneWidget);
+      expect(find.text('Keep Mini Player on Top'), findsOneWidget);
+      expect(find.text(l10n.desktopNavbarSectionLabel), findsOneWidget);
+      expect(find.text(l10n.desktopNavbarStyleLarge), findsOneWidget);
+      expect(find.text(l10n.desktopNavbarAutohideLabel), findsOneWidget);
+      expect(controller.isMiniPlayerMode, isFalse);
+      expect(tester.getSize(find.byType(ListView)).width, 1040);
+      double top(String text) => tester.getTopLeft(find.text(text).first).dy;
+      expect(
+        top(l10n.desktopNavbarSectionLabel),
+        greaterThan(top(l10n.desktopSettingsWindowSection)),
+      );
+      expect(find.text(l10n.settingsDesktopShortcutsTitle), findsOneWidget);
+      expect(
+        top(l10n.settingsDesktopShortcutsTitle),
+        greaterThan(top(l10n.desktopNavbarSectionLabel)),
+      );
+      await expectLater(
+        find.byType(DesktopSettingsScreen),
+        matchesGoldenFile('goldens/desktop_settings_workspace.png'),
+      );
 
-    await tester.tap(find.text(l10n.settingsDesktopShortcutsSubtitle));
-    await tester.pumpAndSettle();
-    expect(find.text('shortcuts page'), findsOneWidget);
-  });
+      await tester.tap(find.text(l10n.settingsDesktopShortcutsSubtitle));
+      await tester.pumpAndSettle();
+      expect(find.text('shortcuts page'), findsOneWidget);
+    },
+  );
 }

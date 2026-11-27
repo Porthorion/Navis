@@ -1235,8 +1235,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only cross-fade between tracks from different albums.';
 
   @override
-  String get playbackSettingsReplayGainSectionTitle =>
-      'Volume Normalization (ReplayGain)';
+  String get playbackSettingsVolumeSectionTitle => 'Volume';
 
   @override
   String get playbackVolumeSemanticLabel => 'Playback volume';
@@ -1373,6 +1372,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsQueueSectionTitle => 'Queue';
+
+  @override
+  String get playbackSettingsTransitionsSectionTitle => 'Transitions';
+
+  @override
+  String get playbackSettingsStreamingSectionTitle => 'Streaming Quality';
+
+  @override
+  String get playbackSettingsLyricsSectionTitle => 'Lyrics';
+
+  @override
+  String get playbackSettingsScrobblingSectionTitle => 'Scrobbling';
+
+  @override
+  String get playbackSettingsFooterSaving => 'Saving changes…';
+
+  @override
+  String get playbackSettingsFooterIdle => 'Changes save automatically';
 
   @override
   String get playbackSettingsQueueEndLabel => 'When the queue ends';

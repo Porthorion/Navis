@@ -134,12 +134,6 @@ class DesktopSettingsScreen extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: 24),
-              NavisSectionHeader(
-                title: l10n.settingsDesktopShortcutsTitle,
-                compact: true,
-                maxLines: null,
-                padding: _headerPadding,
-              ),
               ListTile(
                 leading: const Icon(Icons.keyboard_command_key_rounded),
                 title: Text(l10n.settingsDesktopShortcutsTitle),
