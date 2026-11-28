@@ -73,6 +73,15 @@ bool navisReplayGainBoostSupported({
   bool iosTap = false,
 }) => usesMpv || androidProcessor || iosTap;
 
+/// Whether a peak limiter follows the boost. mpv's is FFmpeg's `alimiter`,
+/// present only when [mpvLimiter] (the media_kit adapter's startup probe) says
+/// the bundled libmpv has it. The Android and iOS limiters are separate phases.
+@visibleForTesting
+bool navisReplayGainLimiterSupported({
+  required bool usesMpv,
+  required bool mpvLimiter,
+}) => usesMpv && mpvLimiter;
+
 /// Whether the backend applies ReplayGain inside its audio path, on each
 /// song's own samples (see the handler's `replayGainInPipeline`). True on mpv
 /// (the `@navis_rg` stage, macOS included), on Android while

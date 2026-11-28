@@ -426,6 +426,23 @@ void main() {
     });
   });
 
+  group('navisReplayGainLimiterSupported', () {
+    test('mpv has one only when its probe found alimiter', () {
+      expect(
+        navisReplayGainLimiterSupported(usesMpv: true, mpvLimiter: true),
+        isTrue,
+      );
+      expect(
+        navisReplayGainLimiterSupported(usesMpv: true, mpvLimiter: false),
+        isFalse,
+      );
+      expect(
+        navisReplayGainLimiterSupported(usesMpv: false, mpvLimiter: true),
+        isFalse,
+      );
+    });
+  });
+
   group('replayGainBoostPlatformSupported', () {
     test('mpv boosts on every desktop, macOS included (#490)', () {
       expect(navisReplayGainBoostSupported(usesMpv: true), isTrue);
