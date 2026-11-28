@@ -11,7 +11,8 @@ import sys
 
 import numpy as np
 
-from replaygain_boost_clamps import edit_phase_results, over_own_gain, speed_changed_mid_fade, unexpected_clamps
+from replaygain_boost_clamps import (af_has_limiter, burst_spans, edit_phase_results, expected_peak_db, longest_flat_run,
+                                     over_own_gain, replay_gain_levels, speed_changed_mid_fade, unexpected_clamps)
 
 RATE = 44100
 WIN = RATE // 100  # 10 ms
@@ -68,6 +69,69 @@ def d1(root):
         check('D1 Q stays boosted later in the song', np.median(late[119:159]) >= 0.085, f'late median={np.median(late[119:159])}')
     else:
         check('D1 H->Q join found', False, 'no H region')
+
+# d7 fixtures: id -> (sine peak, tagged track gain dB, tagged peak). F is a -26 dBFS sine with a 0.2 s -6 dBFS burst every 3 s.
+D7_SONGS = {'rgboost-q1': (0.0316, 10.0, 0.0316), 'rgboost-h1': (0.891, -3.0, 0.891), 'rgboost-f': (0.0501, 12.0, 0.5012)}
+
+
+def db(v):
+    return 20 * np.log10(max(float(v), 1e-9))
+
+
+def d7(root):
+    """Quiet, Normal and Loud on Q, H and F. Per capture: the app's decision (status `replayGain`) equals the rule
+    computed here independently; the steady part plays at input + the decision's gain (a boost holds the limiter
+    ceiling, -1 dBFS, for a sine that would pass it) within 0.5 dB; no preset puts a sample above -1 dBFS (+0.1);
+    `@navis_lim` is in mpv's af exactly when a boost plays with the limiter confirmed. F at Loud is limited, its
+    bursts carry no flat top and its quiet part is louder than at Normal."""
+    import json
+    quiet_rms = {}
+    for loudness in ('quiet', 'normal', 'loud'):
+        for song, (amp, gain, tag_peak) in D7_SONGS.items():
+            label = f'D7 {loudness} {song}'
+            x = load(root, f'd7-{loudness}-{song}')
+            path = os.path.join(root, f'd7-{loudness}-{song}-status.json')
+            status = json.load(open(path)) if os.path.exists(path) else {}
+            transport = ((status.get('native') or {}).get('mediaKitTransport') or [{}])[0]
+            decision = status.get('replayGain') or {}
+            own = replay_gain_levels(gain, tag_peak, loudness, limiter=bool(transport.get('limiterSupported')))
+            agree = all(abs((decision.get(k) if decision.get(k) is not None else 1e9) - own[k]) < 0.05 for k in ('db', 'boostDb', 'offsetDb')) \
+                and decision.get('limited') == own['limited']
+            check(f'{label}: the app decision matches the rule', agree and len(x) > 0, f'app={ {k: decision.get(k) for k in own} } rule={ {k: round(v, 3) if isinstance(v, float) else v for k, v in own.items()} } limiterSupported={transport.get("limiterSupported")}')
+            if not len(x):
+                continue
+            lim = af_has_limiter(transport.get('audioFilters'))
+            want_lim = own['boostDb'] > 0 and bool(transport.get('limiterSupported'))
+            check(f'{label}: @navis_lim in mpv af iff a boost plays with the limiter', lim == want_lim, f'lim={lim} boostDb={own["boostDb"]} af={transport.get("audioFilters")}')
+            check(f'{label}: no sample above -1 dBFS (+0.1)', db(np.max(np.abs(x))) <= -0.9, f'peak={db(np.max(np.abs(x))):.2f} dBFS')
+            heard = np.where(np.abs(x) > 1e-3)[0]
+            x = x[heard[0]:] if len(heard) else x
+            pk = peaks(x)
+            if song == 'rgboost-f':
+                spans = burst_spans(pk.tolist())
+                spans = [s_ for s_ in spans if s_[0] > 30 and s_[1] < len(pk) - 5]  # whole bursts, not the capture's edges
+                segs = [x[int((spans[i][1] + 60) * WIN):int((spans[i + 1][0] - 20) * WIN)] for i in range(len(spans) - 1)]
+                steady = np.concatenate(segs) if segs else np.zeros(0, dtype='<f4')
+                check(f'{label}: bursts found in the capture', len(spans) >= 2, f'bursts={len(spans)}')
+                in_rms = db(amp) - 3.0103
+                burst_x = np.concatenate([x[s_[0] * WIN:s_[1] * WIN] for s_ in spans]) if spans else np.zeros(0, dtype='<f4')
+                if loudness == 'loud' and len(burst_x):
+                    flat = longest_flat_run(burst_x.tolist())
+                    check(f'{label}: limited bursts carry no flat top (longest run <= 8 samples)', flat <= 8, f'longest run={flat} samples')
+                    check(f'{label}: the limiter acts (burst peak {db(np.max(np.abs(burst_x))):.2f} dBFS, +6 dBFS before it, ceiling -1)',
+                          db(np.max(np.abs(burst_x))) <= -0.9 and own['limited'] and bool(decision.get('limited')), f'limited={decision.get("limited")}')
+            else:
+                steady = x[RATE:]  # past the start of playback
+                in_rms = db(amp) - 3.0103
+            got = db(np.sqrt(np.mean(steady ** 2))) if len(steady) else None
+            peak_in = db(amp)
+            want = in_rms + expected_peak_db(peak_in, own['db'], own['boostDb']) - peak_in
+            quiet_rms[(loudness, song)] = got
+            check(f'{label}: steady level = input {in_rms:.2f} dB + gain {own["db"]:.2f} (limiter-held) within 0.5 dB',
+                  got is not None and abs(got - want) <= 0.5, f'measured RMS={got if got is None else round(got, 2)} dBFS expected={want:.2f} dBFS')
+    q, n = quiet_rms.get(('loud', 'rgboost-f')), quiet_rms.get(('normal', 'rgboost-f'))
+    check('D7 F: the quiet part at Loud is louder than at Normal', q is not None and n is not None and q > n + 5.0,
+          f'loud={q} normal={n} (expected about +7 dB)')
 
 
 def d6(root):
@@ -330,9 +394,47 @@ def a1(root):
           f'n={len(late)} min={min([r["boost"]["appliedDb"] for r in late] or [None])}')
 
 
+def a3(root):
+    """Android: F at Loud, Normal and Quiet and H at Loud, from the sidecar's status samples. The decision is the rule
+    computed independently (the processor is the limiter, so it is confirmed); the processor's applied gain is the
+    decision's mid-song; `limitedFrames` rises while the Loud boost passes the peak ceiling (the bursts are +6 dBFS
+    before the limiter) and not at Normal or Quiet; no sample is clamped."""
+    import json
+    path = os.path.join(root, 'a3', 'a1-samples.jsonl')
+    rows = [json.loads(line) for line in open(path)] if os.path.exists(path) else []
+    for loudness, song, gain, peak in (('loud', 'rgf-1', 12.0, 0.5012), ('normal', 'rgf-1', 12.0, 0.5012),
+                                       ('quiet', 'rgf-1', 12.0, 0.5012), ('loud', 'rgh-1', -3.0, 0.891)):
+        phase = f'a3-{loudness}-{song}'
+        mine = [r for r in rows if r['phase'] == phase and r['songId'] == song and r.get('boost') and r.get('playing')]
+        own = replay_gain_levels(gain, peak, loudness)
+        check(f'A3 {loudness} {song}: samples recorded', len(mine) > 20, f'n={len(mine)}')
+        if len(mine) <= 20:
+            continue
+        mid = [r for r in mine if r['positionMs'] is not None and 6000 <= r['positionMs'] <= 11000]
+        d = mid[-1]['decision'] or {} if mid else {}
+        check(f'A3 {loudness} {song}: the app decision matches the rule',
+              mid and all(abs((d.get(k) if d.get(k) is not None else 1e9) - own[k]) < 0.05 for k in ('db', 'boostDb', 'offsetDb')) and d.get('limited') == own['limited'],
+              f'app={ {k: d.get(k) for k in own} } rule={ {k: round(v, 3) if isinstance(v, float) else v for k, v in own.items()} }')
+        applied = [r['boost']['appliedDb'] for r in mid]
+        check(f'A3 {loudness} {song}: the processor applies the decision ({own["db"]:.2f} dB) within 0.3 dB',
+              len(applied) > 10 and abs(float(np.median(applied)) - own['db']) <= 0.3,
+              f'median applied={float(np.median(applied)) if applied else None} n={len(applied)}')
+        frames = [r['boost']['limitedFrames'] for r in mine]
+        rise = max(frames) - min(frames)
+        # H at Loud is a continuous -1 dBFS sine boosted 4 dB past the ceiling; F's bursts are the limited part.
+        check(f'A3 {loudness} {song}: limitedFrames ' + ('rises' if own['limited'] else 'does not rise'),
+              (rise > 0) == own['limited'], f'limitedFrames {min(frames)} -> {max(frames)} limited(rule)={own["limited"]}')
+        clips = [r['boost']['clipSamples'] for r in mine]
+        check(f'A3 {loudness} {song}: no clamped sample', max(clips) == min(clips), f'clipSamples {min(clips)} -> {max(clips)}')
+        if not own['limited'] and own['boostDb'] > 0:
+            ceiling = -20 * np.log10(peak)
+            check(f'A3 {loudness} {song}: the boost stays 1 dB under the peak ceiling', own['boostDb'] <= ceiling - 1 + 0.01,
+                  f'boost={own["boostDb"]:.2f} ceiling-1={ceiling - 1:.2f}')
+
+
 if __name__ == '__main__':
     root, scenarios = sys.argv[1], sys.argv[2].split(',')
-    for name, fn in (('d1', d1), ('d3', d3), ('d2', d2), ('d4', d4), ('d5', d5), ('d6', d6), ('a1', a1)):
+    for name, fn in (('d1', d1), ('d3', d3), ('d2', d2), ('d4', d4), ('d5', d5), ('d6', d6), ('d7', d7), ('a1', a1), ('a3', a3)):
         if name in scenarios or (name == 'd3' and 'd1' in scenarios):
             fn(root)
     sys.exit(0 if ok else 1)

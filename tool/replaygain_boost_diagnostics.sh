@@ -2,8 +2,9 @@
 # ReplayGain boost runtime checks on Linux: a profile build against a clone
 # profile, audio captured from a disposable null sink with parec.
 #
-#   tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6] [--output DIR]
+#   tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6,d7] [--output DIR]
 #   tool/replaygain_boost_diagnostics.sh --scenarios a1 --android-serial SERIAL [--output DIR]
+#   tool/replaygain_boost_diagnostics.sh --scenarios a3 --android-serial SERIAL [--output DIR]   (a3: F under each preset)
 #
 # d1  Q (quiet, boosted) and H (hot, cut) join gaplessly, both ways, plus a
 #     control where Q has no peak and so no boost
@@ -15,6 +16,9 @@
 # d6  the same Q/H joins on songs streamed from a loopback Navidrome-like server (no downloaded
 #     files, a fresh profile signed in to the fixture), first from the stream and then, the
 #     files being in the rolling cache by then, from the cache
+# d7  loudness presets: Q, H and F (a -26 dBFS sine with a 0.2 s -6 dBFS burst every 3 s, tagged +12 dB with
+#     its peak) under Quiet, Normal and Loud; the level and the limiter against the rule, computed twice (the
+#     app's decision in the status, the analyzer's own copy), and `@navis_lim` in mpv's af only for a boost
 # a1  Android emulator (tool/replaygain_boost_android.py): the processor's applied gain, current key
 #     and clamped-sample counter over gapless joins, an EQ, repeat-one switched off and shuffle
 #     toggled in the last 3 s, a cross-fade and lossy streams; no display or null sink needed
@@ -62,7 +66,7 @@ trap cleanup EXIT INT TERM
 
 # Only the Linux scenarios need a compositor and a capture sink.
 NEEDS_LINUX=0
-for scenario in d1 d2 d4 d5 d6; do
+for scenario in d1 d2 d4 d5 d6 d7; do
   if [[ ",$SCENARIOS," == *,$scenario,* ]]; then NEEDS_LINUX=1; fi
 done
 if (( NEEDS_LINUX )) && [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
@@ -113,7 +117,20 @@ for sid, (peak, gain, tag_peak) in songs.items():
     path = os.path.join(cache, sid + '.wav'); tone(path, peak)
     target.execute("INSERT OR REPLACE INTO songs (id, title, duration, content_type, suffix, replay_gain_track_gain, replay_gain_track_peak) VALUES (?,?,30,'audio/wav','wav',?,?)", (sid, sid, gain, tag_peak))
     target.execute("INSERT OR REPLACE INTO cached_tracks (song_id,file_path,file_size,format,last_accessed_at,cache_type,download_status) VALUES (?,?,?,?,?,'permanent','complete')", (sid, path, os.path.getsize(path), 'wav', int(time.time())))
-target.execute("UPDATE app_settings SET crossfade_enabled=?, crossfade_duration_seconds=3, gapless_enabled=1, scrobble_enabled=0, listen_brainz_scrobbling_enabled=0, replay_gain_mode='track', replay_gain_loudness='custom', replay_gain_preamp=0", (crossfade,))
+# F (d7): a -26 dBFS sine with a 0.2 s -6 dBFS burst at 2.5 s of every 3 s, tagged +12 dB with its peak
+# 0.5012 (ceiling 6.0 dB): Quiet and Normal boost 5.0 dB (the burst lands at -1 dBFS), Loud 12 dB, which puts
+# the burst at +6 dBFS before the limiter. 440 Hz x 3 s is a whole number of cycles, so the chunks join.
+fpath = os.path.join(cache, 'rgboost-f.wav')
+with wave.open(fpath, 'wb') as w:
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE)
+    chunk = b''.join(struct.pack('<h', int(round(32767 * (0.5012 if 2.5 <= i / RATE < 2.7 else 0.0501) * math.sin(2 * math.pi * 440 * i / RATE)))) for i in range(3 * RATE))
+    for _ in range(10): w.writeframes(chunk)
+target.execute("INSERT OR REPLACE INTO songs (id, title, duration, content_type, suffix, replay_gain_track_gain, replay_gain_track_peak) VALUES ('rgboost-f','rgboost-f',30,'audio/wav','wav',12.0,0.5012)")
+target.execute("INSERT OR REPLACE INTO cached_tracks (song_id,file_path,file_size,format,last_accessed_at,cache_type,download_status) VALUES ('rgboost-f',?,?,'wav',?,'permanent','complete')", (fpath, os.path.getsize(fpath), int(time.time())))
+target.execute("UPDATE app_settings SET crossfade_enabled=?, crossfade_duration_seconds=3, gapless_enabled=1, scrobble_enabled=0, listen_brainz_scrobbling_enabled=0, replay_gain_mode='track', replay_gain_preamp=0", (crossfade,))
+# The profile may predate the loudness column (the app migrates the clone at launch; launch() then posts Custom 0).
+if any(c[1] == 'replay_gain_loudness' for c in target.execute('PRAGMA table_info(app_settings)')):
+    target.execute("UPDATE app_settings SET replay_gain_loudness='custom'")
 disable_external_integrations(target)
 target.execute('DELETE FROM play_queue')
 target.commit(); target.close()
@@ -163,9 +180,10 @@ launch() { # launch <label> <crossfade>
   launch_audio_app 'Navis Boost Diagnostics'
   api GET /v1/health > "$OUTPUT_ROOT/health-$1.json"
   api POST /v1/playback/volume '{"value":1}' > /dev/null || true
+  post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":0}'
 }
 
-if [[ ",$SCENARIOS," == *,d1,* || ",$SCENARIOS," == *,d2,* || ",$SCENARIOS," == *,d5,* ]]; then
+if [[ ",$SCENARIOS," == *,d1,* || ",$SCENARIOS," == *,d2,* || ",$SCENARIOS," == *,d5,* || ",$SCENARIOS," == *,d7,* ]]; then
   launch gapless 0
   if [[ ",$SCENARIOS," == *,d1,* ]]; then
     sample_status "$OUTPUT_ROOT/d3-samples.log" & SAMPLER=$!
@@ -199,6 +217,20 @@ if [[ ",$SCENARIOS," == *,d1,* || ",$SCENARIOS," == *,d2,* || ",$SCENARIOS," == 
       post /v1/playback/seek '{"positionMs":29000}'
       rec_start "d5-$delay"; post /v1/playback/play; sleep "$delay"
       post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":6}'; rec_stop 4
+    done
+    post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":0}'
+  fi
+  if [[ ",$SCENARIOS," == *,d7,* ]]; then
+    # Each song first of a two-song queue (the API needs two), from 2 s, 9 s captured; the status (the decision and mpv's af) is read mid-song.
+    for loudness in quiet normal loud; do
+      post /v1/playback/replay-gain "{\"mode\":\"track\",\"loudness\":\"$loudness\",\"preamp\":0}"
+      for song in rgboost-q1 rgboost-h1 rgboost-f; do
+        play_queue "[\"$song\",\"rgboost-qn\"]"; route; sleep 1; post /v1/playback/pause
+        post /v1/playback/seek '{"positionMs":2000}'
+        rec_start "d7-$loudness-$song"; post /v1/playback/play; sleep 4
+        api GET /v1/playback/status > "$OUTPUT_ROOT/d7-$loudness-$song-status.json"
+        rec_stop 5
+      done
     done
     post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":0}'
   fi
@@ -256,5 +288,11 @@ if [[ ",$SCENARIOS," == *,a1,* ]]; then
   # shellcheck disable=SC2086
   python3 "$PROJECT_DIR/tool/replaygain_boost_android.py" --serial "$ANDROID_SERIAL" \
     --output "$OUTPUT_ROOT/a1" ${NAVIS_A1_ARGS:-}
+fi
+if [[ ",$SCENARIOS," == *,a3,* ]]; then
+  [[ -n "$ANDROID_SERIAL" ]] || { echo "a3 needs --android-serial" >&2; exit 64; }
+  # shellcheck disable=SC2086
+  python3 "$PROJECT_DIR/tool/replaygain_boost_android.py" --serial "$ANDROID_SERIAL" \
+    --output "$OUTPUT_ROOT/a3" --loudness ${NAVIS_A3_ARGS:-}
 fi
 python3 "$PROJECT_DIR/tool/replaygain_boost_analyze.py" "$OUTPUT_ROOT" "$SCENARIOS" | tee "$OUTPUT_ROOT/analysis.txt"

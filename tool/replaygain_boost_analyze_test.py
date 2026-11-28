@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Self-test of the clamp rules of tool/replaygain_boost_clamps.py (pure Python, no numpy): an L-labelled
 clamp at the L to H join must fail, and only a clamp mid-song for L, unguarded around it, is exempt."""
+import math
 import sys
 
 import replaygain_boost_clamps as clamps
@@ -24,6 +25,33 @@ def rows(clamp_at, song='rgl-1', phase='lossy-opus', duration=30000, start=1000)
 
 def unexpected(stream):
     return clamps.unexpected_clamps(stream)[1]
+
+
+def preset_rules():
+    """The d7 fixtures (Q: gain +10, peak 0.0316; H: -3, 0.891; F: +12, 0.5012) under each preset, as worked by hand
+    from the rule: Loud lifts F and H past their peak ceilings (limited), Q only to the 12 dB cap (Normal too: not limited)."""
+    near = lambda a, b: abs(a - b) < 0.02
+    rules = clamps.replay_gain_levels
+    q = [rules(10.0, 0.0316, p) for p in ('quiet', 'normal', 'loud')]
+    assert [round(d['db'], 2) for d in q] == [10.0, 12.0, 12.0] and not any(d['limited'] for d in q), q
+    h = [rules(-3.0, 0.891, p) for p in ('quiet', 'normal', 'loud')]
+    assert [near(d['db'], v) for d, v in zip(h, (-3.0, 0.0, 4.0))] == [True] * 3 and [d['limited'] for d in h] == [False, False, True], h
+    f = [rules(12.0, 0.5012, p) for p in ('quiet', 'normal', 'loud')]
+    assert near(f[0]['db'], 5.0) and near(f[1]['db'], 5.0) and near(f[2]['db'], 12.0), f
+    assert [d['limited'] for d in f] == [False, False, True] and f[2]['offsetDb'] == 7.0, f
+    assert rules(12.0, 0.5012, 'loud', limiter=False)['boostDb'] < 6 and not rules(12.0, 0.5012, 'loud', limiter=False)['limited'], 'no limiter keeps the ceiling'
+    assert rules(10.0, None, 'loud')['boostDb'] == 0, 'no peak, no boost'
+    assert rules(12.0, 0.5012, 'custom', custom=20.0)['offsetDb'] == 8.0, 'custom is clamped to 8'
+    assert rules(-3.0, 0.891, 'custom', custom=-9.0)['db'] == -9.0, 'custom -6 floor: -3 + -6 = -9'
+    assert clamps.expected_peak_db(-1.0, 4.0, 4.0) == -1.0, 'a limited boost holds the ceiling'
+    assert clamps.expected_peak_db(-30.0, 12.0, 12.0) == -18.0 and clamps.expected_peak_db(-1.0, -3.0, 0.0) == -4.0
+    assert clamps.af_has_limiter('@navis_rg:lavfi=[volume=4dB],@navis_lim:lavfi=[alimiter]') and not clamps.af_has_limiter(None)
+    base, burst = [0.05] * 10, [0.5] * 3
+    assert clamps.burst_spans(base + burst + base + burst + base) == [(10, 13), (23, 26)]
+    assert clamps.burst_spans(base) == [] and clamps.burst_spans([]) == []
+    sine = [math.sin(2 * math.pi * i / 100) for i in range(400)]
+    assert clamps.longest_flat_run(sine) <= 4, 'a pure sine has no flat top'
+    assert clamps.longest_flat_run([max(-0.5, min(0.5, 1.4 * v)) for v in sine]) >= 20, 'a hard clip is flat'
 
 
 def main():
@@ -124,7 +152,8 @@ def main():
     assert not clamps.over_own_gain(own(29500, 10.0)), 'the last second of a song is skipped'
     assert not clamps.over_own_gain(own(None, 10.0)) and not clamps.over_own_gain(own(15000, 10.0, dur=None)), 'no position or duration, no verdict'
     assert clamps.over_own_gain({'positionMs': 15000, 'durationMs': 30000, 'boost': {'appliedDb': 2.0}, 'decision': None}), 'no decision counts as 0 dB'
-    print('ReplayGain analyzer self-test: clamp rules passed.')
+    preset_rules()
+    print('ReplayGain analyzer self-test: clamp rules and preset rule passed.')
 
 
 if __name__ == '__main__':
