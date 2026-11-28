@@ -1278,39 +1278,56 @@ class AppLocalizationsEn extends AppLocalizations {
       'A whole album is levelled together, so its quiet and loud songs stay as the artist set them. Best for playing whole albums.';
 
   @override
-  String get playbackSettingsReplayGainPreampLabel => 'Pre-Amp (dB)';
-
-  @override
   String get playbackSettingsReplayGainIntro =>
       'ReplayGain turns loud songs down so they all play at a similar volume. It never turns songs up, so overall volume may sound lower: turn the volume up to compensate.';
 
   @override
   String get playbackSettingsReplayGainIntroBoost =>
-      'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Songs without ReplayGain data are never turned up. Most songs still end up quieter, so raise the volume to compensate.';
+      'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Loud goes further, using a limiter to keep peaks from clipping. Songs without ReplayGain data are never turned up.';
 
   @override
-  String get playbackSettingsReplayGainPreampSubtitleDown =>
-      'Turns every song down further. It can\'t push a song above its original level.';
+  String get playbackSettingsReplayGainIntroBoostNoLimiter =>
+      'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Songs without ReplayGain data are never turned up.';
 
   @override
-  String get playbackSettingsReplayGainPreampSubtitleZero =>
-      'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. It can\'t push a song above its original level.';
+  String get playbackSettingsLoudnessLabel => 'Loudness';
 
   @override
-  String get playbackSettingsReplayGainPreampSubtitleUp =>
-      'Gives back some of the turn-down, but never pushes a song above its original level.';
+  String get playbackSettingsLoudnessQuiet => 'Quiet';
 
   @override
-  String get playbackSettingsReplayGainPreampSubtitleDownBoost =>
-      'Turns every song down further.';
+  String get playbackSettingsLoudnessQuietSubtitle =>
+      '−18 LUFS · ReplayGain reference level, most headroom';
 
   @override
-  String get playbackSettingsReplayGainPreampSubtitleZeroBoost =>
-      'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB.';
+  String get playbackSettingsLoudnessNormal => 'Normal';
 
   @override
-  String get playbackSettingsReplayGainPreampSubtitleUpBoost =>
-      'Turns every song up, but never past what its peak level allows. Songs without ReplayGain data or a peak level are never pushed above their original level.';
+  String get playbackSettingsLoudnessNormalSubtitle =>
+      '−14 LUFS · Like Spotify and YouTube\'s default level';
+
+  @override
+  String get playbackSettingsLoudnessLoud => 'Loud';
+
+  @override
+  String get playbackSettingsLoudnessLoudSubtitle =>
+      '−11 LUFS · A limiter keeps peaks from clipping';
+
+  @override
+  String get playbackSettingsLoudnessLoudSubtitleNoLimiter =>
+      '−11 LUFS · Raises songs as far as their peaks allow';
+
+  @override
+  String get playbackSettingsLoudnessCustom => 'Custom';
+
+  @override
+  String playbackSettingsLoudnessCustomSubtitle(String lufs, String offset) {
+    return '$lufs LUFS · $offset dB from the ReplayGain reference';
+  }
+
+  @override
+  String get playbackSettingsLoudnessNoBoost =>
+      'This device can only turn songs down, so louder presets reduce the turn-down.';
 
   @override
   String playbackSettingsReplayGainCoverage(

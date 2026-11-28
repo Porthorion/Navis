@@ -1,5 +1,8 @@
 import 'package:navis/src/utils/semver.dart';
 
+/// The Settings page a [SetupHighlight] is shown on, which gets its tag.
+enum SetupHighlightPage { themes, interface, playback }
+
 /// Setup options introduced together in a release, shown to updated users.
 enum SetupHighlight {
   colorStyle('1.5.0'),
@@ -12,7 +15,8 @@ enum SetupHighlight {
   albumArtShade('1.5.0'),
   nowPlayingBackground('1.5.0'),
   cornerStyle('1.5.0'),
-  genresPage('1.5.2', standalone: true);
+  genresPage('1.5.2', standalone: true),
+  loudnessPresets('1.5.3', standalone: true);
 
   new(this.since, {this.standalone = false});
 
@@ -24,8 +28,12 @@ enum SetupHighlight {
   /// create the Home setup card. See [standaloneSetupHighlightsFor].
   final bool standalone;
 
-  /// Whether the option sits on Settings › Interface (the rest are on Themes).
-  bool get onInterfacePage => this == genresPage;
+  /// The Settings page the option sits on (Themes unless it says otherwise).
+  SetupHighlightPage get page => switch (this) {
+    genresPage => SetupHighlightPage.interface,
+    loudnessPresets => SetupHighlightPage.playback,
+    _ => SetupHighlightPage.themes,
+  };
 
   /// Stable key stored in the seen-options JSON array.
   String get storageKey =>

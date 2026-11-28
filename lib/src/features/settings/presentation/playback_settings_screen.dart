@@ -7,6 +7,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -40,8 +42,8 @@ class PlaybackSettingsScreen extends ConsumerStatefulWidget {
 
 class _PlaybackSettingsScreenState
     extends ConsumerState<PlaybackSettingsScreen> {
-  static const double _minReplayGainPreamp = -6;
-  static const double _maxReplayGainPreamp = 6;
+  /// The loudness ReplayGain targets at a 0 dB offset (RG 2.0 reference).
+  static const double _referenceLufs = -18;
   static const List<int?> _qualityOptions = <int?>[
     null,
     320,
@@ -81,6 +83,10 @@ class _PlaybackSettingsScreenState
   int _crossfadeDurationSeconds = 5;
   String _crossfadeType = 'normal';
   String _replayGainMode = 'off';
+  ReplayGainLoudness _replayGainLoudness = ReplayGainLoudness.normal;
+
+  /// The Custom offset in dB; only meaningful while [_replayGainLoudness] is
+  /// Custom (choosing Custom seeds it from the current offset).
   double _replayGainPreamp = 0;
   double? _replayGainUntaggedDb;
 
@@ -91,6 +97,10 @@ class _PlaybackSettingsScreenState
   bool _isSaving = false;
   bool _isAutoSaving = false;
   bool _pendingAutosave = false;
+
+  /// Set while dispose flushes a pending autosave: the write still happens,
+  /// but nothing may touch the element or the context any more.
+  bool _disposing = false;
   bool _experimentalExpanded = false;
   String _lastSavedSignature = '';
   Timer? _autosaveDebounce;
@@ -133,8 +143,9 @@ class _PlaybackSettingsScreenState
   }
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
-    final boost =
-        ref.watch(audioHandlerProvider)?.replayGainBoostSupported ?? false;
+    final handler = ref.watch(audioHandlerProvider);
+    final boost = handler?.replayGainBoostSupported ?? false;
+    final limiter = handler?.replayGainLimiterSupported ?? false;
     _scheduleAutosave();
     // The form only exists once the settings have loaded, so scroll after its
     // first build rather than in initState.
@@ -153,468 +164,457 @@ class _PlaybackSettingsScreenState
     }
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1040),
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(
-            desktopMode ? 24 : 16,
-            desktopMode ? 24 : 16,
-            desktopMode ? 24 : 16,
-            16,
-          ),
-          children: <Widget>[
-            Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  _sectionHeader(
-                    l10n.playbackSettingsQueueSectionTitle,
-                    first: true,
-                  ),
-                  // A form field keeps its first value, so a reset must rebuild it.
-                  KeyedSubtree(
-                    key: ValueKey<bool>(_queueEndStartAgain),
-                    child: DropdownButtonFormField<bool>(
-                      key: const ValueKey('playbackSettingsQueueEnd'),
-                      isExpanded: true,
-                      initialValue: _queueEndStartAgain,
-                      decoration: InputDecoration(
-                        labelText: l10n.playbackSettingsQueueEndLabel,
-                        helperText: l10n.playbackSettingsQueueEndHint,
-                        helperMaxLines: 3,
+    // The scope keeps the Loudness "New" tag up for the whole visit.
+    return AppearanceVisitScope(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1040),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              desktopMode ? 24 : 16,
+              desktopMode ? 24 : 16,
+              desktopMode ? 24 : 16,
+              16,
+            ),
+            children: <Widget>[
+              Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    _sectionHeader(
+                      l10n.playbackSettingsQueueSectionTitle,
+                      first: true,
+                    ),
+                    // A form field keeps its first value, so a reset must rebuild it.
+                    KeyedSubtree(
+                      key: ValueKey<bool>(_queueEndStartAgain),
+                      child: DropdownButtonFormField<bool>(
+                        key: const ValueKey('playbackSettingsQueueEnd'),
+                        isExpanded: true,
+                        initialValue: _queueEndStartAgain,
+                        decoration: InputDecoration(
+                          labelText: l10n.playbackSettingsQueueEndLabel,
+                          helperText: l10n.playbackSettingsQueueEndHint,
+                          helperMaxLines: 3,
+                        ),
+                        items: <DropdownMenuItem<bool>>[
+                          DropdownMenuItem(
+                            value: true,
+                            child: Text(
+                              l10n.playbackSettingsQueueEndStartAgain,
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: false,
+                            child: Text(l10n.playbackSettingsQueueEndStop),
+                          ),
+                        ],
+                        onChanged: _isSaving
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  setState(() => _queueEndStartAgain = value);
+                                }
+                              },
                       ),
-                      items: <DropdownMenuItem<bool>>[
+                    ),
+                    const SizedBox(height: 12),
+                    NavisSwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _albumQueueEnabled,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) =>
+                                setState(() => _albumQueueEnabled = value),
+                      title: Text(l10n.playbackSettingsAlbumQueueTitle),
+                      subtitle: Text(l10n.playbackSettingsAlbumQueueSubtitle),
+                    ),
+                    if (_albumQueueEnabled)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: NavisSwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _likedQueueEnabled,
+                          onChanged: _isSaving
+                              ? null
+                              : (value) =>
+                                    setState(() => _likedQueueEnabled = value),
+                          title: Text(l10n.playbackSettingsLikedQueueTitle),
+                          subtitle: Text(
+                            l10n.playbackSettingsLikedQueueSubtitle,
+                          ),
+                        ),
+                      ),
+                    _sectionHeader(
+                      l10n.playbackSettingsTransitionsSectionTitle,
+                    ),
+                    NavisSwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _gaplessEnabled,
+                      onChanged: _isSaving ? null : _setGaplessEnabled,
+                      title: Text(l10n.playbackSettingsGaplessTitle),
+                      subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
+                    ),
+                    if (_gaplessEnabled) ...<Widget>[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            NavisSwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              value: _crossfadeEnabled,
+                              onChanged: _isSaving
+                                  ? null
+                                  : _setCrossfadeEnabled,
+                              title: Text(
+                                l10n.playbackSettingsCrossfadeEnableTitle,
+                              ),
+                              subtitle: Text(
+                                l10n.playbackSettingsCrossfadeEnableSubtitle,
+                              ),
+                            ),
+                            if (_crossfadeEnabled) ...[
+                              Text(
+                                l10n.playbackSettingsCrossfadeDurationLabel(
+                                  _crossfadeDurationSeconds,
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              NavisSlider(
+                                value: _crossfadeDurationSeconds.toDouble(),
+                                min: 1,
+                                max: 12,
+                                divisions: 11,
+                                label: '${_crossfadeDurationSeconds}s',
+                                onChanged: _isSaving
+                                    ? null
+                                    : (value) => setState(
+                                        () => _crossfadeDurationSeconds = value
+                                            .round(),
+                                      ),
+                              ),
+                              const SizedBox(height: 8),
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                initialValue: _crossfadeType,
+                                decoration: InputDecoration(
+                                  labelText:
+                                      l10n.playbackSettingsCrossfadeTypeLabel,
+                                ),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 'normal',
+                                    child: Text(
+                                      l10n.playbackSettingsCrossfadeTypeNormal,
+                                    ),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'smart',
+                                    child: Text(
+                                      l10n.playbackSettingsCrossfadeTypeSmart,
+                                    ),
+                                  ),
+                                ],
+                                onChanged: _isSaving
+                                    ? null
+                                    : (value) {
+                                        if (value != null) {
+                                          setState(
+                                            () => _crossfadeType = value,
+                                          );
+                                        }
+                                      },
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _crossfadeType == 'smart'
+                                    ? l10n.playbackSettingsCrossfadeTypeSmartDescription
+                                    : l10n.playbackSettingsCrossfadeTypeNormalDescription,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outline,
+                                    ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                    _sectionHeader(
+                      l10n.playbackSettingsVolumeSectionTitle,
+                      key: _replayGainKey,
+                    ),
+                    Text(
+                      !boost
+                          ? l10n.playbackSettingsReplayGainIntro
+                          : limiter
+                          ? l10n.playbackSettingsReplayGainIntroBoost
+                          : l10n.playbackSettingsReplayGainIntroBoostNoLimiter,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: _replayGainMode,
+                      decoration: InputDecoration(
+                        labelText: l10n.playbackSettingsReplayGainModeLabel,
+                      ),
+                      items: [
                         DropdownMenuItem(
-                          value: true,
-                          child: Text(l10n.playbackSettingsQueueEndStartAgain),
+                          value: 'off',
+                          child: Text(l10n.playbackSettingsReplayGainModeOff),
                         ),
                         DropdownMenuItem(
-                          value: false,
-                          child: Text(l10n.playbackSettingsQueueEndStop),
+                          value: 'smart',
+                          child: Text(l10n.playbackSettingsReplayGainModeSmart),
+                        ),
+                        DropdownMenuItem(
+                          value: 'track',
+                          child: Text(l10n.playbackSettingsReplayGainModeTrack),
+                        ),
+                        DropdownMenuItem(
+                          value: 'album',
+                          child: Text(l10n.playbackSettingsReplayGainModeAlbum),
                         ),
                       ],
                       onChanged: _isSaving
                           ? null
                           : (value) {
                               if (value != null) {
-                                setState(() => _queueEndStartAgain = value);
+                                setState(() {
+                                  _replayGainMode = value;
+                                  _untaggedPreview = null;
+                                });
                               }
                             },
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  NavisSwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _albumQueueEnabled,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _albumQueueEnabled = value),
-                    title: Text(l10n.playbackSettingsAlbumQueueTitle),
-                    subtitle: Text(l10n.playbackSettingsAlbumQueueSubtitle),
-                  ),
-                  if (_albumQueueEnabled)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16),
-                      child: NavisSwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: _likedQueueEnabled,
-                        onChanged: _isSaving
-                            ? null
-                            : (value) =>
-                                  setState(() => _likedQueueEnabled = value),
-                        title: Text(l10n.playbackSettingsLikedQueueTitle),
-                        subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
-                      ),
-                    ),
-                  _sectionHeader(l10n.playbackSettingsTransitionsSectionTitle),
-                  NavisSwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _gaplessEnabled,
-                    onChanged: _isSaving ? null : _setGaplessEnabled,
-                    title: Text(l10n.playbackSettingsGaplessTitle),
-                    subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
-                  ),
-                  if (_gaplessEnabled) ...<Widget>[
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          NavisSwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            value: _crossfadeEnabled,
-                            onChanged: _isSaving ? null : _setCrossfadeEnabled,
-                            title: Text(
-                              l10n.playbackSettingsCrossfadeEnableTitle,
-                            ),
-                            subtitle: Text(
-                              l10n.playbackSettingsCrossfadeEnableSubtitle,
-                            ),
-                          ),
-                          if (_crossfadeEnabled) ...[
-                            Text(
-                              l10n.playbackSettingsCrossfadeDurationLabel(
-                                _crossfadeDurationSeconds,
-                              ),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            NavisSlider(
-                              value: _crossfadeDurationSeconds.toDouble(),
-                              min: 1,
-                              max: 12,
-                              divisions: 11,
-                              label: '${_crossfadeDurationSeconds}s',
-                              onChanged: _isSaving
-                                  ? null
-                                  : (value) => setState(
-                                      () => _crossfadeDurationSeconds = value
-                                          .round(),
-                                    ),
-                            ),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              isExpanded: true,
-                              initialValue: _crossfadeType,
-                              decoration: InputDecoration(
-                                labelText:
-                                    l10n.playbackSettingsCrossfadeTypeLabel,
-                              ),
-                              items: [
-                                DropdownMenuItem(
-                                  value: 'normal',
-                                  child: Text(
-                                    l10n.playbackSettingsCrossfadeTypeNormal,
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'smart',
-                                  child: Text(
-                                    l10n.playbackSettingsCrossfadeTypeSmart,
-                                  ),
-                                ),
-                              ],
-                              onChanged: _isSaving
-                                  ? null
-                                  : (value) {
-                                      if (value != null) {
-                                        setState(() => _crossfadeType = value);
-                                      }
-                                    },
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _crossfadeType == 'smart'
-                                  ? l10n.playbackSettingsCrossfadeTypeSmartDescription
-                                  : l10n.playbackSettingsCrossfadeTypeNormalDescription,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .outline,
-                                  ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                  _sectionHeader(
-                    l10n.playbackSettingsVolumeSectionTitle,
-                    key: _replayGainKey,
-                  ),
-                  Text(
-                    boost
-                        ? l10n.playbackSettingsReplayGainIntroBoost
-                        : l10n.playbackSettingsReplayGainIntro,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: _replayGainMode,
-                    decoration: InputDecoration(
-                      labelText: l10n.playbackSettingsReplayGainModeLabel,
-                    ),
-                    items: [
-                      DropdownMenuItem(
-                        value: 'off',
-                        child: Text(l10n.playbackSettingsReplayGainModeOff),
-                      ),
-                      DropdownMenuItem(
-                        value: 'smart',
-                        child: Text(l10n.playbackSettingsReplayGainModeSmart),
-                      ),
-                      DropdownMenuItem(
-                        value: 'track',
-                        child: Text(l10n.playbackSettingsReplayGainModeTrack),
-                      ),
-                      DropdownMenuItem(
-                        value: 'album',
-                        child: Text(l10n.playbackSettingsReplayGainModeAlbum),
-                      ),
-                    ],
-                    onChanged: _isSaving
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() {
-                                _replayGainMode = value;
-                                _untaggedPreview = null;
-                              });
-                            }
-                          },
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    switch (_replayGainMode) {
-                      'off' =>
-                        l10n.playbackSettingsReplayGainModeOffDescription,
-                      'smart' =>
-                        l10n.playbackSettingsReplayGainModeSmartDescription,
-                      'track' =>
-                        l10n.playbackSettingsReplayGainModeTrackDescription,
-                      _ => l10n.playbackSettingsReplayGainModeAlbumDescription,
-                    },
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                  ..._buildReplayGainCoverage(context, l10n),
-                  if (_replayGainMode != 'off') ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
                     Text(
-                      '${l10n.playbackSettingsReplayGainPreampLabel}: '
-                      '${_replayGainPreamp.toStringAsFixed(1)} dB',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    NavisSlider(
-                      value: _replayGainPreamp.clamp(
-                        _minReplayGainPreamp,
-                        _maxReplayGainPreamp,
-                      ),
-                      min: _minReplayGainPreamp,
-                      max: _maxReplayGainPreamp,
-                      divisions: 24,
-                      label: '${_replayGainPreamp.toStringAsFixed(1)} dB',
-                      onChanged: _isSaving
-                          ? null
-                          : (value) => setState(
-                              () => _replayGainPreamp =
-                                  _normalizeReplayGainPreamp(value),
-                            ),
-                    ),
-                    Text(
-                      switch (_replayGainPreamp) {
-                        < 0 when boost =>
-                          l10n.playbackSettingsReplayGainPreampSubtitleDownBoost,
-                        0 when boost =>
-                          l10n.playbackSettingsReplayGainPreampSubtitleZeroBoost,
-                        _ when boost =>
-                          l10n.playbackSettingsReplayGainPreampSubtitleUpBoost,
-                        < 0 =>
-                          l10n.playbackSettingsReplayGainPreampSubtitleDown,
-                        0 => l10n.playbackSettingsReplayGainPreampSubtitleZero,
-                        _ => l10n.playbackSettingsReplayGainPreampSubtitleUp,
+                      switch (_replayGainMode) {
+                        'off' =>
+                          l10n.playbackSettingsReplayGainModeOffDescription,
+                        'smart' =>
+                          l10n.playbackSettingsReplayGainModeSmartDescription,
+                        'track' =>
+                          l10n.playbackSettingsReplayGainModeTrackDescription,
+                        _ =>
+                          l10n.playbackSettingsReplayGainModeAlbumDescription,
                       },
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _buildUntaggedLevel(context, l10n),
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n.playbackSettingsReplayGainUntaggedSubtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
+                    ..._buildReplayGainCoverage(context, l10n),
+                    if (_replayGainMode != 'off') ...[
+                      const SizedBox(height: 12),
+                      ..._buildLoudness(
+                        context,
+                        l10n,
+                        boost: boost,
+                        limiter: limiter,
                       ),
-                    ),
-                  ],
-                  _sectionHeader(l10n.playbackSpeedPitchTitle),
-                  const PlaybackAdjustmentPanel(showHeader: false),
-                  _sectionHeader(l10n.playbackSettingsStreamingSectionTitle),
-                  Text(
-                    l10n.playbackSettingsWifiSectionTitle,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int?>(
-                    isExpanded: true,
-                    initialValue: _wifiBitRate,
-                    decoration: InputDecoration(
-                      labelText: l10n.playbackSettingsWifiQualityLabel,
-                    ),
-                    items: _qualityOptions
-                        .map(
-                          (value) => DropdownMenuItem<int?>(
-                            value: value,
-                            child: Text(_qualityLabel(l10n, value)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _wifiBitRate = value),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String?>(
-                    isExpanded: true,
-                    initialValue: _wifiFormat,
-                    decoration: InputDecoration(
-                      labelText: l10n.playbackSettingsWifiFormatLabel,
-                    ),
-                    items: _formatOptions
-                        .map(
-                          (value) => DropdownMenuItem<String?>(
-                            value: value,
-                            child: Text(_formatLabel(l10n, value)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _wifiFormat = value),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    l10n.playbackSettingsCellularSectionTitle,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int?>(
-                    isExpanded: true,
-                    initialValue: _cellularBitRate,
-                    decoration: InputDecoration(
-                      labelText: l10n.playbackSettingsCellularQualityLabel,
-                    ),
-                    items: _qualityOptions
-                        .map(
-                          (value) => DropdownMenuItem<int?>(
-                            value: value,
-                            child: Text(_qualityLabel(l10n, value)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _cellularBitRate = value),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String?>(
-                    isExpanded: true,
-                    initialValue: _cellularFormat,
-                    decoration: InputDecoration(
-                      labelText: l10n.playbackSettingsCellularFormatLabel,
-                    ),
-                    items: _formatOptions
-                        .map(
-                          (value) => DropdownMenuItem<String?>(
-                            value: value,
-                            child: Text(_formatLabel(l10n, value)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _cellularFormat = value),
-                  ),
-                  const SizedBox(height: 12),
-                  NavisSwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _cachedPlaybackFirst,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) =>
-                              setState(() => _cachedPlaybackFirst = value),
-                    title: Text(l10n.playbackSettingsCachedFirstTitle),
-                    subtitle: Text(l10n.playbackSettingsCachedFirstSubtitle),
-                  ),
-                  NavisSwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _prefetchNextOnMobileData,
-                    onChanged: _isSaving ? null : _setPrefetchNextOnMobileData,
-                    title: Text(l10n.playbackSettingsPrefetchNextTitle),
-                    subtitle: Text(l10n.playbackSettingsPrefetchNextSubtitle),
-                  ),
-                  if (navisFastSeekSupported())
-                    NavisSwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _fastSeekingEnabled,
-                      onChanged: _isSaving
-                          ? null
-                          : (value) =>
-                                setState(() => _fastSeekingEnabled = value),
-                      title: Text(l10n.playbackSettingsFastSeekingTitle),
-                      subtitle: Text(l10n.playbackSettingsFastSeekingSubtitle),
-                    ),
-                  _sectionHeader(l10n.playbackSettingsLyricsSectionTitle),
-                  NavisSwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _fullscreenModeLyrics,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) =>
-                              setState(() => _fullscreenModeLyrics = value),
-                    title: Text(l10n.playbackSettingsFullscreenLyricsTitle),
-                    subtitle: Text(
-                      l10n.playbackSettingsFullscreenLyricsSubtitle,
-                    ),
-                  ),
-                  _sectionHeader(l10n.playbackSettingsScrobblingSectionTitle),
-                  NavisSwitchListTile(
-                    key: const ValueKey('playbackSettingsScrobbleToggle'),
-                    contentPadding: EdgeInsets.zero,
-                    value: _scrobbleEnabled,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _scrobbleEnabled = value),
-                    title: Text(l10n.playbackSettingsScrobbleTitle),
-                    subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildExperimentalSection(context, l10n),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: <Widget>[
-                      if (_isAutoSaving)
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      if (_isAutoSaving) const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          _isAutoSaving
-                              ? l10n.playbackSettingsFooterSaving
-                              : l10n.playbackSettingsFooterIdle,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
+                      const SizedBox(height: 12),
+                      _buildUntaggedLevel(context, l10n),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.playbackSettingsReplayGainUntaggedSubtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _isSaving ? null : _resetDefaults,
-                    child: Text(l10n.playbackSettingsResetAction),
-                  ),
-                ],
+                    _sectionHeader(l10n.playbackSpeedPitchTitle),
+                    const PlaybackAdjustmentPanel(showHeader: false),
+                    _sectionHeader(l10n.playbackSettingsStreamingSectionTitle),
+                    Text(
+                      l10n.playbackSettingsWifiSectionTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int?>(
+                      isExpanded: true,
+                      initialValue: _wifiBitRate,
+                      decoration: InputDecoration(
+                        labelText: l10n.playbackSettingsWifiQualityLabel,
+                      ),
+                      items: _qualityOptions
+                          .map(
+                            (value) => DropdownMenuItem<int?>(
+                              value: value,
+                              child: Text(_qualityLabel(l10n, value)),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(() => _wifiBitRate = value),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String?>(
+                      isExpanded: true,
+                      initialValue: _wifiFormat,
+                      decoration: InputDecoration(
+                        labelText: l10n.playbackSettingsWifiFormatLabel,
+                      ),
+                      items: _formatOptions
+                          .map(
+                            (value) => DropdownMenuItem<String?>(
+                              value: value,
+                              child: Text(_formatLabel(l10n, value)),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(() => _wifiFormat = value),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      l10n.playbackSettingsCellularSectionTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int?>(
+                      isExpanded: true,
+                      initialValue: _cellularBitRate,
+                      decoration: InputDecoration(
+                        labelText: l10n.playbackSettingsCellularQualityLabel,
+                      ),
+                      items: _qualityOptions
+                          .map(
+                            (value) => DropdownMenuItem<int?>(
+                              value: value,
+                              child: Text(_qualityLabel(l10n, value)),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(() => _cellularBitRate = value),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String?>(
+                      isExpanded: true,
+                      initialValue: _cellularFormat,
+                      decoration: InputDecoration(
+                        labelText: l10n.playbackSettingsCellularFormatLabel,
+                      ),
+                      items: _formatOptions
+                          .map(
+                            (value) => DropdownMenuItem<String?>(
+                              value: value,
+                              child: Text(_formatLabel(l10n, value)),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(() => _cellularFormat = value),
+                    ),
+                    const SizedBox(height: 12),
+                    NavisSwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _cachedPlaybackFirst,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) =>
+                                setState(() => _cachedPlaybackFirst = value),
+                      title: Text(l10n.playbackSettingsCachedFirstTitle),
+                      subtitle: Text(l10n.playbackSettingsCachedFirstSubtitle),
+                    ),
+                    NavisSwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _prefetchNextOnMobileData,
+                      onChanged: _isSaving
+                          ? null
+                          : _setPrefetchNextOnMobileData,
+                      title: Text(l10n.playbackSettingsPrefetchNextTitle),
+                      subtitle: Text(l10n.playbackSettingsPrefetchNextSubtitle),
+                    ),
+                    if (navisFastSeekSupported())
+                      NavisSwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _fastSeekingEnabled,
+                        onChanged: _isSaving
+                            ? null
+                            : (value) =>
+                                  setState(() => _fastSeekingEnabled = value),
+                        title: Text(l10n.playbackSettingsFastSeekingTitle),
+                        subtitle: Text(
+                          l10n.playbackSettingsFastSeekingSubtitle,
+                        ),
+                      ),
+                    _sectionHeader(l10n.playbackSettingsLyricsSectionTitle),
+                    NavisSwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _fullscreenModeLyrics,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) =>
+                                setState(() => _fullscreenModeLyrics = value),
+                      title: Text(l10n.playbackSettingsFullscreenLyricsTitle),
+                      subtitle: Text(
+                        l10n.playbackSettingsFullscreenLyricsSubtitle,
+                      ),
+                    ),
+                    _sectionHeader(l10n.playbackSettingsScrobblingSectionTitle),
+                    NavisSwitchListTile(
+                      key: const ValueKey('playbackSettingsScrobbleToggle'),
+                      contentPadding: EdgeInsets.zero,
+                      value: _scrobbleEnabled,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(() => _scrobbleEnabled = value),
+                      title: Text(l10n.playbackSettingsScrobbleTitle),
+                      subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildExperimentalSection(context, l10n),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: <Widget>[
+                        if (_isAutoSaving)
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        if (_isAutoSaving) const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            _isAutoSaving
+                                ? l10n.playbackSettingsFooterSaving
+                                : l10n.playbackSettingsFooterIdle,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _isSaving ? null : _resetDefaults,
+                      child: Text(l10n.playbackSettingsResetAction),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -918,6 +918,7 @@ class _PlaybackSettingsScreenState
     _crossfadeDurationSeconds = settings.crossfadeDurationSeconds;
     _crossfadeType = settings.crossfadeType;
     _replayGainMode = settings.replayGainMode;
+    _replayGainLoudness = settings.replayGainLoudness;
     _replayGainPreamp = _normalizeReplayGainPreamp(settings.replayGainPreamp);
     _replayGainUntaggedDb = _normalizeUntaggedDb(settings.replayGainUntaggedDb);
     _untaggedPreview = null;
@@ -929,10 +930,11 @@ class _PlaybackSettingsScreenState
       return;
     }
     final signature = _formSignature();
+    _autosaveDebounce?.cancel();
+    // Back to what is stored (a preset switched away and back): no write.
     if (signature == _lastSavedSignature) {
       return;
     }
-    _autosaveDebounce?.cancel();
     _autosaveDebounce = Timer(
       const Duration(milliseconds: 420),
       () => unawaited(_persistAutosave(signature)),
@@ -956,7 +958,9 @@ class _PlaybackSettingsScreenState
       _crossfadeDurationSeconds,
       _crossfadeType,
       _replayGainMode,
-      _replayGainPreamp,
+      _replayGainLoudness,
+      // Only Custom reads the offset, so seeding it alone is not a change.
+      if (_replayGainLoudness == ReplayGainLoudness.custom) _replayGainPreamp,
       _replayGainUntaggedDb,
       _albumQueueEnabled,
       _queueEndStartAgain,
@@ -974,11 +978,12 @@ class _PlaybackSettingsScreenState
       _pendingAutosave = true;
       return;
     }
-    if (!_formKey.currentState!.validate()) {
+    // Null when leaving the page: the form is gone by the time dispose flushes.
+    if (_formKey.currentState?.validate() == false) {
       return;
     }
     final done = _autosaveDone = Completer<void>();
-    if (mounted) {
+    if (mounted && !_disposing) {
       setState(() => _isAutoSaving = true);
     }
     try {
@@ -1011,6 +1016,7 @@ class _PlaybackSettingsScreenState
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
         replayGainMode: _replayGainMode,
+        replayGainLoudness: _replayGainLoudness,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
         replayGainUntaggedDb: _replayGainUntaggedDb,
         clearReplayGainUntaggedDb: _replayGainUntaggedDb == null,
@@ -1026,7 +1032,7 @@ class _PlaybackSettingsScreenState
       }
       _lastSavedSignature = signature;
     } on Object {
-      if (!mounted) {
+      if (!mounted || _disposing) {
         return;
       }
       final l10n = AppLocalizations.of(context)!;
@@ -1036,11 +1042,11 @@ class _PlaybackSettingsScreenState
         level: AppNoticeLevel.error,
       );
     } finally {
-      if (mounted) {
+      if (mounted && !_disposing) {
         setState(() => _isAutoSaving = false);
       }
       done.complete();
-      if (_pendingAutosave) {
+      if (_pendingAutosave && !_disposing) {
         _pendingAutosave = false;
         _scheduleAutosave();
       }
@@ -1154,12 +1160,121 @@ class _PlaybackSettingsScreenState
   }
 
   double _normalizeReplayGainPreamp(double value) {
-    return value.clamp(_minReplayGainPreamp, _maxReplayGainPreamp);
+    return value.clamp(replayGainMinOffsetDb, replayGainMaxOffsetDb);
+  }
+
+  /// A dB figure with one decimal and a true minus sign ("−11.0", "+7.0").
+  String _signedDb(double db, {bool plus = false}) {
+    final text = db.abs().toStringAsFixed(1);
+    return db < 0 ? '\u2212$text' : (plus ? '+$text' : text);
+  }
+
+  /// Choosing Custom starts from the offset in effect now (Normal is +4 dB),
+  /// so the slider opens where the song levels already are.
+  void _chooseLoudness(ReplayGainLoudness next) {
+    if (_isSaving || next == _replayGainLoudness) return;
+    setState(() {
+      if (next == ReplayGainLoudness.custom) {
+        _replayGainPreamp = _normalizeReplayGainPreamp(
+          replayGainOffsetDb(_replayGainLoudness, _replayGainPreamp),
+        );
+      }
+      _replayGainLoudness = next;
+    });
+  }
+
+  /// The Loudness label, the four preset tiles and, for Custom, its slider.
+  List<Widget> _buildLoudness(
+    BuildContext context,
+    AppLocalizations l10n, {
+    required bool boost,
+    required bool limiter,
+  }) {
+    final theme = Theme.of(context);
+    final offset = replayGainOffsetDb(_replayGainLoudness, _replayGainPreamp);
+    final custom = _replayGainLoudness == ReplayGainLoudness.custom;
+    final tiles = <(ReplayGainLoudness, String, String)>[
+      (
+        ReplayGainLoudness.quiet,
+        l10n.playbackSettingsLoudnessQuiet,
+        l10n.playbackSettingsLoudnessQuietSubtitle,
+      ),
+      (
+        ReplayGainLoudness.normal,
+        l10n.playbackSettingsLoudnessNormal,
+        l10n.playbackSettingsLoudnessNormalSubtitle,
+      ),
+      (
+        ReplayGainLoudness.loud,
+        l10n.playbackSettingsLoudnessLoud,
+        limiter
+            ? l10n.playbackSettingsLoudnessLoudSubtitle
+            : l10n.playbackSettingsLoudnessLoudSubtitleNoLimiter,
+      ),
+      (
+        ReplayGainLoudness.custom,
+        l10n.playbackSettingsLoudnessCustom,
+        l10n.playbackSettingsLoudnessCustomSubtitle(
+          _signedDb(_referenceLufs + offset),
+          _signedDb(offset, plus: true),
+        ),
+      ),
+    ];
+    return <Widget>[
+      HighlightedAppearanceOption(
+        highlight: SetupHighlight.loudnessPresets,
+        builder: (context, adornment) => titleWithAdornment(
+          l10n.playbackSettingsLoudnessLabel,
+          adornment,
+          style: theme.textTheme.titleSmall,
+        ),
+      ),
+      RadioGroup<ReplayGainLoudness>(
+        groupValue: _replayGainLoudness,
+        onChanged: (value) {
+          if (value != null) _chooseLoudness(value);
+        },
+        child: Column(
+          children: <Widget>[
+            for (final (value, title, subtitle) in tiles)
+              RadioListTile<ReplayGainLoudness>(
+                key: ValueKey<String>('loudness-${value.name}'),
+                contentPadding: EdgeInsets.zero,
+                value: value,
+                title: Text(title),
+                subtitle: Text(subtitle),
+              ),
+          ],
+        ),
+      ),
+      if (custom)
+        NavisSlider(
+          key: const ValueKey<String>('loudness-custom-slider'),
+          value: _normalizeReplayGainPreamp(_replayGainPreamp),
+          min: replayGainMinOffsetDb,
+          max: replayGainMaxOffsetDb,
+          divisions: 28,
+          label: '${_signedDb(offset, plus: true)} dB',
+          onChanged: _isSaving
+              ? null
+              : (value) => setState(
+                  () => _replayGainPreamp = _normalizeReplayGainPreamp(value),
+                ),
+        ),
+      if (!boost)
+        Text(
+          l10n.playbackSettingsLoudnessNoBoost,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
+        ),
+    ];
   }
 
   @override
   void dispose() {
     _autosaveDebounce?.cancel();
+    _disposing = true;
     if (_didHydrateForm) {
       final signature = _formSignature();
       if (signature != _lastSavedSignature) {

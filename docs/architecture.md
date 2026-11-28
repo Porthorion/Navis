@@ -1140,6 +1140,13 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 119 (`from118To119`, guarded by `_columnExists`) adds
+    `app_settings.replay_gain_loudness` (text, default `'normal'`: Settings >
+    Playback > Volume > Loudness, `ReplayGainLoudness` quiet / normal / loud /
+    custom, unknown values read as normal). The column default moves every
+    profile to Normal; the stored `replay_gain_preamp` stays as Custom's offset
+    (-6..+8 dB) and is not read for the presets. See "ReplayGain" under the
+    playback rules for the rule.
   - Schema 118 (`from117To118`, guarded by `_columnExists`) adds
     `app_settings.queue_end_start_again` (boolean, default true): Settings >
     Playback > Queue > When the queue ends
@@ -2681,7 +2688,8 @@ from full settings saves; defaults and resets clear them. The clone-only
 `POST /v1/presentation/setup-highlights/reset` clears the set and both release
 markers in a transaction; the integrations settings dump exposes all three.
 
-A highlight marked `standalone` (`genresPage`, since 1.5.2) is outside the
+A highlight marked `standalone` (`genresPage`, since 1.5.2, and
+`loudnessPresets`, since 1.5.3) is outside the
 release groups: it never sets `setupWhatsNewRelease`, so it does not replace
 unseen 1.5.0 tags, never raises the Home card and is not cleared by Finish. It
 is pending for two minor releases after `since` until `markOptionSeen` records
@@ -2717,8 +2725,13 @@ per-visit snapshot of the pending highlights (taken when the Themes or Interface
 screen or setup step is entered, which also decides whether the setup expander opens),
 so a tag stays visible while the user is on the screen. Hidden options (OLED outside Auto, a closed expander) never
 mark. On Settings home `themesHasNewOptionsProvider` tags the Themes row (every
-pending highlight except the Genres page) and `interfaceHasNewOptionsProvider`
-tags the Interface row (the Genres page only); `quickCustomizationHasNewOptionsProvider`
+pending highlight whose `SetupHighlight.page` is Themes: not the Genres page
+(Interface) nor Loudness (Playback)), `interfaceHasNewOptionsProvider` tags the
+Interface row (the Genres page only) and `playbackHasNewOptionsProvider` tags
+the Playback row (Loudness only, and only while ReplayGain is on, since the
+label exists only then; `PlaybackSettingsScreen` wraps its form in an
+`AppearanceVisitScope` and tags the Loudness label with
+`HighlightedAppearanceOption`); `quickCustomizationHasNewOptionsProvider`
 tags Run Quick Customization ("Has new options"). OLED does not count while it is hidden. Home shows `SetupHighlightsCard` ("New appearance options")
 while `setupHighlightsCardVisibleProvider` is true. Tapping it opens the
 onboarding review without acknowledging anything; its close button only calls
@@ -5747,15 +5760,28 @@ Desktop volume follows a parallel local-settings path:
    ReplayGain (`replayGainLevels`, `navis_playback_rules.dart`) splits a
    song's level into a cut (`cutDb`, 0 or less) and a boost (`boostDb`, 0 or
    more). Track and album gain fall back to each other; a gain beyond +-24 dB is
-   garbage and counts as untagged, and a known peak limits the result. The dB is
-   added to the clamped pre-amp. The cut is that capped at 0 dB. The boost is
+   garbage and counts as untagged, and a known peak limits the result. The
+   loudness preset sets an offset (`replayGainOffsetDb`) from the -18 LUFS
+   ReplayGain reference: Quiet 0 (-18 LUFS), Normal +4 (-14, the default), Loud
+   +7 (-11) and Custom the stored pre-amp clamped to -6..+8 dB. Selecting Custom
+   in Settings seeds the slider from the offset in effect at that moment (Normal
+   gives +4), so the old stored value is not offered back. The targets assume RG
+   2.0 tags (-18 LUFS); RG 1 tags (89 dB) land about 4 dB louder. The dB is the
+   song's gain plus that offset. The cut is that capped at 0 dB. The boost is
    its positive part, only for a song with both a gain and a valid peak (so
-   never an untagged song, whatever the pre-amp), stopping 1 dB under the peak
-   ceiling `-20*log10(peak)` (no limiter follows; a lossy copy can overshoot the
-   tagged peak) and at 12 dB (`replayGainMaxBoostDb`). A platform that cannot
-   boost (`replayGainBoostSupported` false) always has boost 0. The invariant
-   every stage relies on: it never applies more than a song's own level to that
-   song's samples, so a timing error can only under-boost.
+   never an untagged song, whatever the offset), stopping 1 dB under the peak
+   ceiling `-20*log10(peak)` (a lossy copy can overshoot the tagged peak) and at
+   12 dB (`replayGainMaxBoostDb`). A limiter follows on Loud: while
+   `replayGainLimiting` (the platform's `replayGainLimiterSupported` and an
+   offset above Normal's +4) the boost may instead reach the full gain, at most
+   `replayGainMaxLimitDb` (6 dB) past the peak ceiling, and the limiter holds
+   the samples to -1 dBFS. Normal and Quiet never go past the ceiling. A
+   platform that cannot boost (`replayGainBoostSupported` false) always has
+   boost 0; one that boosts but has no confirmed limiter (an old libmpv, the
+   probe says so) keeps the peak ceiling, so Loud is only as loud as the peaks
+   allow. The invariant every stage relies on: it never applies more than a
+   song's own level to that song's samples, so a timing error can only
+   under-boost; the limiter only ever reduces.
 
    **In-pipeline design (#392).** Where the backend has a stage in its audio
    path (`replayGainInPipeline`, `navisReplayGainInPipeline`), ReplayGain, cut
@@ -5854,8 +5880,11 @@ Desktop volume follows a parallel local-settings path:
      load stores the destination's value before the flush, and the first block after a
      flush or a new pipeline snaps to the target (no ramp). The render thread reads one
      lock-free atomic gain per block; it does no `pow`, locking or Objective-C. The tap
-     has no limiter: samples beyond full scale after the gain are only counted
-     (`boostClipSamples`, 0 for tagged songs because of the 1 dB margin). Status
+     has a zero-latency look-ahead peak limiter (-1 dBFS) that is armed only
+     for a block whose gain is above 1, so a boost past the peak ceiling (Loud)
+     is held under it; samples beyond full scale after the gain are also
+     counted (`boostClipSamples`, 0 for tagged songs on Normal because of the
+     1 dB margin) and gain reduction in `limitedFrames`. Status
      (`replayGainBoost`, and `boostRequestedDb`, `boostAppliedDb`, `boostGuarded`,
      `boostClipSamples` in `/v1/equalizer` `application`) is read back from the tap.
      A song's head can be under-boosted for about 0.5 s after a join, skip or seek;
@@ -5920,7 +5949,8 @@ Desktop volume follows a parallel local-settings path:
    navigation including a jump to another copy of the playing song
    (`_applyNavigationDecision`), when the queue is replaced or cleared
    (`_clearDeferredTail`) and when the ReplayGain mode changes
-   (`applyRuntimeSettings`; pre-amp and untagged-level changes keep it);
+   (`applyRuntimeSettings`; loudness, Custom offset and untagged-level changes
+   keep it);
    nothing is frozen while a queue load settles, and the diagnostics read
    never freezes. An empty album id counts as none. The cross-fade incoming song resolves
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
@@ -5957,7 +5987,15 @@ Desktop volume follows a parallel local-settings path:
    Guidance. Playback settings explain what ReplayGain does (with a boost
    stage: it turns quiet songs up only as far as their peak allows; without
    one: it only turns songs down; either way raise the volume), each mode, and
-   what the pre-amp does (separate copy per capability). The coverage line counts library
+   the Loudness presets (Quiet -18, Normal -14, Loud -11 LUFS and a Custom
+   slider of -6..+8 dB in 0.5 dB steps; the Custom tile reads like "-11.0 LUFS
+   · +7.0 dB from the ReplayGain reference"; separate copy per capability: Loud
+   says "A limiter keeps peaks from clipping" only where
+   `replayGainLimiterSupported` is true and "Raises songs as far as their
+   peaks allow" otherwise, and a platform that cannot boost shows one line that
+   it can only turn songs down). The radio group autosaves with the rest of
+   the page: only Custom's offset is part of the form signature, so switching
+   a preset away and back writes nothing. The coverage line counts library
    songs with a usable track or album gain out of all live songs (not
    provisional, external or server-deleted), floors the percentage, names the
    untagged level (Automatic or fixed) or says ReplayGain is off, and points to

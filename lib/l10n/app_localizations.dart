@@ -1914,12 +1914,6 @@ abstract class AppLocalizations {
   /// **'A whole album is levelled together, so its quiet and loud songs stay as the artist set them. Best for playing whole albums.'**
   String get playbackSettingsReplayGainModeAlbumDescription;
 
-  /// No description provided for @playbackSettingsReplayGainPreampLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Pre-Amp (dB)'**
-  String get playbackSettingsReplayGainPreampLabel;
-
   /// No description provided for @playbackSettingsReplayGainIntro.
   ///
   /// In en, this message translates to:
@@ -1929,44 +1923,80 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsReplayGainIntroBoost.
   ///
   /// In en, this message translates to:
-  /// **'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Songs without ReplayGain data are never turned up. Most songs still end up quieter, so raise the volume to compensate.'**
+  /// **'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Loud goes further, using a limiter to keep peaks from clipping. Songs without ReplayGain data are never turned up.'**
   String get playbackSettingsReplayGainIntroBoost;
 
-  /// No description provided for @playbackSettingsReplayGainPreampSubtitleDown.
+  /// No description provided for @playbackSettingsReplayGainIntroBoostNoLimiter.
   ///
   /// In en, this message translates to:
-  /// **'Turns every song down further. It can\'t push a song above its original level.'**
-  String get playbackSettingsReplayGainPreampSubtitleDown;
+  /// **'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Songs without ReplayGain data are never turned up.'**
+  String get playbackSettingsReplayGainIntroBoostNoLimiter;
 
-  /// No description provided for @playbackSettingsReplayGainPreampSubtitleZero.
+  /// No description provided for @playbackSettingsLoudnessLabel.
   ///
   /// In en, this message translates to:
-  /// **'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. It can\'t push a song above its original level.'**
-  String get playbackSettingsReplayGainPreampSubtitleZero;
+  /// **'Loudness'**
+  String get playbackSettingsLoudnessLabel;
 
-  /// No description provided for @playbackSettingsReplayGainPreampSubtitleUp.
+  /// No description provided for @playbackSettingsLoudnessQuiet.
   ///
   /// In en, this message translates to:
-  /// **'Gives back some of the turn-down, but never pushes a song above its original level.'**
-  String get playbackSettingsReplayGainPreampSubtitleUp;
+  /// **'Quiet'**
+  String get playbackSettingsLoudnessQuiet;
 
-  /// No description provided for @playbackSettingsReplayGainPreampSubtitleDownBoost.
+  /// No description provided for @playbackSettingsLoudnessQuietSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Turns every song down further.'**
-  String get playbackSettingsReplayGainPreampSubtitleDownBoost;
+  /// **'−18 LUFS · ReplayGain reference level, most headroom'**
+  String get playbackSettingsLoudnessQuietSubtitle;
 
-  /// No description provided for @playbackSettingsReplayGainPreampSubtitleZeroBoost.
+  /// No description provided for @playbackSettingsLoudnessNormal.
   ///
   /// In en, this message translates to:
-  /// **'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB.'**
-  String get playbackSettingsReplayGainPreampSubtitleZeroBoost;
+  /// **'Normal'**
+  String get playbackSettingsLoudnessNormal;
 
-  /// No description provided for @playbackSettingsReplayGainPreampSubtitleUpBoost.
+  /// No description provided for @playbackSettingsLoudnessNormalSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Turns every song up, but never past what its peak level allows. Songs without ReplayGain data or a peak level are never pushed above their original level.'**
-  String get playbackSettingsReplayGainPreampSubtitleUpBoost;
+  /// **'−14 LUFS · Like Spotify and YouTube\'s default level'**
+  String get playbackSettingsLoudnessNormalSubtitle;
+
+  /// No description provided for @playbackSettingsLoudnessLoud.
+  ///
+  /// In en, this message translates to:
+  /// **'Loud'**
+  String get playbackSettingsLoudnessLoud;
+
+  /// No description provided for @playbackSettingsLoudnessLoudSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'−11 LUFS · A limiter keeps peaks from clipping'**
+  String get playbackSettingsLoudnessLoudSubtitle;
+
+  /// No description provided for @playbackSettingsLoudnessLoudSubtitleNoLimiter.
+  ///
+  /// In en, this message translates to:
+  /// **'−11 LUFS · Raises songs as far as their peaks allow'**
+  String get playbackSettingsLoudnessLoudSubtitleNoLimiter;
+
+  /// No description provided for @playbackSettingsLoudnessCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get playbackSettingsLoudnessCustom;
+
+  /// No description provided for @playbackSettingsLoudnessCustomSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{lufs} LUFS · {offset} dB from the ReplayGain reference'**
+  String playbackSettingsLoudnessCustomSubtitle(String lufs, String offset);
+
+  /// No description provided for @playbackSettingsLoudnessNoBoost.
+  ///
+  /// In en, this message translates to:
+  /// **'This device can only turn songs down, so louder presets reduce the turn-down.'**
+  String get playbackSettingsLoudnessNoBoost;
 
   /// No description provided for @playbackSettingsReplayGainCoverage.
   ///
