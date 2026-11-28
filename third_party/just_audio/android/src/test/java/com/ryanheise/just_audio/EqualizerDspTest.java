@@ -209,6 +209,30 @@ public final class EqualizerDspTest {
         for (float v : x) check(Math.abs(v) <= CEIL + TOL, "chunked output is under the ceiling");
     }
 
+    // An unarmed limiter never attacks (#846): unboosted audio after a limited passage is never newly reduced.
+    private static void limiterUnarmedOnlyReleases() {
+        final int n = 1024;
+        EqualizerDsp.Limiter lim = new EqualizerDsp.Limiter(44100, n);
+        float[] d = new float[n], ref;
+        java.util.Arrays.fill(d, 3f);
+        lim.process(d, 1, n, true); // one boosted hot block
+        check(lim.gain() < 0.5f, "deep reduction first");
+        float last = lim.gain();
+        boolean released = false;
+        for (int b = 0; b < 430; b++) { // 10 s of unboosted material with a 0.95 peak every 4 blocks
+            for (int i = 0; i < n; i++) d[i] = 0.3f * (float) Math.sin(0.05f * i + b);
+            if (b % 4 == 0) d[500] = 0.95f;
+            ref = d.clone();
+            lim.process(d, 1, n, false);
+            check(lim.gain() >= last, "an unarmed limiter only releases");
+            last = lim.gain();
+            if (released) check(java.util.Arrays.equals(ref, d) && lim.gain() == 1f, "once released it stays bit-exact");
+            else if (lim.gain() == 1f) released = true;
+            for (int i = 0; i < n; i++) check(Math.abs(d[i]) <= Math.abs(ref[i]), "never raised");
+        }
+        check(released && lim.gain() == 1f, "the gain returns to exactly 1");
+    }
+
     private static void limiterGainNeverAboveOne() {
         EqualizerDsp.Limiter lim = new EqualizerDsp.Limiter(48000, 960);
         float[] x = new float[1920];
@@ -238,6 +262,7 @@ public final class EqualizerDspTest {
         limiterReset();
         limiterChunksLongBlocks();
         limiterGainNeverAboveOne();
+        limiterUnarmedOnlyReleases();
         for (double sampleRate : new double[]{44100, 48000, 96000}) {
             for (double q : new double[]{0.1, 0.7, 1.41, 6, 20}) {
                 EqualizerDsp.Biquad peak = EqualizerDsp.coefficients(filter("peaking", 1234.5, 9.3, q), sampleRate);

@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Always present in the PCM chain so bypass/enabling never reloads media. It
  * also carries ReplayGain (#392), applied after the EQ bank (whose
- * auto-headroom would cancel a boost), then the peak limiter (#846, armed while the gain is
- * above 1, zero latency) and the 16-bit clamp.
+ * auto-headroom would cancel a boost), then the peak limiter (#846, armed for a block with any frame
+ * above unity gain, zero latency, only releasing otherwise) and the 16-bit clamp.
  *
  * <p>The gain is one signed dB per queue entry, keyed by the just_audio source id
  * ({@code levels}). The renderer ({@link NavisAudioRenderer}) tells this stage which

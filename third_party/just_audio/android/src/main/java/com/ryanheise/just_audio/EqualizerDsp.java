@@ -265,22 +265,22 @@ final class EqualizerDsp {
             deficit = 0;
         }
 
-        /** Returns the frames limited. [x] holds [frames] frames of [channels] interleaved samples. */
+        /** [armed]: the boost gain was above 1 at some frame of the block; unarmed never attacks, it only releases. Returns the frames limited. [x] holds [frames] frames of [channels] interleaved samples. */
         long process(float[] x, int channels, int frames, boolean armed) {
             if (frames <= 0 || (!armed && gain >= 1)) return 0;
             long limited = 0;
             for (int off = 0; off < frames; off += need.length) {
-                limited += chunk(x, channels, off, Math.min(frames - off, need.length));
+                limited += chunk(x, channels, off, Math.min(frames - off, need.length), armed);
             }
             return limited;
         }
 
-        private long chunk(float[] x, int channels, int off, int n) {
+        private long chunk(float[] x, int channels, int off, int n, boolean armed) {
             float[] g = need;
             boolean over = false;
             for (int i = 0; i < n; i++) {
                 float peak = 0;
-                for (int c = 0; c < channels; c++) {
+                for (int c = 0; c < channels && armed; c++) { // unarmed: no need, the limiter only releases
                     float v = Math.abs(x[(off + i) * channels + c]);
                     if (v > peak && v <= Float.MAX_VALUE) peak = v; // NaN and infinity never count
                 }
