@@ -268,9 +268,10 @@ class ReplayGainDecision {
   /// the song's gain.
   final double offsetDb;
 
-  /// Whether the decision let the boost go past the song's peak ceiling
-  /// ([replayGainLimiting]: a confirmed limiter and an offset above Normal's).
-  /// False when off.
+  /// Whether this song's boost actually passes the room it would have without
+  /// a limiter (its peak ceiling minus [replayGainBoostMarginDb]), so the
+  /// limiter is needed for it. False when off, when the boost fits under the
+  /// ceiling, and without [replayGainLimiting].
   final bool limited;
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -325,13 +326,28 @@ ReplayGainDecision replayGainDecision({
     offsetDb: offsetDb,
     limiterSupported: limiterSupported,
   );
+  // The same song's boost under the peak-ceiling rule, for [limited].
+  final noLimiterBoostDb = limiting
+      ? replayGainLevels(
+              mode: resolved,
+              trackGain: trackGain,
+              albumGain: albumGain,
+              trackPeak: trackPeak,
+              albumPeak: albumPeak,
+              loudness: loudness,
+              preampDb: preampDb,
+              untaggedDb: untaggedDb,
+              boostSupported: boostSupported,
+            )?.boostDb ??
+            0
+      : 0;
   return ReplayGainDecision(
     mode: mode,
     resolvedMode: resolved,
     cutDb: levels?.cutDb,
     boostDb: levels?.boostDb ?? 0,
     offsetDb: offsetDb,
-    limited: levels != null && limiting,
+    limited: levels != null && limiting && levels.boostDb > noLimiterBoostDb,
     source: levels == null
         ? null
         : _selectReplayGain(

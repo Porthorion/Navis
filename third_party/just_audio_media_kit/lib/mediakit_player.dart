@@ -295,7 +295,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   bool _limiterLost = false;
 
   /// [db] as this player may play it: no boost without a limiter once a
-  /// limited path was lost. A cut is never touched.
+  /// limited path was lost. A cut is never touched. (A player that never had
+  /// a limiter is not clamped: it cannot tell a boost under the peak ceiling,
+  /// which is legal without one, from a limited one; the Dart rule caps that.)
   double _gain(double db) => _limiterLost ? math.min(db, 0) : db;
 
   void _loseLimiter() {
@@ -444,7 +446,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         'seeking': _nativeSeeking,
         // What the adapter meant the loaded file to play at, then what mpv
         // itself reports.
-        'replayGainDb': _levels.current,
+        'replayGainDb': _gain(_levels.current),
         'limiterSupported': _limiterOk,
         'audioFilters': nativeAudioFilters(_player),
       };
@@ -779,7 +781,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // `af-command`: the level would sound before the limiter exists, so only
     // the `af` write goes out (it carries both).
     if (_limiterOk && db > 0 && before <= 0) {
-      _writeAf(db);
+      // Both writes failed: mpv keeps the chain of [before], so the level
+      // stays there (else the next push would step an unlimited chain up).
+      if (!_writeAf(db)) _levels.current = before;
       return;
     }
     // Not "unavailable": it also fails while no chain exists yet (before the
@@ -789,7 +793,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       _logger.warning('af-command navis_rg failed (no chain yet, or libmpv '
           'without af-command); the af write carries the level');
     }
-    _writeAf(db);
+    if (!_writeAf(db)) _levels.current = before;
   }
 
   @override

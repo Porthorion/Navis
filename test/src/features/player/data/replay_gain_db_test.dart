@@ -428,8 +428,8 @@ void main() {
         ReplayGainLoudness l, {
         required bool limiter,
       }) => decide(
-        track: 6,
-        trackPeak: 0.1,
+        track: -2,
+        trackPeak: 1,
         boostSupported: true,
         loudness: l,
         limiter: limiter,
@@ -448,6 +448,23 @@ void main() {
         ).toJson()['limited'],
         isFalse,
       );
+    });
+
+    test('limited only when the boost passes the no-limiter room', () {
+      bool limited(double track, {required double peak}) => decide(
+        track: track,
+        trackPeak: peak,
+        boostSupported: true,
+        loudness: ReplayGainLoudness.loud,
+        limiter: true,
+      ).limited;
+      // Peak 0.1 (ceiling 20 dB): raw 13 stays under ceiling - 1, no limiter
+      // needed even though Loud limiting is on.
+      expect(limited(6, peak: 0.1), isFalse);
+      // Peak 1.0 (ceiling 0): raw +5 passes ceiling - 1 (room 0).
+      expect(limited(-2, peak: 1), isTrue);
+      // A cut is never limited.
+      expect(limited(-20, peak: 1), isFalse);
     });
 
     test('toJson reports the diagnostics fields', () {

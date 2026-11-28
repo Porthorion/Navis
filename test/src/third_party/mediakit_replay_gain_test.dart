@@ -894,6 +894,28 @@ void main() {
       expect(sync[1], startsWith('af=${_rg}0.000dB'));
     });
 
+    test(
+      'a live boost whose af writes all fail never reaches af-command',
+      () async {
+        final mpv = await newAdapter(
+          levels: const {_a: -3},
+          limiterSupported: true,
+          accept: (name, _) => name != 'af',
+        );
+        mpv.replayGainFiltersForLoad(_a);
+        sync.clear();
+        // mpv keeps the -3 dB chain without a limiter: current stays -3, so
+        // the next push is again a limiter-adding one (af only), never a step.
+        for (final db in [5.0, 6.0]) {
+          await mpv.setReplayGainLevels(
+            SetReplayGainLevelsRequest(byUri: {_a: db}, live: true),
+          );
+        }
+        expect(sync.where((l) => l.startsWith('af-command')), isEmpty);
+        expect(mpv.limiterSupported, isTrue);
+      },
+    );
+
     test('a rejected edit write is retried without the limiter', () async {
       final mpv = await newAdapter(
         equalizer: _eq(),
