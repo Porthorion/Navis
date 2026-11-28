@@ -315,8 +315,11 @@ void main() {
       double? trackPeak,
       double preamp = 0,
       bool boostSupported = false,
+      ReplayGainLoudness loudness = ReplayGainLoudness.custom,
+      bool limiter = false,
     }) => replayGainDecision(
-      loudness: ReplayGainLoudness.custom,
+      loudness: loudness,
+      limiterSupported: limiter,
       boostSupported: boostSupported,
       mode: mode,
       albumId: album,
@@ -420,6 +423,33 @@ void main() {
       expect((d.cutDb, d.boostDb, d.db), (null, 0.0, null));
     });
 
+    test('toJson reports the loudness offset and whether limiting applied', () {
+      Map<String, Object?> json(
+        ReplayGainLoudness l, {
+        required bool limiter,
+      }) => decide(
+        track: 6,
+        trackPeak: 0.1,
+        boostSupported: true,
+        loudness: l,
+        limiter: limiter,
+      ).toJson();
+      final loud = json(ReplayGainLoudness.loud, limiter: true);
+      expect((loud['offsetDb'], loud['limited']), (7.0, true));
+      final noLimiter = json(ReplayGainLoudness.loud, limiter: false);
+      expect((noLimiter['offsetDb'], noLimiter['limited']), (7.0, false));
+      final normal = json(ReplayGainLoudness.normal, limiter: true);
+      expect((normal['offsetDb'], normal['limited']), (4.0, false));
+      expect(
+        decide(
+          mode: 'off',
+          loudness: ReplayGainLoudness.loud,
+          limiter: true,
+        ).toJson()['limited'],
+        isFalse,
+      );
+    });
+
     test('toJson reports the diagnostics fields', () {
       final d = decide(album: 'a', next: 'a', track: -10, albumGain: -4);
       expect(d.toJson(), {
@@ -429,6 +459,8 @@ void main() {
         'db': -4.0,
         'cutDb': -4.0,
         'boostDb': 0.0,
+        'offsetDb': 0.0,
+        'limited': false,
       });
       final boosted = decide(track: 6, trackPeak: 0.1, boostSupported: true);
       expect(boosted.toJson()['cutDb'], 0.0);

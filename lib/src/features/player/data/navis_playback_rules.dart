@@ -238,6 +238,8 @@ class ReplayGainDecision {
     required this.cutDb,
     this.boostDb = 0,
     required this.source,
+    this.offsetDb = 0,
+    this.limited = false,
   });
 
   /// The user's setting: 'off', 'track', 'album' or 'smart' (Smart picked
@@ -262,6 +264,15 @@ class ReplayGainDecision {
   /// The gain used after fallbacks, or null when off.
   final ReplayGainSource? source;
 
+  /// The loudness offset in dB ([replayGainOffsetDb]) this decision added to
+  /// the song's gain.
+  final double offsetDb;
+
+  /// Whether the decision let the boost go past the song's peak ceiling
+  /// ([replayGainLimiting]: a confirmed limiter and an offset above Normal's).
+  /// False when off.
+  final bool limited;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'mode': mode,
     'resolvedMode': resolvedMode,
@@ -269,6 +280,8 @@ class ReplayGainDecision {
     'db': db,
     'cutDb': cutDb,
     'boostDb': boostDb,
+    'offsetDb': offsetDb,
+    'limited': limited,
   };
 }
 
@@ -307,11 +320,18 @@ ReplayGainDecision replayGainDecision({
     boostSupported: boostSupported,
     limiterSupported: limiterSupported,
   );
+  final offsetDb = replayGainOffsetDb(loudness, preampDb);
+  final limiting = replayGainLimiting(
+    offsetDb: offsetDb,
+    limiterSupported: limiterSupported,
+  );
   return ReplayGainDecision(
     mode: mode,
     resolvedMode: resolved,
     cutDb: levels?.cutDb,
     boostDb: levels?.boostDb ?? 0,
+    offsetDb: offsetDb,
+    limited: levels != null && limiting,
     source: levels == null
         ? null
         : _selectReplayGain(

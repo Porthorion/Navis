@@ -53,7 +53,10 @@ answers false and Loud keeps the peak-capped behaviour; there is no "unknown"
 state (`limiterSupported:` is injectable). A live push that adds the limiter
 (the playing level was <= 0) skips `af-command` and writes `af` alone. A
 rejected `af` write that carried the limiter (hook, live push or edit) is
-written once more without it and turns the limiter off for that player
-(`MediaKitPlayer.limiterSupported`, `JustAudioMediaKit.replayGainLimiterSupported`).
+written once more at no boost (min(gain, 0 dB)) and without it; only when that
+lands is the limiter turned off for that player, for good, and every later
+boost it plays is clamped to 0 dB. A retry that fails too was not the limiter:
+the limiter stays on (`MediaKitPlayer.limiterSupported`,
+`JustAudioMediaKit.replayGainLimiterSupported`).
 The hook callback of `configureReplayGainFilter` now does the write itself.
 

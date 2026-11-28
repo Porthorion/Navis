@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart';
 import 'package:just_audio_media_kit/src/equalizer_chain.dart';
 import 'package:just_audio_media_kit/src/icy_metadata.dart';
@@ -78,6 +79,11 @@ void main() {
     // False skips the probe; null runs it against [accept].
     bool? limiterSupported = false,
     bool Function(String name, String value)? accept,
+    // False leaves the probe to the first load.
+    bool readyFirst = true,
+    // False leaves the probe unanswered when [readyFirst] is false too.
+    bool loadQueue = true,
+    String id = 'test',
   }) async {
     final streams = _Streams();
     final playlist = Playlist([for (final uri in levels.keys) Media(uri)]);
@@ -106,7 +112,7 @@ void main() {
     when(() => player.add(any())).thenAnswer((_) async {});
     when(() => player.move(any(), any())).thenAnswer((_) async {});
     final created = MediaKitPlayer(
-      'test',
+      id,
       player: player,
       equalizer: equalizer,
       icyPropertySource: _Properties(),
@@ -122,8 +128,8 @@ void main() {
       },
     );
     adapter = created;
-    await created.ready();
-    await created.load(queue(levels));
+    if (readyFirst) await created.ready();
+    if (loadQueue) await created.load(queue(levels));
     return created;
   }
 
@@ -700,6 +706,12 @@ void main() {
       expect(sync.where((l) => l.contains('navis_lim')), isEmpty);
     });
 
+    test('a load awaits the probe before it answers', () async {
+      final mpv = await newAdapter(limiterSupported: null, readyFirst: false);
+      expect(sync.take(2), ['af=@navis_probe:lavfi-alimiter', 'af=']);
+      expect(mpv.limiterSupported, isTrue);
+    });
+
     test('no probe without the filter stage', () async {
       await newAdapter(limiterSupported: null, replayGainFilter: false);
       expect(sync, isEmpty);
@@ -807,25 +819,45 @@ void main() {
       },
     );
 
-    test('a rejected on_load write is retried without the limiter', () async {
+    test(
+      'a rejected on_load write is retried at no boost, no limiter',
+      () async {
+        final mpv = await newAdapter(
+          levels: const {_a: 6},
+          limiterSupported: true,
+          accept: (_, value) => !value.contains('navis_lim'),
+        );
+        sync.clear();
+        expect(mpv.writeLoadChain(_a), isTrue);
+        expect(sync, hasLength(2));
+        expect(sync[0], endsWith(limiter));
+        // The +6 dB was decided for a limited path: never unlimited.
+        expect(sync[1], startsWith('af=${_rg}0.000dB'));
+        expect(sync[1], isNot(contains('navis_lim')));
+        expect(mpv.limiterSupported, isFalse);
+        sync.clear();
+        expect(mpv.writeLoadChain(_a), isTrue);
+        expect(sync, hasLength(1), reason: 'not retried again: no limiter');
+        expect(sync.single, startsWith('af=${_rg}0.000dB'));
+        // Every later chain for the queued boost is clamped too.
+        expect(mpv.replayGainFiltersForLoad(_a), startsWith('${_rg}0.000dB'));
+        expect(mpv.replayGainFiltersForLoad(_a), isNot(contains('navis_lim')));
+      },
+    );
+
+    test('a cut stays a cut after the limiter is rejected', () async {
       final mpv = await newAdapter(
-        levels: const {_a: 6},
+        levels: const {_a: 6, _b: -2},
         limiterSupported: true,
         accept: (_, value) => !value.contains('navis_lim'),
       );
-      sync.clear();
       expect(mpv.writeLoadChain(_a), isTrue);
-      expect(sync, hasLength(2));
-      expect(sync[0], endsWith(limiter));
-      expect(sync[1], startsWith('af=${_rg}6.000dB'));
-      expect(sync[1], isNot(contains('navis_lim')));
-      expect(mpv.limiterSupported, isFalse);
       sync.clear();
-      expect(mpv.writeLoadChain(_a), isTrue);
-      expect(sync, hasLength(1), reason: 'not retried again: no limiter');
+      expect(mpv.writeLoadChain(_b), isTrue);
+      expect(sync.single, startsWith('af=$_rg-2.000dB'));
     });
 
-    test('a failure that is not the limiter is not retried forever', () async {
+    test('a failure that is not the limiter keeps the limiter', () async {
       final mpv = await newAdapter(
         levels: const {_a: 6},
         limiterSupported: true,
@@ -834,6 +866,8 @@ void main() {
       sync.clear();
       expect(mpv.writeLoadChain(_a), isFalse);
       expect(sync, hasLength(2));
+      expect(mpv.limiterSupported, isTrue);
+      expect(mpv.replayGainFiltersForLoad(_a), endsWith(limiter));
     });
 
     test('a rejected live write is retried without the limiter', () async {
@@ -848,9 +882,16 @@ void main() {
         SetReplayGainLevelsRequest(byUri: const {_a: 5}, live: true),
       );
       expect(sync, hasLength(2));
-      expect(sync[1], startsWith('af=${_rg}5.000dB'));
+      expect(sync[1], startsWith('af=${_rg}0.000dB'));
       expect(sync[1], isNot(contains('navis_lim')));
       expect(mpv.limiterSupported, isFalse);
+      // A later live step is clamped too: af-command and af.
+      sync.clear();
+      await mpv.setReplayGainLevels(
+        SetReplayGainLevelsRequest(byUri: const {_a: 6}, live: true),
+      );
+      expect(sync[0], 'af-command navis_rg volume 0.000dB volume');
+      expect(sync[1], startsWith('af=${_rg}0.000dB'));
     });
 
     test('a rejected edit write is retried without the limiter', () async {
@@ -865,8 +906,31 @@ void main() {
         if (!value.contains('navis_lim')) properties['af'] = value;
       });
       await mpv.setSpeed(SetSpeedRequest(speed: 1.25));
-      expect(properties['af'], startsWith('${_rg}6.000dB'));
+      expect(properties['af'], startsWith('${_rg}0.000dB'));
       expect(properties['af'], isNot(contains('navis_lim')));
+      expect(mpv.limiterSupported, isFalse);
+    });
+
+    test('a failed edit retry never restores over a concurrent loss', () async {
+      final mpv = await newAdapter(
+        equalizer: _eq(),
+        levels: const {_a: 6},
+        limiterSupported: true,
+        accept: (_, value) => !value.contains('navis_lim'),
+      );
+      mpv.replayGainFiltersForLoad(_a);
+      // While the edit awaits mpv, the on_load hook finds the limiter
+      // rejected. mpv then keeps the old chain, so the edit and its
+      // unlimited retry both fail verification.
+      var concurrent = false;
+      when(() => native.setProperty('af', any())).thenAnswer((_) async {
+        if (!concurrent) mpv.writeLoadChain(_a);
+        concurrent = true;
+      });
+      await expectLater(
+        mpv.setSpeed(SetSpeedRequest(speed: 1.25)),
+        throwsStateError,
+      );
       expect(mpv.limiterSupported, isFalse);
     });
 
@@ -883,6 +947,58 @@ void main() {
         throwsStateError,
       );
       expect(mpv.limiterSupported, isTrue);
+    });
+  });
+
+  group('JustAudioMediaKit.replayGainLimiterSupported', () {
+    // Read per decision by the handler, never cached: false is the safe
+    // answer (an under-boost) until every player is probed and has a limiter.
+    final platform = JustAudioMediaKit();
+    final before = JustAudioPlatform.instance;
+
+    setUp(() => JustAudioPlatform.instance = platform);
+    tearDown(() async {
+      await platform.disposeAllPlayers(DisposeAllPlayersRequest());
+      JustAudioPlatform.instance = before;
+    });
+
+    test('is false with no player', () {
+      expect(JustAudioMediaKit.replayGainLimiterSupported, isFalse);
+    });
+
+    test('is false while the probe is pending, true once confirmed', () async {
+      final mpv = await newAdapter(
+        limiterSupported: true,
+        readyFirst: false,
+        loadQueue: false,
+      );
+      platform.debugRegisterPlayer(mpv);
+      expect(JustAudioMediaKit.replayGainLimiterSupported, isFalse);
+      await mpv.ready();
+      expect(JustAudioMediaKit.replayGainLimiterSupported, isTrue);
+    });
+
+    test('needs every player: one without a limiter makes it false', () async {
+      platform.debugRegisterPlayer(
+        await newAdapter(limiterSupported: true, id: 'one'),
+      );
+      expect(JustAudioMediaKit.replayGainLimiterSupported, isTrue);
+      platform.debugRegisterPlayer(
+        await newAdapter(limiterSupported: false, id: 'two'),
+      );
+      expect(JustAudioMediaKit.replayGainLimiterSupported, isFalse);
+    });
+
+    test('goes false when a player loses its limiter', () async {
+      final mpv = await newAdapter(
+        levels: const {_a: 6},
+        limiterSupported: true,
+        accept: (_, value) => !value.contains('navis_lim'),
+      );
+      platform.debugRegisterPlayer(mpv);
+      expect(JustAudioMediaKit.replayGainLimiterSupported, isTrue);
+      mpv.writeLoadChain(_a);
+      expect(JustAudioMediaKit.replayGainLimiterSupported, isFalse);
     });
   });
 }

@@ -3,6 +3,7 @@ library just_audio_media_kit;
 
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
@@ -129,6 +130,11 @@ class JustAudioMediaKit extends JustAudioPlatform {
       for (final player in instance._players.values) player.debugTransportState
     ];
   }
+
+  /// Registers a prebuilt [player] as [init] would, without creating one.
+  @visibleForTesting
+  void debugRegisterPlayer(MediaKitPlayer player) =>
+      _players[player.id] = player;
 
   @override
   Future<AudioPlayerPlatform> init(InitRequest request) async {

@@ -5925,7 +5925,7 @@ Desktop volume follows a parallel local-settings path:
    never freezes. An empty album id counts as none. The cross-fade incoming song resolves
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
    (mode, resolved mode, source track/album/untagged, signed `db`, `cutDb`,
-   `boostDb`) is reported as `replayGain` by `GET /v1/playback/status`; on
+   `boostDb`, the loudness `offsetDb` and `limited`: boosts may pass the peak ceiling) is reported as `replayGain` by `GET /v1/playback/status`; on
    desktop `native.mediaKitTransport[*].audioFilters` is mpv's own `af` read
    back and `replayGainDb` what the adapter meant the loaded file to play at.
 

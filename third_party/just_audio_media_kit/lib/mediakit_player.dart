@@ -1,6 +1,7 @@
 library just_audio_media_kit;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
@@ -286,6 +287,22 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// without it (Windows and macOS for now), a boost never gets a limiter.
   bool get limiterSupported => _limiterOk;
   bool _limiterOk = false;
+
+  /// Set when mpv rejected the limiter stage after it was confirmed. Boosts
+  /// already decided for a limited path (queued levels) then play at no more
+  /// than 0 dB: [_gain]. Like [_limiterOk] it only ever moves one way, so a
+  /// concurrent retry can never undo it.
+  bool _limiterLost = false;
+
+  /// [db] as this player may play it: no boost without a limiter once a
+  /// limited path was lost. A cut is never touched.
+  double _gain(double db) => _limiterLost ? math.min(db, 0) : db;
+
+  void _loseLimiter() {
+    _limiterOk = false;
+    _limiterLost = true;
+  }
+
   final bool? _limiterOverride;
 
   static final _logger = Logger('MediaKitPlayer');
@@ -629,9 +646,17 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   /// [chain] as the `af` string: behind the ReplayGain stage of the loaded
   /// file, unless the stage is off.
-  String _stages(EqualizerChain chain) => _replayGainFilter
-      ? chain.withReplayGain(_levels.current, limiterSupported: _limiterOk)
-      : chain.filters;
+  String _stages(EqualizerChain chain, {bool limiter = true}) =>
+      _replayGainFilter
+          ? _withGain(chain, _levels.current, limiter: limiter)
+          : chain.filters;
+
+  /// [chain] behind the ReplayGain stage of [db]. [limiter] false is the
+  /// fallback for a rejected limiter stage: no limiter, so no boost.
+  String _withGain(EqualizerChain chain, double db, {bool limiter = true}) =>
+      limiter
+          ? chain.withReplayGain(_gain(db), limiterSupported: _limiterOk)
+          : chain.withReplayGain(math.min(db, 0));
 
   /// The only writer of mpv's `af` besides the `on_load` hook and a live
   /// ReplayGain change: speed, pitch and EQ edits all compose their chain
@@ -656,17 +681,14 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         await verifyOwnedAudioChain(_player, filters, nextPitch);
       } on StateError {
         // A rejected write leaves the old chain (and level) in place: once
-        // more without the limiter. If that fails too, it was not the limiter.
+        // more without the limiter, and without the boost it was meant for.
+        // If that fails too, it was not the limiter and the flag stays as it
+        // is: restoring it here could undo a loss found meanwhile.
         if (!filters.contains(EqualizerChain.limiterStage)) rethrow;
-        _limiterOk = false;
-        try {
-          final unlimited = _stages(chain);
-          await setProperty(_player, 'af', unlimited);
-          await verifyOwnedAudioChain(_player, unlimited, nextPitch);
-        } catch (_) {
-          _limiterOk = true;
-          rethrow;
-        }
+        final unlimited = _stages(chain, limiter: false);
+        await setProperty(_player, 'af', unlimited);
+        await verifyOwnedAudioChain(_player, unlimited, nextPitch);
+        _loseLimiter();
       }
     } catch (_) {
       // Only needed to roll back, and compiling a chain with the EQ on is
@@ -711,8 +733,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// `on_load` hook writes it; the level is the file's own whether it follows
   /// by a natural join, a jump or a seek.
   @visibleForTesting
-  String replayGainFiltersForLoad(String path, {int? index}) => _chain
-      .withReplayGain(_loadLevel(path, index), limiterSupported: _limiterOk);
+  String replayGainFiltersForLoad(String path, {int? index}) =>
+      _withGain(_chain, _loadLevel(path, index));
 
   double _loadLevel(String path, int? index) => _levels.onLoad(path,
       id: index != null && index >= 0 && index < _entryIds.length
@@ -726,17 +748,19 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       _writeAf(_loadLevel(path, index));
 
   /// Writes the chain for [db] with a synchronous call. A rejected chain with
-  /// the limiter is written once more without it and the limiter stays off:
-  /// a rejected write would also leave the file at the old level.
+  /// the limiter is written once more at no boost and without it (a rejected
+  /// write would also leave the file at the old level). Only when that one
+  /// lands was it the limiter: the limiter is then off for good and boosts
+  /// are clamped ([_gain]). If it fails too, the limiter stays.
   bool _writeAf(double db) {
-    if (_setPropertySync(
-        'af', _chain.withReplayGain(db, limiterSupported: _limiterOk))) {
-      return true;
+    if (_setPropertySync('af', _withGain(_chain, db))) return true;
+    if (!_limiterOk || _gain(db) <= 0) return false;
+    if (!_setPropertySync('af', _withGain(_chain, db, limiter: false))) {
+      return false;
     }
-    if (!_limiterOk || db <= 0) return false;
-    _limiterOk = false;
+    _loseLimiter();
     _logger.warning('af with the limiter rejected by mpv; limiter off');
-    return _setPropertySync('af', _chain.withReplayGain(db));
+    return true;
   }
 
   /// Stores the level of every queued URI for the `on_load` hook. Only a
@@ -760,8 +784,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     }
     // Not "unavailable": it also fails while no chain exists yet (before the
     // output opens, between files), and the `af` write below still lands.
-    if (!_commandSync('af-command navis_rg volume ${db.toStringAsFixed(3)}dB '
-        'volume')) {
+    if (!_commandSync('af-command navis_rg volume '
+        '${_gain(db).toStringAsFixed(3)}dB volume')) {
       _logger.warning('af-command navis_rg failed (no chain yet, or libmpv '
           'without af-command); the af write carries the level');
     }
