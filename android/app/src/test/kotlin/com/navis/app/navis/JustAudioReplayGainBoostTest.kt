@@ -322,8 +322,13 @@ class JustAudioReplayGainBoostTest {
         assertEquals(12.0, p.appliedDb(), 0.001)
         assertEquals(0L, (p.state()["boostClipSamples"] as Number).toLong())
         p.flush()
-        assertTrue(p.constant(30000, frames = 100).all { it.toInt() == 32767 })
-        assertEquals(100L, (p.state()["boostClipSamples"] as Number).toLong())
+        // #846: the zero-latency limiter holds a hot boost at its -1 dBFS ceiling (0.891 FS, 29204.6
+        // in 16-bit) from the first frame, so there is no 32767 flat top and nothing hard-clips.
+        val ceiling = Math.ceil(0.89125094 * 32768).toInt()
+        val hot = p.constant(30000, frames = 100)
+        assertTrue("limited to the ceiling, got ${hot.toList()}", hot.all { Math.abs(it.toInt()) <= ceiling })
+        assertEquals(100L, (p.state()["limitedFrames"] as Number).toLong())
+        assertEquals(0L, (p.state()["boostClipSamples"] as Number).toLong())
     }
 
     @Test fun aCutIsNotCountedAsClipping() {
