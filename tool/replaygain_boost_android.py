@@ -223,7 +223,7 @@ class Run:
             server.shutdown()
 
     def loudness(self):
-        """A3 (#846): F under Loud, Normal and Quiet, then H under Loud, each from 5 s for 7 s (F's bursts at 5.5, 8.5 and
+        """A3 (#846): F under Loud, Normal and Quiet, then H under Loud, each from 5 s for 8 s (F's bursts at 5.5, 8.5 and
         11.5 s). The preset is set before the queue loads, so the decision is the preset's from the first sample."""
         for loudness, song in (('loud', F1), ('normal', F1), ('quiet', F1), ('loud', H1)):
             self.phase = f'a3-{loudness}-{song}'
