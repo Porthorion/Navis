@@ -1750,8 +1750,27 @@ void main() {
       'preamp': 3,
     });
     expect(response.statusCode, HttpStatus.ok);
-    expect(response.body, {'mode': 'track', 'preamp': 3.0});
+    expect(response.body, {
+      'mode': 'track',
+      'loudness': 'normal',
+      'preamp': 3.0,
+    });
     expect(applied, 1);
+
+    final loud = await clone.post('/v1/playback/replay-gain', {
+      'loudness': 'loud',
+      'preamp': 20,
+    });
+    expect(loud.statusCode, HttpStatus.ok);
+    expect(loud.body['loudness'], 'loud');
+    expect(loud.body['preamp'], 8.0);
+    expect(applied, 2);
+
+    final bogus = await clone.post('/v1/playback/replay-gain', {
+      'loudness': 'deafening',
+    });
+    expect(bogus.statusCode, HttpStatus.badRequest);
+    expect(applied, 2);
   });
 
   test('heartbeat reports ordered p95 event-loop samples', () async {
@@ -3597,6 +3616,7 @@ void main() {
         useLrclib: true,
         legacyInstantMixEnabled: false,
         replayGainMode: 'off',
+        replayGainLoudness: 'normal',
         replayGainPreamp: 0,
         desktopPlaybackVolume: 0.37,
         desktopLastAudibleVolume: 0.37,

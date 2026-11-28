@@ -21,7 +21,7 @@ bool configureStartPosition(
     false;
 
 bool configureReplayGainFilter(
-        Player player, String Function(String path, int? index) filtersFor) =>
+        Player player, bool Function(String path, int? index) write) =>
     false;
 
 bool nativeSetPropertySync(Player player, String name, String value) => false;

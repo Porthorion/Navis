@@ -749,7 +749,7 @@ boost_run() {
 }
 
 run_boost() {
-  rg_mode() { api POST /v1/playback/replay-gain "{\"mode\":\"$1\",\"preamp\":${2:-0}}" > "$OUTPUT_ROOT/boost-replay-gain-$1.json"; }
+  rg_mode() { api POST /v1/playback/replay-gain "{\"mode\":\"$1\",\"loudness\":\"custom\",\"preamp\":${2:-0}}" > "$OUTPUT_ROOT/boost-replay-gain-$1.json"; }
   step() { [[ " $BOOST_STEPS " == *" $1 "* ]]; }
   local run
   # 1. Boost on, queue Q H Q Q48 H, the EQ off so that any leak onto H crosses full scale.
@@ -762,7 +762,7 @@ run_boost() {
   # 2. Boost off (ReplayGain off), then a pre-amp change while it plays.
   if step off; then
     rg_mode off
-    boost_run off off off "$BOOST_SONGS" 40 "10:POST:/v1/playback/replay-gain:{\"mode\":\"off\",\"preamp\":6}"
+    boost_run off off off "$BOOST_SONGS" 40 "10:POST:/v1/playback/replay-gain:{\"mode\":\"off\",\"loudness\":\"custom\",\"preamp\":6}"
   fi
   # 3. Per-song level with the EQ at -12 dB, boost on and off.
   if step level; then
@@ -792,7 +792,7 @@ run_boost() {
   step seekback && boost_run seekback seekback off '["fixture-song-16","fixture-song-17"]' 22 "fixture-song-16@10500:POST:/v1/playback/seek:{\"positionMs\":2000}"
   # Positive control for the counter: a 0.5 FS sine boosted 10 dB (a wrong peak tag) clips on 56 % of its samples.
   step clip && boost_run clip clip off '["fixture-song-21","fixture-song-16"]' 17
-  step preamp && boost_run preamp preamp off '["fixture-song-16","fixture-song-17"]' 14 "fixture-song-16@3000:POST:/v1/playback/replay-gain:{\"mode\":\"track\",\"preamp\":6}"
+  step preamp && boost_run preamp preamp off '["fixture-song-16","fixture-song-17"]' 14 "fixture-song-16@3000:POST:/v1/playback/replay-gain:{\"mode\":\"track\",\"loudness\":\"custom\",\"preamp\":6}"
   rg_mode track 0
   api POST /v1/playback/pause '{}' >/dev/null || true
 }

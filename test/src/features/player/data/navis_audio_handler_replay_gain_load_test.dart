@@ -29,6 +29,7 @@ import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -407,6 +408,11 @@ void main() {
   const count = 12;
   const firstSongGainDb = -12.0;
 
+  // The preset the rig's runtime settings report; Custom at 0 dB is the
+  // pre-preset behaviour, and a test changes it before applyRuntimeSettings.
+  var loudness = ReplayGainLoudness.custom;
+  setUp(() => loudness = ReplayGainLoudness.custom);
+
   /// A handler on [caps] with the Dart cut through the player volume (no
   /// in-pipeline ReplayGain unless [pipeline]; [tap] instead installs the iOS
   /// equalizer tap and leaves the getter to decide), whose songs carry [trackGains]
@@ -502,6 +508,7 @@ void main() {
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
         replayGainMode: mode,
+        replayGainLoudness: loudness,
         replayGainPreamp: 0,
         replayGainUntaggedDb: replayGainFallbackUntaggedDb,
         playbackSpeed: 1,
@@ -1026,6 +1033,76 @@ void main() {
       },
     );
 
+    test('Loud boosts past the peak ceiling while the tap limits; a live '
+        'switch to Normal lowers the levels and the boost map', () async {
+      // Full-scale songs (ceiling 0): song 1 at -2 dB is +5 at Loud, and at
+      // Normal (+2) the ceiling leaves no room.
+      loudness = ReplayGainLoudness.loud;
+      final rig = await create(
+        ios,
+        ios: true,
+        tap: true,
+        trackGains: const {1: -2},
+        peak: 1,
+      );
+      expect(rig.handler.replayGainLimiterSupported, isTrue);
+      await settle(rig, await startLoad(rig, startIndex: 1));
+      final song = rig.player.sequence[1];
+      expect(rig.player.boostMaps.last[song], 5);
+      expect(rig.player.levelPushes.last[song], 5);
+      loudness = ReplayGainLoudness.normal;
+      rig.player.rgCalls.clear();
+      await rig.handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(rig.player.rgCalls, ['levels-live', 'boost']);
+      expect(rig.player.boostMaps.last[song], 0);
+      expect(rig.player.levelPushes.last[song], 0);
+      expect(
+        (rig.handler.collectPlaybackDiagnostics()['replayGain']! as Map)['db'],
+        0,
+      );
+    });
+
+    test('a song queued before a switch to Loud is lifted by the live push, '
+        'and an untagged one is never boosted', () async {
+      final rig = await create(
+        ios,
+        ios: true,
+        tap: true,
+        trackGains: const {1: -2},
+        peak: 1,
+      );
+      await settle(rig, await startLoad(rig));
+      final seq = rig.player.sequence;
+      expect(rig.player.boostMaps.last[seq[1]], 0);
+      loudness = ReplayGainLoudness.loud;
+      await rig.handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(rig.player.boostMaps.last[seq[1]], 5);
+      expect(rig.player.boostMaps.last[seq[2]], 0, reason: 'untagged');
+      // Untagged follows the preset downwards: -8 + 7 = -1.
+      expect(rig.player.levelPushes.last[seq[2]], -1);
+    });
+
+    test('mode off sends no boost at Loud', () async {
+      loudness = ReplayGainLoudness.loud;
+      final rig = await create(
+        ios,
+        ios: true,
+        tap: true,
+        mode: 'off',
+        trackGains: const {1: -2},
+        peak: 1,
+      );
+      await settle(rig, await startLoad(rig, startIndex: 1));
+      expect(rig.player.boostMaps.last[rig.player.sequence[1]], 0);
+    });
+
+    test('the limiter is confirmed only with the tap installed', () async {
+      final noTap = await create(ios, ios: true);
+      expect(noTap.handler.replayGainLimiterSupported, isFalse);
+    });
+
     test('without the tap the iOS rows keep the Dart volume cut', () async {
       final rig = await create(ios, ios: true, trackGains: gains);
       expect(rig.handler.replayGainInPipeline, isFalse);
@@ -1034,6 +1111,28 @@ void main() {
       expect(rig.player.rgCalls, isNot(contains('levels')));
     });
   });
+
+  test(
+    'mpv without a confirmed limiter caps Loud at the peak ceiling',
+    () async {
+      // Unregistered media_kit: the probe never answered, so unknown is absent.
+      loudness = ReplayGainLoudness.loud;
+      final rig = await create(
+        PlaybackAdjustmentCapabilities.mediaKit,
+        ios: false,
+        pipeline: true,
+        trackGains: const {1: 3},
+        peak: 0.5,
+      );
+      expect(rig.handler.replayGainLimiterSupported, isFalse);
+      await settle(rig, await startLoad(rig, startIndex: 1));
+      // Raw +10 dB, ceiling 6.02 dB: 1 dB under the ceiling, not the full 10.
+      expect(
+        rig.player.levelPushes.last[rig.player.sequence[1]],
+        closeTo(-20 * log(0.5) / ln10 - 1, 0.001),
+      );
+    },
+  );
 
   // Issue #479 (c): in the pipeline Smart decides per queue entry. A song
   // queued twice has two entries with their own neighbours, so each copy must

@@ -106,7 +106,12 @@ class TranscodeLibrary:
         # L is a -8 dBFS sine tagged +10 dB with its peak: boost 7 dB, which lands 1 dB under full
         # scale, so a lossy decode that overshoots the tagged peak shows as clipped samples.
         'rgl-1': ('l', 10.0, 0.398),
+        # F (#846): a -26 dBFS sine with a 0.2 s -6 dBFS burst at 2.5 s of every 3 s, tagged +12 dB with its peak
+        # 0.5012: Quiet and Normal boost it 5 dB, Loud 12 dB (the bursts then pass the ceiling: the limiter's case).
+        'rgf-1': ('f', 12.0, 0.5012),
     }
+    # Per-kind level filter; the default is a steady sine at the tagged peak (lavfi's sine peaks at 1/8, hence the x8).
+    REPLAY_GAIN_FILTERS = {'f': "volume='if(between(mod(t,3),2.5,2.7),4.0096,0.4008)':eval=frame"}
 
     def _add_replay_gain_levels(self, seconds: int = 30):
         artist_id, album_id = 'ar900', 'al900-0'
@@ -119,7 +124,7 @@ class TranscodeLibrary:
                 temporary = path.with_suffix('.tmp.flac')
                 subprocess.run([
                     'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi',
-                    '-i', f'sine=f=440:d={seconds}:r=44100', '-af', f'volume={peak * 8}', '-ac', '1',
+                    '-i', f'sine=f=440:d={seconds}:r=44100', '-af', self.REPLAY_GAIN_FILTERS.get(kind, f'volume={peak * 8}'), '-ac', '1',
                     '-c:a', 'flac', str(temporary)], check=True)
                 temporary.rename(path)
             self._add_song(song_id, f'Level {kind.upper()} {track}', artist_id, album_id, track, seconds,

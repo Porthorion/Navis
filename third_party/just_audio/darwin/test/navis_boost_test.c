@@ -475,6 +475,236 @@ typedef struct {
     void (*run)(void);
 } Test;
 
+// MARK: limiter (#846)
+//
+// These vectors are the contract the Android Java port (EqualizerDsp.Limiter) must reproduce:
+// the same block sizes, signals and assertions. The golden case has a closed form.
+
+#define CEIL NAVIS_LIMITER_CEILING
+#define TOL 1e-6f
+#define TENDB 2.2387211f /* +7 dB */
+
+typedef struct {
+    NavisLimiter l;
+    float *scratch;
+} Lim;
+
+static Lim limNew(int rate, int capacity) {
+    Lim x;
+    x.scratch = malloc((size_t)capacity * sizeof(float)); // exact size: ASan catches a write past capacity
+    navis_limiter_init(&x.l, rate, x.scratch, capacity);
+    return x;
+}
+
+// A stereo sine of `amp` at 440 Hz, continuing from frame `from`; the right channel is half the left.
+static void sine(float *l, float *r, int frames, long from, float amp) {
+    for (int i = 0; i < frames; i++) {
+        l[i] = amp * sinf(6.2831853f * 440.0f * (float)(from + i) / RATE);
+        r[i] = 0.5f * l[i];
+    }
+}
+
+static void testLimiterHotSineStaysUnderCeiling(void) {
+    static const int sizes[] = {960, 1024, 4096}; // Opus, AAC, FLAC callbacks
+    for (int k = 0; k < 3; k++) {
+        int n = sizes[k];
+        Lim x = limNew(RATE, n);
+        float *l = malloc(n * sizeof(float)), *r = malloc(n * sizeof(float)), *inL = malloc(n * sizeof(float));
+        float *ch[2] = {l, r};
+        uint64_t limited = 0;
+        long pos = 0;
+        for (int b = 0; b < 40; b++, pos += n) {
+            sine(l, r, n, pos, 0.95f * TENDB); // full-scale-ish song +7 dB: peaks at 2.1
+            memcpy(inL, l, n * sizeof(float));
+            limited += navis_limiter_process(&x.l, ch, 2, n, true);
+            for (int i = 0; i < n; i++) {
+                check(fabsf(l[i]) <= CEIL + TOL && fabsf(r[i]) <= CEIL + TOL, "every output sample is under the ceiling");
+                check(fabsf(l[i]) <= fabsf(inL[i]) * (1 + TOL), "the limiter never raises a sample");
+            }
+            check(x.l.gain <= 1.0f && x.l.gain > 0.0f, "gain stays in (0, 1]");
+        }
+        check(limited > 0, "a sine over the ceiling is limited");
+        free(l); free(r); free(inL); free(x.scratch);
+    }
+}
+
+static void testLimiterIsBitExactUnderTheCeiling(void) {
+    Lim x = limNew(RATE, 1024);
+    float l[1024], r[1024], refL[1024], refR[1024];
+    for (int i = 0; i < 1024; i++) { l[i] = 0.8f * sinf(0.05f * i); r[i] = -0.3f * cosf(0.11f * i); }
+    memcpy(refL, l, sizeof l);
+    memcpy(refR, r, sizeof r);
+    float *ch[2] = {l, r};
+    check(navis_limiter_process(&x.l, ch, 2, 1024, true) == 0, "nothing limited");
+    check(memcmp(l, refL, sizeof l) == 0 && memcmp(r, refR, sizeof r) == 0, "bit-identical passthrough");
+    check(x.l.gain == 1.0f, "gain untouched");
+    // Not armed and at unity: untouched even for a hot block.
+    l[5] = 3.0f;
+    refL[5] = 3.0f;
+    check(navis_limiter_process(&x.l, ch, 2, 1024, false) == 0 && l[5] == 3.0f, "not armed: inert");
+    free(x.scratch);
+}
+
+// Closed form: mono 0.5 with one 2.0 at the last frame of 100. g[i] = min(1, need + (99-i)/attackFrames).
+static void testLimiterAttackGolden(void) {
+    Lim x = limNew(RATE, 100);
+    float d[100];
+    for (int i = 0; i < 100; i++) d[i] = 0.5f;
+    d[99] = 2.0f;
+    float *ch[1] = {d};
+    uint64_t limited = navis_limiter_process(&x.l, ch, 1, 100, true);
+    float need = CEIL / 2.0f;
+    int attack = 88; // 2 ms at 44.1 kHz
+    uint64_t expectLimited = 0;
+    for (int i = 0; i < 100; i++) {
+        float g = need + (float)(99 - i) / attack;
+        if (g > 1) g = 1;
+        if (g < 1) expectLimited++;
+        near(d[i], (i == 99 ? 2.0f : 0.5f) * g, 2e-5, "attack ramp matches the closed form");
+    }
+    check(limited == expectLimited && limited == 49, "limited frames are those with g < 1");
+    near(x.l.gain, need, 1e-6, "the state carries the final gain");
+    free(x.scratch);
+}
+
+static void testLimiterPeakAtBlockStart(void) {
+    Lim x = limNew(RATE, 960);
+    float d[960];
+    for (int i = 0; i < 960; i++) d[i] = 0.2f;
+    d[0] = 3.0f;
+    float *ch[1] = {d};
+    navis_limiter_process(&x.l, ch, 1, 960, true);
+    check(fabsf(d[0]) <= CEIL + TOL, "a peak on the first sample is still under the ceiling");
+    check(d[1] <= 0.2f + TOL && d[1] > 0, "and its neighbours are not amplified");
+    free(x.scratch);
+}
+
+static void testLimiterRecovers(void) {
+    Lim x = limNew(RATE, 1024);
+    float d[1024];
+    float *ch[1] = {d};
+    for (int i = 0; i < 1024; i++) d[i] = 4.0f;
+    navis_limiter_process(&x.l, ch, 1, 1024, true);
+    check(x.l.gain < 0.3f, "deep reduction first");
+    // Boost is gone (not armed) but the gain is still recovering: the limiter keeps running.
+    for (int b = 0; b < 22; b++) { // 22 x 1024 = 22528 frames = 0.51 s
+        for (int i = 0; i < 1024; i++) d[i] = 0.1f;
+        navis_limiter_process(&x.l, ch, 1, 1024, false);
+    }
+    check(x.l.gain > 0.99f && x.l.gain <= 1.0f, "gain is back above 0.99 within 0.5 s");
+    for (int b = 0; b < 100; b++) navis_limiter_process(&x.l, ch, 1, 1024, false);
+    check(x.l.gain == 1.0f, "and snaps back to inert unity");
+    free(x.scratch);
+}
+
+static void testLimiterChannelsAreLinked(void) {
+    Lim x = limNew(RATE, 4096);
+    float l[4096], r[4096], inL[4096];
+    float *ch[2] = {l, r};
+    sine(l, r, 4096, 0, 2.4f); // right is half the left, under the ceiling on its own at some points
+    memcpy(inL, l, sizeof l);
+    navis_limiter_process(&x.l, ch, 2, 4096, true);
+    for (int i = 0; i < 4096; i++) {
+        float g = inL[i] != 0 ? l[i] / inL[i] : 1;
+        near(r[i], 0.5f * inL[i] * g, 1e-6, "both channels get the same gain");
+    }
+    free(x.scratch);
+}
+
+static void testLimiterNanAndInfDoNotPoison(void) {
+    Lim x = limNew(RATE, 512);
+    float d[512];
+    float *ch[1] = {d};
+    for (int i = 0; i < 512; i++) d[i] = 2.0f;
+    d[10] = NAN;
+    d[20] = INFINITY;
+    navis_limiter_process(&x.l, ch, 1, 512, true);
+    check(isfinite(x.l.gain) && x.l.gain > 0 && x.l.gain <= 1.0f, "gain stays finite and in (0, 1]");
+    for (int b = 0; b < 3; b++) {
+        for (int i = 0; i < 512; i++) d[i] = 2.0f;
+        navis_limiter_process(&x.l, ch, 1, 512, true);
+        for (int i = 0; i < 512; i++) check(isfinite(d[i]) && fabsf(d[i]) <= CEIL + TOL, "later blocks are clean");
+    }
+    free(x.scratch);
+}
+
+static void testLimiterReset(void) {
+    Lim x = limNew(RATE, 512);
+    float d[512];
+    float *ch[1] = {d};
+    for (int i = 0; i < 512; i++) d[i] = 4.0f;
+    navis_limiter_process(&x.l, ch, 1, 512, true);
+    check(x.l.gain < 1.0f, "reduced");
+    navis_limiter_reset(&x.l);
+    check(x.l.gain == 1.0f, "reset puts the gain back to unity");
+    for (int i = 0; i < 512; i++) d[i] = 0.1f;
+    check(navis_limiter_process(&x.l, ch, 1, 512, false) == 0 && d[0] == 0.1f, "and the next block is untouched");
+    free(x.scratch);
+}
+
+// Blocks longer than the scratch are processed in chunks; the capacity is never exceeded (exact-size malloc under ASan).
+static void testLimiterChunksLongBlocks(void) {
+    Lim x = limNew(RATE, 256);
+    float l[4096], r[4096];
+    float *ch[2] = {l, r};
+    sine(l, r, 4096, 0, 2.0f);
+    navis_limiter_process(&x.l, ch, 2, 4096, true);
+    for (int i = 0; i < 4096; i++) check(fabsf(l[i]) <= CEIL + TOL && fabsf(r[i]) <= CEIL + TOL, "chunked output is under the ceiling");
+    // No scratch at all: the limiter is inert rather than unsafe.
+    NavisLimiter none;
+    navis_limiter_init(&none, RATE, NULL, 0);
+    sine(l, r, 64, 0, 2.0f);
+    float first = l[3];
+    check(navis_limiter_process(&none, ch, 2, 64, true) == 0 && l[3] == first, "no scratch: inert");
+    free(x.scratch);
+}
+
+static void testLimiterGainNeverAboveOne(void) {
+    Lim x = limNew(48000, 960);
+    float l[960], r[960];
+    float *ch[2] = {l, r};
+    unsigned seed = 1;
+    for (int b = 0; b < 200; b++) {
+        float amp = (b % 7) * 0.6f;
+        for (int i = 0; i < 960; i++) {
+            seed = seed * 1664525u + 1013904223u;
+            l[i] = amp * ((float)(seed >> 8) / 8388608.0f - 1.0f);
+            r[i] = -l[i];
+        }
+        navis_limiter_process(&x.l, ch, 2, 960, true);
+        check(x.l.gain <= 1.0f && x.l.gain > 0.0f, "gain never exceeds 1");
+        for (int i = 0; i < 960; i++) check(fabsf(l[i]) <= CEIL + TOL, "random bursts stay under the ceiling");
+    }
+    free(x.scratch);
+}
+
+// An unarmed limiter never attacks (#846): unboosted audio after a limited passage is never newly
+// reduced; the gain releases to exactly 1 and then the blocks are bit-exact.
+static void testLimiterUnarmedOnlyReleases(void) {
+    enum { N = 1024 };
+    Lim x = limNew(44100, N);
+    float d[N], ref[N];
+    float *ch[1] = {d};
+    for (int i = 0; i < N; i++) d[i] = 3.0f;
+    navis_limiter_process(&x.l, ch, 1, N, true); // one boosted hot block
+    check(x.l.gain < 0.5f, "deep reduction first");
+    float last = x.l.gain;
+    bool released = false;
+    for (int b = 0; b < 430; b++) { // 10 s of unboosted material with a 0.95 peak every 4 blocks
+        for (int i = 0; i < N; i++) d[i] = 0.3f * sinf(0.05f * (float)i + (float)b);
+        if (b % 4 == 0) d[500] = 0.95f;
+        memcpy(ref, d, sizeof d);
+        navis_limiter_process(&x.l, ch, 1, N, false);
+        check(x.l.gain >= last, "an unarmed limiter only releases");
+        last = x.l.gain;
+        if (released) check(memcmp(ref, d, sizeof d) == 0 && x.l.gain == 1.0f, "once released it stays bit-exact");
+        else if (x.l.gain == 1.0f) released = true;
+        for (int i = 0; i < N; i++) check(fabsf(d[i]) <= fabsf(ref[i]), "never raised");
+    }
+    check(released && x.l.gain == 1.0f && x.l.deficit == 0, "the gain returns to exactly 1");
+    free(x.scratch);
+}
+
 int main(void) {
     static const Test tests[] = {
         {"decideWindow", testDecideWindow},
@@ -497,8 +727,19 @@ int main(void) {
         {"rampRateSetsTheLength", testRampRateSetsTheLength},
         {"targetAtomicIsLockFree", testTargetAtomicIsLockFree},
         {"cutLinear", testCutLinear},
+        {"limiterHotSineStaysUnderCeiling", testLimiterHotSineStaysUnderCeiling},
+        {"limiterIsBitExactUnderTheCeiling", testLimiterIsBitExactUnderTheCeiling},
+        {"limiterAttackGolden", testLimiterAttackGolden},
+        {"limiterPeakAtBlockStart", testLimiterPeakAtBlockStart},
+        {"limiterRecovers", testLimiterRecovers},
+        {"limiterChannelsAreLinked", testLimiterChannelsAreLinked},
+        {"limiterNanAndInfDoNotPoison", testLimiterNanAndInfDoNotPoison},
+        {"limiterReset", testLimiterReset},
+        {"limiterChunksLongBlocks", testLimiterChunksLongBlocks},
+        {"limiterGainNeverAboveOne", testLimiterGainNeverAboveOne},
+        {"limiterUnarmedOnlyReleases", testLimiterUnarmedOnlyReleases},
     };
     for (size_t i = 0; i < sizeof tests / sizeof *tests; i++) tests[i].run();
-    puts("Navis Darwin boost: decision table, click-free ramp, clip count, clamps and cut passed.");
+    puts("Navis Darwin boost: decision table, click-free ramp, clip count, clamps, cut and limiter passed.");
     return 0;
 }

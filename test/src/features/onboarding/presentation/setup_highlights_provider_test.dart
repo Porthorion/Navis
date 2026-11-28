@@ -111,6 +111,72 @@ void main() {
     });
   }
 
+  group('Loudness presets tag (standalone, 1.5.3)', () {
+    Future<ProviderContainer> open({
+      String replayGainMode = 'smart',
+      Set<String> seen = const <String>{'genresPage'},
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          onboardingRequiredProvider.overrideWithValue(false),
+          appSettingsProvider.overrideWith(
+            (ref) => Stream.value(
+              const AppSettingsModel.defaults().copyWith(
+                setupHighlightsSeenRelease: '1.5.0',
+                setupHighlightsSeen: seen,
+                replayGainMode: replayGainMode,
+              ),
+            ),
+          ),
+          packageInfoProvider.overrideWith((ref) async => _info('1.5.3')),
+        ],
+      );
+      container.listen(appSettingsProvider, (_, _) {});
+      container.listen(packageInfoProvider, (_, _) {});
+      addTearDown(container.dispose);
+      await container.read(appSettingsProvider.future);
+      await container.read(packageInfoProvider.future);
+      return container;
+    }
+
+    test('tags Playback, and neither Themes nor Interface', () async {
+      final container = await open();
+      expect(container.read(pendingSetupHighlightsProvider), {
+        SetupHighlight.loudnessPresets,
+      });
+      expect(container.read(playbackHasNewOptionsProvider), isTrue);
+      // Themes would never clear it, and it never raises the Home card.
+      expect(container.read(themesHasNewOptionsProvider), isFalse);
+      expect(container.read(interfaceHasNewOptionsProvider), isFalse);
+      expect(container.read(quickCustomizationHasNewOptionsProvider), isFalse);
+      expect(container.read(setupHighlightsCardVisibleProvider), isFalse);
+    });
+
+    test('the Genres tag still tags Interface and not Playback', () async {
+      final container = await open(seen: const <String>{'loudnessPresets'});
+      expect(container.read(interfaceHasNewOptionsProvider), isTrue);
+      expect(container.read(playbackHasNewOptionsProvider), isFalse);
+      expect(container.read(themesHasNewOptionsProvider), isFalse);
+    });
+
+    test('does not tag Playback while ReplayGain is off', () async {
+      // The Loudness label only exists with ReplayGain on, so the tag would
+      // lead nowhere and never clear.
+      final container = await open(replayGainMode: 'off');
+      expect(container.read(playbackHasNewOptionsProvider), isFalse);
+    });
+
+    test('stays cleared once seen', () async {
+      final container = await open(seen: const <String>{'genresPage'});
+      expect(container.read(playbackHasNewOptionsProvider), isTrue);
+      final seen = await open(
+        seen: const <String>{'genresPage', 'loudnessPresets'},
+      );
+      expect(seen.read(playbackHasNewOptionsProvider), isFalse);
+      expect(seen.read(pendingSetupHighlightsProvider), isEmpty);
+    });
+  });
+
   group('Genres page tag (standalone, 1.5.2)', () {
     Future<ProviderContainer> open({
       String? seenRelease,

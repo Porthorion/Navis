@@ -3560,23 +3560,44 @@ void main() {
       final handler = _FakePlaybackHandler();
       addTearDown(handler.dispose);
       final container = await start(handler);
-      final seen = <(String?, double?)>[];
+      final seen = <(String?, ReplayGainLoudness?, double?)>[];
       handler.runtimeSettingsObservers.add(() {
         final s = container.read(appSettingsProvider).asData?.value;
-        seen.add((s?.replayGainMode, s?.replayGainPreamp));
+        seen.add((
+          s?.replayGainMode,
+          s?.replayGainLoudness,
+          s?.replayGainPreamp,
+        ));
       });
 
       await settings.saveSettings(
         const AppSettingsModel.defaults().copyWith(
           crossfadeEnabled: true,
           replayGainMode: 'track',
+          replayGainLoudness: ReplayGainLoudness.custom,
           replayGainPreamp: 3,
         ),
       );
       await handler.applyRuntimeSettings();
       await pumpEventQueue();
 
-      expect(seen.last, ('track', 3.0));
+      expect(seen.last, ('track', ReplayGainLoudness.custom, 3.0));
+
+      // A preset switch alone also re-applies and ends on the saved preset.
+      final calls = handler.applyRuntimeSettingsCalls;
+      await settings.saveSettings(
+        const AppSettingsModel.defaults().copyWith(
+          crossfadeEnabled: true,
+          replayGainMode: 'track',
+          replayGainLoudness: ReplayGainLoudness.loud,
+          replayGainPreamp: 3,
+        ),
+      );
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+
+      expect(handler.applyRuntimeSettingsCalls, greaterThan(calls));
+      expect(seen.last, ('track', ReplayGainLoudness.loud, 3.0));
     });
 
     test('a desktop volume save does not re-apply', () async {

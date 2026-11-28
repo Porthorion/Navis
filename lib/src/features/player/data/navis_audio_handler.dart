@@ -61,6 +61,7 @@ import 'package:navis/src/features/player/data/navis_shuffle_order.dart';
 import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -904,6 +905,17 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   bool get replayGainBoostSupported => navisReplayGainBoostSupported(
     usesMpv: _usesMpv,
+    androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
+    iosTap: _usesIos && _equalizerPipelineEnabled,
+  );
+
+  /// Whether a peak limiter follows the boost (see
+  /// [navisReplayGainLimiterSupported]). On mpv it is the probe's answer,
+  /// false until a player exists: an early read only under-boosts.
+  @override
+  bool get replayGainLimiterSupported => navisReplayGainLimiterSupported(
+    usesMpv: _usesMpv,
+    mpvLimiter: JustAudioMediaKit.replayGainLimiterSupported,
     androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
     iosTap: _usesIos && _equalizerPipelineEnabled,
   );
@@ -2967,6 +2979,8 @@ class NavisAudioHandler extends BaseAudioHandler
       'shuffleEnabled': _shuffleEnabled,
       'replayGain': currentReplayGainDecision?.toJson(),
       'replayGainBoost': _replayGainBoostStatus,
+      'replayGainLoudness': _readRuntimeSettings().replayGainLoudness.name,
+      'replayGainLimiter': replayGainLimiterSupported,
       // Native order as the player holds it, for parity checks against the
       // logical queue (limited so large queues stay cheap to report).
       'native': <String, Object?>{

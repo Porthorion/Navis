@@ -964,7 +964,7 @@ Playback changes that touch the ReplayGain boost (rule, handler send path or the
 media_kit adapter) also run `tool/replaygain_boost_diagnostics.sh` on Linux; it
 is not part of `./tool/check.sh` because it needs a profile build, a PulseAudio
 null sink and a compositor. The Android stage runs `--scenarios a1` against an
-emulator. Windows (the `\\?\` path key) is not covered. See [development-workflow.md](development-workflow.md).
+emulator (`a3` for the loudness presets and limiter). Windows (the `\\?\` path key) is not covered. See [development-workflow.md](development-workflow.md).
 
 ### Equalizer release evidence
 

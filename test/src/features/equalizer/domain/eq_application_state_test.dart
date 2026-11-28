@@ -86,11 +86,13 @@ void main() {
       boostAppliedDb: 9.5,
       boostGuarded: true,
       boostClipSamples: 3,
+      limitedFrames: 7,
     ).toDiagnosticsJson();
     expect(json['boostRequestedDb'], 10);
     expect(json['boostAppliedDb'], 9.5);
     expect(json['boostGuarded'], isTrue);
     expect(json['boostClipSamples'], 3);
+    expect(json['limitedFrames'], 7);
     final none = EqApplicationState(
       desired: EqConfiguration.flat(),
       applied: EqConfiguration.flat(),

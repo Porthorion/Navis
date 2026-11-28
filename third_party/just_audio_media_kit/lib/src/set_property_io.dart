@@ -49,8 +49,10 @@ Future<void> verifyOwnedAudioChain(
   const marker = '@navis_eq:lavfi=[';
   final equalizerStart = expected.indexOf(marker);
   final expectsEqualizer = equalizerStart >= 0;
+  // The graph ends at the first `]` (it holds none); the limiter may follow.
   final graph = expectsEqualizer
-      ? expected.substring(equalizerStart + marker.length, expected.length - 1)
+      ? expected.substring(
+          equalizerStart + marker.length, expected.indexOf(']', equalizerStart))
       : null;
   if (actualPitch == null ||
       (actualPitch - pitch).abs() > .000001 ||
@@ -114,12 +116,11 @@ bool configureStartPosition(
   return true;
 }
 
-/// Writes the global `af` of every playlist entry mpv is about to load from
-/// [filtersFor] (given its `path` and playlist index), so the entry's chain, with its own
-/// ReplayGain level, is built from the first sample. Returns whether the
-/// backend supports it.
+/// Calls [write] with the `path` and playlist index of every playlist entry
+/// mpv is about to load, so the entry's chain, with its own ReplayGain level,
+/// is written from the first sample. Returns whether the backend supports it.
 bool configureReplayGainFilter(
-    Player player, String Function(String path, int? index) filtersFor) {
+    Player player, bool Function(String path, int? index) write) {
   final native = player.platform;
   if (native is! NativePlayer) return false;
   native.onLoadHooks.add(() async {
@@ -128,7 +129,7 @@ bool configureReplayGainFilter(
     if (path == null) return;
     final index =
         int.tryParse(_readString(native, 'playlist-playing-pos') ?? '');
-    if (!nativeSetPropertySync(player, 'af', filtersFor(path, index))) {
+    if (!write(path, index)) {
       // The file would play at the previous file's level; nothing else shows it.
       _logger.warning('on_load af write rejected by mpv for $path');
     }

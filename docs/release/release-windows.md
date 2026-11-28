@@ -18,21 +18,21 @@ machines, USB sticks, shared computers).
 Windows playback uses Navis's own audio-only LGPL-2.1-or-later
 `libmpv-2.dll`, provided by the vendored
 `third_party/media_kit_libs_windows_audio/` plugin (see its `NAVIS.md`).
-The current archive is `libmpv-windows-x86_64-lgpl-20261013.zip`.
+The current archive is `libmpv-windows-x86_64-lgpl-20261128.zip`.
 mpv `eb0ee1031590b3f369a5b783e8aa91eeaaded7e6` (`gpl=false`) and FFmpeg
 `151814650` (no GPL/nonfree options) match the Linux recipe. Static libass
 0.17.5, libplacebo v7.360.1 with submodules, FreeType 2.13.3, FriBidi 1.0.16,
 HarfBuzz 10.2.0 and zlib 1.3.1 all have captured corresponding sources.
 
 The DLL uses WASAPI audio and Schannel TLS, with native audio decoders,
-HLS/ICY support and FFmpeg `volume`, `biquad`, `equalizer` and `atempo`.
+HLS/ICY support and FFmpeg `volume`, `biquad`, `equalizer`, `alimiter` and `atempo`.
 Navis's adapter combines mpv's internal `scaletempo` with lavfi volume/biquad.
 GPU backends, scripting and optional external media libraries are disabled.
 The build rejects non-system DLL imports; mingw-w64, winpthreads and GCC
 runtimes are static, with their versions/licences recorded in BUILDINFO.
 
 CMake downloads only from
-`https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261013/<archive-name>`.
+`https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261128/<archive-name>`.
 SHA-256 is checked on every download and before cache reuse; a failed download
 is deleted. Verified build-directory caches work offline. Extraction is per
 archive filename; ZIP is supported by CMake's libarchive extractor. There is
