@@ -53,6 +53,18 @@ enum ReplayGainSource { track, album, untagged }
   };
 }
 
+/// The Custom offset range in dB (-24..-10 LUFS), shared with Settings.
+const replayGainMinOffsetDb = -6.0;
+const replayGainMaxOffsetDb = 8.0;
+
+/// Normal's offset: the most a song is boosted by without a limiter doing
+/// anything beyond the peak ceiling.
+const replayGainNormalOffsetDb = 4.0;
+
+/// How far past a song's peak ceiling a limited boost may go, in dB, so the
+/// limiter takes off at most this much (tune by ear).
+const replayGainMaxLimitDb = 6.0;
+
 /// The most a song is ever turned up, in dB: one cap for every platform
 /// (mpv's `@navis_rg` stage, Android's boost stage), so all boost alike.
 const replayGainMaxBoostDb = 12.0;
@@ -75,12 +87,40 @@ bool navisReplayGainBoostSupported({
 
 /// Whether a peak limiter follows the boost. mpv's is FFmpeg's `alimiter`,
 /// present only when [mpvLimiter] (the media_kit adapter's startup probe) says
-/// the bundled libmpv has it. The Android and iOS limiters are separate phases.
+/// the bundled libmpv has it; Android's lives in its EQ processor and iOS's in
+/// its equalizer tap, so each exists while [androidProcessor] / [iosTap] say
+/// the pipeline is installed. Not implied by boost: an old libmpv boosts with
+/// no limiter, and the rule then keeps the peak ceiling.
 @visibleForTesting
 bool navisReplayGainLimiterSupported({
   required bool usesMpv,
   required bool mpvLimiter,
-}) => usesMpv && mpvLimiter;
+  bool androidProcessor = false,
+  bool iosTap = false,
+}) => androidProcessor || iosTap || (usesMpv && mpvLimiter);
+
+/// The offset in dB (from the -18 LUFS ReplayGain reference) a loudness preset
+/// adds to every song: Quiet 0, Normal +4, Loud +7, and Custom the stored
+/// pre-amp [customDb] clamped to [replayGainMinOffsetDb]..
+/// [replayGainMaxOffsetDb].
+double replayGainOffsetDb(ReplayGainLoudness loudness, double customDb) =>
+    switch (loudness) {
+      ReplayGainLoudness.quiet => 0,
+      ReplayGainLoudness.normal => replayGainNormalOffsetDb,
+      ReplayGainLoudness.loud => 7,
+      ReplayGainLoudness.custom => customDb.clamp(
+        replayGainMinOffsetDb,
+        replayGainMaxOffsetDb,
+      ),
+    };
+
+/// Whether boosts may go past a song's peak ceiling: the platform has a
+/// confirmed limiter and the offset is above Normal's. Quiet, Normal and a
+/// Custom up to +4 never do.
+bool replayGainLimiting({
+  required double offsetDb,
+  required bool limiterSupported,
+}) => limiterSupported && offsetDb > replayGainNormalOffsetDb;
 
 /// Whether the backend applies ReplayGain inside its audio path, on each
 /// song's own samples (see the handler's `replayGainInPipeline`). True on mpv
@@ -102,12 +142,17 @@ typedef ReplayGainLevels = ({double cutDb, double boostDb});
 
 /// What ReplayGain does to one song, or null when [mode] is 'off'.
 ///
-/// A song with no usable gain takes [untaggedDb]. The pre-amp (clamped to
-/// -6..6) is added and the song's known peak limits the result. The cut is
-/// that result capped at 0 dB. The boost is its positive part, and only a
-/// song with both a gain and a valid peak gets one: it stops
-/// [replayGainBoostMarginDb] under the peak ceiling (no limiter follows) and
-/// at [replayGainMaxBoostDb]. A platform that cannot boost
+/// A song with no usable gain takes [untaggedDb]. The loudness offset
+/// ([replayGainOffsetDb] of [loudness] and [preampDb], the Custom value) is
+/// added and the song's known peak limits the result. The cut is that result
+/// capped at 0 dB, so a song whose peak is above full scale is always cut and
+/// never boosted. The boost is its positive part, and only a song with both a
+/// gain and a valid peak gets one. It stops [replayGainBoostMarginDb] under
+/// the peak ceiling, and at [replayGainMaxBoostDb]. While
+/// [replayGainLimiting] (a confirmed [limiterSupported] and an offset above
+/// Normal) it may instead reach the full gain, at most
+/// [replayGainMaxLimitDb] past the ceiling. That is the only way a boost
+/// exceeds a song's peak ceiling. A platform that cannot boost
 /// ([boostSupported] false) always reports 0. [mode] is 'off', 'track' or
 /// 'album'; resolve 'smart' first with [resolveReplayGainMode].
 ReplayGainLevels? replayGainLevels({
@@ -116,9 +161,11 @@ ReplayGainLevels? replayGainLevels({
   double? albumGain,
   double? trackPeak,
   double? albumPeak,
+  required ReplayGainLoudness loudness,
   double preampDb = 0,
   required double untaggedDb,
   required bool boostSupported,
+  bool limiterSupported = false,
 }) {
   if (mode == 'off') return null;
   final (:gain, :peak, source: _) = _selectReplayGain(
@@ -128,7 +175,13 @@ ReplayGainLevels? replayGainLevels({
     trackPeak: trackPeak,
     albumPeak: albumPeak,
   );
-  var db = (gain ?? untaggedDb) + preampDb.clamp(-6.0, 6.0);
+  final offsetDb = replayGainOffsetDb(loudness, preampDb);
+  final limiting = replayGainLimiting(
+    offsetDb: offsetDb,
+    limiterSupported: limiterSupported,
+  );
+  final raw = (gain ?? untaggedDb) + offsetDb;
+  var db = raw;
   // A peak is a sample ratio near 1; anything else is tag garbage.
   double? ceilingDb;
   if (gain != null && peak != null && peak.isFinite && peak > 0 && peak <= 4) {
@@ -139,11 +192,20 @@ ReplayGainLevels? replayGainLevels({
       ? 0.0
       : math.max(
           0.0,
-          math.min(ceilingDb - replayGainBoostMarginDb, replayGainMaxBoostDb),
+          math.min(
+            limiting
+                ? ceilingDb + replayGainMaxLimitDb
+                : ceilingDb - replayGainBoostMarginDb,
+            replayGainMaxBoostDb,
+          ),
         );
   return (
     cutDb: math.min(db, 0),
-    boostDb: boostSupported ? math.min(math.max(db, 0.0), room) : 0,
+    // db >= 0 keeps cut and boost exclusive: a song cut for its peak is not
+    // boosted. The limiter lifts the boost from the peak-capped db to raw.
+    boostDb: boostSupported && db >= 0
+        ? math.min(limiting ? raw : db, room)
+        : 0,
   );
 }
 
@@ -221,9 +283,11 @@ ReplayGainDecision replayGainDecision({
   double? albumGain,
   double? trackPeak,
   double? albumPeak,
+  required ReplayGainLoudness loudness,
   double preampDb = 0,
   required double untaggedDb,
   required bool boostSupported,
+  bool limiterSupported = false,
 }) {
   final resolved = resolveReplayGainMode(
     mode,
@@ -237,9 +301,11 @@ ReplayGainDecision replayGainDecision({
     albumGain: albumGain,
     trackPeak: trackPeak,
     albumPeak: albumPeak,
+    loudness: loudness,
     preampDb: preampDb,
     untaggedDb: untaggedDb,
     boostSupported: boostSupported,
+    limiterSupported: limiterSupported,
   );
   return ReplayGainDecision(
     mode: mode,

@@ -53,6 +53,7 @@ final nowPlayingReplayGainProvider = Provider<ReplayGainDecision?>((ref) {
     appSettingsProvider.select(
       (s) => (
         s.value?.replayGainMode,
+        s.value?.replayGainLoudness,
         s.value?.replayGainPreamp,
         s.value?.replayGainUntaggedDb,
       ),

@@ -1404,6 +1404,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         s.crossfadeDurationSeconds,
         s.crossfadeType,
         s.replayGainMode,
+        s.replayGainLoudness,
         s.replayGainPreamp,
         s.replayGainUntaggedDb,
         s.playbackSpeed,
@@ -1673,6 +1674,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
           crossfadeType: settings.crossfadeType,
           replayGainMode: settings.replayGainMode,
+          replayGainLoudness: settings.replayGainLoudness,
           replayGainPreamp: settings.replayGainPreamp,
           replayGainUntaggedDb: effectiveReplayGainUntaggedDb(
             fixed: settings.replayGainUntaggedDb,

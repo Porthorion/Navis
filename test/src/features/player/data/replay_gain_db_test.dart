@@ -13,15 +13,19 @@ void main() {
     double? albumPeak,
     double preamp = 0,
     double untagged = -8,
+    ReplayGainLoudness loudness = ReplayGainLoudness.custom,
+    bool limiter = false,
   }) => replayGainLevels(
     mode: mode,
     trackGain: track,
     albumGain: album,
     trackPeak: trackPeak,
     albumPeak: albumPeak,
+    loudness: loudness,
     preampDb: preamp,
     untaggedDb: untagged,
     boostSupported: true,
+    limiterSupported: limiter,
   )?.cutDb;
 
   double? boost({
@@ -33,15 +37,19 @@ void main() {
     double preamp = 0,
     double untagged = -8,
     bool supported = true,
+    ReplayGainLoudness loudness = ReplayGainLoudness.custom,
+    bool limiter = false,
   }) => replayGainLevels(
     mode: mode,
     trackGain: track,
     albumGain: album,
     trackPeak: trackPeak,
     albumPeak: albumPeak,
+    loudness: loudness,
     preampDb: preamp,
     untaggedDb: untagged,
     boostSupported: supported,
+    limiterSupported: limiter,
   )?.boostDb;
 
   /// The rule before the boost existed: the reference every cut must match.
@@ -171,6 +179,7 @@ void main() {
       expect(boost(track: 6, trackPeak: 0.1, supported: false), 0);
       final levels = replayGainLevels(
         mode: 'track',
+        loudness: ReplayGainLoudness.custom,
         trackGain: -6,
         trackPeak: 0.1,
         untaggedDb: -8,
@@ -182,7 +191,7 @@ void main() {
     test('every cut is identical to the rule before the boost existed', () {
       for (final gain in <double?>[null, -20, -6, 0, 2.5, 8, 14.4, 30]) {
         for (final peak in <double?>[null, 0, 0.05, 0.5, 0.95, 1, 1.5, 4, 5]) {
-          for (final preamp in <double>[-8, -3, 0, 2, 6, 9]) {
+          for (final preamp in <double>[-8, -3, 0, 2, 4, 6]) {
             for (final untagged in <double>[-15, -8, -0.5, 0]) {
               final usable = gain != null && gain.abs() <= replayGainMaxAbsDb;
               expect(
@@ -206,9 +215,9 @@ void main() {
       }
     });
 
-    test('the pre-amp is added and clamped to -6..6', () {
+    test('the pre-amp is added and clamped to -6..8', () {
       expect(db(track: -10, preamp: 3), -7);
-      expect(db(track: -10, preamp: 20), -4);
+      expect(db(track: -10, preamp: 20), -2);
       expect(db(track: -10, preamp: -20), -16);
       expect(db(preamp: -2, untagged: -8), -10);
     });
@@ -307,6 +316,7 @@ void main() {
       double preamp = 0,
       bool boostSupported = false,
     }) => replayGainDecision(
+      loudness: ReplayGainLoudness.custom,
       boostSupported: boostSupported,
       mode: mode,
       albumId: album,
@@ -371,6 +381,7 @@ void main() {
         d.cutDb,
         replayGainLevels(
           mode: 'album',
+          loudness: ReplayGainLoudness.custom,
           trackGain: -10,
           albumGain: -4,
           trackPeak: 0.5,
@@ -441,6 +452,310 @@ void main() {
         isFalse,
       );
     });
+
+    test('the Android processor and the iOS tap each carry one', () {
+      expect(
+        navisReplayGainLimiterSupported(
+          usesMpv: false,
+          mpvLimiter: false,
+          androidProcessor: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisReplayGainLimiterSupported(
+          usesMpv: false,
+          mpvLimiter: false,
+          iosTap: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisReplayGainLimiterSupported(usesMpv: false, mpvLimiter: false),
+        isFalse,
+        reason: 'a rebuild without the EQ pipeline has no limiter',
+      );
+    });
+  });
+
+  group('loudness presets', () {
+    test('the offsets: Quiet 0, Normal +4, Loud +7, Custom -6..+8', () {
+      double offset(ReplayGainLoudness l, [double custom = 0]) =>
+          replayGainOffsetDb(l, custom);
+      expect(offset(ReplayGainLoudness.quiet, 5), 0);
+      expect(offset(ReplayGainLoudness.normal, 5), 4);
+      expect(offset(ReplayGainLoudness.loud, -5), 7);
+      expect(offset(ReplayGainLoudness.custom, 3.5), 3.5);
+      expect(offset(ReplayGainLoudness.custom, 20), 8);
+      expect(offset(ReplayGainLoudness.custom, -20), -6);
+    });
+
+    test('limiting needs a confirmed limiter and an offset above Normal', () {
+      for (final limiter in [false, true]) {
+        for (final offset in [-6.0, 0.0, 4.0, 4.1, 7.0, 8.0]) {
+          expect(
+            replayGainLimiting(offsetDb: offset, limiterSupported: limiter),
+            limiter && offset > 4,
+            reason: 'limiter $limiter offset $offset',
+          );
+        }
+      }
+    });
+
+    test('Loud on a full-scale song with a limiter boosts, limited', () {
+      // Peak 1.0 (ceiling 0), gain -2 -> raw +5, within the 6 dB depth cap.
+      final levels = replayGainLevels(
+        mode: 'track',
+        trackGain: -2,
+        trackPeak: 1,
+        loudness: ReplayGainLoudness.loud,
+        untaggedDb: -8,
+        boostSupported: true,
+        limiterSupported: true,
+      )!;
+      expect((levels.cutDb, levels.boostDb), (0.0, 5.0));
+    });
+
+    test('the limiter does at most 6 dB: boost stops at ceiling + 6', () {
+      const loud = ReplayGainLoudness.loud;
+      expect(replayGainMaxLimitDb, 6);
+      // Peak 0.5 (ceiling 6.02), gain 3 -> raw 10: 12.02 > 10, the raw gain.
+      expect(
+        boost(track: 3, trackPeak: 0.5, loudness: loud, limiter: true),
+        10,
+      );
+      // Peak 1.0, gain 3 -> raw 10, but the ceiling + 6 = 6.
+      expect(boost(track: 3, trackPeak: 1, loudness: loud, limiter: true), 6);
+      // 12 dB stays the absolute cap.
+      expect(
+        boost(track: 20, trackPeak: 0.0001, loudness: loud, limiter: true),
+        12,
+      );
+    });
+
+    test('a peak above full scale keeps its forced cut and gets no boost', () {
+      const loud = ReplayGainLoudness.loud;
+      final ceiling = ceilingOf(1.2);
+      final levels = replayGainLevels(
+        mode: 'track',
+        trackGain: -5,
+        trackPeak: 1.2,
+        loudness: loud,
+        untaggedDb: -8,
+        boostSupported: true,
+        limiterSupported: true,
+      )!;
+      // raw +2 is above the ceiling (-1.58): the cut is the ceiling, as today.
+      expect(levels.cutDb, closeTo(ceiling, 0.0001));
+      expect(levels.boostDb, 0);
+      expect(boost(track: 3, trackPeak: 1.2, loudness: loud, limiter: true), 0);
+    });
+
+    test(
+      'untagged songs are never boosted at Loud, they follow the preset',
+      () {
+        const loud = ReplayGainLoudness.loud;
+        expect(boost(untagged: 0, loudness: loud, limiter: true), 0);
+        expect(boost(untagged: -2, loudness: loud, limiter: true), 0);
+        // The offset moves their cut: -8 + 4 = -4 at Normal, -1 at Loud.
+        expect(db(loudness: ReplayGainLoudness.normal), -4);
+        expect(db(loudness: loud), -1);
+        expect(db(loudness: ReplayGainLoudness.quiet), -8);
+      },
+    );
+
+    test('Normal never boosts past the ceiling, even with a limiter', () {
+      final normal = ReplayGainLoudness.normal;
+      expect(boost(track: 3, trackPeak: 1, loudness: normal, limiter: true), 0);
+      expect(
+        boost(track: 3, trackPeak: 0.5, loudness: normal, limiter: true),
+        closeTo(ceilingOf(0.5) - 1, 0.0001),
+      );
+    });
+
+    test('Loud without a confirmed limiter is capped at the peak ceiling', () {
+      const loud = ReplayGainLoudness.loud;
+      expect(boost(track: 3, trackPeak: 1, loudness: loud), 0);
+      expect(
+        boost(track: 3, trackPeak: 0.5, loudness: loud),
+        closeTo(ceilingOf(0.5) - 1, 0.0001),
+      );
+    });
+
+    test('off gives nothing at any preset', () {
+      for (final loudness in ReplayGainLoudness.values) {
+        expect(
+          replayGainLevels(
+            mode: 'off',
+            trackGain: 1,
+            trackPeak: 0.1,
+            loudness: loudness,
+            untaggedDb: -8,
+            boostSupported: true,
+            limiterSupported: true,
+          ),
+          isNull,
+        );
+      }
+    });
+
+    test('Custom 7 is exactly Loud and Custom 4 is exactly Normal', () {
+      for (final gain in <double?>[null, -12, -3, 0, 2, 9]) {
+        for (final peak in <double?>[null, 0.5, 1, 1.4]) {
+          for (final limiter in [false, true]) {
+            for (final (custom, preset) in [
+              (7.0, ReplayGainLoudness.loud),
+              (4.0, ReplayGainLoudness.normal),
+              (0.0, ReplayGainLoudness.quiet),
+            ]) {
+              Object? levels(ReplayGainLoudness l, double c) {
+                final r = replayGainLevels(
+                  mode: 'track',
+                  trackGain: gain,
+                  trackPeak: peak,
+                  loudness: l,
+                  preampDb: c,
+                  untaggedDb: -8,
+                  boostSupported: true,
+                  limiterSupported: limiter,
+                );
+                return (r!.cutDb, r.boostDb);
+              }
+
+              expect(
+                levels(ReplayGainLoudness.custom, custom),
+                levels(preset, 99),
+                reason: '$gain/$peak/$limiter/$preset',
+              );
+            }
+          }
+        }
+      }
+    });
+
+    test('without limiting the rule is the old one with the wider clamp', () {
+      // Offsets up to +8 with no limiter (or at most +4): ceiling-capped.
+      for (final gain in <double?>[null, -20, -6, 0, 2.5, 8, 14.4]) {
+        for (final peak in <double?>[null, 0.05, 0.5, 0.95, 1, 1.5, 4]) {
+          for (final preamp in <double>[-8, -3, 0, 4, 6, 7, 8, 9.5]) {
+            for (final untagged in <double>[-15, -8, 0]) {
+              final clamped = preamp.clamp(-6.0, 8.0);
+              final oldCut = oldReplayGainDb(
+                gain: gain,
+                peak: peak,
+                preamp: clamped.clamp(-6.0, 6.0),
+                untagged: untagged,
+              );
+              // Cut agrees with the old rule wherever the old clamp agrees.
+              if (clamped <= 6) {
+                expect(
+                  db(
+                    track: gain,
+                    trackPeak: peak,
+                    preamp: preamp,
+                    untagged: untagged,
+                  ),
+                  oldCut,
+                  reason: '$gain/$peak/$preamp/$untagged',
+                );
+              }
+              // Peak-capped boost, with and without a (disarmed) limiter.
+              final b = boost(
+                track: gain,
+                trackPeak: peak,
+                preamp: preamp,
+                untagged: untagged,
+              )!;
+              final validPeak = peak != null && peak > 0 && peak <= 4;
+              if (gain == null || !validPeak) {
+                expect(b, 0);
+              } else {
+                expect(b, lessThanOrEqualTo(math.max(0, ceilingOf(peak) - 1)));
+              }
+              if (preamp <= 4) {
+                expect(
+                  boost(
+                    track: gain,
+                    trackPeak: peak,
+                    preamp: preamp,
+                    untagged: untagged,
+                    limiter: true,
+                  ),
+                  b,
+                  reason: 'a limiter changes nothing at offsets up to +4',
+                );
+              }
+            }
+          }
+        }
+      }
+    });
+
+    test('oracle grid: preset x tagged x peak x limiter x gain', () {
+      double? ceilingFor(double? peak) =>
+          peak != null && peak > 0 && peak <= 4 ? ceilingOf(peak) : null;
+      for (final loudness in ReplayGainLoudness.values) {
+        for (final custom
+            in loudness == ReplayGainLoudness.custom
+                ? <double>[-9, -2, 3, 5.5, 8, 11]
+                : <double>[0]) {
+          for (final limiter in [false, true]) {
+            for (final peak in <double?>[null, 1.0, 0.5, 0.01, 1.3]) {
+              for (final gain in <double?>[null, -14, -4, 0, 1.5, 6, 18]) {
+                final offset = switch (loudness) {
+                  ReplayGainLoudness.quiet => 0.0,
+                  ReplayGainLoudness.normal => 4.0,
+                  ReplayGainLoudness.loud => 7.0,
+                  ReplayGainLoudness.custom => custom.clamp(-6.0, 8.0),
+                };
+                final raw = (gain ?? -8) + offset;
+                final ceiling = gain == null ? null : ceilingFor(peak);
+                final cut = math.min(
+                  0.0,
+                  ceiling == null ? raw : math.min(raw, ceiling),
+                );
+                final limiting = limiter && offset > 4;
+                var expected = 0.0;
+                if (ceiling != null && cut == 0) {
+                  expected = math.max(
+                    0.0,
+                    math.min(
+                      12,
+                      limiting
+                          ? math.min(raw, ceiling + replayGainMaxLimitDb)
+                          : math.min(raw, ceiling - replayGainBoostMarginDb),
+                    ),
+                  );
+                }
+                final levels = replayGainLevels(
+                  mode: 'track',
+                  trackGain: gain,
+                  trackPeak: peak,
+                  loudness: loudness,
+                  preampDb: custom,
+                  untaggedDb: -8,
+                  boostSupported: true,
+                  limiterSupported: limiter,
+                )!;
+                final reason =
+                    '${loudness.name}/$custom limiter $limiter peak $peak '
+                    'gain $gain';
+                expect(levels.cutDb, closeTo(cut, 1e-9), reason: reason);
+                expect(levels.boostDb, closeTo(expected, 1e-9), reason: reason);
+                if (levels.boostDb > 0) expect(levels.cutDb, 0);
+                // A boost past the peak ceiling needs the limiter.
+                if (ceiling != null && !limiting) {
+                  expect(
+                    levels.boostDb,
+                    lessThanOrEqualTo(math.max(0, ceiling)),
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+    });
   });
 
   group('replayGainBoostPlatformSupported', () {
@@ -502,10 +817,12 @@ void main() {
     for (final mode in ['track', 'album']) {
       for (final gain in [-20.0, -6.0, -0.5, 0.0, 0.5, 3.0, 9.0, 14.4]) {
         for (final peak in [null, 0.05, 0.3, 0.5, 0.9, 1.0, 1.5]) {
-          for (final preamp in [-6.0, 0.0, 6.0]) {
+          for (final preamp in [-6.0, 0.0, 6.0, 8.0]) {
             for (final untagged in [-8.0, 0.0]) {
               final levels = replayGainLevels(
+                limiterSupported: preamp > 4,
                 mode: mode,
+                loudness: ReplayGainLoudness.custom,
                 trackGain: mode == 'track' ? gain : null,
                 albumGain: mode == 'album' ? gain : null,
                 trackPeak: mode == 'track' ? peak : null,

@@ -113,7 +113,7 @@ for sid, (peak, gain, tag_peak) in songs.items():
     path = os.path.join(cache, sid + '.wav'); tone(path, peak)
     target.execute("INSERT OR REPLACE INTO songs (id, title, duration, content_type, suffix, replay_gain_track_gain, replay_gain_track_peak) VALUES (?,?,30,'audio/wav','wav',?,?)", (sid, sid, gain, tag_peak))
     target.execute("INSERT OR REPLACE INTO cached_tracks (song_id,file_path,file_size,format,last_accessed_at,cache_type,download_status) VALUES (?,?,?,?,?,'permanent','complete')", (sid, path, os.path.getsize(path), 'wav', int(time.time())))
-target.execute("UPDATE app_settings SET crossfade_enabled=?, crossfade_duration_seconds=3, gapless_enabled=1, scrobble_enabled=0, listen_brainz_scrobbling_enabled=0, replay_gain_mode='track', replay_gain_preamp=0", (crossfade,))
+target.execute("UPDATE app_settings SET crossfade_enabled=?, crossfade_duration_seconds=3, gapless_enabled=1, scrobble_enabled=0, listen_brainz_scrobbling_enabled=0, replay_gain_mode='track', replay_gain_loudness='custom', replay_gain_preamp=0", (crossfade,))
 disable_external_integrations(target)
 target.execute('DELETE FROM play_queue')
 target.commit(); target.close()
@@ -194,13 +194,13 @@ if [[ ",$SCENARIOS," == *,d1,* || ",$SCENARIOS," == *,d2,* || ",$SCENARIOS," == 
     # (+2 dB) was at or under qa when its hook ran, and 6 dB of pre-amp lifts it to 8 dB. qa's
     # tail must never see that.
     for delay in 0.55 0.80 0.86 0.91 0.96 1.01; do
-      post /v1/playback/replay-gain '{"mode":"track","preamp":0}'
+      post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":0}'
       play_queue '["rgboost-qa","rgboost-qb"]'; route; sleep 2; post /v1/playback/pause
       post /v1/playback/seek '{"positionMs":29000}'
       rec_start "d5-$delay"; post /v1/playback/play; sleep "$delay"
-      post /v1/playback/replay-gain '{"mode":"track","preamp":6}'; rec_stop 4
+      post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":6}'; rec_stop 4
     done
-    post /v1/playback/replay-gain '{"mode":"track","preamp":0}'
+    post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":0}'
   fi
   stop_app
 fi
@@ -233,7 +233,7 @@ PY
   done
   api POST /v1/presentation/onboarding/complete '{}' > /dev/null
   api POST /v1/playback/volume '{"value":1}' > /dev/null || true
-  post /v1/playback/replay-gain '{"mode":"track","preamp":0}'
+  post /v1/playback/replay-gain '{"mode":"track","loudness":"custom","preamp":0}'
   # st: fresh songs, still downloading at the join (the stream plays); st2: the same songs again,
   # now complete in the rolling cache (a file plays). The H->Q join uses the other pair of songs so
   # it is fresh in the first pass too.

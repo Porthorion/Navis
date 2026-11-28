@@ -413,6 +413,7 @@ void main() {
             boostAppliedDb: 6,
             boostGuarded: true,
             boostClipSamples: 2,
+            limitedFrames: 9,
           );
           await handler.replaceQueue(['song-0'], expandMatchFlows: false);
           await handler.refreshEqualizerState();
@@ -423,6 +424,7 @@ void main() {
           expect(boost['appliedDb'], 6);
           expect(boost['guarded'], isTrue);
           expect(boost['clipSamples'], 2);
+          expect(boost['limitedFrames'], 9);
         });
 
         test('without the EQ pipeline (a rebuild) nothing is sent', () async {
@@ -1720,6 +1722,7 @@ void main() {
           replayGainCurrentKey: 'source-7',
           replayGainAppliedDb: -10,
           boostClipSamples: 4,
+          limitedFrames: 11,
         );
         await handler.replaceQueue(ids(1), expandMatchFlows: false);
         await handler.refreshEqualizerState();
@@ -1729,6 +1732,7 @@ void main() {
         expect(status['currentKey'], 'source-7');
         expect(status['appliedDb'], -10);
         expect(status['clipSamples'], 4);
+        expect(status['limitedFrames'], 11);
       });
 
       test('the status has no stage block without the processor', () async {

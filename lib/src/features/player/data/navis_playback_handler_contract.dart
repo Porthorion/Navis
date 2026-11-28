@@ -72,6 +72,10 @@ abstract class NavisPlaybackHandler {
   /// (ReplayGain boost). Without one a song is only ever turned down.
   bool get replayGainBoostSupported => false;
 
+  /// Whether a confirmed peak limiter follows the boost stage. Only then may
+  /// Loud (and a Custom above +4) boost a song past its peak ceiling.
+  bool get replayGainLimiterSupported => false;
+
   /// Whether the backend applies ReplayGain on each song's own samples.
   bool get replayGainInPipeline => false;
   Stream<MediaItem?> get mediaItemStream;
@@ -292,6 +296,7 @@ class PlaybackRuntimeSettings {
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     required this.replayGainMode,
+    required this.replayGainLoudness,
     required this.replayGainPreamp,
     this.replayGainUntaggedDb = replayGainFallbackUntaggedDb,
     required this.playbackSpeed,
@@ -312,6 +317,7 @@ class PlaybackRuntimeSettings {
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       replayGainMode = 'smart',
+      replayGainLoudness = ReplayGainLoudness.normal,
       replayGainPreamp = 0.0,
       replayGainUntaggedDb = replayGainFallbackUntaggedDb,
       playbackSpeed = 1.0,
@@ -338,7 +344,11 @@ class PlaybackRuntimeSettings {
   /// ReplayGain mode: 'off', 'track', 'album' or 'smart'.
   final String replayGainMode;
 
-  /// ReplayGain pre-amp adjustment in dB (-6 to +6).
+  /// ReplayGain loudness preset: it sets the offset added to every song.
+  final ReplayGainLoudness replayGainLoudness;
+
+  /// The Custom offset in dB (-6 to +8); only read when [replayGainLoudness]
+  /// is custom.
   final double replayGainPreamp;
 
   /// Level in dB for songs without ReplayGain data: the user's fixed value,

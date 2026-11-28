@@ -139,7 +139,7 @@ class Run:
         self.wait(lambda: self.api('GET', '/v1/health')['catalog']['songs'] >= 5, 120, 1, 'the catalog sync')
         self.post('/v1/presentation/onboarding/complete')
         self.post('/v1/playback/volume', {'value': 0})
-        self.post('/v1/playback/replay-gain', {'mode': 'track', 'preamp': 0})
+        self.post('/v1/playback/replay-gain', {'mode': 'track', 'loudness': 'custom', 'preamp': 0})
 
     def restart(self, mutate_db=None):
         try:
