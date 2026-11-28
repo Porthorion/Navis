@@ -102,6 +102,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   bool get replayGainBoostSupported => false;
 
   @override
+  bool get replayGainLimiterSupported => false;
+
+  @override
   bool get replayGainInPipeline => false;
 
   @override

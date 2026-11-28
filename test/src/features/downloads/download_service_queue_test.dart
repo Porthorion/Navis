@@ -235,8 +235,11 @@ void main() {
     ]);
   }
 
-  Future<void> waitUntil(bool Function() condition) async {
-    for (var i = 0; i < 400 && !condition(); i++) {
+  Future<void> waitUntil(
+    bool Function() condition, {
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    for (var i = 0; i < timeout.inMilliseconds ~/ 5 && !condition(); i++) {
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
     expect(condition(), isTrue, reason: 'condition not reached in time');
@@ -699,10 +702,12 @@ void main() {
   }, skip: !sqliteAvailable);
 
   group('playback loading', () {
+    // The limit must outlast every "still held" check even on a loaded
+    // machine; "released" checks wait for the limit with a generous budget.
+    const holdLimit = Duration(seconds: 1);
+    const releaseBudget = Duration(seconds: 15);
     Future<DownloadService> startedWithSong() async {
-      final service = buildService(
-        playbackHoldLimit: const Duration(milliseconds: 100),
-      );
+      final service = buildService(playbackHoldLimit: holdLimit);
       await service.start();
       await addSongs(1);
       return service;
@@ -718,8 +723,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect(server.requests, isEmpty);
         service.yieldToPlayback(loading: false);
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        expect(server.requests, hasLength(1));
+        await waitUntil(() => server.requests.length == 1);
       },
       skip: !sqliteAvailable,
     );
@@ -745,9 +749,11 @@ void main() {
         await service.enqueueSong('song-0');
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect(server.requests, isEmpty);
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-        expect(service.holdingForPlayback, isFalse);
-        expect(server.requests, hasLength(1));
+        await waitUntil(
+          () => !service.holdingForPlayback,
+          timeout: releaseBudget,
+        );
+        await waitUntil(() => server.requests.length == 1);
       },
       skip: !sqliteAvailable,
     );
@@ -831,9 +837,11 @@ void main() {
         expect(service.holdingForPlayback, isTrue);
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect(server.requests, isEmpty);
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-        expect(service.holdingForPlayback, isFalse);
-        expect(server.requests, hasLength(1));
+        await waitUntil(
+          () => !service.holdingForPlayback,
+          timeout: releaseBudget,
+        );
+        await waitUntil(() => server.requests.length == 1);
       },
       skip: !sqliteAvailable,
     );

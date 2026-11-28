@@ -187,7 +187,9 @@ question.
   only to the range 0..12.
 - The EQ's `autoHeadroom` only offsets the EQ's own boost. It does not protect
   the stage after it. The tap has no limiter, and none is added. The output is
-  float, so a sample above 1.0 clips downstream.
+  float, so a sample above 1.0 clips downstream. (Superseded by #846: the tap
+  now has a peak limiter, armed only above the peak ceiling; see
+  `docs/features/equalizer.md`.)
 - **Clip counter.** After the gain, count `|x| > 1.0` into `boostClipSamples`,
   reusing Android's state key. It is a counter only. With the margin it stays
   at 0 for tagged songs. A lossy file can overshoot its tag, which is why the

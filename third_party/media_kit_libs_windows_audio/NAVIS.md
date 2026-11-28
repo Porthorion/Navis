@@ -7,7 +7,7 @@ by the equalizer. The former zhongfly pin captured only mpv/FFmpeg sources;
 our build captures all statically linked playback dependencies.
 
 - `LIBMPV`, `LIBMPV_URLS` and `LIBMPV_SHA256` pin
-  `libmpv-windows-x86_64-lgpl-20261013.zip`, built by
+  `libmpv-windows-x86_64-lgpl-20261128.zip`, built by
   `tool/libmpv/Dockerfile.windows` and `build_windows_lgpl.sh`.
 - mpv `eb0ee1031590b3f369a5b783e8aa91eeaaded7e6` uses `gpl=false`;
   FFmpeg `151814650` uses Schannel TLS and no GPL/nonfree options. Both

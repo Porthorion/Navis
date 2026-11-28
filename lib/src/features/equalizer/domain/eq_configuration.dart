@@ -379,6 +379,7 @@ class EqApplicationState {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.limitedFrames = 0,
     this.boostGuarded = false,
     this.replayGainCutDb,
     this.replayGainNextCutDb,
@@ -425,6 +426,9 @@ class EqApplicationState {
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;
+
+  /// Frames the native peak limiter turned down (Android, iOS).
+  final int limitedFrames;
   final bool boostGuarded;
 
   /// The iOS cut in each item's audio mix (I26): the volume native assigned to
@@ -506,6 +510,7 @@ class EqApplicationState {
     'boostAppliedDb': boostAppliedDb,
     'boostGuarded': boostGuarded,
     'boostClipSamples': boostClipSamples,
+    'limitedFrames': limitedFrames,
     'replayGainCutDb': replayGainCutDb,
     'replayGainNextCutDb': replayGainNextCutDb,
     'processedFrames': processedFrames,

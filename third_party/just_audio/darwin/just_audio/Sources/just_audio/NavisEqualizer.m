@@ -373,6 +373,7 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     result[@"boostAppliedDb"] = @(live && fs.boostAppliedGain > 1.0f ? 20 * log10((double)fs.boostAppliedGain) : 0.0);
     result[@"boostGuarded"] = @(_boostGuarded);
     result[@"boostClipSamples"] = @((long long)fs.boostClipSamples);
+    result[@"limitedFrames"] = @((long long)fs.limitedFrames);
     result[@"transitionGapsMs"] = [_gapsMs copy];
     result[@"replayGainCutDb"] = [self cutDbOfItem:self.currentItemProvider ? self.currentItemProvider() : nil];
     result[@"replayGainNextCutDb"] = [self cutDbOfItem:self.nextItemProvider ? self.nextItemProvider() : nil];

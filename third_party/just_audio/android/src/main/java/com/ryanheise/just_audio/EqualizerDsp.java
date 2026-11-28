@@ -235,4 +235,78 @@ final class EqualizerDsp {
         }
         return Math.max(best, response(filters, Math.exp((left + right) / 2), sampleRate));
     }
+
+    /**
+     * The peak limiter behind the ReplayGain boost (#846): a port of NavisBoost.c's limiter, whose
+     * algorithm and test vectors it must keep. Zero latency: a backward attack ramp inside each
+     * block, then a 100 ms release on the deficit 1 - gain (a float gain alone stalls just below 1).
+     * Interleaved samples in full-scale units, channels linked, in place, no allocation.
+     * Armed means the boost is above 1; an unarmed limiter still runs while its gain recovers.
+     */
+    static final class Limiter {
+        /** -1 dBFS, like Dart's replayGainBoostMarginDb. */
+        static final float CEILING = 0.89125094f;
+        /** A frame counts as limited below this gain (0.001 dB), not on rounding dust. */
+        static final float COUNT_BELOW = 0.9999f;
+        private final float attackStep, releaseCoef;
+        private final float[] need; // preallocated scratch: one gain per frame of a chunk
+        private float gain = 1, deficit;
+
+        Limiter(int sampleRate, int capacity) {
+            attackStep = 1f / Math.max(1, Math.round(sampleRate * 0.002f));
+            releaseCoef = 1f - (float) Math.exp(-1f / (sampleRate * 0.1f));
+            need = new float[Math.max(1, capacity)];
+        }
+
+        float gain() { return gain; }
+
+        void reset() {
+            gain = 1;
+            deficit = 0;
+        }
+
+        /** [armed]: the boost gain was above 1 at some frame of the block; unarmed never attacks, it only releases. Returns the frames limited. [x] holds [frames] frames of [channels] interleaved samples. */
+        long process(float[] x, int channels, int frames, boolean armed) {
+            if (frames <= 0 || (!armed && gain >= 1)) return 0;
+            long limited = 0;
+            for (int off = 0; off < frames; off += need.length) {
+                limited += chunk(x, channels, off, Math.min(frames - off, need.length), armed);
+            }
+            return limited;
+        }
+
+        private long chunk(float[] x, int channels, int off, int n, boolean armed) {
+            float[] g = need;
+            boolean over = false;
+            for (int i = 0; i < n; i++) {
+                float peak = 0;
+                for (int c = 0; c < channels && armed; c++) { // unarmed: no need, the limiter only releases
+                    float v = Math.abs(x[(off + i) * channels + c]);
+                    if (v > peak && v <= Float.MAX_VALUE) peak = v; // NaN and infinity never count
+                }
+                over |= peak > CEILING;
+                g[i] = peak > CEILING ? CEILING / peak : 1f;
+            }
+            if (!over && gain >= 1) return 0; // bit-exact
+            for (int i = n - 2; i >= 0; i--) {
+                float a = g[i + 1] + attackStep;
+                if (a < g[i]) g[i] = a;
+            }
+            float d = deficit, keep = 1f - releaseCoef;
+            long limited = 0;
+            for (int i = 0; i < n; i++) {
+                d *= keep;
+                if (1f - d > g[i]) d = 1f - g[i];
+                g[i] = 1f - d;
+                if (g[i] < COUNT_BELOW) limited++;
+            }
+            for (int i = 0; i < n; i++) {
+                for (int c = 0; c < channels; c++) x[(off + i) * channels + c] *= g[i];
+            }
+            if (d < 1e-6f) d = 0;
+            deficit = d;
+            gain = 1f - d;
+            return limited;
+        }
+    }
 }

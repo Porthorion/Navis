@@ -114,7 +114,7 @@ ffmpeg_flags=(
   --enable-demuxer=mp3,aac,flac,mov,ogg,matroska,wav,hls,mpegts,ac3,eac3,aiff,ape,asf,au,concat,data
   --enable-parser=mpegaudio,aac,aac_latm,flac,opus,vorbis,ac3
   --enable-protocol=file,http,https,tcp,tls,udp,rtp,crypto,data,concat,concatf,hls,httpproxy
-  --enable-filter=volume,biquad,equalizer,atempo,aformat,aresample,anull,anullsrc,abuffer,abuffersink,asplit,amix,pan,atrim,asetpts,afade
+  --enable-filter=volume,biquad,equalizer,atempo,aformat,aresample,anull,anullsrc,abuffer,abuffersink,asplit,amix,pan,atrim,asetpts,afade,alimiter
   --extra-cflags="-I$PREFIX/include" --extra-ldflags="-L$PREFIX/lib -static -static-libgcc -static-libstdc++"
 )
 ./configure "${ffmpeg_flags[@]}"
@@ -122,7 +122,7 @@ printf '%q ' "${ffmpeg_flags[@]}" > /out/FFMPEG-CONFIGURE.txt
 printf '\n' >> /out/FFMPEG-CONFIGURE.txt
 make -j"$JOBS" && make install
 cp config_components.h /out/FFMPEG-COMPONENTS.txt
-for filter in VOLUME EQUALIZER BIQUAD ATEMPO ARESAMPLE AFORMAT; do
+for filter in VOLUME EQUALIZER BIQUAD ATEMPO ARESAMPLE AFORMAT ALIMITER; do
   grep -Fx "#define CONFIG_${filter}_FILTER 1" config_components.h
   "$TARGET-nm" "$PREFIX/lib/libavfilter.a" | grep "ff_af_${filter,,}$" > /dev/null
 done
@@ -254,7 +254,7 @@ done < /out/IMPORTED-DLLS.txt
   echo; echo 'Windows ABI smoke (Wine, null audio output):'; cat /out/WINDOWS-SMOKE.txt
   echo; echo 'libplacebo commit and recursive submodules:'
   cat /out/libplacebo-commit.txt /out/libplacebo-submodules.txt
-  echo; echo 'Verified: no --enable-gpl/--enable-nonfree strings; mpv gpl=false; compiled volume/equalizer/biquad/atempo/aresample/aformat filters.'
+  echo; echo 'Verified: no --enable-gpl/--enable-nonfree strings; mpv gpl=false; compiled volume/equalizer/biquad/atempo/aresample/aformat/alimiter filters.'
 } > /out/BUILDINFO.txt
 cp /Dockerfile.windows /out/Dockerfile.windows
 cp /build.sh /out/build_windows_lgpl.sh

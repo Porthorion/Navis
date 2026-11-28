@@ -72,12 +72,25 @@ void main() {
   test('a standalone highlight is tagged for two minor releases', () {
     expect(standaloneSetupHighlightsFor('1.5.1'), isEmpty);
     expect(standaloneSetupHighlightsFor('1.5.2'), {SetupHighlight.genresPage});
+    expect(standaloneSetupHighlightsFor('1.5.3'), {
+      SetupHighlight.genresPage,
+      SetupHighlight.loudnessPresets,
+    });
     expect(standaloneSetupHighlightsFor('1.6.9+10609'), {
       SetupHighlight.genresPage,
+      SetupHighlight.loudnessPresets,
     });
+    // genresPage (1.5.2) expires first, loudnessPresets (1.5.3) at 1.7.0.
     expect(standaloneSetupHighlightsFor('1.7.0'), isEmpty);
     expect(standaloneSetupHighlightsFor('2.0.0'), isEmpty);
     expect(standaloneSetupHighlightsFor('invalid'), isEmpty);
+  });
+
+  test('each highlight names the Settings page that shows it', () {
+    expect(SetupHighlight.genresPage.page, SetupHighlightPage.interface);
+    expect(SetupHighlight.loudnessPresets.page, SetupHighlightPage.playback);
+    expect(SetupHighlight.cornerStyle.page, SetupHighlightPage.themes);
+    expect(SetupHighlight.colorStyle.page, SetupHighlightPage.themes);
   });
 
   test('shared semver helpers compare numeric versions and build suffixes', () {

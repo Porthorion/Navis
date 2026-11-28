@@ -369,6 +369,9 @@ abstract class _DelegatingNavisPlaybackHandler
   bool get replayGainBoostSupported => _delegate.replayGainBoostSupported;
 
   @override
+  bool get replayGainLimiterSupported => _delegate.replayGainLimiterSupported;
+
+  @override
   bool get replayGainInPipeline => _delegate.replayGainInPipeline;
 
   @override

@@ -75,7 +75,7 @@ configuration/component lists and the imported-DLL inventory. FFmpeg keeps
 native audio codecs, MP4/Ogg/Matroska/WAV demuxers, HLS/MPEG-TS, ICY HTTP,
 Schannel HTTPS and encrypted HLS. No GPL/nonfree codecs or video hardware
 backends are enabled. The app's EQ chain requires FFmpeg `volume` and
-`biquad`; tempo uses mpv's internal `scaletempo`. `equalizer`, `atempo`,
+`biquad`; tempo uses mpv's internal `scaletempo`. `equalizer`, `atempo`, `alimiter`,
 format conversion and resampling are also retained. The recipe verifies
 compiled filters, mpv `gpl=false`, licence configuration strings, and a
 system-DLL allowlist; it links winpthreads/libgcc/libstdc++ statically.
@@ -103,7 +103,7 @@ Linux and Windows (`eb0ee1031590b3f369a5b783e8aa91eeaaded7e6` and `151814650`)
 and the same static libass, libplacebo (with submodules), FreeType, FriBidi and
 HarfBuzz versions and source digests as Windows. FFmpeg keeps the Windows audio
 component set (native decoders, MP4/Ogg/Matroska/WAV demuxers, HLS/MPEG-TS, ICY
-HTTP, filters `volume`, `biquad`, `equalizer`, `atempo`, `aresample`, format
+HTTP, filters `volume`, `biquad`, `equalizer`, `atempo`, `alimiter`, `aresample`, format
 conversion) but uses Apple's SecureTransport for TLS, so HTTPS streams are
 verified against the macOS system trust store with no bundled CA file or TLS
 library. mpv is `-Dgpl=false`, libmpv only, CoreAudio output, no video or

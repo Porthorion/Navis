@@ -111,7 +111,7 @@ FFMPEG_FLAGS_COMMON=(
   --enable-demuxer=mp3,aac,flac,mov,ogg,matroska,wav,hls,mpegts,ac3,eac3,aiff,ape,asf,au,concat,data
   --enable-parser=mpegaudio,aac,aac_latm,flac,opus,vorbis,ac3
   --enable-protocol=file,http,https,tcp,tls,udp,rtp,crypto,data,concat,concatf,hls,httpproxy
-  --enable-filter=volume,biquad,equalizer,atempo,aformat,aresample,anull,anullsrc,abuffer,abuffersink,asplit,amix,pan,atrim,asetpts,afade
+  --enable-filter=volume,biquad,equalizer,atempo,aformat,aresample,anull,anullsrc,abuffer,abuffersink,asplit,amix,pan,atrim,asetpts,afade,alimiter
 )
 
 build_arch() {
@@ -203,7 +203,7 @@ CROSS
   grep -Fx '#define CONFIG_SECURETRANSPORT 1' config.h >> "$STEPS" 2>&1
   grep -Fx '#define CONFIG_GPL 0' config.h >> "$STEPS" 2>&1
   grep -Fx '#define CONFIG_NONFREE 0' config.h >> "$STEPS" 2>&1
-  for filter in VOLUME EQUALIZER BIQUAD ATEMPO ARESAMPLE AFORMAT; do
+  for filter in VOLUME EQUALIZER BIQUAD ATEMPO ARESAMPLE AFORMAT ALIMITER; do
     grep -Fx "#define CONFIG_${filter}_FILTER 1" config_components.h >> "$STEPS" 2>&1
     nm "$prefix/lib/libavfilter.a" 2> /dev/null | grep -i "ff_af_$(echo "$filter" | tr 'A-Z' 'a-z')\$" >> "$STEPS" 2>&1
   done
@@ -446,7 +446,7 @@ mkdir -p "$OUT/patches" && cp "$PATCH_DIR"/*.patch "$OUT/patches/"
   echo; echo 'Deployment targets:'; cat "$OUT/DEPLOYMENT-TARGETS.txt"
   echo; echo 'Native smoke (null audio output):'; cat "$OUT/MACOS-SMOKE.txt"
   echo; echo 'libplacebo commit and recursive submodules:'; cat "$OUT/libplacebo-commit.txt" "$OUT/libplacebo-submodules.txt"
-  echo; echo 'Verified: no --enable-gpl/--enable-nonfree strings; mpv gpl=false; FFmpeg LGPL string and securetransport present; compiled volume/equalizer/biquad/atempo/aresample/aformat filters; only Apple system libraries linked; universal arm64+x86_64.'
+  echo; echo 'Verified: no --enable-gpl/--enable-nonfree strings; mpv gpl=false; FFmpeg LGPL string and securetransport present; compiled volume/equalizer/biquad/atempo/aresample/aformat/alimiter filters; only Apple system libraries linked; universal arm64+x86_64.'
 } > "$OUT/BUILDINFO.txt"
 rm -f "$OUT/libplacebo-commit.txt" "$OUT/libplacebo-submodules.txt"
 if [[ -n "${HOME:-}" && "$HOME" != / ]] && grep -lF -- "$HOME" "$OUT"/*.txt; then

@@ -68,6 +68,8 @@ typedef struct {
     /// the samples beyond full scale that a gain above 1 produced (tap-wide, counted only).
     float boostAppliedGain;
     uint64_t boostClipSamples;
+    /// Frames the boost's peak limiter reduced (#846; tap-wide, counted only).
+    uint64_t limitedFrames;
     /// The slot that processed the last audio block (before any: the latest
     /// prepared one). Valid when `hasStream` / `hasPitch`.
     bool hasStream, hasPitch;

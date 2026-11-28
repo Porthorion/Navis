@@ -144,7 +144,7 @@ void main() {
         expect(license.text, '$notice\n\n$lgpl');
         expect(license.text, contains('support@porthorion.com'));
         expect(license.text, contains('can be replaced'));
-        expect(license.text, contains('libmpv-windows-x86_64-lgpl-20261013'));
+        expect(license.text, contains('libmpv-windows-x86_64-lgpl-20261128'));
         expect(license.text, contains('libmpv-linux-x86_64-lgpl-20261007'));
         expect(license.text, isNot(contains('Mbed TLS')));
       },

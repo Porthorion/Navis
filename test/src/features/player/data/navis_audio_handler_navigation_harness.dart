@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:dio/dio.dart';
 import 'package:mocktail/mocktail.dart';
@@ -2061,6 +2062,7 @@ createHandler(
       crossfadeDurationSeconds: 5,
       crossfadeType: readCrossfadeType?.call() ?? crossfadeType,
       replayGainMode: readReplayGainMode?.call() ?? replayGainMode,
+      replayGainLoudness: ReplayGainLoudness.custom,
       replayGainPreamp: 0,
       replayGainUntaggedDb:
           readReplayGainUntaggedDb?.call() ?? replayGainUntaggedDb,

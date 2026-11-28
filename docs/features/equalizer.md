@@ -154,10 +154,14 @@ song event. A drop applies at once, a rise waits 500 ms after a song event, so a
 head can be under-boosted for about 0.5 s but its tail is never over-boosted. The
 target reaches the tap as one atomic gain; a slot snaps to it on its first block and
 on a reset (StartOfStream or a flush), else it ramps. Blocks that pass unchanged (no
-slot, another render thread in the slot) get no boost. The tap has no limiter: the
-1 dB margin under the tagged peak is Dart's, and samples beyond full scale after the
-gain are only counted. State adds `boostRequestedDb`, `boostAppliedDb` (the gain the
-last block ended on), `boostGuarded` and `boostClipSamples` (0 in a healthy run).
+slot, another render thread in the slot) get no boost. After the gain a zero-latency
+look-ahead peak limiter (`NavisLimiter`, ceiling -1 dBFS, #846) is armed only for a block
+whose gain is above 1, so the Loud ReplayGain preset can boost past a song's peak ceiling
+without clipping; at Normal and Quiet the 1 dB margin under the tagged peak is Dart's
+and the limiter stays idle. Samples beyond full scale after the gain are still counted.
+State adds `boostRequestedDb`, `boostAppliedDb` (the gain the last block ended on),
+`boostGuarded`, `boostClipSamples` (0 in a healthy run at Normal) and `limitedFrames`
+(frames the limiter reduced).
 Without the tap (after the EQ pipeline was rebuilt away) the capability is false and
 nothing is sent.
 The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
@@ -350,7 +354,10 @@ limiter and does not promise protection against every transient.
 ReplayGain, volume, mute, ducking, and crossfade deck gains remain separate.
 The Android processor also applies ReplayGain (one signed level per queue entry,
 cuts and boosts), after the EQ bank and outside its preamp and automatic
-headroom, so quiet songs are turned up with the EQ off or on. The iOS tap does the same ([iOS](#ios)).
+headroom, so quiet songs are turned up with the EQ off or on. A peak limiter at -1 dBFS
+(`EqualizerDsp.Limiter`, the same algorithm as the iOS tap) follows the boost stage and is
+armed only while a boost exceeds the song's peak ceiling (the Loud preset); it reports
+`limitedFrames`. It is separate from the EQ's own automatic headroom, which is not a limiter. The iOS tap does the same ([iOS](#ios)).
 The level switches to the next song at the first flush after Media3 reports the new
 stream, or, when Media3 reports it late (opus: the new song's first decoded buffer is
 the one that crosses the old song's last input), after the renderer hands that first
