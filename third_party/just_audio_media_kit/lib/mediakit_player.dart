@@ -744,10 +744,16 @@ class MediaKitPlayer extends AudioPlayerPlatform {
           : null);
 
   /// The `on_load` hook's write of [replayGainFiltersForLoad]; false when mpv
-  /// rejected it (see [_writeAf]).
+  /// rejected it (see [_writeAf]), and then the level stays at what mpv holds.
   @visibleForTesting
-  bool writeLoadChain(String path, {int? index}) =>
-      _writeAf(_loadLevel(path, index));
+  bool writeLoadChain(String path, {int? index}) {
+    final before = _levels.current;
+    if (_writeAf(_loadLevel(path, index))) return true;
+    // mpv keeps the chain of [before]; the level must say so, or a live step
+    // would `af-command` a boost into a chain without a limiter.
+    _levels.current = before;
+    return false;
+  }
 
   /// Writes the chain for [db] with a synchronous call. A rejected chain with
   /// the limiter is written once more at no boost and without it (a rejected

@@ -916,6 +916,27 @@ void main() {
       },
     );
 
+    test(
+      'a load whose af writes all fail leaves the old level in place',
+      () async {
+        var afOk = true;
+        final mpv = await newAdapter(
+          levels: const {_a: -3, _b: 6},
+          limiterSupported: true,
+          accept: (name, _) => afOk || name != 'af',
+        );
+        expect(mpv.writeLoadChain(_a), isTrue);
+        afOk = false;
+        // mpv keeps the -3 dB chain without a limiter for the +6 dB file.
+        expect(mpv.writeLoadChain(_b), isFalse);
+        sync.clear();
+        await mpv.setReplayGainLevels(
+          SetReplayGainLevelsRequest(byUri: const {_b: 7}, live: true),
+        );
+        expect(sync.where((l) => l.startsWith('af-command')), isEmpty);
+      },
+    );
+
     test('a rejected edit write is retried without the limiter', () async {
       final mpv = await newAdapter(
         equalizer: _eq(),

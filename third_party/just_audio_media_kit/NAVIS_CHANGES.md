@@ -56,7 +56,7 @@ rejected `af` write that carried the limiter (hook, live push or edit) is
 written once more at no boost (min(gain, 0 dB)) and without it; only when that
 lands is the limiter turned off for that player, for good, and every later
 boost it plays is clamped to 0 dB. A retry that fails too was not the limiter:
-the limiter stays on, and a live push whose `af` writes both failed leaves the
+the limiter stays on, and a live push or `on_load` write whose `af` writes both failed leaves the
 playing level at what mpv still holds, so the next push is judged against the
 chain mpv really runs (`MediaKitPlayer.limiterSupported`,
 `JustAudioMediaKit.replayGainLimiterSupported`).
