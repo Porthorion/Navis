@@ -63,15 +63,15 @@ endfunction()
 
 # Navis-owned audio-only LGPL-2.1+ cross-build; mpv and FFmpeg match Linux.
 # All static media dependency sources, recipe and BUILDINFO accompany the ZIP.
-# Includes FFmpeg volume/biquad/equalizer and mpv's internal scaletempo.
+# Includes FFmpeg volume/biquad/equalizer/alimiter and mpv's internal scaletempo.
 # See tool/libmpv/README.md and docs/release/release-windows.md to rebuild/update.
-set(LIBMPV "libmpv-windows-x86_64-lgpl-20261013.zip")
+set(LIBMPV "libmpv-windows-x86_64-lgpl-20261128.zip")
 
 # We own this build: only the per-build R2 folder supplies the archive.
 set(LIBMPV_URLS
-  "https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261013/${LIBMPV}"
+  "https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261128/${LIBMPV}"
 )
-set(LIBMPV_SHA256 "3f896d2505c5475de0a74ca5cbfd0cde6fa46c368f9eca4acb22bdea086247d8")
+set(LIBMPV_SHA256 "e49f3ee9bbbc2d22bfb41744697dce60a6020f894e62e445ec952d6e43561da4")
 
 # Download location of the libmpv archive.
 set(LIBMPV_ARCHIVE "${CMAKE_BINARY_DIR}/${LIBMPV}")
