@@ -1195,6 +1195,8 @@ void main() {
         'db': -4.0,
         'cutDb': -4.0,
         'boostDb': 0.0,
+        'offsetDb': 0.0,
+        'limited': false,
       });
     });
 

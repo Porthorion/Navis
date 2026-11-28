@@ -4291,7 +4291,7 @@ class AppSettingsTableData extends DataClass
   /// Custom uses [replayGainPreamp]. Existing profiles move to 'normal'.
   final String replayGainLoudness;
 
-  /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
+  /// ReplayGain pre-amp in dB, the Custom loudness offset (-6.0 to +8.0). Default 0.
   final double replayGainPreamp;
 
   /// Level in dB (-15..0) for songs without ReplayGain data. Null = Automatic,
