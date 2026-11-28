@@ -106,6 +106,7 @@ void main() {
           updateChannel: 'stable',
           syncIntervalMinutes: 60,
           replayGainMode: 'off',
+          replayGainLoudness: 'normal',
           replayGainPreamp: 0,
         );
         final row = (await dao.getSettings())!;
@@ -544,6 +545,7 @@ void main() {
         useLrclib: true,
         legacyInstantMixEnabled: false,
         replayGainMode: 'off',
+        replayGainLoudness: 'normal',
         replayGainPreamp: 0,
         playbackSpeed: 1,
       );
@@ -606,6 +608,7 @@ void main() {
         useLrclib: true,
         legacyInstantMixEnabled: false,
         replayGainMode: 'off',
+        replayGainLoudness: 'normal',
         replayGainPreamp: 0,
         playbackSpeed: 1,
       );
@@ -862,6 +865,7 @@ void main() {
         useLrclib: useLrclib,
         legacyInstantMixEnabled: legacyInstantMixEnabled,
         replayGainMode: 'off',
+        replayGainLoudness: 'normal',
         replayGainPreamp: 0,
         listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
       );

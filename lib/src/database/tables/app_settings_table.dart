@@ -290,7 +290,7 @@ class AppSettingsTable extends Table {
   TextColumn get replayGainLoudness =>
       text().withDefault(const Constant('normal'))();
 
-  /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
+  /// ReplayGain pre-amp in dB, the Custom loudness offset (-6.0 to +8.0). Default 0.
   RealColumn get replayGainPreamp => real().withDefault(const Constant(0))();
 
   /// Level in dB (-15..0) for songs without ReplayGain data. Null = Automatic,

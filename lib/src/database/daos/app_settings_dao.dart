@@ -157,7 +157,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool? useLrclib,
     bool? legacyInstantMixEnabled,
     required String replayGainMode,
-    String replayGainLoudness = 'normal',
+    required String replayGainLoudness,
     required double replayGainPreamp,
     double? replayGainUntaggedDb,
     double? playbackSpeed,

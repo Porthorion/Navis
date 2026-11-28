@@ -3616,6 +3616,7 @@ void main() {
         useLrclib: true,
         legacyInstantMixEnabled: false,
         replayGainMode: 'off',
+        replayGainLoudness: 'normal',
         replayGainPreamp: 0,
         desktopPlaybackVolume: 0.37,
         desktopLastAudibleVolume: 0.37,
