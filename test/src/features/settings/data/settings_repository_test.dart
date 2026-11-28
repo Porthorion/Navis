@@ -52,6 +52,31 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'loudness preset roundtrips and an unknown value reads as Normal',
+      () async {
+        final initial = await repository.getSettings();
+        expect(initial.replayGainLoudness, ReplayGainLoudness.normal);
+        await repository.saveSettings(
+          initial.copyWith(
+            replayGainLoudness: ReplayGainLoudness.custom,
+            replayGainPreamp: 3.5,
+          ),
+        );
+        final saved = await repository.getSettings();
+        expect(saved.replayGainLoudness, ReplayGainLoudness.custom);
+        expect(saved.replayGainPreamp, 3.5);
+        await database.customStatement(
+          "UPDATE app_settings SET replay_gain_loudness = 'louder'",
+        );
+        expect(
+          (await repository.getSettings()).replayGainLoudness,
+          ReplayGainLoudness.normal,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
     group('setPreferredMixMode', () {
       Future<({bool serverMix, bool lastFm})> mode() async {
         final row = await repository.getSettings();

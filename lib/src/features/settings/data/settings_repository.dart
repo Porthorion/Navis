@@ -70,6 +70,7 @@ class SettingsRepository {
       syncIntervalMinutes: settings.syncIntervalMinutes,
       backgroundSyncUnmeteredOnly: settings.backgroundSyncUnmeteredOnly,
       replayGainMode: settings.replayGainMode,
+      replayGainLoudness: settings.replayGainLoudness.name,
       replayGainPreamp: settings.replayGainPreamp,
       replayGainUntaggedDb: settings.replayGainUntaggedDb,
       // Playback adjustments have a dedicated writer; stale screen snapshots
@@ -452,6 +453,7 @@ class SettingsRepository {
       useLrclib: row.useLrclib,
       legacyInstantMixEnabled: row.legacyInstantMixEnabled,
       replayGainMode: row.replayGainMode,
+      replayGainLoudness: ReplayGainLoudness.parse(row.replayGainLoudness),
       replayGainPreamp: row.replayGainPreamp,
       replayGainUntaggedDb: row.replayGainUntaggedDb,
       playbackSpeed: row.playbackSpeed,

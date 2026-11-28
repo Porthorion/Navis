@@ -255,6 +255,87 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('118 to 119 ReplayGain loudness preset', () {
+    Future<File> fixture118(
+      double preamp,
+      String mode, {
+      bool noRow = false,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis_v119_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.customStatement(
+        'UPDATE app_settings SET replay_gain_preamp = $preamp, '
+        "replay_gain_mode = '$mode'",
+      );
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN replay_gain_loudness',
+        );
+        if (noRow) raw.execute('DELETE FROM app_settings');
+        raw.execute('PRAGMA user_version = 118');
+      } finally {
+        raw.close();
+      }
+      return file;
+    }
+
+    test('the schema version is at least 119', () {
+      expect(NavisDatabase.currentSchemaVersion, greaterThanOrEqualTo(119));
+    });
+
+    test('fresh profiles start on Normal', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(settings.replayGainLoudness, 'normal');
+      expect(settings.replayGainPreamp, 0);
+    });
+
+    for (final (preamp, mode) in [
+      (-2.5, 'off'),
+      (0.0, 'album'),
+      (5.0, 'smart'),
+    ]) {
+      test('moves a pre-amp of $preamp (mode $mode) to Normal', () async {
+        final db = createTestDatabase(file: await fixture118(preamp, mode));
+        addTearDown(db.close);
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.replayGainLoudness, 'normal');
+        expect(settings.replayGainPreamp, preamp);
+        expect(settings.replayGainMode, mode);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+        // Idempotent: running the step again keeps a later user choice.
+        await db.customStatement(
+          "UPDATE app_settings SET replay_gain_loudness = 'loud'",
+        );
+        await db.from118To119(Migrator(db));
+        expect(
+          (await db.appSettingsDao.getSettings())!.replayGainLoudness,
+          'loud',
+        );
+      });
+    }
+
+    test('a settings row created after the upgrade starts on Normal', () async {
+      final file = await fixture118(0, 'smart', noRow: true);
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      expect(
+        (await db.appSettingsDao.getSettings())!.replayGainLoudness,
+        'normal',
+      );
+    });
+  }, skip: !sqliteAvailable);
+
   group('117 to 118 queue end', () {
     Future<File> fixture117() async {
       final directory = await Directory.systemTemp.createTemp('navis_v118_');
@@ -727,8 +808,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 118', () {
-      expect(NavisDatabase.currentSchemaVersion, 118);
+    test('the schema version is at least 118', () {
+      expect(NavisDatabase.currentSchemaVersion, greaterThanOrEqualTo(118));
     });
 
     test('fresh profiles seed the Auto defaults', () async {

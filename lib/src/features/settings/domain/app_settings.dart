@@ -12,6 +12,18 @@ import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
+/// ReplayGain loudness preset; stored by [name]. An unknown stored value
+/// (a profile written by a newer build) reads as [normal].
+enum ReplayGainLoudness {
+  quiet,
+  normal,
+  loud,
+  custom;
+
+  static ReplayGainLoudness parse(String? value) =>
+      values.firstWhere((preset) => preset.name == value, orElse: () => normal);
+}
+
 double sanitizeDesktopPlaybackVolume(double? value) {
   if (value == null || !value.isFinite) {
     return AppSettingsDao.defaultDesktopPlaybackVolume;
@@ -95,6 +107,7 @@ class AppSettingsModel {
     required this.useLrclib,
     required this.legacyInstantMixEnabled,
     required this.replayGainMode,
+    this.replayGainLoudness = ReplayGainLoudness.normal,
     required this.replayGainPreamp,
     this.replayGainUntaggedDb,
     required this.playbackSpeed,
@@ -203,6 +216,7 @@ class AppSettingsModel {
       useLrclib = true,
       legacyInstantMixEnabled = false,
       replayGainMode = 'smart',
+      replayGainLoudness = ReplayGainLoudness.normal,
       replayGainPreamp = 0.0,
       replayGainUntaggedDb = null,
       playbackSpeed = 1.0,
@@ -330,6 +344,9 @@ class AppSettingsModel {
 
   /// ReplayGain mode: 'off', 'track', 'album' or 'smart'.
   final String replayGainMode;
+
+  /// ReplayGain loudness preset; Custom uses [replayGainPreamp].
+  final ReplayGainLoudness replayGainLoudness;
 
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0).
   final double replayGainPreamp;
@@ -523,6 +540,7 @@ class AppSettingsModel {
     bool? useLrclib,
     bool? legacyInstantMixEnabled,
     String? replayGainMode,
+    ReplayGainLoudness? replayGainLoudness,
     double? replayGainPreamp,
     double? replayGainUntaggedDb,
     bool clearReplayGainUntaggedDb = false,
@@ -671,6 +689,7 @@ class AppSettingsModel {
       legacyInstantMixEnabled:
           legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
       replayGainMode: replayGainMode ?? this.replayGainMode,
+      replayGainLoudness: replayGainLoudness ?? this.replayGainLoudness,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       replayGainUntaggedDb: clearReplayGainUntaggedDb
           ? null
