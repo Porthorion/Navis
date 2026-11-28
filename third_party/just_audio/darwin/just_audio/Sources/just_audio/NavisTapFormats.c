@@ -426,11 +426,14 @@ void navis_tap_formats_process(NavisTapFormats *t, bool startOfStream, uint32_t 
         }
         if (audioFrames > 0) s->boostAudioSeen = true;
         uint64_t clipped = 0;
+        float startGain = s->boost.gain;
         navis_boost_ramp_process(&s->boost, channels, count, frames, target, &clipped);
-        // The limiter guards the boost: armed while the gain is above 1, and it keeps running until
-        // its own gain has recovered. The ramp counted the overs it made; only what the limiter leaves
+        // The limiter guards the boost: armed when the (linear) ramp is above 1 at the start or the
+        // end of the block, so a ramp-down that finishes mid-block is still guarded; unarmed it only
+        // releases, until its own gain has recovered. The ramp counted the overs it made; only what the limiter leaves
         // is counted as clipping (0 when it works), recounted just when the ramp saw any.
-        uint64_t limited = navis_limiter_process(&s->limiter, channels, count, frames, s->boost.gain > 1.0f);
+        uint64_t limited = navis_limiter_process(&s->limiter, channels, count, frames,
+                                                startGain > 1.0f || s->boost.gain > 1.0f);
         if (limited) atomic_fetch_add_explicit(&t->limitedFrames, limited, memory_order_relaxed);
         if (clipped) {
             clipped = 0;

@@ -678,6 +678,33 @@ static void testLimiterGainNeverAboveOne(void) {
     free(x.scratch);
 }
 
+// An unarmed limiter never attacks (#846): unboosted audio after a limited passage is never newly
+// reduced; the gain releases to exactly 1 and then the blocks are bit-exact.
+static void testLimiterUnarmedOnlyReleases(void) {
+    enum { N = 1024 };
+    Lim x = limNew(44100, N);
+    float d[N], ref[N];
+    float *ch[1] = {d};
+    for (int i = 0; i < N; i++) d[i] = 3.0f;
+    navis_limiter_process(&x.l, ch, 1, N, true); // one boosted hot block
+    check(x.l.gain < 0.5f, "deep reduction first");
+    float last = x.l.gain;
+    bool released = false;
+    for (int b = 0; b < 430; b++) { // 10 s of unboosted material with a 0.95 peak every 4 blocks
+        for (int i = 0; i < N; i++) d[i] = 0.3f * sinf(0.05f * (float)i + (float)b);
+        if (b % 4 == 0) d[500] = 0.95f;
+        memcpy(ref, d, sizeof d);
+        navis_limiter_process(&x.l, ch, 1, N, false);
+        check(x.l.gain >= last, "an unarmed limiter only releases");
+        last = x.l.gain;
+        if (released) check(memcmp(ref, d, sizeof d) == 0 && x.l.gain == 1.0f, "once released it stays bit-exact");
+        else if (x.l.gain == 1.0f) released = true;
+        for (int i = 0; i < N; i++) check(fabsf(d[i]) <= fabsf(ref[i]), "never raised");
+    }
+    check(released && x.l.gain == 1.0f && x.l.deficit == 0, "the gain returns to exactly 1");
+    free(x.scratch);
+}
+
 int main(void) {
     static const Test tests[] = {
         {"decideWindow", testDecideWindow},
@@ -710,6 +737,7 @@ int main(void) {
         {"limiterReset", testLimiterReset},
         {"limiterChunksLongBlocks", testLimiterChunksLongBlocks},
         {"limiterGainNeverAboveOne", testLimiterGainNeverAboveOne},
+        {"limiterUnarmedOnlyReleases", testLimiterUnarmedOnlyReleases},
     };
     for (size_t i = 0; i < sizeof tests / sizeof *tests; i++) tests[i].run();
     puts("Navis Darwin boost: decision table, click-free ramp, clip count, clamps, cut and limiter passed.");

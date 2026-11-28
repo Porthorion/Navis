@@ -116,12 +116,12 @@ void navis_limiter_init(NavisLimiter *l, int sampleRate, float *scratch, int cap
 
 void navis_limiter_reset(NavisLimiter *l) { l->gain = 1.0f, l->deficit = 0; }
 
-static uint64_t limitChunk(NavisLimiter *l, float *const *channels, int count, int off, int n) {
+static uint64_t limitChunk(NavisLimiter *l, float *const *channels, int count, int off, int n, bool armed) {
     float *g = l->need;
     bool over = false;
     for (int i = 0; i < n; i++) {
         float peak = 0;
-        for (int c = 0; c < count; c++) {
+        for (int c = 0; c < count && armed; c++) { // unarmed: no need, the limiter only releases
             float v = fabsf(channels[c][off + i]);
             if (v > peak && v <= FLT_MAX) peak = v; // NaN and infinity never count
         }
@@ -158,7 +158,7 @@ uint64_t navis_limiter_process(NavisLimiter *l, float *const *channels, int coun
     uint64_t limited = 0;
     for (int off = 0; off < frames;) {
         int n = frames - off < l->capacity ? frames - off : l->capacity;
-        limited += limitChunk(l, channels, count, off, n);
+        limited += limitChunk(l, channels, count, off, n, armed);
         off += n;
     }
     return limited;

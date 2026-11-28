@@ -91,7 +91,9 @@ void navis_boost_ramp_process(NavisBoostRamp *r, float *const *channels, int cou
 /// Since g <= need, every sample ends <= CEILING, and g <= 1: it only ever reduces. A peak on the
 /// first sample of a block has no look-back, so its attack is a step; the output still never exceeds
 /// the ceiling. A block longer than the scratch is processed in chunks (each chunk ends like a block).
-/// Armed means the boost gain is above 1; an unarmed limiter still runs while g < 1 (recovering).
+/// Armed means the boost gain was above 1 at any frame of the block (the caller checks both ends of
+/// the ramp). An unarmed block never attacks: need is 1, so a limiter with g < 1 only releases back
+/// to exactly 1 (then bit-exact passthrough) and unboosted audio is never newly reduced.
 /// Reset points (the caller's): start of stream, a flush generation change, the first audio block of
 /// a slot. One tap serves a player whose format slots outlive their items, so an item change within a
 /// slot with no start-of-stream carries the state: that is intended, g only recovers by release.

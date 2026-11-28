@@ -161,7 +161,9 @@ static bool prepare(NavisTapFormats *t, int rate, int channels) {
 // Deterministic non-periodic input, peak 0.8 x g_amp. The boost tests that check exact scaling use a quiet
 // amp, so the limiter (ceiling -1 dBFS) stays out of the way; the limiter tests use the full level.
 static float g_amp = 1.0f;
+static long g_infAt = -1; // an infinite sample at this input index (channel 0), -1 for none
 static float sample(int channel, long k) {
+    if (channel == 0 && k == g_infAt) return INFINITY;
     return (float)(0.8 * g_amp * sin(0.013 * (double)k * (1.0 + 1e-6 * (double)k) + channel));
 }
 
@@ -994,6 +996,74 @@ static void testBoostLimiterReplacesClipping(void) {
     freeSet(t);
 }
 
+// The ramp-down to unity finishes inside a block (#846): the frames before its end are still boosted and
+// the limiter guards them, even though the gain at the end of the block is 1.
+static void testBoostLimiterGuardsARampDownEndingMidBlock(void) {
+    g_amp = 0.25f; // 0.2: a quiet boosted passage, the limiter at rest
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, 2.2387211f);
+    long k = 0;
+    for (int i = 0; i < 3; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, k);
+    check(state(t).limitedFrames == 0, "quiet passage: nothing limited");
+    navis_tap_formats_set_boost(t, 1.0f); // the 20 ms ramp ends at frame 882 of this block
+    float ch0[4096], ch1[4096];
+    float *ch[2] = {ch0, ch1};
+    for (int i = 0; i < 4096; i++) ch0[i] = ch1[i] = 0.2f * sinf(0.05f * (float)i);
+    ch0[100] = 0.95f; // gain still about 2.1 here: 1.99 unlimited
+    t_blockRate = 44100;
+    navis_tap_formats_process(t, false, 0, 4096, 44100, ch, 2, 4096);
+    t_blockRate = 0;
+    for (int i = 0; i < 4096; i++) check(fabsf(ch0[i]) <= NAVIS_LIMITER_CEILING + 1e-6f, "the ramp-down block stays under the ceiling");
+    check(state(t).limitedFrames > 0, "and the limiter counted it");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// Unboosted audio after a limited passage is never newly reduced: the limiter only releases, then the
+// blocks are untouched, however hot the peaks of the unboosted song are.
+static void testBoostLimiterUnarmedNeverAttacks(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    long k = 0;
+    for (int i = 0; i < 3; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, k); // hot: limited
+    navis_tap_formats_set_boost(t, 1.0f);
+    g_amp = 1.2f; // an unboosted loud master: peaks 0.96, over the ceiling
+    for (int i = 0; i < 30; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, false, 0, k); // 2.8 s, release
+    uint64_t before = state(t).limitedFrames;
+    for (int i = 0; i < 10; i++, k += 4096) {
+        runBlock(t, &b, 44100, 2, 4096, false, 0, k); 
+        check(isDry(&b, 2, 4096), "released: the unboosted block is bit-identical");
+    }
+    check(state(t).limitedFrames == before, "and nothing more is counted");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// Boost and limiter together at full level: a hot signal stays under the ceiling, the limiter counts
+// its work, and only what it cannot limit (a non-finite sample) counts as clipping.
+static void testBoostLimiterAndClipRecount(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    long k = 0;
+    for (int i = 0; i < 3; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, k);
+    check(state(t).limitedFrames > 0 && state(t).boostClipSamples == 0, "hot signal: limited, no clipping");
+    g_infAt = k + 7;
+    runBlock(t, &b, 44100, 2, 4096, false, 0, k);
+    g_infAt = -1;
+    for (int c = 0; c < 2; c++)
+        for (int j = 0; j < 4096; j++)
+            if (!isinf(b.out[c][j])) check(fabsf(b.out[c][j]) <= NAVIS_LIMITER_CEILING + 1e-6f, "finite samples stay under the ceiling");
+    check(state(t).boostClipSamples == 1, "only the infinite sample counts, not the limited overs");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
 // A limited slot resets at the stream's discontinuities (start of stream, flush generation, first audio block);
 // without one the gain carries over and recovers by release.
 static void testBoostLimiterResetPoints(void) {
@@ -1278,7 +1348,10 @@ int main(int argc, char **argv) {
         {"reasonsStayUntilAnAudioBlockIsProcessed", testReasonsStayUntilAnAudioBlockIsProcessed, false},
         {"balanceCounters", testBalanceCounters, false},
         {"boostLevel", testBoostLevel, false},
-                {"boostLimiterReplacesClipping", testBoostLimiterReplacesClipping, false},
+        {"boostLimiterReplacesClipping", testBoostLimiterReplacesClipping, false},
+        {"boostLimiterGuardsARampDownEndingMidBlock", testBoostLimiterGuardsARampDownEndingMidBlock, false},
+        {"boostLimiterUnarmedNeverAttacks", testBoostLimiterUnarmedNeverAttacks, false},
+        {"boostLimiterAndClipRecount", testBoostLimiterAndClipRecount, false},
         {"boostLimiterResetPoints", testBoostLimiterResetPoints, false},
         {"boostLimiterPerSlot", testBoostLimiterPerSlot, false},
         {"boostLimiterBlockSizes", testBoostLimiterBlockSizes, false},
