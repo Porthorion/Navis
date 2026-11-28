@@ -908,6 +908,13 @@ class NavisAudioHandler extends BaseAudioHandler
     iosTap: _usesIos && _equalizerPipelineEnabled,
   );
 
+  /// Whether a peak limiter follows the boost (see
+  /// [navisReplayGainLimiterSupported]). Not on the interface yet.
+  bool get replayGainLimiterSupported => navisReplayGainLimiterSupported(
+    usesMpv: _usesMpv,
+    mpvLimiter: JustAudioMediaKit.replayGainLimiterSupported,
+  );
+
   @override
   Stream<MediaItem?> get mediaItemStream => mediaItem;
 

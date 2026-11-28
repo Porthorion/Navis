@@ -110,6 +110,17 @@ class JustAudioMediaKit extends JustAudioPlatform {
     ];
   }
 
+  /// Whether every live native player found `alimiter` in its libmpv and has
+  /// had no limiter write rejected. False with no player yet, and in a build
+  /// without the filter (the bundled Windows and macOS libmpv for now).
+  static bool get replayGainLimiterSupported {
+    final instance = JustAudioPlatform.instance;
+    if (instance is! JustAudioMediaKit || instance._players.isEmpty) {
+      return false;
+    }
+    return instance._players.values.every((p) => p.limiterSupported);
+  }
+
   /// Credential-free transport observations from live native players.
   static List<Map<String, Object?>>? debugTransportStates() {
     final instance = JustAudioPlatform.instance;
