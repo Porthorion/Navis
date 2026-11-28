@@ -36,6 +36,9 @@ cd FFmpeg-*/
   --enable-gnutls --enable-zlib \
   --disable-xlib --disable-libxcb --disable-vaapi --disable-vdpau --disable-sdl2
 make -j"${JOBS}" && make install
+# Navis's limiter needs alimiter compiled into the static libavfilter.
+grep -Fx '#define CONFIG_ALIMITER_FILTER 1' config_components.h
+nm "${PREFIX}/lib/libavfilter.a" | grep 'ff_af_alimiter$' > /dev/null
 cd /src
 
 tar xf "libass-${LIBASS_VERSION}.tar.xz"
