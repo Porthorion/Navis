@@ -921,6 +921,31 @@ void main() {
         expect(_BoostHandler.applied, 1);
       });
 
+      testWidgets('leaving during a save still writes the newer choice', (
+        tester,
+      ) async {
+        await pump(tester);
+        final writes = <ReplayGainLoudness>[];
+        final gate = Completer<void>();
+        when(() => repository.saveSettings(any())).thenAnswer((call) async {
+          final model = call.positionalArguments.first as AppSettingsModel;
+          writes.add(model.replayGainLoudness);
+          if (writes.length == 1) {
+            await gate.future;
+          }
+        });
+        await choose(tester, 'loud');
+        await tester.pump(const Duration(milliseconds: 700));
+        expect(writes, [ReplayGainLoudness.loud]);
+        // Not choose(): the in-flight save keeps a spinner animating.
+        await tester.tap(tile('quiet'));
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpWidget(const SizedBox());
+        gate.complete();
+        await tester.pumpAndSettle();
+        expect(writes.last, ReplayGainLoudness.quiet);
+      });
+
       testWidgets('the Custom slider is named and reads out its dB', (
         tester,
       ) async {

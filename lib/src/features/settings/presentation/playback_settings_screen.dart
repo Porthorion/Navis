@@ -25,6 +25,7 @@ import 'package:navis/src/features/settings/presentation/appearance_options.dart
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -1037,8 +1038,12 @@ class _PlaybackSettingsScreenState
       await repository.saveSettings(settings);
       await _saveHandler?.applyRuntimeSettings();
       _lastSavedSignature = signature;
-    } on Object {
+    } on Object catch (error) {
       if (!mounted || _disposing) {
+        AppLogger.warning(
+          'Playback settings save after leaving the page failed: '
+          '${error.runtimeType}.',
+        );
         return;
       }
       final l10n = AppLocalizations.of(context)!;
@@ -1050,11 +1055,18 @@ class _PlaybackSettingsScreenState
     } finally {
       if (mounted && !_disposing) {
         setState(() => _isAutoSaving = false);
+      } else {
+        _isAutoSaving = false;
       }
       done.complete();
-      if (_pendingAutosave && !_disposing) {
+      if (_pendingAutosave) {
         _pendingAutosave = false;
-        _scheduleAutosave();
+        if (_disposing) {
+          // No debounce timer once the page is gone: write the newer choice now.
+          unawaited(_persistAutosave(_formSignature()));
+        } else {
+          _scheduleAutosave();
+        }
       }
     }
   }
