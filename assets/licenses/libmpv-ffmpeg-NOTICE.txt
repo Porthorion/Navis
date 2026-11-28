@@ -6,7 +6,7 @@ These libraries are dynamically linked as separate shared libraries
 
 The corresponding source archives, build configuration and provenance
 (SOURCES.md) are available at:
-Windows: https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261013/SOURCES.md
+Windows: https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261128/SOURCES.md
 Linux: https://downloads.porthorion.com/navis/third-party/libmpv-linux-x86_64-lgpl-20261007/SOURCES.md
 The other files listed in each SOURCES.md are in the same folder.
 
