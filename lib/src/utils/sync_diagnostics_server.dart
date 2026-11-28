@@ -3282,7 +3282,7 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        // Runtime checks of ReplayGain: `mode` and `preamp` (dB) as set in
+        // Runtime checks of ReplayGain: `mode`, `loudness` and `preamp` (dB) as set in
         // Settings > Playback, applied to the playing song at once.
         final body = await _readJson(request);
         final repository = _container.read(settingsRepositoryProvider);

@@ -1042,8 +1042,8 @@ the tree remains otherwise usable.
   `POST /v1/playback/quality` sets the Wi-Fi and cellular streaming format and
   bit rate (`{"wifi":{"format":"opus","maxBitRate":128},"cellular":{...}}`) and
   applies them to the handler; `POST /v1/playback/replay-gain`
-  (`{"mode":"track","loudness":"loud"}`; `loudness` is `quiet|normal|loud|custom`,
-  and `custom` uses `preamp` (dB, clamped to -6..+8) as the offset) sets the
+  (`{"mode":"track","loudness":"loud"}`; `loudness` is `quiet|normal|loud|custom`
+  and any other value returns 400, and `custom` uses `preamp` (dB, clamped to -6..+8) as the offset) sets the
   ReplayGain mode, loudness preset and pre-amp and applies them to the playing
   song. `GET /v1/playback/status` reports `replayGainLoudness` and
   `replayGainLimiter` (a confirmed limiter on this platform), the song's

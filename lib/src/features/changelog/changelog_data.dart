@@ -213,9 +213,9 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'New Loudness setting in Playback > Volume: choose Quiet, Normal, Loud '
         'or Custom to set how loud ReplayGain plays your songs. Everyone '
-        'starts on Normal, which plays songs louder than before; pick Quiet '
-        'for the old level. Loud adds a limiter on most devices, so peaks '
-        'never clip',
+        'starts on Normal, which plays songs louder than before; Quiet matches '
+        'the previous default level. Loud adds a limiter on most devices to '
+        'keep peaks from clipping',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

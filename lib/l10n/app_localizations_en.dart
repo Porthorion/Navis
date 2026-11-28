@@ -1318,6 +1318,9 @@ class AppLocalizationsEn extends AppLocalizations {
       '−11 LUFS · Raises songs as far as their peaks allow';
 
   @override
+  String get playbackSettingsLoudnessLoudSubtitleNoBoost => '−11 LUFS';
+
+  @override
   String get playbackSettingsLoudnessCustom => 'Custom';
 
   @override

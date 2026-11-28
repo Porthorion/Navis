@@ -1980,6 +1980,12 @@ abstract class AppLocalizations {
   /// **'−11 LUFS · Raises songs as far as their peaks allow'**
   String get playbackSettingsLoudnessLoudSubtitleNoLimiter;
 
+  /// No description provided for @playbackSettingsLoudnessLoudSubtitleNoBoost.
+  ///
+  /// In en, this message translates to:
+  /// **'−11 LUFS'**
+  String get playbackSettingsLoudnessLoudSubtitleNoBoost;
+
   /// No description provided for @playbackSettingsLoudnessCustom.
   ///
   /// In en, this message translates to:

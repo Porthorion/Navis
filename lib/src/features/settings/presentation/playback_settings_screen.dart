@@ -19,6 +19,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -99,8 +100,13 @@ class _PlaybackSettingsScreenState
   bool _pendingAutosave = false;
 
   /// Set while dispose flushes a pending autosave: the write still happens,
-  /// but nothing may touch the element or the context any more.
+  /// but nothing may touch the element, the context or `ref` any more.
   bool _disposing = false;
+
+  /// What a save needs from `ref`, captured on every build because `ref` is
+  /// unusable once dispose runs and the last change must still be saved.
+  SettingsRepository? _saveRepository;
+  NavisPlaybackHandler? _saveHandler;
   bool _experimentalExpanded = false;
   String _lastSavedSignature = '';
   Timer? _autosaveDebounce;
@@ -146,6 +152,8 @@ class _PlaybackSettingsScreenState
     final handler = ref.watch(audioHandlerProvider);
     final boost = handler?.replayGainBoostSupported ?? false;
     final limiter = handler?.replayGainLimiterSupported ?? false;
+    _saveRepository = ref.read(settingsRepositoryProvider);
+    _saveHandler = handler;
     _scheduleAutosave();
     // The form only exists once the settings have loaded, so scroll after its
     // first build rather than in initState.
@@ -989,9 +997,10 @@ class _PlaybackSettingsScreenState
     try {
       // Build on the stored row, never on defaults: the settings stream has
       // no value while it reloads, and this write replaces the whole row.
+      final repository = _saveRepository!;
       final currentSettings =
-          ref.read(appSettingsProvider).asData?.value ??
-          await ref.read(settingsRepositoryProvider).getSettings();
+          (_disposing ? null : ref.read(appSettingsProvider).asData?.value) ??
+          await repository.getSettings();
       final wifiFormat = _normalizeFormat(_wifiFormat);
       final cellularFormat = _normalizeFormat(_cellularFormat);
       // Copy the stored row so fields owned by other screens (integrations,
@@ -1025,11 +1034,8 @@ class _PlaybackSettingsScreenState
         matchFlowEnabled: _matchFlowEnabled,
         likedQueueEnabled: _likedQueueEnabled,
       );
-      await ref.read(settingsRepositoryProvider).saveSettings(settings);
-      final handler = ref.read(audioHandlerProvider);
-      if (handler != null) {
-        await handler.applyRuntimeSettings();
-      }
+      await repository.saveSettings(settings);
+      await _saveHandler?.applyRuntimeSettings();
       _lastSavedSignature = signature;
     } on Object {
       if (!mounted || _disposing) {
@@ -1207,7 +1213,10 @@ class _PlaybackSettingsScreenState
       (
         ReplayGainLoudness.loud,
         l10n.playbackSettingsLoudnessLoud,
-        limiter
+        // Without boost the shared line below says what Loud can do.
+        !boost
+            ? l10n.playbackSettingsLoudnessLoudSubtitleNoBoost
+            : limiter
             ? l10n.playbackSettingsLoudnessLoudSubtitle
             : l10n.playbackSettingsLoudnessLoudSubtitleNoLimiter,
       ),
@@ -1248,18 +1257,23 @@ class _PlaybackSettingsScreenState
         ),
       ),
       if (custom)
-        NavisSlider(
-          key: const ValueKey<String>('loudness-custom-slider'),
-          value: _normalizeReplayGainPreamp(_replayGainPreamp),
-          min: replayGainMinOffsetDb,
-          max: replayGainMaxOffsetDb,
-          divisions: 28,
-          label: '${_signedDb(offset, plus: true)} dB',
-          onChanged: _isSaving
-              ? null
-              : (value) => setState(
-                  () => _replayGainPreamp = _normalizeReplayGainPreamp(value),
-                ),
+        Semantics(
+          label: l10n.playbackSettingsLoudnessLabel,
+          child: NavisSlider(
+            key: const ValueKey<String>('loudness-custom-slider'),
+            value: _normalizeReplayGainPreamp(_replayGainPreamp),
+            min: replayGainMinOffsetDb,
+            max: replayGainMaxOffsetDb,
+            divisions: 28,
+            label: '${_signedDb(offset, plus: true)} dB',
+            semanticFormatterCallback: (value) =>
+                '${_signedDb(_normalizeReplayGainPreamp(value), plus: true)} dB',
+            onChanged: _isSaving
+                ? null
+                : (value) => setState(
+                    () => _replayGainPreamp = _normalizeReplayGainPreamp(value),
+                  ),
+          ),
         ),
       if (!boost)
         Text(

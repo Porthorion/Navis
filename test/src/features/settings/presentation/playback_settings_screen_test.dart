@@ -670,6 +670,7 @@ void main() {
         setAdaptiveTestViewport(tester, viewport);
         saved = null;
         saves = 0;
+        _BoostHandler.applied = 0;
         seenOptions.clear();
         when(() => repository.getSettings())
             .thenAnswer((_) async => initialSettings);
@@ -787,13 +788,9 @@ void main() {
             'the turn-down.';
         await pump(tester, boost: false, limiter: false);
         expect(find.text(line), findsOneWidget);
-        // The Loud line stays the no-limiter one: no limiter is confirmed.
-        expect(
-          find.text(
-            '${minus}11 LUFS · Raises songs as far as their peaks allow',
-          ),
-          findsOneWidget,
-        );
+        // The shared line above explains the limits, so Loud is just its level.
+        expect(inGroup('${minus}11 LUFS'), findsOneWidget);
+        expect(find.textContaining('Raises songs'), findsNothing);
       });
 
       testWidgets('with boost but no confirmed limiter Loud says so', (
@@ -908,6 +905,32 @@ void main() {
         expect(saved?.replayGainLoudness, ReplayGainLoudness.loud);
         expect(saved?.replayGainMode, 'smart');
         expect(saves, 1);
+      });
+
+      testWidgets('leaving within the debounce still saves and applies', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(tile('loud'));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(saves, 0);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        expect(saves, 1);
+        expect(saved?.replayGainLoudness, ReplayGainLoudness.loud);
+        expect(_BoostHandler.applied, 1);
+      });
+
+      testWidgets('the Custom slider is named and reads out its dB', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, loudness: ReplayGainLoudness.custom, preamp: 4);
+        // Not "57%": the value is the offset, announced under the label.
+        expect(find.semantics.byValue('+4.0 dB'), findsOneWidget);
+        expect(find.semantics.byValue('57%'), findsNothing);
+        expect(tester.getSemantics(slider).label, 'Loudness');
+        handle.dispose();
       });
 
       testWidgets('rapid switching saves once, with the last choice', (
@@ -2066,8 +2089,14 @@ Widget _buildTestApp({
 }
 
 class _BoostHandler extends InertPlaybackHandler {
+  /// How many times the settings were applied to the player, across handlers.
+  static int applied = 0;
+
   @override
   bool get replayGainBoostSupported => true;
+
+  @override
+  Future<void> applyRuntimeSettings() async => applied++;
 }
 
 class _LimiterHandler extends _BoostHandler {

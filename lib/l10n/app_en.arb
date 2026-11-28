@@ -531,6 +531,7 @@
   "playbackSettingsLoudnessLoud": "Loud",
   "playbackSettingsLoudnessLoudSubtitle": "−11 LUFS · A limiter keeps peaks from clipping",
   "playbackSettingsLoudnessLoudSubtitleNoLimiter": "−11 LUFS · Raises songs as far as their peaks allow",
+  "playbackSettingsLoudnessLoudSubtitleNoBoost": "−11 LUFS",
   "playbackSettingsLoudnessCustom": "Custom",
   "playbackSettingsLoudnessCustomSubtitle": "{lufs} LUFS · {offset} dB from the ReplayGain reference",
   "@playbackSettingsLoudnessCustomSubtitle": {
