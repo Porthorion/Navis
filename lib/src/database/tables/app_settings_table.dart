@@ -285,6 +285,11 @@ class AppSettingsTable extends Table {
   TextColumn get replayGainMode =>
       text().withDefault(const Constant('track'))();
 
+  /// ReplayGain loudness preset: 'quiet', 'normal', 'loud' or 'custom'.
+  /// Custom uses [replayGainPreamp]. Existing profiles move to 'normal'.
+  TextColumn get replayGainLoudness =>
+      text().withDefault(const Constant('normal'))();
+
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
   RealColumn get replayGainPreamp => real().withDefault(const Constant(0))();
 

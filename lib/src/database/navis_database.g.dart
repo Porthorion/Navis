@@ -1641,6 +1641,18 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('track'),
   );
+  static const VerificationMeta _replayGainLoudnessMeta =
+      const VerificationMeta('replayGainLoudness');
+  @override
+  late final GeneratedColumn<String> replayGainLoudness =
+      GeneratedColumn<String>(
+        'replay_gain_loudness',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('normal'),
+      );
   static const VerificationMeta _replayGainPreampMeta = const VerificationMeta(
     'replayGainPreamp',
   );
@@ -2321,6 +2333,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     useLrclib,
     legacyInstantMixEnabled,
     replayGainMode,
+    replayGainLoudness,
     replayGainPreamp,
     replayGainUntaggedDb,
     playbackSpeed,
@@ -3092,6 +3105,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('replay_gain_loudness')) {
+      context.handle(
+        _replayGainLoudnessMeta,
+        replayGainLoudness.isAcceptableOrUnknown(
+          data['replay_gain_loudness']!,
+          _replayGainLoudnessMeta,
+        ),
+      );
+    }
     if (data.containsKey('replay_gain_preamp')) {
       context.handle(
         _replayGainPreampMeta,
@@ -3851,6 +3873,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}replay_gain_mode'],
       )!,
+      replayGainLoudness: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}replay_gain_loudness'],
+      )!,
       replayGainPreamp: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_preamp'],
@@ -4261,6 +4287,10 @@ class AppSettingsTableData extends DataClass
   /// 'track'; profiles that already exist keep their stored value.
   final String replayGainMode;
 
+  /// ReplayGain loudness preset: 'quiet', 'normal', 'loud' or 'custom'.
+  /// Custom uses [replayGainPreamp]. Existing profiles move to 'normal'.
+  final String replayGainLoudness;
+
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
   final double replayGainPreamp;
 
@@ -4501,6 +4531,7 @@ class AppSettingsTableData extends DataClass
     required this.useLrclib,
     required this.legacyInstantMixEnabled,
     required this.replayGainMode,
+    required this.replayGainLoudness,
     required this.replayGainPreamp,
     this.replayGainUntaggedDb,
     required this.playbackSpeed,
@@ -4680,6 +4711,7 @@ class AppSettingsTableData extends DataClass
     map['use_lrclib'] = Variable<bool>(useLrclib);
     map['legacy_instant_mix_enabled'] = Variable<bool>(legacyInstantMixEnabled);
     map['replay_gain_mode'] = Variable<String>(replayGainMode);
+    map['replay_gain_loudness'] = Variable<String>(replayGainLoudness);
     map['replay_gain_preamp'] = Variable<double>(replayGainPreamp);
     if (!nullToAbsent || replayGainUntaggedDb != null) {
       map['replay_gain_untagged_db'] = Variable<double>(replayGainUntaggedDb);
@@ -4888,6 +4920,7 @@ class AppSettingsTableData extends DataClass
       useLrclib: Value(useLrclib),
       legacyInstantMixEnabled: Value(legacyInstantMixEnabled),
       replayGainMode: Value(replayGainMode),
+      replayGainLoudness: Value(replayGainLoudness),
       replayGainPreamp: Value(replayGainPreamp),
       replayGainUntaggedDb: replayGainUntaggedDb == null && nullToAbsent
           ? const Value.absent()
@@ -5114,6 +5147,9 @@ class AppSettingsTableData extends DataClass
         json['legacyInstantMixEnabled'],
       ),
       replayGainMode: serializer.fromJson<String>(json['replayGainMode']),
+      replayGainLoudness: serializer.fromJson<String>(
+        json['replayGainLoudness'],
+      ),
       replayGainPreamp: serializer.fromJson<double>(json['replayGainPreamp']),
       replayGainUntaggedDb: serializer.fromJson<double?>(
         json['replayGainUntaggedDb'],
@@ -5333,6 +5369,7 @@ class AppSettingsTableData extends DataClass
         legacyInstantMixEnabled,
       ),
       'replayGainMode': serializer.toJson<String>(replayGainMode),
+      'replayGainLoudness': serializer.toJson<String>(replayGainLoudness),
       'replayGainPreamp': serializer.toJson<double>(replayGainPreamp),
       'replayGainUntaggedDb': serializer.toJson<double?>(replayGainUntaggedDb),
       'playbackSpeed': serializer.toJson<double>(playbackSpeed),
@@ -5490,6 +5527,7 @@ class AppSettingsTableData extends DataClass
     bool? useLrclib,
     bool? legacyInstantMixEnabled,
     String? replayGainMode,
+    String? replayGainLoudness,
     double? replayGainPreamp,
     Value<double?> replayGainUntaggedDb = const Value.absent(),
     double? playbackSpeed,
@@ -5659,6 +5697,7 @@ class AppSettingsTableData extends DataClass
     legacyInstantMixEnabled:
         legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
     replayGainMode: replayGainMode ?? this.replayGainMode,
+    replayGainLoudness: replayGainLoudness ?? this.replayGainLoudness,
     replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
     replayGainUntaggedDb: replayGainUntaggedDb.present
         ? replayGainUntaggedDb.value
@@ -5981,6 +6020,9 @@ class AppSettingsTableData extends DataClass
       replayGainMode: data.replayGainMode.present
           ? data.replayGainMode.value
           : this.replayGainMode,
+      replayGainLoudness: data.replayGainLoudness.present
+          ? data.replayGainLoudness.value
+          : this.replayGainLoudness,
       replayGainPreamp: data.replayGainPreamp.present
           ? data.replayGainPreamp.value
           : this.replayGainPreamp,
@@ -6211,6 +6253,7 @@ class AppSettingsTableData extends DataClass
           ..write('useLrclib: $useLrclib, ')
           ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
+          ..write('replayGainLoudness: $replayGainLoudness, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('replayGainUntaggedDb: $replayGainUntaggedDb, ')
           ..write('playbackSpeed: $playbackSpeed, ')
@@ -6352,6 +6395,7 @@ class AppSettingsTableData extends DataClass
     useLrclib,
     legacyInstantMixEnabled,
     replayGainMode,
+    replayGainLoudness,
     replayGainPreamp,
     replayGainUntaggedDb,
     playbackSpeed,
@@ -6489,6 +6533,7 @@ class AppSettingsTableData extends DataClass
           other.useLrclib == this.useLrclib &&
           other.legacyInstantMixEnabled == this.legacyInstantMixEnabled &&
           other.replayGainMode == this.replayGainMode &&
+          other.replayGainLoudness == this.replayGainLoudness &&
           other.replayGainPreamp == this.replayGainPreamp &&
           other.replayGainUntaggedDb == this.replayGainUntaggedDb &&
           other.playbackSpeed == this.playbackSpeed &&
@@ -6626,6 +6671,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> useLrclib;
   final Value<bool> legacyInstantMixEnabled;
   final Value<String> replayGainMode;
+  final Value<String> replayGainLoudness;
   final Value<double> replayGainPreamp;
   final Value<double?> replayGainUntaggedDb;
   final Value<double> playbackSpeed;
@@ -6756,6 +6802,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.useLrclib = const Value.absent(),
     this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
+    this.replayGainLoudness = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.replayGainUntaggedDb = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
@@ -6887,6 +6934,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.useLrclib = const Value.absent(),
     this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
+    this.replayGainLoudness = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.replayGainUntaggedDb = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
@@ -7018,6 +7066,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? useLrclib,
     Expression<bool>? legacyInstantMixEnabled,
     Expression<String>? replayGainMode,
+    Expression<String>? replayGainLoudness,
     Expression<double>? replayGainPreamp,
     Expression<double>? replayGainUntaggedDb,
     Expression<double>? playbackSpeed,
@@ -7185,6 +7234,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (legacyInstantMixEnabled != null)
         'legacy_instant_mix_enabled': legacyInstantMixEnabled,
       if (replayGainMode != null) 'replay_gain_mode': replayGainMode,
+      if (replayGainLoudness != null)
+        'replay_gain_loudness': replayGainLoudness,
       if (replayGainPreamp != null) 'replay_gain_preamp': replayGainPreamp,
       if (replayGainUntaggedDb != null)
         'replay_gain_untagged_db': replayGainUntaggedDb,
@@ -7346,6 +7397,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? useLrclib,
     Value<bool>? legacyInstantMixEnabled,
     Value<String>? replayGainMode,
+    Value<String>? replayGainLoudness,
     Value<double>? replayGainPreamp,
     Value<double?>? replayGainUntaggedDb,
     Value<double>? playbackSpeed,
@@ -7495,6 +7547,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       legacyInstantMixEnabled:
           legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
       replayGainMode: replayGainMode ?? this.replayGainMode,
+      replayGainLoudness: replayGainLoudness ?? this.replayGainLoudness,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       replayGainUntaggedDb: replayGainUntaggedDb ?? this.replayGainUntaggedDb,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
@@ -7858,6 +7911,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (replayGainMode.present) {
       map['replay_gain_mode'] = Variable<String>(replayGainMode.value);
     }
+    if (replayGainLoudness.present) {
+      map['replay_gain_loudness'] = Variable<String>(replayGainLoudness.value);
+    }
     if (replayGainPreamp.present) {
       map['replay_gain_preamp'] = Variable<double>(replayGainPreamp.value);
     }
@@ -8135,6 +8191,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('useLrclib: $useLrclib, ')
           ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
+          ..write('replayGainLoudness: $replayGainLoudness, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('replayGainUntaggedDb: $replayGainUntaggedDb, ')
           ..write('playbackSpeed: $playbackSpeed, ')
@@ -37344,6 +37401,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> useLrclib,
       Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
+      Value<String> replayGainLoudness,
       Value<double> replayGainPreamp,
       Value<double?> replayGainUntaggedDb,
       Value<double> playbackSpeed,
@@ -37476,6 +37534,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> useLrclib,
       Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
+      Value<String> replayGainLoudness,
       Value<double> replayGainPreamp,
       Value<double?> replayGainUntaggedDb,
       Value<double> playbackSpeed,
@@ -37942,6 +38001,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get replayGainMode => $composableBuilder(
     column: $table.replayGainMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get replayGainLoudness => $composableBuilder(
+    column: $table.replayGainLoudness,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38601,6 +38665,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get replayGainLoudness => $composableBuilder(
+    column: $table.replayGainLoudness,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get replayGainPreamp => $composableBuilder(
     column: $table.replayGainPreamp,
     builder: (column) => ColumnOrderings(column),
@@ -39248,6 +39317,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get replayGainLoudness => $composableBuilder(
+    column: $table.replayGainLoudness,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get replayGainPreamp => $composableBuilder(
     column: $table.replayGainPreamp,
     builder: (column) => column,
@@ -39603,6 +39677,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> useLrclib = const Value.absent(),
                 Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
+                Value<String> replayGainLoudness = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double?> replayGainUntaggedDb = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
@@ -39738,6 +39813,7 @@ class $$AppSettingsTableTableTableManager
                 useLrclib: useLrclib,
                 legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
+                replayGainLoudness: replayGainLoudness,
                 replayGainPreamp: replayGainPreamp,
                 replayGainUntaggedDb: replayGainUntaggedDb,
                 playbackSpeed: playbackSpeed,
@@ -39871,6 +39947,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> useLrclib = const Value.absent(),
                 Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
+                Value<String> replayGainLoudness = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double?> replayGainUntaggedDb = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
@@ -40006,6 +40083,7 @@ class $$AppSettingsTableTableTableManager
                 useLrclib: useLrclib,
                 legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
+                replayGainLoudness: replayGainLoudness,
                 replayGainPreamp: replayGainPreamp,
                 replayGainUntaggedDb: replayGainUntaggedDb,
                 playbackSpeed: playbackSpeed,

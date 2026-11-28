@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/auto_theme.dart';
@@ -3287,13 +3288,31 @@ class SyncDiagnosticsServer {
         final repository = _container.read(settingsRepositoryProvider);
         final current = await repository.getSettings();
         final mode = body['mode'] as String?;
-        final preamp = (body['preamp'] as num?)?.toDouble();
+        final rawPreamp = (body['preamp'] as num?)?.toDouble();
+        final loudnessName = body['loudness'] as String?;
+        final loudness = loudnessName == null
+            ? null
+            : ReplayGainLoudness.values
+                  .where((preset) => preset.name == loudnessName)
+                  .firstOrNull;
+        if (loudnessName != null && loudness == null) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'loudness must be quiet, normal, loud or custom',
+          });
+          return;
+        }
+        final preamp = rawPreamp?.clamp(-6.0, 8.0);
         await repository.saveSettings(
-          current.copyWith(replayGainMode: mode, replayGainPreamp: preamp),
+          current.copyWith(
+            replayGainMode: mode,
+            replayGainLoudness: loudness,
+            replayGainPreamp: preamp,
+          ),
         );
         await (await _waitForPlaybackHandler()).applyRuntimeSettings();
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'mode': mode ?? current.replayGainMode,
+          'loudness': (loudness ?? current.replayGainLoudness).name,
           'preamp': preamp ?? current.replayGainPreamp,
         });
         return;

@@ -665,6 +665,7 @@ void main() {
           useLrclib: false,
           legacyInstantMixEnabled: true,
           replayGainMode: 'album',
+          replayGainLoudness: 'custom',
           replayGainPreamp: -4.5,
           replayGainUntaggedDb: -5,
           playbackSpeed: 1,
@@ -672,6 +673,7 @@ void main() {
           matchFlowEnabled: true,
           likedQueueEnabled: false,
         );
+        expect((await dao.getSettings())!.replayGainLoudness, 'custom');
         await dao.updateThemeMode('light');
         await dao.updateColorStyle('night');
         await dao.updateOledForAuto(enabled: true);
@@ -733,6 +735,7 @@ void main() {
         // Reset returns to the default, which is Smart for new profiles.
         expect(settings.replayGainMode, 'smart');
         expect(settings.replayGainPreamp, 0);
+        expect(settings.replayGainLoudness, 'normal');
         expect(settings.replayGainUntaggedDb, isNull);
         expect(settings.albumQueueEnabled, isTrue);
         expect(settings.likedQueueEnabled, isTrue);

@@ -157,6 +157,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool? useLrclib,
     bool? legacyInstantMixEnabled,
     required String replayGainMode,
+    String replayGainLoudness = 'normal',
     required double replayGainPreamp,
     double? replayGainUntaggedDb,
     double? playbackSpeed,
@@ -218,6 +219,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             ? const Value.absent()
             : Value(legacyInstantMixEnabled),
         replayGainMode: Value(replayGainMode),
+        replayGainLoudness: Value(replayGainLoudness),
         replayGainPreamp: Value(replayGainPreamp),
         replayGainUntaggedDb: Value(replayGainUntaggedDb),
         playbackSpeed: playbackSpeed == null
@@ -337,6 +339,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeDurationSeconds: Value(5),
         crossfadeType: Value('normal'),
         replayGainMode: Value('smart'),
+        replayGainLoudness: Value('normal'),
         replayGainPreamp: Value(0),
         replayGainUntaggedDb: Value(null),
         albumQueueEnabled: Value(true),
