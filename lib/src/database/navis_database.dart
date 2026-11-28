@@ -239,7 +239,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 118;
+  static const currentSchemaVersion = 119;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -418,6 +418,7 @@ class NavisDatabase extends _$NavisDatabase {
       from115To116,
       from116To117,
       from117To118,
+      from118To119,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -565,6 +566,18 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.queueEndStartAgain,
+      );
+    }
+  }
+
+  /// ReplayGain loudness preset (`app_settings.replay_gain_loudness`). The
+  /// column default moves every profile to 'normal'; the stored pre-amp stays
+  /// as Custom's value.
+  Future<void> from118To119(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'replay_gain_loudness')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.replayGainLoudness,
       );
     }
   }
@@ -2082,6 +2095,7 @@ FROM scrobble_queue;
         // upgraded from older schemas keeps a SQL default of 'off', and the
         // column's own default stays 'track' (changing it is a schema change).
         replayGainMode: const Value('smart'),
+        replayGainLoudness: const Value('normal'),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

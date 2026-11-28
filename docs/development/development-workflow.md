@@ -1042,8 +1042,13 @@ the tree remains otherwise usable.
   `POST /v1/playback/quality` sets the Wi-Fi and cellular streaming format and
   bit rate (`{"wifi":{"format":"opus","maxBitRate":128},"cellular":{...}}`) and
   applies them to the handler; `POST /v1/playback/replay-gain`
-  (`{"mode":"track","preamp":3}`) sets the ReplayGain mode and pre-amp (dB) and
-  applies them to the playing song; `POST /v1/playback/recovery-fixture` also accepts
+  (`{"mode":"track","loudness":"loud"}`; `loudness` is `quiet|normal|loud|custom`
+  and any other value returns 400, and `custom` uses `preamp` (dB, clamped to -6..+8) as the offset) sets the
+  ReplayGain mode, loudness preset and pre-amp and applies them to the playing
+  song. `GET /v1/playback/status` reports `replayGainLoudness` and
+  `replayGainLimiter` (a confirmed limiter on this platform), the song's
+  `replayGain` decision adds `offsetDb` and `limited`, and `replayGainBoost`
+  adds `limitedFrames` on Android and iOS; `POST /v1/playback/recovery-fixture` also accepts
   `action: rawSeekBack` (a raw player seek about 6 s back that bypasses the
   handler). In a diagnostics build `GET /v1/playback/status` adds
   `transportTrace`, a 200-entry ring of timestamped native-transport events
@@ -2614,7 +2619,7 @@ forbidden in primary-certification mode.
 
 ### ReplayGain boost diagnostics
 
-`./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6]` is the Linux
+`./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6,d7]` is the Linux
 runtime gate for the desktop ReplayGain boost (changes to
 `navis_playback_rules.dart` boost rules, `_applyReplayGainBoost`, or the
 media_kit adapter's `ReplayGainLevels` and `@navis_rg` chain). It clones the profile, adds
@@ -2641,14 +2646,19 @@ exports the bus address so the app shares it, checks `journalctl --user` for
 teardown, including when the run failed (exit 70 if found), and
 passes `--no-enable-impeller` to the build (`NAVIS_DIAGNOSTICS_RUN_ARGS`), since
 Impeller's GLES backend cannot get a framebuffer there. `POST
-/v1/playback/replay-gain` sets the mode and pre-amp for d5. The same Q/H songs
+/v1/playback/replay-gain` sets the mode, loudness preset and pre-amp for d5. The same Q/H songs
 exist for the streaming fixture server as `TranscodeLibrary(...,
 replay_gain_levels=True)` in `tool/seek_reliability_diagnostics.py`, plus L, a
 -8 dBFS sine tagged +10 dB (boost 7 dB, 1 dB under full scale). Evidence lives
 under `build/replaygain-boost-diagnostics/`.
+`d7` plays Q, H and F (a -26 dBFS sine with -6 dBFS bursts, tagged +12 dB) at
+Quiet, Normal and Loud and checks each capture's level against both the app's
+decision and an independent copy of the rule (`tool/replaygain_boost_clamps.py`),
+a -1 dBFS output ceiling with no flat tops, and `@navis_lim` in the mpv chain
+exactly when a boost plays with the limiter confirmed.
 
 `./tool/replaygain_boost_diagnostics.sh --scenarios a1 --android-serial SERIAL`
-is the Android gate (the per-entry gain stage in `NavisEqualizerProcessor`, keyed by
+(or `a3`, the loudness presets and limiter on the F song) is the Android gate (the per-entry gain stage in `NavisEqualizerProcessor`, keyed by
 the source id `AudioPlayer.java` tags). It needs a running emulator you
 started (see "Temporary Android emulators"; a headless one needs
 `-gpu swiftshader_indirect -no-window`) and no display or null sink.

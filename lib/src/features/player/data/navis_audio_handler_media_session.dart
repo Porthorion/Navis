@@ -985,6 +985,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           'currentKey': equalizerState.replayGainCurrentKey,
           'appliedDb': equalizerState.replayGainAppliedDb,
           'clipSamples': equalizerState.boostClipSamples,
+          'limitedFrames': equalizerState.limitedFrames,
         }
       : _usesIos && replayGainBoostSupported
       // The iOS tap owns the guard, so what it reports is all there is.
@@ -993,6 +994,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           'appliedDb': equalizerState.boostAppliedDb,
           'guarded': equalizerState.boostGuarded,
           'clipSamples': equalizerState.boostClipSamples,
+          'limitedFrames': equalizerState.limitedFrames,
           // The cut in the item audio mix (I26): what native assigned to the
           // playing item and to the one queued after it, in dB.
           'cutDb': equalizerState.replayGainCutDb,
@@ -1044,8 +1046,10 @@ extension _NavisMediaSession on NavisAudioHandler {
       albumGain: extras?['replayGainAlbumGain'] as double?,
       trackPeak: extras?['replayGainTrackPeak'] as double?,
       albumPeak: extras?['replayGainAlbumPeak'] as double?,
+      loudness: runtime.replayGainLoudness,
       preampDb: runtime.replayGainPreamp,
       untaggedDb: runtime.replayGainUntaggedDb,
+      limiterSupported: replayGainLimiterSupported,
     );
   }
 
@@ -1179,6 +1183,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         boostRequestedDb: native.boostRequestedDb,
         boostAppliedDb: native.boostAppliedDb,
         boostClipSamples: native.boostClipSamples,
+        limitedFrames: native.limitedFrames,
         boostGuarded: native.boostGuarded,
         replayGainCutDb: native.replayGainCutDb,
         replayGainNextCutDb: native.replayGainNextCutDb,

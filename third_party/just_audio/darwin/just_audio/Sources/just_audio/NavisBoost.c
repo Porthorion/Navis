@@ -1,5 +1,6 @@
 #include "NavisBoost.h"
 
+#include <float.h>
 #include <math.h>
 
 // MARK: decision
@@ -99,4 +100,66 @@ void navis_boost_ramp_process(NavisBoostRamp *r, float *const *channels, int cou
     r->gain = endGain; // every channel ends on the same gain
     r->remaining = endRemaining;
     *clipCount += clipped;
+}
+
+// MARK: limiter
+
+void navis_limiter_init(NavisLimiter *l, int sampleRate, float *scratch, int capacity) {
+    int attack = (int)lroundf((float)sampleRate * 0.002f);
+    l->attackStep = 1.0f / (float)(attack > 1 ? attack : 1);
+    l->releaseCoef = 1.0f - expf(-1.0f / ((float)sampleRate * 0.1f));
+    l->need = scratch;
+    l->capacity = scratch ? capacity : 0;
+    l->gain = 1.0f;
+    l->deficit = 0;
+}
+
+void navis_limiter_reset(NavisLimiter *l) { l->gain = 1.0f, l->deficit = 0; }
+
+static uint64_t limitChunk(NavisLimiter *l, float *const *channels, int count, int off, int n, bool armed) {
+    float *g = l->need;
+    bool over = false;
+    for (int i = 0; i < n; i++) {
+        float peak = 0;
+        for (int c = 0; c < count && armed; c++) { // unarmed: no need, the limiter only releases
+            float v = fabsf(channels[c][off + i]);
+            if (v > peak && v <= FLT_MAX) peak = v; // NaN and infinity never count
+        }
+        over |= peak > NAVIS_LIMITER_CEILING;
+        g[i] = peak > NAVIS_LIMITER_CEILING ? NAVIS_LIMITER_CEILING / peak : 1.0f;
+    }
+    if (!over && l->gain >= 1.0f) return 0; // bit-exact
+    for (int i = n - 2; i >= 0; i--) {
+        float a = g[i + 1] + l->attackStep;
+        if (a < g[i]) g[i] = a;
+    }
+    // The release works on the deficit 1 - g: near unity a float gain cannot hold a step that small
+    // and would stall below 1.
+    float deficit = l->deficit, keep = 1.0f - l->releaseCoef;
+    uint64_t limited = 0;
+    for (int i = 0; i < n; i++) {
+        deficit *= keep;
+        if (1.0f - deficit > g[i]) deficit = 1.0f - g[i];
+        g[i] = 1.0f - deficit;
+        limited += g[i] < NAVIS_LIMITER_COUNT_BELOW;
+    }
+    for (int c = 0; c < count; c++) {
+        float *x = channels[c] + off;
+        for (int i = 0; i < n; i++) x[i] *= g[i];
+    }
+    if (deficit < 1e-6f) deficit = 0;
+    l->deficit = deficit;
+    l->gain = 1.0f - deficit;
+    return limited;
+}
+
+uint64_t navis_limiter_process(NavisLimiter *l, float *const *channels, int count, int frames, bool armed) {
+    if (l->capacity <= 0 || frames <= 0 || (!armed && l->gain >= 1.0f)) return 0;
+    uint64_t limited = 0;
+    for (int off = 0; off < frames;) {
+        int n = frames - off < l->capacity ? frames - off : l->capacity;
+        limited += limitChunk(l, channels, count, off, n, armed);
+        off += n;
+    }
+    return limited;
 }

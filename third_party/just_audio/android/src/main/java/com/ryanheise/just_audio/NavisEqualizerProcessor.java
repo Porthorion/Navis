@@ -13,7 +13,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Always present in the PCM chain so bypass/enabling never reloads media. It
  * also carries ReplayGain (#392), applied after the EQ bank (whose
- * auto-headroom would cancel a boost) and before the 16-bit clamp.
+ * auto-headroom would cancel a boost), then the peak limiter (#846, armed for a block with any frame
+ * above unity gain, zero latency, only releasing otherwise) and the 16-bit clamp.
  *
  * <p>The gain is one signed dB per queue entry, keyed by the just_audio source id
  * ({@code levels}). The renderer ({@link NavisAudioRenderer}) tells this stage which
@@ -35,7 +36,11 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
     private EqualizerDsp.Bank outgoing;
     private int sampleRate, channels, fadeRemaining, fadeFrames;
     private volatile double appliedDb;
-    private volatile long boostClipSamples;
+    private volatile long boostClipSamples, limitedFrames;
+    // Sized in onConfigure so queueInput allocates nothing. Playback thread only.
+    private static final int LIMITER_FRAMES = 4096;
+    private EqualizerDsp.Limiter limiter;
+    private float[] limiterBuffer = new float[0];
     private EqualizerDsp.GainRamp ramp = new EqualizerDsp.GainRamp(1);
 
     // Signed dB by source id. An immutable map swapped whole: the method-channel thread writes,
@@ -202,6 +207,7 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         result.put("replayGainCurrentKey", currentKey);
         result.put("replayGainAppliedDb", appliedDb);
         result.put("boostClipSamples", boostClipSamples);
+        result.put("limitedFrames", limitedFrames);
         return result;
     }
 
@@ -215,6 +221,8 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
             channels = input.channelCount;
             requested = new EqualizerDsp.Bank(configuration, sampleRate, channels);
         }
+        limiter = new EqualizerDsp.Limiter(sampleRate, LIMITER_FRAMES);
+        limiterBuffer = new float[LIMITER_FRAMES * channels];
         return input;
     }
 
@@ -226,6 +234,7 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
             }
             applied = requested;
         }
+        if (limiter != null) limiter.reset(); // a song start or a seek: no reduction carries over
         outgoing = null;
         fadeRemaining = 0;
         fadeFrames = Math.max(1, sampleRate / 50);
@@ -259,30 +268,41 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         // cannot land on the wrong side of a boundary.
         if (liveRefresh.getAndSet(false)) currentDb = levelOf(currentKey);
         ramp.setTarget(currentDb);
-        long clipped = 0;
+        long clipped = 0, limited = 0;
         ByteBuffer output = replaceOutputBuffer(input.remaining());
+        float[] buffer = limiterBuffer;
         while (input.remaining() >= channels * 2) {
-            double gain = ramp.next();
-            double mix = fadeRemaining == 0 ? 1 : 1 - (double) fadeRemaining / fadeFrames;
-            for (int channel = 0; channel < channels; channel++) {
-                double value = input.getShort() / 32768.0;
-                double next = current == null ? value : current.process(value, channel);
-                if (fadeRemaining > 0) {
-                    double old = outgoing.process(value, channel);
-                    next = old + (next - old) * mix;
+            int frames = Math.min(LIMITER_FRAMES, input.remaining() / (channels * 2));
+            boolean boosted = false;
+            for (int f = 0; f < frames; f++) {
+                double gain = ramp.next();
+                boosted |= gain > 1;
+                double mix = fadeRemaining == 0 ? 1 : 1 - (double) fadeRemaining / fadeFrames;
+                for (int channel = 0; channel < channels; channel++) {
+                    double value = input.getShort() / 32768.0;
+                    double next = current == null ? value : current.process(value, channel);
+                    if (fadeRemaining > 0) {
+                        double old = outgoing.process(value, channel);
+                        next = old + (next - old) * mix;
+                    }
+                    buffer[f * channels + channel] = (float) (next * gain);
                 }
-                long scaled = Math.round(next * gain * 32768);
+                if (fadeRemaining > 0 && --fadeRemaining == 0) outgoing = null;
+            }
+            limited += limiter.process(buffer, channels, frames, boosted);
+            for (int i = 0; i < frames * channels; i++) {
+                long scaled = Math.round(buffer[i] * 32768.0);
                 if (scaled > 32767 || scaled < -32768) {
-                    if (gain > 1) clipped++;
+                    if (boosted) clipped++;
                     scaled = Math.max(-32768, Math.min(32767, scaled));
                 }
                 output.putShort((short) scaled);
             }
-            if (fadeRemaining > 0 && --fadeRemaining == 0) outgoing = null;
         }
         output.flip();
         appliedDb = ramp.db();
         if (clipped > 0) boostClipSamples += clipped;
+        if (limited > 0) limitedFrames += limited;
     }
 
     @Override
@@ -291,6 +311,8 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
             sampleRate = channels = 0;
             requested = applied = null;
         }
+        limiter = null;
+        limiterBuffer = new float[0];
         outgoing = null;
         fadeRemaining = 0;
         ramp = new EqualizerDsp.GainRamp(1);

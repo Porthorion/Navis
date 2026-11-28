@@ -47,12 +47,13 @@ final pendingSetupHighlightsProvider = Provider<Set<SetupHighlight>>((ref) {
 /// Use OLED When Dark only exists in Auto mode and the Flat areas only while
 /// Flat Surfaces is on, so while they are hidden they do not count: the tag
 /// must lead to something the user can actually see. Highlights that live on
-/// the Interface page do not count here, or the tag would never clear.
+/// the Interface or Playback page do not count here, or the tag would never
+/// clear.
 final themesHasNewOptionsProvider = Provider<bool>(
   (ref) => _hasVisibleNewOptions(
     ref,
     includeStandalone: true,
-    where: (highlight) => !highlight.onInterfacePage,
+    page: SetupHighlightPage.themes,
   ),
 );
 
@@ -61,7 +62,18 @@ final interfaceHasNewOptionsProvider = Provider<bool>(
   (ref) => _hasVisibleNewOptions(
     ref,
     includeStandalone: true,
-    where: (highlight) => highlight.onInterfacePage,
+    page: SetupHighlightPage.interface,
+  ),
+);
+
+/// Whether Settings home should mark Playback as having new options. The
+/// Loudness setting only exists while ReplayGain is on, so while it is off
+/// the tag would lead nowhere.
+final playbackHasNewOptionsProvider = Provider<bool>(
+  (ref) => _hasVisibleNewOptions(
+    ref,
+    includeStandalone: true,
+    page: SetupHighlightPage.playback,
   ),
 );
 
@@ -75,18 +87,21 @@ final quickCustomizationHasNewOptionsProvider = Provider<bool>(
 bool _hasVisibleNewOptions(
   Ref ref, {
   required bool includeStandalone,
-  bool Function(SetupHighlight highlight)? where,
+  SetupHighlightPage? page,
 }) {
   final pending = ref.watch(pendingSetupHighlightsProvider);
   final autoMode = ref.watch(themeModeProvider) == 'system';
   final flat = ref.watch(flatSurfacesProvider);
+  final replayGainOn =
+      ref.watch(appSettingsProvider).asData?.value.replayGainMode != 'off';
   return pending.any(
     (highlight) =>
         (includeStandalone || !highlight.standalone) &&
-        (where?.call(highlight) ?? true) &&
+        (page == null || highlight.page == page) &&
         switch (highlight) {
           SetupHighlight.oledForAuto => autoMode,
           SetupHighlight.flatAreas => flat,
+          SetupHighlight.loudnessPresets => replayGainOn,
           _ => true,
         },
   );

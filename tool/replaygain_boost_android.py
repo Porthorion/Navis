@@ -28,7 +28,7 @@ import seek_reliability_diagnostics as seek  # noqa: E402
 PROJECT = Path(__file__).resolve().parents[1]
 PACKAGE = 'com.navis.app.navis.rgboost'
 REMOTE = f'/data/user/0/{PACKAGE}/files/diag'
-Q1, H1, Q2, H2, QL = 'rgq-1', 'rgh-1', 'rgq-2', 'rgh-2', 'rgl-1'
+Q1, H1, Q2, H2, QL, F1 = 'rgq-1', 'rgh-1', 'rgq-2', 'rgh-2', 'rgl-1', 'rgf-1'
 
 
 class Run:
@@ -111,6 +111,7 @@ class Run:
             with (self.out / 'build.log').open('w') as log:
                 subprocess.run(command, cwd=PROJECT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
             apk.write_bytes((PROJECT / 'build/app/outputs/flutter-apk/app-sideload-profile.apk').read_bytes())
+        self.shell('uninstall', PACKAGE, check=False)  # this sidecar only: a rerun starts from a fresh profile
         self.shell('install', '-r', str(apk))
         self.shell('shell', 'pm', 'grant', PACKAGE, 'android.permission.POST_NOTIFICATIONS')
         self.shell('shell', 'run-as', PACKAGE, 'mkdir', '-p', 'files/diag')
@@ -139,7 +140,7 @@ class Run:
         self.wait(lambda: self.api('GET', '/v1/health')['catalog']['songs'] >= 5, 120, 1, 'the catalog sync')
         self.post('/v1/presentation/onboarding/complete')
         self.post('/v1/playback/volume', {'value': 0})
-        self.post('/v1/playback/replay-gain', {'mode': 'track', 'preamp': 0})
+        self.post('/v1/playback/replay-gain', {'mode': 'track', 'loudness': 'custom', 'preamp': 0})
 
     def restart(self, mutate_db=None):
         try:
@@ -213,13 +214,24 @@ class Run:
             self.launch()
             self.connect()
             self.start_sampler()
-            self.scenarios()
+            self.loudness() if self.args.loudness else self.scenarios()
         finally:
             self.stop_sampler()
             self.samples.close()
             self.ordering.close()
             subprocess.run(self.adb + ['shell', 'am', 'force-stop', PACKAGE], capture_output=True)
             server.shutdown()
+
+    def loudness(self):
+        """A3 (#846): F under Loud, Normal and Quiet, then H under Loud, each from 5 s for 8 s (F's bursts at 5.5, 8.5 and
+        11.5 s). The preset is set before the queue loads, so the decision is the preset's from the first sample."""
+        for loudness, song in (('loud', F1), ('normal', F1), ('quiet', F1), ('loud', H1)):
+            self.phase = f'a3-{loudness}-{song}'
+            self.post('/v1/playback/replay-gain', {'mode': 'track', 'loudness': loudness, 'preamp': 0})
+            self.steady([song, Q2], seconds=8)  # the queue API needs two songs
+        self.phase = 'done'
+        self.post('/v1/playback/replay-gain', {'mode': 'track', 'loudness': 'custom', 'preamp': 0})
+        (self.out / 'a1-final.json').write_text(json.dumps(self.status(), indent=2))
 
     def scenarios(self):
         queue = [Q1, H1, Q2, H2]
@@ -472,6 +484,7 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--reuse-apk', action='store_true', help='install output/app.apk instead of building')
+    parser.add_argument('--loudness', action='store_true', help='A3: run only the loudness-preset phases (F, H)')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     Run(args).run()

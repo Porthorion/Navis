@@ -23,6 +23,8 @@ typedef struct Slot {
     // The ReplayGain boost (I24): the render thread owns the ramp, the busy flag
     // serialises it; the gain it ended the last block on is published for the state.
     NavisBoostRamp boost;
+    NavisLimiter limiter;           // behind the boost; its scratch is sized at slot creation
+    float *limiterScratch;
     bool boostAudioSeen;            // render thread: the boost saw a block of audio (not just empty ranges)
     _Atomic float appliedGain;
 } Slot;
@@ -38,7 +40,8 @@ struct NavisTapFormats {
     // The boost as a linear gain (1 = none), written by the main thread, read by every slot's
     // render thread once per block. Lock-free; the main thread does the pow.
     _Atomic float boostTarget;
-    _Atomic uint64_t boostClipSamples;    // samples beyond full scale after the boost gain
+    _Atomic uint64_t boostClipSamples;    // samples beyond full scale after the boost gain and the limiter (0 when it works)
+    _Atomic uint64_t limitedFrames;       // frames the limiter reduced
     // Published with release stores (pointer, then count); the render thread
     // acquires both. Slots are only freed by free-all and the final free, and
     // free-all only runs when no pipeline is live, so no render thread reaches
@@ -69,6 +72,7 @@ NavisTapFormats *navis_tap_formats_new(const NavisEqConfig *config, int32_t cent
     atomic_init(&t->pitchCents, cents);
     atomic_init(&t->boostTarget, 1.0f);
     atomic_init(&t->boostClipSamples, 0);
+    atomic_init(&t->limitedFrames, 0);
     for (int i = 0; i < NAVIS_TAP_MAX_FORMATS; i++) atomic_init(&t->slots[i], NULL);
     atomic_init(&t->slotCount, 0);
     atomic_init(&t->lastSlot, NULL);
@@ -86,6 +90,7 @@ static void slotFree(NavisTapFormats *t, Slot *s) {
     navis_pitch_stage_free(atomic_load(&s->pitch));
     if (s->au) t->factory.destroy(s->au);
     navis_eq_stream_free(s->eq);
+    free(s->limiterScratch);
     free(s);
 }
 
@@ -124,11 +129,14 @@ static Slot *slotNew(NavisTapFormats *t, int key, double rate, int channels, int
     atomic_flag_clear(&s->busy);
     atomic_init(&s->pendingStart, false);
     navis_boost_ramp_init(&s->boost, key);
+    s->limiterScratch = malloc((size_t)maxFrames * sizeof(float)); // never in the render path; NULL leaves the limiter inert
+    navis_limiter_init(&s->limiter, key, s->limiterScratch, s->limiterScratch ? maxFrames : 0);
     atomic_init(&s->appliedGain, 1.0f);
     s->rate = key;
     s->channels = channels;
     s->eq = navis_eq_stream_new(config, key, channels);
     if (!s->eq) {
+        free(s->limiterScratch);
         free(s);
         return NULL;
     }
@@ -412,10 +420,26 @@ void navis_tap_formats_process(NavisTapFormats *t, bool startOfStream, uint32_t 
         float target = atomic_load_explicit(&t->boostTarget, memory_order_relaxed);
         // The first block of audio snaps too: blocks without a range can prime the slot before it,
         // and the stream has no history to reset then, so no reset is decided for that block.
-        if (reset || startOfStream || (audioFrames > 0 && !s->boostAudioSeen)) navis_boost_ramp_snap(&s->boost, target);
+        if (reset || startOfStream || (audioFrames > 0 && !s->boostAudioSeen)) {
+            navis_boost_ramp_snap(&s->boost, target);
+            navis_limiter_reset(&s->limiter); // the same discontinuities restart the limiter at unity
+        }
         if (audioFrames > 0) s->boostAudioSeen = true;
         uint64_t clipped = 0;
+        float startGain = s->boost.gain;
         navis_boost_ramp_process(&s->boost, channels, count, frames, target, &clipped);
+        // The limiter guards the boost: armed when the (linear) ramp is above 1 at the start or the
+        // end of the block, so a ramp-down that finishes mid-block is still guarded; unarmed it only
+        // releases, until its own gain has recovered. The ramp counted the overs it made; only what the limiter leaves
+        // is counted as clipping (0 when it works), recounted just when the ramp saw any.
+        uint64_t limited = navis_limiter_process(&s->limiter, channels, count, frames,
+                                                startGain > 1.0f || s->boost.gain > 1.0f);
+        if (limited) atomic_fetch_add_explicit(&t->limitedFrames, limited, memory_order_relaxed);
+        if (clipped) {
+            clipped = 0;
+            for (int c = 0; c < count; c++)
+                for (int i = 0; i < frames; i++) clipped += fabsf(channels[c][i]) > 1.0f;
+        }
         if (clipped) atomic_fetch_add_explicit(&t->boostClipSamples, clipped, memory_order_relaxed);
         atomic_store_explicit(&s->appliedGain, s->boost.gain, memory_order_relaxed);
     }
@@ -473,6 +497,7 @@ void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out) {
     out->pitchResetCount = t->retiredPitchResets;
     out->pitchPullMismatches = t->retiredMismatches;
     out->boostClipSamples = atomic_load_explicit(&t->boostClipSamples, memory_order_relaxed);
+    out->limitedFrames = atomic_load_explicit(&t->limitedFrames, memory_order_relaxed);
     out->boostAppliedGain = report ? atomic_load_explicit(&report->appliedGain, memory_order_relaxed) : 1.0f;
     for (int i = 0; i < n; i++) {
         Slot *s = atomic_load_explicit(&t->slots[i], memory_order_relaxed);

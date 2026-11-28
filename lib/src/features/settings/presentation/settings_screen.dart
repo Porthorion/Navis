@@ -55,6 +55,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final themesHasNewOptions = ref.watch(themesHasNewOptionsProvider);
     final interfaceHasNewOptions = ref.watch(interfaceHasNewOptionsProvider);
+    final playbackHasNewOptions = ref.watch(playbackHasNewOptionsProvider);
     final quickHasNewOptions = ref.watch(
       quickCustomizationHasNewOptionsProvider,
     );
@@ -86,6 +87,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           title: l10n.settingsPlaybackTitle,
           subtitle: l10n.settingsPlaybackSubtitle,
           page: SettingsPage.playback,
+          adornment: playbackHasNewOptions ? newOptionsTag : null,
         ),
         _SettingsEntry(
           icon: Icons.equalizer,

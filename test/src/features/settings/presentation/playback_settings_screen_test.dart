@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -7,11 +8,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
@@ -20,6 +25,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_playback_handler.dart';
@@ -640,6 +646,419 @@ void main() {
       });
     });
 
+    group('Loudness presets', () {
+      const minus = '−';
+      AppSettingsModel? saved;
+      var saves = 0;
+      final seenOptions = <SetupHighlight>[];
+
+      setUp(() {
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      });
+
+      Future<void> pump(
+        WidgetTester tester, {
+        String mode = 'smart',
+        ReplayGainLoudness loudness = ReplayGainLoudness.normal,
+        double preamp = 0,
+        bool boost = true,
+        bool limiter = true,
+        Size viewport = const Size(1280, 4000),
+        double textScale = 1,
+        Set<SetupHighlight> highlights = const <SetupHighlight>{},
+      }) async {
+        setAdaptiveTestViewport(tester, viewport);
+        saved = null;
+        saves = 0;
+        _BoostHandler.applied = 0;
+        seenOptions.clear();
+        when(() => repository.getSettings())
+            .thenAnswer((_) async => initialSettings);
+        when(() => repository.saveSettings(any())).thenAnswer((call) async {
+          saved = call.positionalArguments.first as AppSettingsModel;
+          saves++;
+        });
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  initialSettings.copyWith(
+                    replayGainMode: mode,
+                    replayGainLoudness: loudness,
+                    replayGainPreamp: preamp,
+                  ),
+                ),
+              ),
+              if (boost || limiter)
+                audioHandlerProvider.overrideWithValue(
+                  limiter ? _LimiterHandler() : _BoostHandler(),
+                ),
+              pendingSetupHighlightsProvider.overrideWithValue(highlights),
+              setupHighlightsServiceProvider.overrideWith(
+                (ref) => SetupHighlightsService(
+                  () async {},
+                  () async {},
+                  (option) async => seenOptions.add(option),
+                ),
+              ),
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
+              replayGainAutoUntaggedDbProvider.overrideWith(
+                (ref) async => -9.1,
+              ),
+              playbackAdjustmentsProvider.overrideWith(_FakeAdjustments.new),
+              equalizerProvider.overrideWith(_FakeEq.new),
+            ],
+            child: _buildTestApp(
+              desktopMode: viewport.width > 600,
+              textScale: textScale,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      Finder tile(String name) => find.byKey(ValueKey('loudness-$name'));
+      // "Custom" also names a crossfade type elsewhere on the page.
+      Finder inGroup(String text) => find.descendant(
+        of: find.byType(RadioGroup<ReplayGainLoudness>),
+        matching: find.text(text),
+      );
+      final slider = find.byKey(const ValueKey('loudness-custom-slider'));
+
+      String? selected(WidgetTester tester) => tester
+          .widget<RadioGroup<ReplayGainLoudness>>(
+            find.byType(RadioGroup<ReplayGainLoudness>),
+          )
+          .groupValue
+          ?.name;
+
+      Future<void> choose(WidgetTester tester, String name) async {
+        await _tapVisible(tester, tile(name));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> settleSave(WidgetTester tester) async {
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('four tiles with their subtitles, Normal by default', (
+        tester,
+      ) async {
+        await pump(tester);
+        expect(find.text('Loudness'), findsOneWidget);
+        expect(selected(tester), 'normal');
+        for (final text in [
+          'Quiet',
+          '${minus}18 LUFS · ReplayGain reference level, most headroom',
+          'Normal',
+          "${minus}14 LUFS · Like Spotify and YouTube's default level",
+          'Loud',
+          '${minus}11 LUFS · A limiter keeps peaks from clipping',
+          'Custom',
+          // Custom starts from where Normal sits: +4 dB.
+          '${minus}14.0 LUFS · +4.0 dB from the ReplayGain reference',
+        ]) {
+          expect(inGroup(text), findsOneWidget, reason: text);
+        }
+        expect(slider, findsNothing);
+        expect(find.textContaining('Pre-Amp'), findsNothing);
+      });
+
+      testWidgets('an unknown stored preset reads as Normal', (tester) async {
+        await pump(tester, loudness: ReplayGainLoudness.parse('turbo'));
+        expect(selected(tester), 'normal');
+      });
+
+      testWidgets('is hidden while ReplayGain is off', (tester) async {
+        await pump(tester, mode: 'off');
+        expect(find.text('Loudness'), findsNothing);
+        expect(tile('normal'), findsNothing);
+      });
+
+      testWidgets('a device that cannot boost says so; one that can, not', (
+        tester,
+      ) async {
+        const line =
+            'This device can only turn songs down, so louder presets reduce '
+            'the turn-down.';
+        await pump(tester, boost: false, limiter: false);
+        expect(find.text(line), findsOneWidget);
+        // The shared line above explains the limits, so Loud is just its level.
+        expect(inGroup('${minus}11 LUFS'), findsOneWidget);
+        expect(find.textContaining('Raises songs'), findsNothing);
+      });
+
+      testWidgets('with boost but no confirmed limiter Loud says so', (
+        tester,
+      ) async {
+        await pump(tester, limiter: false);
+        expect(
+          find.text(
+            '${minus}11 LUFS · Raises songs as far as their peaks allow',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('A limiter keeps'), findsNothing);
+        expect(find.textContaining('only turn songs down'), findsNothing);
+      });
+
+      testWidgets('choosing Custom seeds the slider from Normal: +4 dB', (
+        tester,
+      ) async {
+        // The stored pre-amp (2 dB) is not remembered.
+        await pump(tester, preamp: 2);
+        await choose(tester, 'custom');
+        expect(tester.widget<NavisSlider>(slider).value, 4);
+        expect(
+          find.text(
+            '${minus}14.0 LUFS · +4.0 dB from the ReplayGain reference',
+          ),
+          findsOneWidget,
+        );
+        await settleSave(tester);
+        expect(saved?.replayGainLoudness, ReplayGainLoudness.custom);
+        expect(saved?.replayGainPreamp, 4);
+      });
+
+      testWidgets('Custom seeds from the preset that was selected', (
+        tester,
+      ) async {
+        await pump(tester, loudness: ReplayGainLoudness.loud);
+        await choose(tester, 'custom');
+        expect(tester.widget<NavisSlider>(slider).value, 7);
+        await settleSave(tester);
+        expect(saved?.replayGainPreamp, 7);
+      });
+
+      testWidgets('Custom from Quiet starts at 0, not the stored pre-amp', (
+        tester,
+      ) async {
+        await pump(tester, loudness: ReplayGainLoudness.quiet, preamp: 5);
+        await choose(tester, 'custom');
+        expect(tester.widget<NavisSlider>(slider).value, 0);
+      });
+
+      testWidgets('a stored Custom keeps its offset and shows the slider', (
+        tester,
+      ) async {
+        await pump(tester, loudness: ReplayGainLoudness.custom, preamp: -2.5);
+        expect(selected(tester), 'custom');
+        final widget = tester.widget<NavisSlider>(slider);
+        expect(widget.value, -2.5);
+        expect(widget.min, -6);
+        expect(widget.max, 8);
+        expect(widget.divisions, 28);
+        expect(
+          find.text(
+            '${minus}20.5 LUFS · $minus'
+            '2.5 dB from the ReplayGain '
+            'reference',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('moving the slider updates the readout and saves', (
+        tester,
+      ) async {
+        await pump(tester, loudness: ReplayGainLoudness.custom, preamp: 4);
+        tester.widget<NavisSlider>(slider).onChanged!(8);
+        await tester.pump();
+        expect(
+          find.text(
+            '${minus}10.0 LUFS · +8.0 dB from the ReplayGain reference',
+          ),
+          findsOneWidget,
+        );
+        await settleSave(tester);
+        expect(saved?.replayGainLoudness, ReplayGainLoudness.custom);
+        expect(saved?.replayGainPreamp, 8);
+        tester.widget<NavisSlider>(slider).onChanged!(-6);
+        await tester.pump();
+        expect(
+          find.text(
+            '${minus}24.0 LUFS · $minus'
+            '6.0 dB from the ReplayGain '
+            'reference',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('the slider hides again on a preset', (tester) async {
+        await pump(tester, loudness: ReplayGainLoudness.custom, preamp: 1);
+        await choose(tester, 'quiet');
+        expect(slider, findsNothing);
+        await settleSave(tester);
+        expect(saved?.replayGainLoudness, ReplayGainLoudness.quiet);
+      });
+
+      testWidgets('autosave persists the chosen preset', (tester) async {
+        await pump(tester);
+        await choose(tester, 'loud');
+        await settleSave(tester);
+        expect(saved?.replayGainLoudness, ReplayGainLoudness.loud);
+        expect(saved?.replayGainMode, 'smart');
+        expect(saves, 1);
+      });
+
+      testWidgets('leaving within the debounce still saves and applies', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(tile('loud'));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(saves, 0);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        expect(saves, 1);
+        expect(saved?.replayGainLoudness, ReplayGainLoudness.loud);
+        expect(_BoostHandler.applied, 1);
+      });
+
+      testWidgets('leaving during a save still writes the newer choice', (
+        tester,
+      ) async {
+        await pump(tester);
+        final writes = <ReplayGainLoudness>[];
+        final gate = Completer<void>();
+        when(() => repository.saveSettings(any())).thenAnswer((call) async {
+          final model = call.positionalArguments.first as AppSettingsModel;
+          writes.add(model.replayGainLoudness);
+          if (writes.length == 1) {
+            await gate.future;
+          }
+        });
+        await choose(tester, 'loud');
+        await tester.pump(const Duration(milliseconds: 700));
+        expect(writes, [ReplayGainLoudness.loud]);
+        // Not choose(): the in-flight save keeps a spinner animating.
+        await tester.tap(tile('quiet'));
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpWidget(const SizedBox());
+        gate.complete();
+        await tester.pumpAndSettle();
+        expect(writes.last, ReplayGainLoudness.quiet);
+      });
+
+      testWidgets('the Custom slider is named and reads out its dB', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, loudness: ReplayGainLoudness.custom, preamp: 4);
+        // Not "57%": the value is the offset, announced under the label.
+        expect(find.semantics.byValue('+4.0 dB'), findsOneWidget);
+        expect(find.semantics.byValue('57%'), findsNothing);
+        expect(tester.getSemantics(slider).label, 'Loudness');
+        handle.dispose();
+      });
+
+      testWidgets('rapid switching saves once, with the last choice', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(tile('quiet'));
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.tap(tile('loud'));
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.tap(tile('custom'));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(saves, 0);
+        await settleSave(tester);
+        expect(saves, 1);
+        expect(saved?.replayGainLoudness, ReplayGainLoudness.custom);
+        // Seeded from Loud, the preset selected just before.
+        expect(saved?.replayGainPreamp, 7);
+      });
+
+      testWidgets('switching away and back before the save writes nothing', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(tile('loud'));
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.tap(tile('normal'));
+        // The frame that rebuilds the form is what cancels the pending save.
+        await tester.pump();
+        await settleSave(tester);
+        expect(saves, 0);
+      });
+
+      testWidgets(
+        'the tiles are one radio group, each named with its subtitle',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await pump(tester);
+          for (final (name, title, subtitle) in [
+            ('quiet', 'Quiet', 'ReplayGain reference level'),
+            ('normal', 'Normal', "Spotify and YouTube's default level"),
+            ('loud', 'Loud', 'A limiter keeps peaks'),
+            ('custom', 'Custom', 'from the ReplayGain reference'),
+          ]) {
+            final node = tester.getSemantics(tile(name));
+            expect(node.label, contains(title));
+            expect(node.label, contains(subtitle));
+            expect(
+              node.getSemanticsData().hasAction(SemanticsAction.tap),
+              isTrue,
+            );
+          }
+          handle.dispose();
+        },
+      );
+
+      testWidgets('large text and a landscape phone do not overflow', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          loudness: ReplayGainLoudness.custom,
+          preamp: -6,
+          viewport: const Size(800, 360),
+          textScale: 2,
+        );
+        await choose(tester, 'loud');
+        await choose(tester, 'custom');
+        expect(tester.takeException(), isNull);
+        await pump(tester, viewport: const Size(360, 700), textScale: 2);
+        await choose(tester, 'custom');
+        expect(tester.takeException(), isNull);
+        expect(tile('custom').hitTestable(), findsOneWidget);
+      });
+
+      testWidgets('the New tag sits on the Loudness label and clears', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          highlights: const <SetupHighlight>{SetupHighlight.loudnessPresets},
+        );
+        final label = find
+            .ancestor(of: find.text('Loudness'), matching: find.byType(Row))
+            .first;
+        expect(
+          find.descendant(of: label, matching: find.byType(NewFeatureTag)),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(seenOptions, <SetupHighlight>[SetupHighlight.loudnessPresets]);
+        // The tag stays for the visit even though the option is now cleared.
+        expect(find.byType(NewFeatureTag), findsOneWidget);
+      });
+
+      testWidgets('there is no tag when nothing is pending', (tester) async {
+        await pump(tester);
+        expect(find.byType(NewFeatureTag), findsNothing);
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(seenOptions, isEmpty);
+      });
+    });
+
     group('ReplayGain guidance', () {
       Future<void> pump(
         WidgetTester tester, {
@@ -648,6 +1067,7 @@ void main() {
         double? untaggedDb,
         LibraryGainStats? stats,
         bool boost = false,
+        bool limiter = false,
       }) async {
         setAdaptiveTestViewport(tester, const Size(1280, 1800));
         when(() => repository.getSettings())
@@ -665,8 +1085,10 @@ void main() {
                   ),
                 ),
               ),
-              if (boost)
-                audioHandlerProvider.overrideWithValue(_BoostHandler()),
+              if (boost || limiter)
+                audioHandlerProvider.overrideWithValue(
+                  limiter ? _LimiterHandler() : _BoostHandler(),
+                ),
               replayGainLibraryGainsProvider.overrideWith(
                 (ref) async =>
                     stats ?? (count: 3, median: -9.0, total: 100, withData: 82),
@@ -683,7 +1105,24 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      testWidgets('the intro says what a boost does where one exists', (
+      testWidgets('the intro mentions the Loud limiter where one exists', (
+        tester,
+      ) async {
+        await pump(tester, limiter: true);
+        expect(
+          find.text(
+            'ReplayGain plays every song at a similar volume. It turns loud '
+            'songs down, and turns quiet songs up only as far as their peak '
+            'level allows without distortion. Loud goes further, using a '
+            'limiter to keep peaks from clipping. Songs without ReplayGain '
+            'data are never turned up.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('never turns songs up'), findsNothing);
+      });
+
+      testWidgets('the intro makes no limiter claim without a limiter', (
         tester,
       ) async {
         await pump(tester, boost: true);
@@ -692,36 +1131,12 @@ void main() {
             'ReplayGain plays every song at a similar volume. It turns loud '
             'songs down, and turns quiet songs up only as far as their peak '
             'level allows without distortion. Songs without ReplayGain data '
-            'are never turned up. Most songs still end up quieter, so raise '
-            'the volume to compensate.',
+            'are never turned up.',
           ),
           findsOneWidget,
         );
-        expect(find.textContaining('never turns songs up'), findsNothing);
+        expect(find.textContaining('limiter'), findsNothing);
       });
-
-      for (final (preamp, text) in [
-        (-3.0, 'Turns every song down further.'),
-        (
-          0.0,
-          'Songs play at their ReplayGain level. Move it to turn every song '
-              'down or up by up to 6 dB.',
-        ),
-        (
-          4.0,
-          'Turns every song up, but never past what its peak level allows. '
-              'Songs without ReplayGain data or a peak level are never pushed '
-              'above their original level.',
-        ),
-      ]) {
-        testWidgets(
-          'with a boost stage the pre-amp says what $preamp dB does',
-          (tester) async {
-            await pump(tester, preamp: preamp, boost: true);
-            expect(find.text(text), findsOneWidget);
-          },
-        );
-      }
 
       testWidgets('the intro says it only turns songs down', (tester) async {
         await pump(tester);
@@ -754,25 +1169,6 @@ void main() {
       ]) {
         testWidgets('the $mode mode explains itself', (tester) async {
           await pump(tester, mode: mode);
-          expect(find.text(text), findsOneWidget);
-        });
-      }
-
-      const cap = "It can't push a song above its original level.";
-      for (final (preamp, text) in [
-        (-3.0, 'Turns every song down further. $cap'),
-        (
-          0.0,
-          'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. $cap',
-        ),
-        (
-          4.0,
-          'Gives back some of the turn-down, but never pushes a song above '
-              'its original level.',
-        ),
-      ]) {
-        testWidgets('the pre-amp says what $preamp dB does', (tester) async {
-          await pump(tester, preamp: preamp);
           expect(find.text(text), findsOneWidget);
         });
       }
@@ -1718,6 +2114,17 @@ Widget _buildTestApp({
 }
 
 class _BoostHandler extends InertPlaybackHandler {
+  /// How many times the settings were applied to the player, across handlers.
+  static int applied = 0;
+
   @override
   bool get replayGainBoostSupported => true;
+
+  @override
+  Future<void> applyRuntimeSettings() async => applied++;
+}
+
+class _LimiterHandler extends _BoostHandler {
+  @override
+  bool get replayGainLimiterSupported => true;
 }

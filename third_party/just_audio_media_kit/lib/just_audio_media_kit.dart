@@ -3,6 +3,7 @@ library just_audio_media_kit;
 
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
@@ -110,6 +111,17 @@ class JustAudioMediaKit extends JustAudioPlatform {
     ];
   }
 
+  /// Whether every live native player found `alimiter` in its libmpv and has
+  /// had no limiter write rejected. False with no player yet, and in a build
+  /// without the filter (the bundled Windows and macOS libmpv for now).
+  static bool get replayGainLimiterSupported {
+    final instance = JustAudioPlatform.instance;
+    if (instance is! JustAudioMediaKit || instance._players.isEmpty) {
+      return false;
+    }
+    return instance._players.values.every((p) => p.limiterSupported);
+  }
+
   /// Credential-free transport observations from live native players.
   static List<Map<String, Object?>>? debugTransportStates() {
     final instance = JustAudioPlatform.instance;
@@ -118,6 +130,11 @@ class JustAudioMediaKit extends JustAudioPlatform {
       for (final player in instance._players.values) player.debugTransportState
     ];
   }
+
+  /// Registers a prebuilt [player] as [init] would, without creating one.
+  @visibleForTesting
+  void debugRegisterPlayer(MediaKitPlayer player) =>
+      _players[player.id] = player;
 
   @override
   Future<AudioPlayerPlatform> init(InitRequest request) async {

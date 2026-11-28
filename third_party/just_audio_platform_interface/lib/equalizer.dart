@@ -99,6 +99,7 @@ class EqualizerStateMessage {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.limitedFrames = 0,
     this.boostGuarded = false,
     this.replayGainCutDb,
     this.replayGainNextCutDb,
@@ -147,6 +148,9 @@ class EqualizerStateMessage {
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;
+
+  /// Frames the native peak limiter turned down (Android processor, iOS tap).
+  final int limitedFrames;
   final bool boostGuarded;
 
   /// The iOS cut in each item's audio mix (I26), for diagnostics: the volume
@@ -234,6 +238,7 @@ class EqualizerStateMessage {
         boostRequestedDb: (map['boostRequestedDb'] as num?)?.toDouble() ?? 0,
         boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
         boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
+        limitedFrames: (map['limitedFrames'] as num?)?.toInt() ?? 0,
         boostGuarded: map['boostGuarded'] as bool? ?? false,
         replayGainCutDb: (map['replayGainCutDb'] as num?)?.toDouble(),
         replayGainNextCutDb: (map['replayGainNextCutDb'] as num?)?.toDouble(),

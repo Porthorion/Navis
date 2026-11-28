@@ -290,8 +290,13 @@ void main() {
           200,
           scrollable: find.byType(Scrollable).first,
         );
-        // Themes, Home & Library (Genres) and Quick Customization.
-        expect(find.byType(NewFeatureTag), findsNWidgets(3));
+        // Themes, Home & Library (Genres), Playback (Loudness) and Quick
+        // Customization. The 420 px landscape list is lazy: by the time Quick
+        // Customization is in view, the Playback row is no longer built.
+        expect(
+          find.byType(NewFeatureTag),
+          findsNWidgets(entry.key == 'compact wide landscape' ? 3 : 4),
+        );
       });
 
       testWidgets('is absent on the ${entry.key} layout when none pending', (
@@ -303,7 +308,7 @@ void main() {
     }
 
     testWidgets(
-      'Themes, Home & Library and Quick Customization say "Has new options"',
+      'Themes, Home & Library, Playback and Quick Customization say "Has new options"',
       (tester) async {
         final handle = tester.ensureSemantics();
         await pump(
@@ -320,6 +325,7 @@ void main() {
         for (final title in <String>[
           'Themes',
           'Home & Library',
+          'Playback',
           'Run Quick Customization',
         ]) {
           final row = find.ancestor(
@@ -341,7 +347,7 @@ void main() {
                 widget is Semantics &&
                 widget.properties.label == 'Has new options',
           ),
-          findsNWidgets(3),
+          findsNWidgets(4),
         );
         handle.dispose();
       },
@@ -368,6 +374,24 @@ void main() {
         expect(tagIn('Home & Library'), findsOneWidget);
         expect(tagIn('Themes'), findsNothing);
         expect(tagIn('Run Quick Customization'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'the Loudness highlight tags Playback, not Themes or Home & Library',
+      (tester) async {
+        await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+          SetupHighlight.loudnessPresets,
+        });
+        Finder tagIn(String title) => find.descendant(
+          of: find
+              .ancestor(of: find.text(title), matching: find.byType(ListTile))
+              .first,
+          matching: find.byType(NewFeatureTag),
+        );
+        expect(tagIn('Playback'), findsOneWidget);
+        expect(tagIn('Themes'), findsNothing);
+        expect(tagIn('Home & Library'), findsNothing);
       },
     );
 

@@ -850,11 +850,12 @@ void main() {
             .where(
               (h) =>
                   h != SetupHighlight.appearanceLooks &&
-                  h != SetupHighlight.genresPage,
+                  h != SetupHighlight.genresPage &&
+                  h != SetupHighlight.loudnessPresets,
             )
             .toSet(),
       );
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 2));
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 3));
     });
 
     testWidgets('the hidden OLED and Flat area options are not marked seen', (
@@ -865,9 +866,9 @@ void main() {
       expect(_shownOptions, isNot(contains(SetupHighlight.oledForAuto)));
       expect(_shownOptions, isNot(contains(SetupHighlight.flatAreas)));
       expect(_shownOptions, contains(SetupHighlight.colorTuning));
-      // Not shown: Looks and Genres (Settings only), OLED and Flat areas
-      // (hidden here).
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 4));
+      // Not shown: Looks, Genres and Loudness (Settings only), OLED and Flat
+      // areas (hidden here).
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 5));
     });
 
     testWidgets(
